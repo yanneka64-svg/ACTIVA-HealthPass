@@ -1,0 +1,11 @@
+{
+  "name": "ACTIVA HealthPass Admin",
+  "description": "Comprehensive Health Insurance Administration & Claims Management System for ACTIVA HealthPass",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

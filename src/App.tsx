@@ -1,0 +1,1028 @@
+import { auth, db } from './lib/firebase';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { doc, getDoc, getDocs, onSnapshot, setDoc, collection } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import {
+  Language,
+  NavSection,
+  Member,
+  Organization,
+  Provider,
+  Claim,
+  InvoiceItem,
+  Enrollment,
+  Ceiling,
+  LoginLog,
+  MedicalForm,
+  AppNotification,
+} from './types';
+import { FirestoreService } from './services/firestore';
+import { WorkflowService } from './services/workflowService';
+import { seedInitialDemoDataIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
+import { Sidebar } from './components/Sidebar';
+import { Topbar } from './components/Topbar';
+import { LoginView } from './components/auth/LoginView';
+import { AuthLoadingScreen } from './components/auth/AuthLoadingScreen';
+import { AuthBlockedScreen } from './components/auth/AuthBlockedScreen';
+import { ChangePasswordModal } from './components/auth/ChangePasswordModal';
+import {
+  AppRole,
+  normalizeRole,
+  getDefaultSectionForRole,
+  isSectionAllowedForRole,
+} from './utils/authUtils';
+
+// Views
+import { DashboardView } from './views/DashboardView';
+import { ClaimsView } from './views/ClaimsView';
+import { InvoicesView } from './views/InvoicesView';
+import { EnrollmentsView } from './views/EnrollmentsView';
+import { ReportsView } from './views/ReportsView';
+import { MembersView } from './views/settings/MembersView';
+import { OrganizationsView } from './views/settings/OrganizationsView';
+import { ProvidersView } from './views/settings/ProvidersView';
+import { CeilingsView } from './views/settings/CeilingsView';
+import { AccountsView } from './views/settings/AccountsView';
+import { LogsView } from './views/settings/LogsView';
+
+import { AgentIdentificationView } from './views/agent/AgentIdentificationView';
+import { AgentMedicalFormView } from './views/agent/AgentMedicalFormView';
+import { AgentClaimsView } from './views/agent/AgentClaimsView';
+import { AgentEnrollmentsView } from './views/agent/AgentEnrollmentsView';
+import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon } from 'lucide-react';
+
+export type AuthStateStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'inactive' | 'invalid_role';
+
+export default function App() {
+  // Authentication & Role Resolution State Machine
+  const [authStatus, setAuthStatus] = useState<AuthStateStatus>('loading');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<AppRole | null>(null);
+  const [forcedFirstLogin, setForcedFirstLogin] = useState(false);
+  const [forcedPasswordExpiry, setForcedPasswordExpiry] = useState(false);
+
+  // Navigation Section
+  const [currentSection, setCurrentSection] = useState<NavSection>('dashboard');
+
+  const handleSelectSection = (sec: NavSection) => {
+    setCurrentSection(sec);
+    sessionStorage.setItem('activa_current_section', sec);
+  };
+
+  useEffect(() => {
+    let unsubAccountListener: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Clean up previous Firestore account listener if any
+      if (unsubAccountListener) {
+        unsubAccountListener();
+        unsubAccountListener = null;
+      }
+
+      // 1. If no Firebase User is signed in:
+      if (!firebaseUser) {
+        setAuthStatus('unauthenticated');
+        setCurrentUser(null);
+        setUserRole(null);
+        setForcedFirstLogin(false);
+        setForcedPasswordExpiry(false);
+        sessionStorage.removeItem('activa_current_section');
+        return;
+      }
+
+      // 2. User is signed in with Firebase Auth -> Keep status 'loading' while resolving profile & role
+      setAuthStatus('loading');
+
+      try {
+        // Listen directly to the single source of truth: accounts/{uid}
+        unsubAccountListener = onSnapshot(
+          doc(db, 'accounts', firebaseUser.uid),
+          async (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+
+              // Check if account has been marked inactive by Administrator
+              if (data.isActive === false || data.active === false) {
+                setCurrentUser({ ...firebaseUser, ...data });
+                setUserRole(null);
+                setAuthStatus('inactive');
+                return;
+              }
+
+              // Strict role resolution without guessing or hardcoding
+              const resolvedRole = normalizeRole(data.profile || data.role);
+              if (!resolvedRole) {
+                console.warn('Account does not have a valid operational role:', data);
+                setCurrentUser({ ...firebaseUser, ...data });
+                setUserRole(null);
+                setAuthStatus('invalid_role');
+                return;
+              }
+
+              // Dynamic entity & metadata from single source of truth
+              const userEntity =
+                data.entity ||
+                (data.country
+                  ? data.country.startsWith('ACTIVA')
+                    ? data.country
+                    : `ACTIVA ${data.country}`
+                  : 'ACTIVA Liberia');
+              const userCountry = data.country || userEntity.replace(/^ACTIVA\s+/i, '');
+              const userPosition =
+                data.position ||
+                (resolvedRole === 'Admin'
+                  ? 'Head of Health Operations'
+                  : resolvedRole === 'Supervisor'
+                  ? 'Medical Advisor / Supervisor'
+                  : 'Front Desk & Enrollment Agent');
+
+              // Security & Password expiration checks
+              if (data.isTemporaryPassword || data.mustChangePassword) {
+                setForcedFirstLogin(true);
+              } else {
+                setForcedFirstLogin(false);
+              }
+
+              const changedAt = data.passwordChangedAt || data.createdAt;
+              if (changedAt) {
+                const daysDiff = (Date.now() - new Date(changedAt).getTime()) / (1000 * 60 * 60 * 24);
+                setForcedPasswordExpiry(daysDiff > 60);
+              } else {
+                setForcedPasswordExpiry(false);
+              }
+
+              // Resolve allowed section for this exact role
+              const savedSec = sessionStorage.getItem('activa_current_section') as NavSection | null;
+              const isSavedAllowed = savedSec ? isSectionAllowedForRole(resolvedRole, savedSec) : false;
+              const targetSection = isSavedAllowed && savedSec ? savedSec : getDefaultSectionForRole(resolvedRole);
+
+              // Atomically update state
+              setCurrentSection(targetSection);
+              sessionStorage.setItem('activa_current_section', targetSection);
+
+              setCurrentUser({
+                ...firebaseUser,
+                ...data,
+                displayName: data.fullName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'ACTIVA Staff',
+                fullName: data.fullName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'ACTIVA Staff',
+                position: userPosition,
+                entity: userEntity,
+                country: userCountry,
+                profile: resolvedRole,
+              });
+
+              setUserRole(resolvedRole);
+              setAuthStatus('authenticated');
+            } else {
+              // Document accounts/{uid} does not exist yet. Check if an account was pre-seeded or created by email
+              try {
+                const accountsSnap = await getDocs(collection(db, 'accounts'));
+                const userEmail = (firebaseUser.email || '').toLowerCase().trim();
+                let matchedAccount: any = null;
+
+                for (const aDoc of accountsSnap.docs) {
+                  const aData = aDoc.data();
+                  const aEmail = (aData.email || '').toLowerCase().trim();
+                  const aAuthEmail = (aData.authEmail || '').toLowerCase().trim();
+                  const aUsername = (aData.username || '').toLowerCase().trim();
+
+                  if (
+                    aEmail === userEmail ||
+                    aAuthEmail === userEmail ||
+                    (userEmail.includes('@') && aUsername && userEmail.startsWith(aUsername + '@'))
+                  ) {
+                    matchedAccount = { ...aData, id: firebaseUser.uid };
+                    break;
+                  }
+                }
+
+                if (matchedAccount) {
+                  // Link account to the UID
+                  await setDoc(doc(db, 'accounts', firebaseUser.uid), matchedAccount, { merge: true });
+                  // The onSnapshot will automatically fire with the updated document
+                  return;
+                }
+
+                // Check fallback users/{uid} document
+                const usersDocSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
+                if (usersDocSnap.exists()) {
+                  const uData = usersDocSnap.data();
+                  await setDoc(doc(db, 'accounts', firebaseUser.uid), { ...uData, id: firebaseUser.uid }, { merge: true });
+                  return;
+                }
+
+                // If genuinely no matching account profile exists:
+                setCurrentUser(firebaseUser);
+                setUserRole(null);
+                setAuthStatus('invalid_role');
+              } catch (e) {
+                console.error('Error checking accounts for authenticated user:', e);
+                setCurrentUser(firebaseUser);
+                setUserRole(null);
+                setAuthStatus('invalid_role');
+              }
+            }
+          },
+          (error) => {
+            console.error('Firestore account profile subscription error:', error);
+            setCurrentUser(firebaseUser);
+            setUserRole(null);
+            setAuthStatus('invalid_role');
+          }
+        );
+      } catch (err) {
+        console.error('Error resolving user account:', err);
+        setCurrentUser(firebaseUser);
+        setUserRole(null);
+        setAuthStatus('invalid_role');
+      }
+    });
+
+    return () => {
+      if (unsubAccountListener) unsubAccountListener();
+      unsubscribeAuth();
+    };
+  }, []);
+
+  // Language State (Pure English system)
+  const [lang] = useState<Language>('en');
+
+  // Change Password Modal Triggered from Topbar
+  const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
+
+  // Entities Data State with initial fallbacks for offline resilience
+  const demoData = React.useMemo(() => getFullDemoData(), []);
+  const [members, setMembers] = useState<Member[]>(() => (demoData.membersList || []) as Member[]);
+  const [organizations, setOrganizations] = useState<Organization[]>(() => (demoData.orgs || []) as Organization[]);
+  const [providers, setProviders] = useState<Provider[]>(() => (demoData.providers || []) as Provider[]);
+  const [claims, setClaims] = useState<Claim[]>(() => (demoData.sampleClaims || []) as Claim[]);
+  const [invoices, setInvoices] = useState<InvoiceItem[]>(() => (demoData.sampleInvoices || []) as InvoiceItem[]);
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [ceilings, setCeilings] = useState<Ceiling[]>(() => (demoData.sampleCeilings || []) as Ceiling[]);
+  const [logs, setLogs] = useState<LoginLog[]>([]);
+  const [medicalForms, setMedicalForms] = useState<MedicalForm[]>(() => (demoData.forms || []) as MedicalForm[]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  useEffect(() => {
+    localStorage.setItem('activa_lang', 'en');
+
+    if (authStatus === 'authenticated' && userRole) {
+      seedInitialDemoDataIfEmpty();
+      // Set up Firestore data listeners
+      const unsubMembers = FirestoreService.subscribeToMembers(setMembers);
+      const unsubOrgs = FirestoreService.subscribeToOrganizations(setOrganizations);
+      const unsubProviders = FirestoreService.subscribeToProviders(setProviders);
+      const unsubClaims = FirestoreService.subscribeToClaims(setClaims);
+      const unsubInvoices = FirestoreService.subscribeToInvoices(setInvoices);
+      const unsubEnrollments = FirestoreService.subscribeToEnrollments(setEnrollments);
+      const unsubCeilings = FirestoreService.subscribeToCeilings(setCeilings);
+      const unsubMedicalForms = FirestoreService.subscribeToMedicalForms(setMedicalForms);
+      const unsubNotifications = FirestoreService.subscribeToNotifications(setNotifications);
+
+      let unsubLogs: (() => void) | undefined;
+      if (userRole === 'Admin') {
+        unsubLogs = FirestoreService.subscribeToLogs(setLogs);
+      }
+
+      return () => {
+        unsubMembers();
+        unsubOrgs();
+        unsubProviders();
+        unsubClaims();
+        unsubInvoices();
+        unsubEnrollments();
+        unsubCeilings();
+        unsubMedicalForms();
+        unsubNotifications();
+        if (unsubLogs) unsubLogs();
+      };
+    }
+  }, [authStatus, userRole]);
+
+  const handleLoginSuccess = (user: any) => {
+    // onAuthStateChanged will handle atomic role resolution
+    FirestoreService.addLog({
+      userEmail: user?.email || 'user@activa-assurance.com',
+      ipAddress: 'Unknown',
+      status: 'success',
+      userAgent: navigator.userAgent,
+      location: 'Unknown',
+    });
+  };
+
+  const handleLogout = async () => {
+    setAuthStatus('loading');
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn('SignOut error:', e);
+    } finally {
+      localStorage.removeItem('activa_auth_session');
+      sessionStorage.clear();
+      setCurrentUser(null);
+      setUserRole(null);
+      setCurrentSection('dashboard');
+      setAuthStatus('unauthenticated');
+    }
+  };
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isReloadingDemo, setIsReloadingDemo] = useState<boolean>(false);
+
+  const handleResetDemoData = async () => {
+    setIsReloadingDemo(true);
+    try {
+      const data = getFullDemoData();
+      setMembers((data.membersList || []) as Member[]);
+      setOrganizations((data.orgs || []) as Organization[]);
+      setProviders((data.providers || []) as Provider[]);
+      setClaims((data.sampleClaims || []) as Claim[]);
+      setInvoices((data.sampleInvoices || []) as InvoiceItem[]);
+      setCeilings((data.sampleCeilings || []) as Ceiling[]);
+      setMedicalForms((data.forms || []) as MedicalForm[]);
+
+      await forceReloadDemoData();
+      setToastMessage("All application demo records reloaded successfully!");
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err: any) {
+      console.error(err);
+      setToastMessage("Error during reload: " + (err.message || 'Unknown error'));
+      setTimeout(() => setToastMessage(null), 5000);
+    } finally {
+      setIsReloadingDemo(false);
+    }
+  };
+
+  const handleResetBlankData = () => {
+    setToastMessage("Blank mode activated.");
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // CLAIMS HANDLERS WITH MULTI-ROLE NOTIFICATIONS & AUDIT
+  const handleApproveClaim = async (claimId: string) => {
+    const claim = claims.find((c) => c.id === claimId);
+    if (!claim) return;
+    await WorkflowService.approveClaim(claim, currentUser);
+    setToastMessage(`Claim #${claim.reference} approved successfully.`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleRejectClaim = async (claim: Claim, reason: string, comments: string) => {
+    await WorkflowService.rejectClaim(claim, reason, comments, currentUser);
+    setToastMessage(`Claim #${claim.reference} rejected.`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleReturnClaim = (claim: Claim, reason: string) => {
+    const updated: Claim = {
+      ...claim,
+      status: 'returned',
+      returnReason: reason,
+      decisionDate: new Date().toISOString().split('T')[0],
+      comments: `File returned for correction: ${reason}`,
+    };
+    FirestoreService.updateClaim(updated);
+  };
+
+  const handleAssignClaim = (claim: Claim, agentName: string) => {
+    const updated: Claim = {
+      ...claim,
+      assignedAgentName: agentName,
+      comments: (claim.comments ? claim.comments + ' | ' : '') + `Assigned to ${agentName}`,
+    };
+    FirestoreService.updateClaim(updated);
+  };
+
+  const handleDeleteClaim = (claimId: string) => {
+    FirestoreService.deleteClaim(claimId);
+  };
+
+  const handleCreateClaim = async (newClaim: Partial<Claim>) => {
+    await WorkflowService.submitClaim(newClaim, currentUser);
+    setToastMessage("Claim submitted for review.");
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // ENROLLMENTS HANDLERS WITH POPULATION UPON APPROVAL
+  const handleApproveEnrollment = async (enrId: string) => {
+    const enr = enrollments.find((e) => e.id === enrId);
+    if (!enr) return;
+    await WorkflowService.approveEnrollment(enr, members, currentUser);
+    setToastMessage(`Enrollment for ${enr.fullName} approved and added to Insured Members.`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleRejectEnrollment = async (enr: Enrollment, reason: string) => {
+    await WorkflowService.rejectEnrollment(enr, reason, currentUser);
+    setToastMessage(`Enrollment for ${enr.fullName} rejected.`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleReturnEnrollment = (enr: Enrollment, reason: string) => {
+    const updated: Enrollment = {
+      ...enr,
+      status: 'returned',
+      returnReason: reason,
+      decisionDate: new Date().toISOString().split('T')[0],
+    };
+    FirestoreService.updateEnrollment(updated);
+  };
+
+  const handleAssignEnrollment = (enr: Enrollment, agentName: string) => {
+    const updated: Enrollment = {
+      ...enr,
+      assignedAgentName: agentName,
+    };
+    FirestoreService.updateEnrollment(updated);
+  };
+
+  const handleDeleteEnrollment = (enrId: string) => {
+    FirestoreService.deleteEnrollment(enrId);
+  };
+
+  const handleCreateEnrollment = async (newEnr: Partial<Enrollment>) => {
+    // Submit enrollment to validation queue WITHOUT registering into members until approved
+    await WorkflowService.submitEnrollment(newEnr, currentUser);
+    setToastMessage("Enrollment submitted for supervisor validation.");
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // MEMBERS HANDLERS WITH CASCADING LOGIC
+  const handleAddMember = (m: Partial<Member>) => {
+    FirestoreService.addMember(m);
+  };
+
+  const handleUpdateMember = (m: Member) => {
+    FirestoreService.updateMember(m);
+  };
+
+  const handleSuspendMember = async (m: Member) => {
+    // 1. Suspend principal
+    const updatedPrincipal: Member = {
+      ...m,
+      status: 'Suspendu',
+    };
+    await FirestoreService.updateMember(updatedPrincipal);
+
+    // 2. Log workflow notification & audit
+    await WorkflowService.logAction(
+      'MEMBER_SUSPENDED',
+      'member',
+      m.id,
+      `Insured Member ${m.principalName} (Card #${m.cardNo}) and all associated dependants were SUSPENDED.`,
+      currentUser
+    );
+
+    setToastMessage(`Member ${m.principalName} and all linked dependants are now SUSPENDED.`);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleReactivateMember = async (m: Member) => {
+    const updatedPrincipal: Member = {
+      ...m,
+      status: 'Actif',
+    };
+    await FirestoreService.updateMember(updatedPrincipal);
+
+    await WorkflowService.logAction(
+      'MEMBER_REACTIVATED',
+      'member',
+      m.id,
+      `Insured Member ${m.principalName} (Card #${m.cardNo}) and dependants have been REACTIVATED.`,
+      currentUser
+    );
+
+    setToastMessage(`Member ${m.principalName} is now REACTIVATED.`);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleDeleteMember = (id: string) => {
+    FirestoreService.deleteMember(id);
+  };
+
+  const handleImportMembers = (imported: Partial<Member>[]) => {
+    imported.forEach((i) => FirestoreService.addMember(i));
+  };
+
+  // ORGANIZATIONS HANDLERS WITH CASCADING MEMBER SUSPENSION
+  const handleAddOrg = (org: Partial<Organization>) => {
+    FirestoreService.addOrganization(org);
+  };
+
+  const handleUpdateOrg = (org: Organization) => {
+    FirestoreService.updateOrganization(org);
+  };
+
+  const handleSuspendOrg = async (org: Organization) => {
+    // 1. Update Organization status in Firestore
+    const updatedOrg: Organization = {
+      ...org,
+      status: 'Suspendu',
+    };
+    await FirestoreService.updateOrganization(updatedOrg);
+
+    // 2. Cascade: Suspend all members belonging to this organization
+    const orgMembers = members.filter(
+      (m) => m.organization?.toLowerCase().trim() === org.name.toLowerCase().trim()
+    );
+
+    for (const m of orgMembers) {
+      if (m.status !== 'Suspendu') {
+        await FirestoreService.updateMember({
+          ...m,
+          status: 'Suspendu',
+        });
+      }
+    }
+
+    // 3. Log Audit & Notifications
+    await WorkflowService.logAction(
+      'ORGANIZATION_SUSPENDED',
+      'organization',
+      org.id,
+      `Organization ${org.name} (Policy #${org.policyNumber}) SUSPENDED. Cascaded suspension to ${orgMembers.length} member policyholders and their dependants.`,
+      currentUser
+    );
+
+    setToastMessage(`Organization "${org.name}" suspended. All ${orgMembers.length} linked members & dependants blocked.`);
+    setTimeout(() => setToastMessage(null), 5000);
+  };
+
+  const handleReactivateOrg = async (org: Organization) => {
+    // 1. Reactivate Organization in Firestore
+    const updatedOrg: Organization = {
+      ...org,
+      status: 'Actif',
+    };
+    await FirestoreService.updateOrganization(updatedOrg);
+
+    // 2. Cascade Reactivation: Reactivate members belonging to this organization
+    const orgMembers = members.filter(
+      (m) => m.organization?.toLowerCase().trim() === org.name.toLowerCase().trim()
+    );
+
+    for (const m of orgMembers) {
+      if (m.status === 'Suspendu') {
+        await FirestoreService.updateMember({
+          ...m,
+          status: 'Actif',
+        });
+      }
+    }
+
+    await WorkflowService.logAction(
+      'ORGANIZATION_REACTIVATED',
+      'organization',
+      org.id,
+      `Organization ${org.name} (Policy #${org.policyNumber}) REACTIVATED. Restored coverage access for ${orgMembers.length} enrolled members.`,
+      currentUser
+    );
+
+    setToastMessage(`Organization "${org.name}" reactivated. Restored coverage for ${orgMembers.length} members.`);
+    setTimeout(() => setToastMessage(null), 5000);
+  };
+
+  const handleDeleteOrg = (id: string) => {
+    FirestoreService.deleteOrganization(id);
+  };
+
+  const handleImportOrgs = (imported: Partial<Organization>[]) => {
+    imported.forEach((i) => FirestoreService.addOrganization(i));
+  };
+
+  // PROVIDERS HANDLERS
+  const handleAddProvider = (prv: Partial<Provider>) => {
+    FirestoreService.addProvider(prv);
+    
+  };
+
+  const handleUpdateProvider = (prv: Provider) => {
+    FirestoreService.updateProvider(prv);
+    
+  };
+
+  const handleDeleteProvider = (id: string) => {
+    FirestoreService.deleteProvider(id);
+    
+  };
+
+  const handleImportProviders = (imported: Partial<Provider>[]) => {
+    imported.forEach(i => FirestoreService.addProvider(i));
+    
+  };
+
+  // CEILINGS HANDLERS
+  const handleAddCeiling = (c: Partial<Ceiling>) => {
+    FirestoreService.addCeiling(c);
+    
+  };
+
+  const handleUpdateCeiling = (c: Ceiling) => {
+    FirestoreService.updateCeiling(c);
+    
+  };
+
+  const handleDeleteCeiling = (id: string) => {
+    FirestoreService.deleteCeiling(id);
+    
+  };
+
+  // Badges Calculation for Sidebar
+  const pendingClaimsCount = claims.filter((c) => c.status === 'pending').length;
+  const pendingEnrollmentsCount = enrollments.filter((e) => e.status === 'pending').length;
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // 1. Loading screen: absolutely NO dashboard is rendered while resolving session & role
+  if (authStatus === 'loading') {
+    return <AuthLoadingScreen />;
+  }
+
+  // 2. Unauthenticated screen: render clean, secured Login view
+  if (authStatus === 'unauthenticated') {
+    return (
+      <LoginView
+        onLoginSuccess={handleLoginSuccess}
+        lang={lang}
+      />
+    );
+  }
+
+  // 3. Deactivated account screen: display inactive notice with clean logout button
+  if (authStatus === 'inactive') {
+    return (
+      <AuthBlockedScreen
+        reason="inactive"
+        userEmail={currentUser?.email}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // 4. Invalid or missing operational role screen
+  if (authStatus === 'invalid_role' || !userRole) {
+    return (
+      <AuthBlockedScreen
+        reason="invalid_role"
+        userEmail={currentUser?.email}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // 5. Authenticated state: ensure the active role is permitted to access currentSection
+  const activeRole = userRole;
+  const isCurrentSectionPermitted = isSectionAllowedForRole(activeRole, currentSection);
+  const effectiveSection: NavSection = isCurrentSectionPermitted ? currentSection : getDefaultSectionForRole(activeRole);
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0D2B63] font-sans flex antialiased selection:bg-[#0A347B] selection:text-white">
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 lg:hidden animate-in fade-in"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Fixed Sidebar */}
+      <div className={`fixed top-0 left-0 h-full z-50 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <Sidebar
+          currentSection={effectiveSection}
+          currentUser={currentUser}
+          userRole={activeRole}
+          onSelectSection={(section) => {
+            handleSelectSection(section);
+            setSidebarOpen(false); // Close on mobile after selection
+          }}
+          lang={lang}
+          pendingClaimsCount={pendingClaimsCount}
+          pendingEnrollmentsCount={pendingEnrollmentsCount}
+          onCloseMobile={() => setSidebarOpen(false)}
+        />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 lg:ml-[240px] flex flex-col min-w-0">
+        {/* Sticky Topbar */}
+        <Topbar
+          currentSection={effectiveSection}
+          currentUser={currentUser}
+          userRole={activeRole}
+          lang={lang}
+          notifications={notifications}
+          onMarkNotificationAsRead={(n) => FirestoreService.markNotificationRead(n.id)}
+          onMarkAllNotificationsAsRead={() => FirestoreService.markAllNotificationsRead(notifications)}
+          onSelectSection={(sec) => handleSelectSection(sec)}
+          onOpenChangePassword={() => setChangePasswordModalOpen(true)}
+          onLogout={handleLogout}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        />
+
+        {/* Global Toast Notification */}
+        {toastMessage && (
+          <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="bg-[#0D2B63] text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-[#0A347B] text-xs font-semibold">
+              <div className="w-2 h-2 rounded-full bg-[#00A878] animate-ping" />
+              <span>{toastMessage}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Section Router Content */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
+          {effectiveSection === 'dashboard' && (
+            <DashboardView
+              lang={lang}
+              userRole={activeRole}
+              currentUser={currentUser}
+              claims={claims}
+              enrollments={enrollments}
+              members={members}
+              organizations={organizations}
+              providers={providers}
+              onNavigate={handleSelectSection}
+              onApproveClaim={handleApproveClaim}
+              onRejectClaim={(c) => handleRejectClaim(c, 'Rejet médical', '')}
+              onApproveEnrollment={handleApproveEnrollment}
+              onRejectEnrollment={(e) => handleRejectEnrollment(e, 'Photo non conforme')}
+            />
+          )}
+
+          {effectiveSection === 'claims' && (
+            activeRole === 'Agent' ? (
+              <AgentClaimsView 
+                claims={claims}
+                members={members}
+                providers={providers}
+                organizations={organizations}
+                ceilings={ceilings}
+                lang={lang}
+                onCreateClaim={handleCreateClaim}
+              />
+            ) : (
+              <ClaimsView currentSection={effectiveSection} userRole={activeRole}
+                currentUser={currentUser}
+                lang={lang}
+                claims={claims}
+                organizations={organizations}
+                providers={providers}
+                members={members}
+                onApprove={handleApproveClaim}
+                onReject={handleRejectClaim}
+                onReturn={handleReturnClaim}
+                onAssign={handleAssignClaim}
+                onDelete={handleDeleteClaim}
+                onCreateClaim={handleCreateClaim}
+              />
+            )
+          )}
+
+          {effectiveSection === 'invoices' && (
+            <InvoicesView lang={lang} invoices={invoices} />
+          )}
+
+          {effectiveSection === 'enrollments' && (
+            activeRole === 'Agent' ? (
+              <AgentEnrollmentsView 
+                organizations={organizations}
+                enrollments={enrollments}
+                currentUser={currentUser}
+                userRole={activeRole}
+                lang={lang}
+                onCreateEnrollment={handleCreateEnrollment}
+              />
+            ) : (
+              <EnrollmentsView userRole={activeRole}
+                currentUser={currentUser}
+                lang={lang}
+                enrollments={enrollments}
+                organizations={organizations}
+                onApprove={handleApproveEnrollment}
+                onReject={handleRejectEnrollment}
+                onReturn={handleReturnEnrollment}
+                onAssign={handleAssignEnrollment}
+                onDelete={handleDeleteEnrollment}
+                onCreateEnrollment={handleCreateEnrollment}
+              />
+            )
+          )}
+
+          {effectiveSection === 'identification' && (
+            <AgentIdentificationView members={members} claims={claims} lang={lang} />
+          )}
+
+          {effectiveSection === 'medical_form' && (
+            <AgentMedicalFormView
+              providers={providers}
+              members={members}
+              organizations={organizations}
+              medicalForms={medicalForms}
+              userRole={activeRole}
+              lang={lang}
+              onCreateMedicalForm={(form) => FirestoreService.addMedicalForm(form)}
+              onUpdateMedicalForm={(form) => FirestoreService.updateMedicalForm(form)}
+            />
+          )}
+
+          {effectiveSection === 'claims_validation' && (
+            <ClaimsView currentSection={effectiveSection} userRole={activeRole}
+              currentUser={currentUser}
+              lang={lang}
+              claims={claims}
+              organizations={organizations}
+              providers={providers}
+              members={members}
+              onApprove={handleApproveClaim}
+              onReject={handleRejectClaim}
+              onReturn={handleReturnClaim}
+              onAssign={handleAssignClaim}
+              onDelete={handleDeleteClaim}
+              onCreateClaim={handleCreateClaim}
+            />
+          )}
+
+          {effectiveSection === 'enrollments_validation' && (
+            <EnrollmentsView userRole={activeRole}
+              currentUser={currentUser}
+              lang={lang}
+              enrollments={enrollments}
+              organizations={organizations}
+              onApprove={handleApproveEnrollment}
+              onReject={handleRejectEnrollment}
+              onReturn={handleReturnEnrollment}
+              onAssign={handleAssignEnrollment}
+              onDelete={handleDeleteEnrollment}
+              onCreateEnrollment={handleCreateEnrollment}
+            />
+          )}
+
+          {effectiveSection === 'receipts' && (
+            <InvoicesView lang={lang} invoices={invoices} />
+          )}
+
+          {effectiveSection === 'reports' && (
+            <ReportsView
+              lang={lang}
+              claims={claims}
+              invoices={invoices}
+              organizations={organizations}
+              providers={providers}
+            />
+          )}
+
+          {effectiveSection === 'members' && (
+            <MembersView userRole={activeRole}
+              lang={lang}
+              members={members}
+              organizations={organizations}
+              ceilings={ceilings}
+              onAddMember={handleAddMember}
+              onUpdateMember={handleUpdateMember}
+              onDeleteMember={handleDeleteMember}
+              onImportMembers={handleImportMembers}
+              onSuspendMember={handleSuspendMember}
+              onReactivateMember={handleReactivateMember}
+            />
+          )}
+
+          {effectiveSection === 'organizations' && (
+            <OrganizationsView
+              lang={lang}
+              organizations={organizations}
+              members={members}
+              onAddOrganization={handleAddOrg}
+              onUpdateOrganization={handleUpdateOrg}
+              onDeleteOrganization={handleDeleteOrg}
+              onImportOrganizations={handleImportOrgs}
+              onSuspendOrganization={handleSuspendOrg}
+              onReactivateOrganization={handleReactivateOrg}
+            />
+          )}
+
+          {effectiveSection === 'providers' && (
+            <ProvidersView
+              lang={lang}
+              providers={providers}
+              onAddProvider={handleAddProvider}
+              onUpdateProvider={handleUpdateProvider}
+              onDeleteProvider={handleDeleteProvider}
+              onImportProviders={handleImportProviders}
+            />
+          )}
+
+          {effectiveSection === 'ceilings' && (
+            <CeilingsView
+              lang={lang}
+              ceilings={ceilings}
+              organizations={organizations}
+              onAddCeiling={handleAddCeiling}
+              onUpdateCeiling={handleUpdateCeiling}
+              onDeleteCeiling={handleDeleteCeiling}
+            />
+          )}
+
+          {effectiveSection === 'accounts' && <AccountsView lang={lang} />}
+
+          {effectiveSection === 'logs' && <LogsView lang={lang} logs={logs} />}
+        </main>
+
+        {/* Mobile & Tablet Miniature Bottom Navigation Bar */}
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0B3B82] border-t border-white/10 z-30 flex items-center justify-around px-2 shadow-lg backdrop-blur-md">
+          <button
+            onClick={() => handleSelectSection('dashboard')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+              effectiveSection === 'dashboard' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
+            }`}
+          >
+            <LayoutDashboard className={`w-5 h-5 ${effectiveSection === 'dashboard' ? 'text-[#10B981]' : ''}`} />
+            <span className="text-[10px] mt-0.5">Overview</span>
+          </button>
+
+          <button
+            onClick={() => handleSelectSection('claims')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition relative ${
+              effectiveSection === 'claims' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
+            }`}
+          >
+            <Receipt className={`w-5 h-5 ${effectiveSection === 'claims' ? 'text-[#10B981]' : ''}`} />
+            <span className="text-[10px] mt-0.5">Claims</span>
+            {pendingClaimsCount > 0 && (
+              <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                {pendingClaimsCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => handleSelectSection('invoices')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+              effectiveSection === 'invoices' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
+            }`}
+          >
+            <FileText className={`w-5 h-5 ${effectiveSection === 'invoices' ? 'text-[#10B981]' : ''}`} />
+            <span className="text-[10px] mt-0.5">Invoices</span>
+          </button>
+
+          <button
+            onClick={() => handleSelectSection('enrollments')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition relative ${
+              effectiveSection === 'enrollments' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
+            }`}
+          >
+            <UserCheck className={`w-5 h-5 ${effectiveSection === 'enrollments' ? 'text-[#10B981]' : ''}`} />
+            <span className="text-[10px] mt-0.5">Enroll</span>
+            {pendingEnrollmentsCount > 0 && (
+              <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                {pendingEnrollmentsCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-white/70 hover:text-white transition"
+          >
+            <MenuIcon className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">Menu</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Global Change Password Modal from Topbar or Security Enforcement */}
+      <ChangePasswordModal
+        isOpen={changePasswordModalOpen || forcedFirstLogin || forcedPasswordExpiry}
+        onClose={() => {
+          if (!forcedFirstLogin && !forcedPasswordExpiry) {
+            setChangePasswordModalOpen(false);
+          }
+        }}
+        onSuccess={async (newPwd) => {
+          if (auth.currentUser) {
+            try {
+              const { updatePassword } = await import('firebase/auth');
+              await updatePassword(auth.currentUser, newPwd);
+              
+              const { doc, updateDoc } = await import('firebase/firestore');
+              await updateDoc(doc(db, 'accounts', auth.currentUser.uid), {
+                isTemporaryPassword: false,
+                mustChangePassword: false,
+                passwordChangedAt: new Date().toISOString()
+              });
+              
+              setForcedFirstLogin(false);
+              setForcedPasswordExpiry(false);
+              setChangePasswordModalOpen(false);
+              alert("Password updated successfully.");
+            } catch (error: any) {
+              alert("Error updating password: " + error.message);
+            }
+          }
+        }}
+        lang={lang}
+        isForcedFirstLogin={forcedFirstLogin}
+        isExpiredPassword={forcedPasswordExpiry}
+      />
+    </div>
+  );
+}

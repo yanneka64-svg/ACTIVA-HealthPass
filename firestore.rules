@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { 
+      return request.auth != null; 
+    }
+
+    match /accounts/{userId} {
+      allow read, write: if true;
+    }
+    
+    match /members/{memberId} {
+      allow read, write: if true;
+    }
+    
+    match /claims/{claimId} {
+      allow read, write: if true;
+    }
+
+    match /medicalForms/{formId} {
+      allow read, write: if true;
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read, write: if true;
+    }
+
+    match /invoices/{invoiceId} {
+      allow read, write: if true;
+    }
+    
+    match /organizations/{orgId} {
+      allow read, write: if true;
+    }
+    
+    match /providers/{providerId} {
+      allow read, write: if true;
+    }
+    
+    match /ceilings/{ceilingId} {
+      allow read, write: if true;
+    }
+
+    match /loginLogs/{logId} {
+      allow read, write: if true;
+    }
+    
+    match /auditLogs/{logId} {
+      allow read, write: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+
+
+

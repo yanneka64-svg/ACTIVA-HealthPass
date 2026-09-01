@@ -1,0 +1,75 @@
+{
+  "project_id": "gen-lang-client-0957905786",
+  "collections": [
+    {
+      "name": "users",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "members",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "organizations",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "providers",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "claims",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "invoices",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "enrollments",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "ceilings",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "logs",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "medicalForms",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    }
+  ]
+}
