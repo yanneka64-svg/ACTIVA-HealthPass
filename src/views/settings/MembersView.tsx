@@ -34,7 +34,7 @@ import {
 import { Member, Language, Organization, RelationshipType, MemberStatus, DependentRelationship, DependentItem, Ceiling } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
-import { exportMembersToCSV, exportMembersToExcel, parseMemberExcel } from '../../utils/excelUtils';
+import { exportMembersToCSV, exportMembersToExcel, parseMemberExcel, parseActivaMultiOrgExcel, generateMultiOrgTemplateExcel } from '../../utils/excelUtils';
 import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
 import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
@@ -203,6 +203,8 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   const [selectedOrg, setSelectedOrg] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [importModalOpen, setImportModalOpen] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : import multi-organisations dédié (classeur "Staff / Deps")
+  const [importMultiOrgModalOpen, setImportMultiOrgModalOpen] = useState(false);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
 
@@ -605,6 +607,21 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
             <UploadCloud className="w-4 h-4 text-[#10B981]" />
             <span>Import Excel</span>
           </button>
+          )}
+
+          {/* === AMÉLIORATION AJOUTÉE : import dédié pour les classeurs multi-organisations
+              (paires de feuilles "<Organisation> - Staff" / "<Organisation> - Deps"), distinct
+              du bouton "Import Excel" ci-dessus qui ne lit qu'une seule feuille/organisation === */}
+          {userRole === 'Admin' && (
+            <button
+              id="import-members-multi-org-btn"
+              onClick={() => setImportMultiOrgModalOpen(true)}
+              title="Importer un classeur multi-organisations (feuilles &quot;Organisation - Staff&quot; / &quot;Organisation - Deps&quot;)"
+              className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0a2e6b] border border-blue-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            >
+              <UploadCloud className="w-4 h-4 text-[#0a2e6b]" />
+              <span>Import Multi-Org (Staff/Deps)</span>
+            </button>
           )}
 
           {userRole === 'Admin' && (
@@ -1624,6 +1641,23 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         onSuccess={(importedList) => {
           onImportMembers(importedList);
           setImportModalOpen(false);
+        }}
+      />
+
+      {/* === AMÉLIORATION AJOUTÉE : MODALE D'IMPORT MULTI-ORGANISATIONS (Staff / Deps) ===
+          Réutilise le même composant ExcelImportModal et le même onImportMembers (donc la même
+          persistance Firestore corrigée dans App.tsx) — seul le parseur et le modèle diffèrent. */}
+      <ExcelImportModal<Member>
+        isOpen={importMultiOrgModalOpen}
+        onClose={() => setImportMultiOrgModalOpen(false)}
+        lang={lang}
+        title="Import Multi-Organisations (Staff / Deps)"
+        targetType="members-multi-org"
+        onImport={(file) => parseActivaMultiOrgExcel(file, members, organizations)}
+        onDownloadTemplate={generateMultiOrgTemplateExcel}
+        onSuccess={(importedList) => {
+          onImportMembers(importedList);
+          setImportMultiOrgModalOpen(false);
         }}
       />
 

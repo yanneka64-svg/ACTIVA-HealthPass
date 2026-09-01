@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Member, Organization, Provider, Claim, InvoiceItem } from '../types';
+import { Member, Organization, Provider, Claim, InvoiceItem, DependentItem } from '../types';
 
 // Normalization helper: remove accents, lowercase, trim, remove symbols
 export function normalizeHeader(header: string): string {
@@ -223,6 +223,452 @@ export function generateMemberTemplateExcel() {
   XLSX.utils.book_append_sheet(wb, ws, 'Members Template');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), 'ACTIVA_Members_Import_Template.xlsx');
+}
+
+// ================= AMÉLIORATION AJOUTÉE : IMPORT MULTI-ORGANISATIONS (classeur "Staff / Deps") =================
+// Import dédié pour les classeurs RH historiques structurés comme le fichier client fourni :
+// une paire de feuilles "<Organisation> - Staff" / "<Organisation> - Deps" PAR employeur, au lieu
+// d'une seule feuille plate. Ce format est INCOMPATIBLE avec parseMemberExcel() ci-dessus
+// (qui ne lit que la 1ère feuille et une seule organisation) : on ne modifie donc PAS
+// parseMemberExcel / generateMemberTemplateExcel (toujours disponibles pour les imports simples,
+// mono-feuille) — ce bloc ajoute un second chemin d'import, en plus.
+//
+// Règles de correspondance déduites du fichier réel fourni par le client :
+// - Feuille "<Org> - Staff" : 'Card No.', 'Primary Insured Name', 'Date of Birth', puis
+//   optionnellement 'Contact', 'Spouse Name' + 'Spouse Date of Birth', et des paires
+//   'Child N Name' + 'Child N Date of Birth' (N = 1..9). C'est la SEULE source du nom des
+//   ayants droit (le nom du conjoint/enfant n'apparaît nulle part dans la feuille "Deps").
+// - Feuille "<Org> - Deps" (mêmes 7 colonnes partout) : 'Card No.' (carte PROPRE à l'ayant
+//   droit), 'Relationship' ('Spouse' ou 'Child N' — le N correspond exactement à la colonne
+//   'Child N Name' de la feuille Staff), 'Date of Birth', 'Primary Insured' (nom du PRINCIPAL,
+//   pas de l'ayant droit), 'Primary Card No.', 'Organization', 'Biometrics'. C'est la SEULE
+//   source du numéro de carte individuel de chaque ayant droit — indispensable à
+//   l'identification / aux réclamations le concernant.
+// - L'organisation est déduite du nom de feuille (tout ce qui précède " - Staff"/" - Deps").
+//
+// Le résultat alimente à la fois `dependents[]` (structuré, avec cardNo propre — utilisé par
+// eligibilityService et la recherche Agent) ET les champs hérités `spouseName`/`children`
+// (chaîne "Nom (âge yrs)", même convention que parseMemberExcel / generateMemberTemplateExcel,
+// pour rester compatible avec l'affichage historique de AgentIdentificationView / MembersView).
+// Fusion avec les assurés déjà en base par numéro de carte, comme parseMemberExcel : un
+// réimport du même fichier met à jour au lieu de dupliquer.
+
+const STAFF_SHEET_SUFFIX = /\s*-\s*staff\s*$/i;
+const DEPS_SHEET_SUFFIX = /\s*-\s*deps\s*$/i;
+const CHILD_NAME_HEADER = /^child\s*(\d+)\s*name$/i;
+const CHILD_DOB_HEADER = /^child\s*(\d+)\s*(?:date of birth|dob|birth date)$/i;
+const CHILD_RELATIONSHIP_NUMBER = /child\s*(\d+)/i;
+
+// Convertit une valeur de cellule Excel (objet Date JS, numéro de série Excel, ou texte libre)
+// en 'YYYY-MM-DD'. Renvoie '' si la valeur est vide/illisible, pour laisser l'appelant décider
+// de la valeur par défaut (même logique que parseMemberExcel, qui utilise déjà des fallbacks).
+export function excelCellToISODate(raw: any): string {
+  if (raw === undefined || raw === null || raw === '') return '';
+  if (raw instanceof Date) {
+    if (isNaN(raw.getTime())) return '';
+    return raw.toISOString().split('T')[0];
+  }
+  if (typeof raw === 'number' && isFinite(raw)) {
+    try {
+      const parsed = (XLSX as any).SSF?.parse_date_code?.(raw);
+      if (parsed && parsed.y) {
+        const mm = String(parsed.m).padStart(2, '0');
+        const dd = String(parsed.d).padStart(2, '0');
+        return `${parsed.y}-${mm}-${dd}`;
+      }
+    } catch {
+      // ignore, fall through to string parsing below
+    }
+  }
+  const str = String(raw).trim();
+  if (!str) return '';
+  const asDate = new Date(str);
+  if (!isNaN(asDate.getTime())) {
+    return asDate.toISOString().split('T')[0];
+  }
+  return '';
+}
+
+function calcAgeFromISODate(iso: string): number | undefined {
+  if (!iso) return undefined;
+  const birth = new Date(iso);
+  if (isNaN(birth.getTime())) return undefined;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return Math.max(0, age);
+}
+
+// Normalisation cosmétique "TOUT MAJUSCULES" -> "Casse de titre" (ex: "ORANGE LIBERIA" ->
+// "Orange Liberia"), appliquée UNIQUEMENT quand le nom de feuille est entièrement en
+// majuscules. Les noms déjà en casse mixte (ex: "Samaritain Purse") ne sont pas modifiés.
+// Purement cosmétique : les comparaisons d'organisation dans le reste de l'app sont déjà
+// insensibles à la casse (.toLowerCase().trim()), donc cela n'affecte aucune logique métier.
+function titleCaseIfAllCaps(name: string): string {
+  const trimmed = (name || '').trim();
+  if (!trimmed || !/[A-Z]/.test(trimmed) || trimmed !== trimmed.toUpperCase()) return trimmed;
+  return trimmed
+    .toLowerCase()
+    .split(' ')
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
+// Si une organisation du même nom (insensible à la casse) existe déjà dans `existingOrganizations`
+// (ex: "Orange Liberia Telecom" créée depuis l'écran Organisations), on réutilise EXACTEMENT ce nom
+// au lieu du nom déduit de la feuille, pour que ceilings/eligibilityService/OrganizationsView
+// retrouvent bien l'organisation existante. Sinon on garde le nom déduit de la feuille.
+function reconcileOrganizationName(sheetOrgName: string, existingOrganizations: Organization[]): string {
+  const match = existingOrganizations.find(
+    (o) => o.name.toLowerCase().trim() === sheetOrgName.toLowerCase().trim()
+  );
+  return match ? match.name : sheetOrgName;
+}
+
+export interface MultiOrgImportResult extends ImportResult<Member> {
+  organizationsFound: string[];
+  newOrganizationsDetected: string[];
+  orphanDependents: number;
+}
+
+interface DepsSheetEntry {
+  relationshipRaw: string;
+  cardNo: string;
+  birthDate: string;
+  hasBiometrics: boolean;
+}
+
+export async function parseActivaMultiOrgExcel(
+  file: File,
+  existingMembers: Member[],
+  existingOrganizations: Organization[] = []
+): Promise<MultiOrgImportResult> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const buffer = e.target?.result;
+        // cellDates: true => les colonnes "Date of Birth" arrivent en objets Date JS exploitables
+        const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+        const sheetNames = workbook.SheetNames;
+        const staffSheetNames = sheetNames.filter((n) => STAFF_SHEET_SUFFIX.test(n));
+
+        if (staffSheetNames.length === 0) {
+          resolve({
+            success: false,
+            created: 0,
+            updated: 0,
+            ignored: 0,
+            missingHeaders: [],
+            errors: ['No "<Organization> - Staff" sheet found. Expected sheet names such as "Orange Liberia - Staff" / "Orange Liberia - Deps" (see downloadable template).'],
+            parsedItems: [],
+            organizationsFound: [],
+            newOrganizationsDetected: [],
+            orphanDependents: 0,
+          });
+          return;
+        }
+
+        const errors: string[] = [];
+        const organizationsFound: string[] = [];
+        const newOrganizationsDetected: string[] = [];
+        let created = 0;
+        let updated = 0;
+        let ignored = 0;
+        let orphanDependents = 0;
+        const updatedList: Member[] = [...existingMembers];
+
+        for (const staffSheetName of staffSheetNames) {
+          const sheetOrgName = staffSheetName.replace(STAFF_SHEET_SUFFIX, '').trim();
+          if (!sheetOrgName) {
+            errors.push(`Sheet "${staffSheetName}": could not determine the organization name from the sheet name, sheet skipped.`);
+            continue;
+          }
+          const organization = reconcileOrganizationName(titleCaseIfAllCaps(sheetOrgName), existingOrganizations);
+          organizationsFound.push(organization);
+          if (!existingOrganizations.some((o) => o.name.toLowerCase().trim() === organization.toLowerCase().trim())) {
+            newOrganizationsDetected.push(organization);
+          }
+
+          const staffSheet = workbook.Sheets[staffSheetName];
+          const staffRows: Record<string, any>[] = XLSX.utils.sheet_to_json(staffSheet, { defval: '' });
+          if (staffRows.length === 0) continue;
+
+          const staffHeaders = Object.keys(staffRows[0]);
+          const cardNoHeader = staffHeaders.find((h) => matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.cardNo));
+          const nameHeader = staffHeaders.find((h) => matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.principalName));
+          const dobHeader = staffHeaders.find((h) => matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.birthDate));
+          const contactHeader = staffHeaders.find((h) => /contact|phone|telephone/i.test(h));
+          const spouseDobHeader = staffHeaders.find((h) => /spouse/i.test(h) && /date|dob/i.test(h));
+          const spouseNameHeader = staffHeaders.find(
+            (h) => matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.spouseName) && h !== spouseDobHeader
+          );
+
+          if (!cardNoHeader || !nameHeader) {
+            errors.push(`Sheet "${staffSheetName}": missing "Card No." / "Primary Insured Name" column, sheet skipped.`);
+            continue;
+          }
+
+          // Detect "Child N Name" / "Child N Date of Birth" column pairs (N = however many exist)
+          const childColumns: { n: number; nameHeader: string; dobHeader?: string }[] = [];
+          staffHeaders.forEach((h) => {
+            const m = h.match(CHILD_NAME_HEADER);
+            if (m) {
+              const n = parseInt(m[1], 10);
+              const dobHeaderMatch = staffHeaders.find((h2) => {
+                const m2 = h2.match(CHILD_DOB_HEADER);
+                return !!m2 && parseInt(m2[1], 10) === n;
+              });
+              childColumns.push({ n, nameHeader: h, dobHeader: dobHeaderMatch });
+            }
+          });
+          childColumns.sort((a, b) => a.n - b.n);
+
+          // Index the matching "<Org> - Deps" sheet (if any) by principal card number.
+          const depsSheetName = sheetNames.find(
+            (n) => DEPS_SHEET_SUFFIX.test(n) && n.replace(DEPS_SHEET_SUFFIX, '').trim().toLowerCase() === sheetOrgName.toLowerCase()
+          );
+          const depsByPrincipalCard = new Map<string, DepsSheetEntry[]>();
+          if (depsSheetName) {
+            const depsRows: Record<string, any>[] = XLSX.utils.sheet_to_json(workbook.Sheets[depsSheetName], { defval: '' });
+            if (depsRows.length > 0) {
+              const depsHeaders = Object.keys(depsRows[0]);
+              const depPrincipalCardHeader = depsHeaders.find((h) => /primary\s*card/i.test(h));
+              // Exclusion explicite de "Primary Card No." : sans elle, la détection par alias
+              // (qui matche "card no" en sous-chaîne) pourrait s'y accrocher selon l'ordre des
+              // colonnes du fichier au lieu de la véritable colonne "Card No." de l'ayant droit.
+              const depCardHeader = depsHeaders.find((h) => h !== depPrincipalCardHeader && matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.cardNo));
+              const depRelHeader = depsHeaders.find((h) => matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.relationship));
+              const depDobHeader = depsHeaders.find((h) => matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.birthDate));
+              const depBiometricsHeader = depsHeaders.find((h) => /biometric/i.test(h));
+
+              depsRows.forEach((row) => {
+                const principalCardNo = depPrincipalCardHeader ? String(row[depPrincipalCardHeader] || '').trim() : '';
+                if (!principalCardNo) return;
+                const key = principalCardNo.toLowerCase();
+                const biomRaw = depBiometricsHeader ? String(row[depBiometricsHeader] || '').trim().toLowerCase() : '';
+                const entry: DepsSheetEntry = {
+                  relationshipRaw: depRelHeader ? String(row[depRelHeader] || '').trim() : '',
+                  cardNo: depCardHeader ? String(row[depCardHeader] || '').trim() : '',
+                  birthDate: depDobHeader ? excelCellToISODate(row[depDobHeader]) : '',
+                  hasBiometrics: biomRaw === 'yes' || biomRaw === 'true' || biomRaw === '1',
+                };
+                if (!depsByPrincipalCard.has(key)) depsByPrincipalCard.set(key, []);
+                depsByPrincipalCard.get(key)!.push(entry);
+              });
+            }
+          }
+
+          staffRows.forEach((row) => {
+            const cardNoVal = String(row[cardNoHeader] || '').trim();
+            const principalVal = String(row[nameHeader] || '').trim();
+            if (!cardNoVal || !principalVal) {
+              ignored++;
+              return;
+            }
+
+            const existingIndex = updatedList.findIndex((m) => m.cardNo.toLowerCase() === cardNoVal.toLowerCase());
+            const existingMember = existingIndex >= 0 ? updatedList[existingIndex] : undefined;
+
+            const birthDate = dobHeader ? excelCellToISODate(row[dobHeader]) : '';
+            const phone = contactHeader ? String(row[contactHeader] || '').trim() : '';
+            const spouseNameVal = spouseNameHeader ? String(row[spouseNameHeader] || '').trim() : '';
+            const spouseDobVal = spouseDobHeader ? excelCellToISODate(row[spouseDobHeader]) : '';
+
+            const depRows = depsByPrincipalCard.get(cardNoVal.toLowerCase()) || [];
+            const matchedDepRows = new Set<DepsSheetEntry>();
+
+            const dependents: DependentItem[] = [];
+            const childrenLegacy: string[] = [];
+
+            if (spouseNameVal) {
+              const depMatch = depRows.find((d) => d.relationshipRaw.toLowerCase() === 'spouse');
+              if (depMatch) matchedDepRows.add(depMatch);
+              dependents.push({
+                id: `dep-imp-${cardNoVal}-sp`,
+                cardNo: depMatch?.cardNo || undefined,
+                fullName: spouseNameVal,
+                relationship: 'spouse',
+                birthDate: spouseDobVal || depMatch?.birthDate || undefined,
+                hasBiometrics: depMatch?.hasBiometrics || false,
+              });
+            }
+
+            childColumns.forEach(({ n, nameHeader: childNameH, dobHeader: childDobH }) => {
+              const childName = String(row[childNameH] || '').trim();
+              if (!childName) return;
+              const childDob = childDobH ? excelCellToISODate(row[childDobH]) : '';
+              const depMatch = depRows.find((d) => {
+                const m = d.relationshipRaw.match(CHILD_RELATIONSHIP_NUMBER);
+                return !!m && parseInt(m[1], 10) === n;
+              });
+              if (depMatch) matchedDepRows.add(depMatch);
+              const finalDob = childDob || depMatch?.birthDate || '';
+              const age = calcAgeFromISODate(finalDob);
+              childrenLegacy.push(age !== undefined ? `${childName} (${age} yrs)` : childName);
+              dependents.push({
+                id: `dep-imp-${cardNoVal}-c${n}`,
+                cardNo: depMatch?.cardNo || undefined,
+                fullName: childName,
+                relationship: 'child',
+                birthDate: finalDob || undefined,
+                hasBiometrics: depMatch?.hasBiometrics || false,
+              });
+            });
+
+            // Deps-sheet rows for this principal that no Staff-sheet column could be matched to
+            // (their own name is nowhere in the workbook) — counted and reported, never guessed.
+            depRows.forEach((d) => {
+              if (!matchedDepRows.has(d)) orphanDependents++;
+            });
+
+            const memberObj: Member = {
+              id: existingMember ? existingMember.id : `mem-imp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              cardNo: cardNoVal,
+              principalName: principalVal,
+              spouseName: spouseNameVal || existingMember?.spouseName,
+              children: childrenLegacy.length > 0 ? childrenLegacy : existingMember?.children || [],
+              dependents: dependents.length > 0 ? dependents : existingMember?.dependents || [],
+              birthDate: birthDate || existingMember?.birthDate || '1985-01-01',
+              relationship: existingMember?.relationship || 'Primary',
+              organization,
+              status: existingMember?.status || 'Active',
+              hasPhoto: existingMember?.hasPhoto || false,
+              hasBiometrics: existingMember?.hasBiometrics || dependents.some((d) => d.hasBiometrics),
+              phone: phone || existingMember?.phone,
+              outpatientBalanceUSD: existingMember?.outpatientBalanceUSD ?? 1000,
+              outpatientCeilingUSD: existingMember?.outpatientCeilingUSD ?? 1000,
+              inpatientBalanceUSD: existingMember?.inpatientBalanceUSD ?? 10000,
+              inpatientCeilingUSD: existingMember?.inpatientCeilingUSD ?? 10000,
+              gender: existingMember?.gender,
+              createdAt: existingMember?.createdAt || new Date().toISOString().split('T')[0],
+            };
+
+            if (existingMember) {
+              updatedList[existingIndex] = memberObj;
+              updated++;
+            } else {
+              updatedList.unshift(memberObj);
+              created++;
+            }
+          });
+        }
+
+        resolve({
+          success: true,
+          created,
+          updated,
+          ignored,
+          missingHeaders: [],
+          errors,
+          parsedItems: updatedList,
+          organizationsFound: Array.from(new Set(organizationsFound)),
+          newOrganizationsDetected: Array.from(new Set(newOrganizationsDetected)),
+          orphanDependents,
+        });
+      } catch (err: any) {
+        resolve({
+          success: false,
+          created: 0,
+          updated: 0,
+          ignored: 0,
+          missingHeaders: [],
+          errors: [`Excel parsing error: ${err.message || 'Corrupted file'}`],
+          parsedItems: [],
+          organizationsFound: [],
+          newOrganizationsDetected: [],
+          orphanDependents: 0,
+        });
+      }
+    };
+
+    reader.onerror = () => {
+      resolve({
+        success: false,
+        created: 0,
+        updated: 0,
+        ignored: 0,
+        missingHeaders: [],
+        errors: ['Unable to read the uploaded file.'],
+        parsedItems: [],
+        organizationsFound: [],
+        newOrganizationsDetected: [],
+        orphanDependents: 0,
+      });
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// Modèle de classeur téléchargeable, reproduisant EXACTEMENT la structure attendue par
+// parseActivaMultiOrgExcel() ci-dessus (une paire de feuilles "<Organisation> - Staff" /
+// "<Organisation> - Deps"), avec une feuille d'instructions et un exemple concret. Pour
+// ajouter une organisation, il suffit de dupliquer les 2 feuilles d'exemple et de renommer
+// "Example Org" par le nom réel de l'organisation (en conservant " - Staff" / " - Deps").
+export function generateMultiOrgTemplateExcel() {
+  const wb = XLSX.utils.book_new();
+
+  const instructions = [
+    ['ACTIVA HealthPass — Modèle d\'import multi-organisations (Staff / Deps)'],
+    [''],
+    ['1. Une organisation = une PAIRE de feuilles nommées EXACTEMENT :'],
+    ['   "<Nom Organisation> - Staff"  et  "<Nom Organisation> - Deps"'],
+    ['   (respecter les espaces autour du tiret, comme dans les 2 feuilles d\'exemple ci-jointes)'],
+    [''],
+    ['2. Feuille "... - Staff" (1 ligne = 1 assuré PRINCIPAL) :'],
+    ['   - Card No. : numéro de carte du principal (obligatoire, unique)'],
+    ['   - Primary Insured Name : nom complet du principal (obligatoire)'],
+    ['   - Date of Birth : date de naissance du principal (JJ/MM/AAAA ou AAAA-MM-JJ)'],
+    ['   - Contact : téléphone (optionnel)'],
+    ['   - Spouse Name / Spouse Date of Birth : conjoint (optionnel)'],
+    ['   - Child 1 Name / Child 1 Date of Birth, Child 2 Name / Child 2 Date of Birth, ... :'],
+    ['     un enfant par paire de colonnes. Ajoutez autant de paires "Child N" que nécessaire.'],
+    [''],
+    ['3. Feuille "... - Deps" (1 ligne = 1 ayant droit, conjoint OU enfant) — donne à chaque'],
+    ['   ayant droit son PROPRE numéro de carte, utilisé pour l\'identifier/le rembourser :'],
+    ['   - Card No. : numéro de carte PROPRE à l\'ayant droit (obligatoire, unique)'],
+    ['   - Relationship : "Spouse" pour le conjoint, ou "Child 1" / "Child 2" / ... — le numéro'],
+    ['     doit correspondre EXACTEMENT à la colonne "Child N Name" de la feuille Staff'],
+    ['   - Date of Birth : date de naissance de l\'ayant droit'],
+    ['   - Primary Insured : nom du PRINCIPAL (pas de l\'ayant droit)'],
+    ['   - Primary Card No. : numéro de carte du PRINCIPAL (fait le lien avec la feuille Staff)'],
+    ['   - Organization : nom de l\'organisation (identique au nom de feuille)'],
+    ['   - Biometrics : "Yes" si les empreintes biométriques ont déjà été enregistrées'],
+    [''],
+    ['4. Si la feuille "... - Deps" d\'une organisation est vide ou absente, les conjoints/enfants'],
+    ['   seront quand même importés depuis la feuille "Staff", mais SANS numéro de carte propre'],
+    ['   (à compléter plus tard depuis l\'écran Assurés).'],
+    [''],
+    ['5. Réimporter ce fichier après modification met à jour les fiches existantes (par numéro de'],
+    ['   carte) au lieu de les dupliquer — vous pouvez donc l\'utiliser aussi pour des mises à jour.'],
+  ];
+  const wsInstructions = XLSX.utils.aoa_to_sheet(instructions);
+  wsInstructions['!cols'] = [{ wch: 100 }];
+  XLSX.utils.book_append_sheet(wb, wsInstructions, 'INSTRUCTIONS');
+
+  const staffData = [
+    ['Card No.', 'Primary Insured Name', 'Date of Birth', 'Contact', 'Spouse Name', 'Spouse Date of Birth', 'Child 1 Name', 'Child 1 Date of Birth', 'Child 2 Name', 'Child 2 Date of Birth'],
+    ['EXG-00001-0001', 'Samuel DOE', '1985-05-14', '+231 88 000 1122', 'Mary DOE', '1987-02-20', 'James DOE', '2015-08-31', 'Linda DOE', '2018-12-11'],
+    ['EXG-00002-0002', 'Grace KOLLIE', '1990-11-20', '+231 77 000 3344', '', '', 'Peter KOLLIE', '2020-04-04', '', ''],
+  ];
+  const wsStaff = XLSX.utils.aoa_to_sheet(staffData);
+  XLSX.utils.book_append_sheet(wb, wsStaff, 'Example Org - Staff');
+
+  const depsData = [
+    ['Card No.', 'Relationship', 'Date of Birth', 'Primary Insured', 'Primary Card No.', 'Organization', 'Biometrics'],
+    ['EXG-00001-0002', 'Spouse', '1987-02-20', 'Samuel DOE', 'EXG-00001-0001', 'Example Org', ''],
+    ['EXG-00001-0003', 'Child 1', '2015-08-31', 'Samuel DOE', 'EXG-00001-0001', 'Example Org', ''],
+    ['EXG-00001-0004', 'Child 2', '2018-12-11', 'Samuel DOE', 'EXG-00001-0001', 'Example Org', ''],
+    ['EXG-00002-0005', 'Child 1', '2020-04-04', 'Grace KOLLIE', 'EXG-00002-0002', 'Example Org', ''],
+  ];
+  const wsDeps = XLSX.utils.aoa_to_sheet(depsData);
+  XLSX.utils.book_append_sheet(wb, wsDeps, 'Example Org - Deps');
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), 'ACTIVA_MultiOrg_Import_Template.xlsx');
 }
 
 export function exportMembersToExcel(members: Member[], lang?: any) {

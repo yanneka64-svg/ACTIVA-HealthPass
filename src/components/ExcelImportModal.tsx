@@ -11,9 +11,14 @@ interface ExcelImportModalProps<T> {
   onClose: () => void;
   lang: Language;
   title: string;
-  targetType: 'members' | 'organizations' | 'providers';
+  // === AMÉLIORATION AJOUTÉE : 'members-multi-org' pour le nouvel import multi-organisations
+  // (classeur "<Organisation> - Staff" / "<Organisation> - Deps"), en plus des 3 imports existants.
+  targetType: 'members' | 'organizations' | 'providers' | 'members-multi-org';
   onImport: (file: File) => Promise<ImportResult<T>>;
   onSuccess: (items: T[]) => void;
+  // Quand fourni, remplace le modèle Excel généré en interne par downloadSampleTemplate()
+  // (utilisé par 'members-multi-org' pour proposer le vrai modèle Staff/Deps téléchargeable).
+  onDownloadTemplate?: () => void;
 }
 
 export function ExcelImportModal<T>({
@@ -24,6 +29,7 @@ export function ExcelImportModal<T>({
   targetType,
   onImport,
   onSuccess,
+  onDownloadTemplate,
 }: ExcelImportModalProps<T>) {
   const t = useTranslation(lang);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,6 +83,12 @@ export function ExcelImportModal<T>({
   };
 
   const downloadSampleTemplate = () => {
+    // === AMÉLIORATION AJOUTÉE : un modèle personnalisé (ex: generateMultiOrgTemplateExcel)
+    // prend le pas sur la génération générique ci-dessous quand il est fourni.
+    if (onDownloadTemplate) {
+      onDownloadTemplate();
+      return;
+    }
     const wb = XLSX.utils.book_new();
     let templateData: any[] = [];
     let sheetName = 'Template';
@@ -285,6 +297,35 @@ export function ExcelImportModal<T>({
                   <span className="text-[11px] font-medium text-slate-600">{t.excel.ignoredCount}</span>
                 </div>
               </div>
+
+              {/* === AMÉLIORATION AJOUTÉE : détails propres à l'import multi-organisations
+                  (organisations détectées, nouvelles organisations, ayants droit orphelins) === */}
+              {targetType === 'members-multi-org' && (() => {
+                const multiOrgResult = result as unknown as {
+                  organizationsFound?: string[];
+                  newOrganizationsDetected?: string[];
+                  orphanDependents?: number;
+                };
+                return (
+                  <div className="space-y-2 pt-1">
+                    {!!multiOrgResult.organizationsFound?.length && (
+                      <p className="text-xs text-emerald-800">
+                        <span className="font-bold">{multiOrgResult.organizationsFound.length}</span> organisation(s) traitée(s) : {multiOrgResult.organizationsFound.join(', ')}
+                      </p>
+                    )}
+                    {!!multiOrgResult.newOrganizationsDetected?.length && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                        <span className="font-bold">Nouvelles organisations détectées</span> (à créer/vérifier dans Organisations &amp; Plafonds pour un calcul de plafond correct) : {multiOrgResult.newOrganizationsDetected.join(', ')}
+                      </div>
+                    )}
+                    {!!multiOrgResult.orphanDependents && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                        <span className="font-bold">{multiOrgResult.orphanDependents}</span> ayant(s) droit de la feuille "Deps" n'ont pas pu être associé(s) à un nom (aucune colonne "Child N Name"/"Spouse Name" correspondante trouvée dans la feuille "Staff") — ignoré(s) pour éviter d'importer un ayant droit sans nom.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

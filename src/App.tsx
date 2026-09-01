@@ -501,8 +501,23 @@ export default function App() {
     FirestoreService.deleteMember(id);
   };
 
+  // === CORRECTIF (bug préexistant) : cette fonction appelait FirestoreService.addMember()
+  // (= addDoc, création d'un NOUVEAU document) sur CHAQUE élément renvoyé par le parseur
+  // Excel, y compris les assurés déjà existants simplement mis à jour en mémoire. Résultat :
+  // réimporter un fichier sur une base déjà peuplée DUPLIQUAIT tous les assurés existants
+  // dans Firestore. Les parseurs (parseMemberExcel, parseActivaMultiOrgExcel...) marquent
+  // les nouvelles fiches avec un id temporaire préfixé "mem-imp-" ; on route donc désormais
+  // vers updateMember() pour les fiches déjà en base (id Firestore réel) et addMember()
+  // uniquement pour les nouvelles fiches (id temporaire, retiré avant l'écriture).
   const handleImportMembers = (imported: Partial<Member>[]) => {
-    imported.forEach((i) => FirestoreService.addMember(i));
+    imported.forEach((i) => {
+      if (i.id && !i.id.startsWith('mem-imp-')) {
+        FirestoreService.updateMember(i as Member);
+      } else {
+        const { id, ...rest } = i;
+        FirestoreService.addMember(rest);
+      }
+    });
   };
 
   // ORGANIZATIONS HANDLERS WITH CASCADING MEMBER SUSPENSION
@@ -587,8 +602,16 @@ export default function App() {
     FirestoreService.deleteOrganization(id);
   };
 
+  // === CORRECTIF (même bug que handleImportMembers, voir commentaire ci-dessus) ===
   const handleImportOrgs = (imported: Partial<Organization>[]) => {
-    imported.forEach((i) => FirestoreService.addOrganization(i));
+    imported.forEach((i) => {
+      if (i.id && !i.id.startsWith('org-imp-')) {
+        FirestoreService.updateOrganization(i as Organization);
+      } else {
+        const { id, ...rest } = i;
+        FirestoreService.addOrganization(rest);
+      }
+    });
   };
 
   // PROVIDERS HANDLERS
@@ -607,9 +630,16 @@ export default function App() {
     
   };
 
+  // === CORRECTIF (même bug que handleImportMembers, voir commentaire ci-dessus) ===
   const handleImportProviders = (imported: Partial<Provider>[]) => {
-    imported.forEach(i => FirestoreService.addProvider(i));
-    
+    imported.forEach((i) => {
+      if (i.id && !i.id.startsWith('prv-imp-')) {
+        FirestoreService.updateProvider(i as Provider);
+      } else {
+        const { id, ...rest } = i;
+        FirestoreService.addProvider(rest);
+      }
+    });
   };
 
   // CEILINGS HANDLERS
