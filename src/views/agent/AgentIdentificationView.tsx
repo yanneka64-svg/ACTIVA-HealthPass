@@ -22,11 +22,27 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setBiometricMatchMessage(null);
-    const found = members.find(
-      (m) =>
-        m.cardNo.toLowerCase() === searchQuery.toLowerCase() ||
-        m.principalName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    // === AMÉLIORATION AJOUTÉE : recherche robuste (harmonisée avec MembersView / eligibilityService) ===
+    // - trim() sur la saisie pour ignorer les espaces superflus (copier-coller, clavier mobile)
+    // - correspondance PARTIELLE (includes) sur le numéro de carte au lieu d'une égalité stricte,
+    //   pour retrouver un assuré même si l'agent ne saisit pas le numéro complet
+    // - garde-fous (m.cardNo || '', m.principalName || '') pour éviter qu'une fiche mal formée
+    //   (import Excel incomplet, champ manquant) ne fasse planter la recherche pour TOUS les assurés
+    // - extension de la recherche aux ayants droit (conjoint, enfants, dépendants structurés) afin
+    //   qu'un accueil puisse identifier le dossier familial même en tapant le nom d'un dépendant
+    const q = searchQuery.toLowerCase().trim();
+    const found = members.find((m) => {
+      const cardNo = (m.cardNo || '').toLowerCase().trim();
+      const principalName = (m.principalName || '').toLowerCase().trim();
+      const spouseName = (m.spouseName || '').toLowerCase().trim();
+      return (
+        (!!cardNo && cardNo.includes(q)) ||
+        (!!principalName && principalName.includes(q)) ||
+        (!!spouseName && spouseName.includes(q)) ||
+        (m.dependents || []).some((d) => (d.fullName || '').toLowerCase().includes(q) || (d.cardNo || '').toLowerCase().trim() === q) ||
+        (m.children || []).some((c) => (c || '').toLowerCase().includes(q))
+      );
+    });
     setSelectedMember(found || null);
   };
 
