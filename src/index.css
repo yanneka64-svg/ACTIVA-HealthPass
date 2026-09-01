@@ -1,15 +1,19 @@
 @import "tailwindcss";
 
 @layer base {
+  /* === AMÉLIORATION AJOUTÉE : jetons de couleur alignés sur la palette de marque réellement
+     utilisée dans l'app (#0a2e6b / #00A859), au lieu des anciennes valeurs (#0B3B82, #10B981...)
+     qui avaient dérivé du reste du design. Ces variables ne sont pas encore consommées via
+     var(--...) dans le code ; elles servent de référence pour les futurs styles. */
   :root {
-    --primary-navy: #0B3B82;
-    --deep-blue: #123F88;
+    --primary-navy: #0a2e6b;
+    --deep-blue: #07214f;
     --bright-blue: #2563EB;
     --light-blue: #EFF6FF;
     --very-light-blue: #F7FAFF;
-    --activa-green: #10B981;
+    --activa-green: #00A859;
     --light-green: #ECFDF5;
-    --dark-text: #102A43;
+    --dark-text: #0a2e6b;
     --secondary-text: #64748B;
     --border-color: #E2E8F0;
     --background-color: #F6F9FC;
@@ -19,7 +23,7 @@
     font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: linear-gradient(180deg, #F8FBFF 0%, #F4F8FC 100%);
     min-height: 100vh;
-    color: #102A43;
+    color: #0a2e6b;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

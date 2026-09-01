@@ -189,7 +189,7 @@ export const Topbar: React.FC<TopbarProps> = ({
       <div className="flex items-center gap-3 min-w-0">
         {onToggleSidebar && (
           <button 
-            className="lg:hidden p-2 -ml-1 text-[#102A43] hover:bg-slate-50 rounded-xl transition cursor-pointer"
+            className="lg:hidden p-2 -ml-1 text-[#0a2e6b] hover:bg-slate-50 rounded-xl transition cursor-pointer"
             onClick={onToggleSidebar}
             aria-label="Toggle navigation menu"
           >
@@ -203,8 +203,9 @@ export const Topbar: React.FC<TopbarProps> = ({
         </div>
 
         {/* Global Page Title and Subtitle */}
+        {/* === AMÉLIORATION AJOUTÉE : le titre suit désormais la couleur du rôle actif (theme.palette.pageTitleColor) au lieu d'un bleu fixe, pour rester cohérent avec la Sidebar (Admin/Superviseur/Agent) === */}
         <div className="min-w-0">
-          <h1 className="text-base sm:text-lg lg:text-xl font-bold text-[#102A43] tracking-tight truncate leading-tight">
+          <h1 className={`text-base sm:text-lg lg:text-xl font-bold ${theme.palette.pageTitleColor} tracking-tight truncate leading-tight`}>
             {title}
           </h1>
           {subtitle && (
@@ -226,7 +227,7 @@ export const Topbar: React.FC<TopbarProps> = ({
         {/* Language Pill */}
         <div
           id="app-language-indicator"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[#102A43] shadow-2xs hover:bg-slate-50 transition cursor-default"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[#0a2e6b] shadow-2xs hover:bg-slate-50 transition cursor-default"
           title="System Language: English (Official)"
         >
           <Globe className="w-3.5 h-3.5 text-[#2563EB]" />
@@ -241,8 +242,8 @@ export const Topbar: React.FC<TopbarProps> = ({
             onClick={() => setNotificationsOpen(!notificationsOpen)}
             className={`p-2 rounded-xl transition relative cursor-pointer ${
               notificationsOpen
-                ? 'bg-[#0B3B82]/10 text-[#0B3B82]'
-                : 'text-[#64748B] hover:text-[#102A43] hover:bg-slate-50'
+                ? `bg-slate-100 ${theme.palette.pageTitleColor}`
+                : 'text-[#64748B] hover:text-slate-900 hover:bg-slate-50'
             }`}
             aria-label="Notifications"
             aria-expanded={notificationsOpen}
@@ -260,7 +261,8 @@ export const Topbar: React.FC<TopbarProps> = ({
             <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-3 border-b border-[#E8EDF2] flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xs font-extrabold text-[#0D2B63] uppercase tracking-wider">
+                  {/* === AMÉLIORATION AJOUTÉE : couleurs du panneau notifications alignées sur le thème du rôle actif === */}
+                  <h3 className={`text-xs font-extrabold ${theme.palette.pageTitleColor} uppercase tracking-wider`}>
                     Notifications
                   </h3>
                   {unreadCount > 0 && (
@@ -273,7 +275,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                   <button
                     type="button"
                     onClick={handleMarkAllAsRead}
-                    className="text-[11px] font-bold text-[#0A347B] hover:text-[#072456] flex items-center gap-1 hover:underline cursor-pointer"
+                    className={`text-[11px] font-bold ${theme.palette.pageTitleColor} hover:opacity-70 flex items-center gap-1 hover:underline cursor-pointer`}
                   >
                     <CheckCheck className="w-3.5 h-3.5" />
                     <span>Mark all read</span>
@@ -314,7 +316,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1 mb-0.5">
-                          <p className={`text-xs font-bold truncate ${notif.unread ? 'text-[#0D2B63]' : 'text-slate-700'}`}>
+                          <p className={`text-xs font-bold truncate ${notif.unread ? theme.palette.pageTitleColor : 'text-slate-700'}`}>
                             {notif.title}
                           </p>
                           <span className="text-[10px] text-[#778FAF] shrink-0 font-medium">
@@ -325,14 +327,14 @@ export const Topbar: React.FC<TopbarProps> = ({
                           {notif.message}
                         </p>
                         {notif.targetSection && (
-                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-[#0A347B]">
+                          <div className={`mt-1.5 flex items-center gap-1 text-[10px] font-bold ${theme.palette.pageTitleColor}`}>
                             <span>View details</span>
                             <ExternalLink className="w-2.5 h-2.5" />
                           </div>
                         )}
                       </div>
                       {notif.unread && (
-                        <div className="w-2 h-2 rounded-full bg-[#0A347B] shrink-0 mt-1.5"></div>
+                        <div className={`w-2 h-2 rounded-full ${theme.palette.avatarBg} shrink-0 mt-1.5`}></div>
                       )}
                     </div>
                   ))
@@ -351,7 +353,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             className="flex items-center gap-2.5 p-1 rounded-lg hover:bg-[#F8FAFC] transition cursor-pointer"
           >
             <div className="text-right hidden md:block">
-              <div className="text-xs font-bold text-[#0D2B63] leading-tight">
+              <div className={`text-xs font-bold ${theme.palette.pageTitleColor} leading-tight`}>
                 {userName}
               </div>
               <div className="text-[10px] text-[#778FAF] font-medium flex items-center justify-end gap-1">
@@ -366,18 +368,19 @@ export const Topbar: React.FC<TopbarProps> = ({
           {profileMenuOpen && (
             <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in duration-150">
               <div className="px-4 py-3 border-b border-[#E8EDF2]">
-                <p className="text-xs font-extrabold text-[#0D2B63]">
+                <p className={`text-xs font-extrabold ${theme.palette.pageTitleColor}`}>
                   {userName}
                 </p>
                 <p className="text-[11px] text-[#556987] font-medium">{userPosition}</p>
                 <p className="text-[11px] text-[#778FAF] truncate mt-0.5">{currentUser?.email || "admin@activa-assurance.com"}</p>
-                
+
                 {/* User Role & Dynamic Entity Badges */}
+                {/* === AMÉLIORATION AJOUTÉE : le badge d'entité utilise la couleur du rôle actif au lieu du bleu Agent fixe === */}
                 <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A878] text-[10px] font-extrabold border border-[#00A878]/30">
+                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A859] text-[10px] font-extrabold border border-[#00A859]/30">
                     Active: {role || 'User'}
                   </span>
-                  <span className="inline-block px-2.5 py-0.5 rounded-md bg-[#0A347B]/10 border border-[#0A347B]/20 text-[#0A347B] text-[10px] font-black">
+                  <span className={`inline-block px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 ${theme.palette.pageTitleColor} text-[10px] font-black`}>
                     {userEntity}
                   </span>
                 </div>
@@ -390,7 +393,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                     setProfileMenuOpen(false);
                     onOpenChangePassword();
                   }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-[#0D2B63] hover:bg-[#F8FAFC] cursor-pointer"
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold ${theme.palette.pageTitleColor} hover:bg-[#F8FAFC] cursor-pointer`}
                 >
                   <KeyRound className="w-4 h-4 text-[#778FAF]" />
                   <span>Change Password</span>

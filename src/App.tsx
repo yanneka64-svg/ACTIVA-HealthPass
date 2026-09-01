@@ -31,6 +31,7 @@ import {
   getDefaultSectionForRole,
   isSectionAllowedForRole,
 } from './utils/authUtils';
+import { getRoleTheme } from './theme/roleTheme';
 
 // Views
 import { DashboardView } from './views/DashboardView';
@@ -674,9 +675,12 @@ export default function App() {
   const activeRole = userRole;
   const isCurrentSectionPermitted = isSectionAllowedForRole(activeRole, currentSection);
   const effectiveSection: NavSection = isCurrentSectionPermitted ? currentSection : getDefaultSectionForRole(activeRole);
+  // === AMÉLIORATION AJOUTÉE : thème dérivé du rôle actif, utilisé pour harmoniser la barre de
+  // navigation mobile et le toast global avec la Sidebar (Admin = ardoise, Superviseur = teal, Agent = bleu)
+  const activeRoleTheme = getRoleTheme(activeRole);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0D2B63] font-sans flex antialiased selection:bg-[#0A347B] selection:text-white">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0a2e6b] font-sans flex antialiased selection:bg-[#0a2e6b] selection:text-white">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
@@ -720,10 +724,11 @@ export default function App() {
         />
 
         {/* Global Toast Notification */}
+        {/* === AMÉLIORATION AJOUTÉE : le toast reprend la couleur du rôle actif (theme.palette.modalHeaderBg) au lieu d'un bleu Agent fixe === */}
         {toastMessage && (
           <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className="bg-[#0D2B63] text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-[#0A347B] text-xs font-semibold">
-              <div className="w-2 h-2 rounded-full bg-[#00A878] animate-ping" />
+            <div className={`${activeRoleTheme.palette.modalHeaderBg} text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-white/10 text-xs font-semibold`}>
+              <div className="w-2 h-2 rounded-full bg-[#00A859] animate-ping" />
               <span>{toastMessage}</span>
             </div>
           </div>
@@ -928,14 +933,16 @@ export default function App() {
         </main>
 
         {/* Mobile & Tablet Miniature Bottom Navigation Bar */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0B3B82] border-t border-white/10 z-30 flex items-center justify-around px-2 shadow-lg backdrop-blur-md">
+        {/* === AMÉLIORATION AJOUTÉE : la barre mobile reprend la couleur du rôle actif (theme.palette.avatarBg),
+            au lieu d'être toujours bleue, pour rester cohérente avec la Sidebar desktop du même rôle === */}
+        <nav className={`lg:hidden fixed bottom-0 left-0 right-0 h-16 ${activeRoleTheme.palette.avatarBg} border-t border-white/10 z-30 flex items-center justify-around px-2 shadow-lg backdrop-blur-md`}>
           <button
             onClick={() => handleSelectSection('dashboard')}
             className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
               effectiveSection === 'dashboard' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
             }`}
           >
-            <LayoutDashboard className={`w-5 h-5 ${effectiveSection === 'dashboard' ? 'text-[#10B981]' : ''}`} />
+            <LayoutDashboard className={`w-5 h-5 ${effectiveSection === 'dashboard' ? activeRoleTheme.palette.activeIconColor : ''}`} />
             <span className="text-[10px] mt-0.5">Overview</span>
           </button>
 
@@ -945,7 +952,7 @@ export default function App() {
               effectiveSection === 'claims' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
             }`}
           >
-            <Receipt className={`w-5 h-5 ${effectiveSection === 'claims' ? 'text-[#10B981]' : ''}`} />
+            <Receipt className={`w-5 h-5 ${effectiveSection === 'claims' ? activeRoleTheme.palette.activeIconColor : ''}`} />
             <span className="text-[10px] mt-0.5">Claims</span>
             {pendingClaimsCount > 0 && (
               <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
@@ -960,7 +967,7 @@ export default function App() {
               effectiveSection === 'invoices' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
             }`}
           >
-            <FileText className={`w-5 h-5 ${effectiveSection === 'invoices' ? 'text-[#10B981]' : ''}`} />
+            <FileText className={`w-5 h-5 ${effectiveSection === 'invoices' ? activeRoleTheme.palette.activeIconColor : ''}`} />
             <span className="text-[10px] mt-0.5">Invoices</span>
           </button>
 
@@ -970,7 +977,7 @@ export default function App() {
               effectiveSection === 'enrollments' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
             }`}
           >
-            <UserCheck className={`w-5 h-5 ${effectiveSection === 'enrollments' ? 'text-[#10B981]' : ''}`} />
+            <UserCheck className={`w-5 h-5 ${effectiveSection === 'enrollments' ? activeRoleTheme.palette.activeIconColor : ''}`} />
             <span className="text-[10px] mt-0.5">Enroll</span>
             {pendingEnrollmentsCount > 0 && (
               <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">

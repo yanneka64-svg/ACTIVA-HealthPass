@@ -586,7 +586,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     setExportMenuOpen(false);
                     exportMembersToCSV(filteredMembers, lang);
                   }}
-                  className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#0B3B82] flex items-center gap-2 transition cursor-pointer"
+                  className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#0a2e6b] flex items-center gap-2 transition cursor-pointer"
                 >
                   <FileText className="w-4 h-4 text-[#2563EB]" />
                   <span>CSV (.csv)</span>
@@ -611,7 +611,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
             <button
               id="create-member-btn"
               onClick={openCreateModal}
-            className="px-4 py-2 rounded-xl bg-[#0B3B82] hover:bg-[#123F88] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-[#0a2e6b] hover:bg-[#0a2e6b] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>New Member</span>
@@ -625,7 +625,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Users className="w-5 h-5 text-[#2563EB]" />
-            <h3 className="font-bold text-base text-[#102A43]">Insured Members & Dependents</h3>
+            <h3 className="font-bold text-base text-[#0a2e6b]">Insured Members & Dependents</h3>
             <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-[#2563EB] text-xs font-bold border border-blue-100">
               {filteredMembers.length}
             </span>
@@ -671,7 +671,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                         {m.cardNo}
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-[#102A43] group-hover:text-[#2563EB] transition-colors flex items-center gap-2 flex-wrap">
+                        <div className="font-bold text-[#0a2e6b] group-hover:text-[#2563EB] transition-colors flex items-center gap-2 flex-wrap">
                           <span>{m.principalName}</span>
                           {isAgeExceeded && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-black">
@@ -695,7 +695,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                           <div className="w-6 h-6 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-700 overflow-hidden shrink-0">
                             {m.organization.charAt(0)}
                           </div>
-                          <span className="font-medium text-xs text-[#102A43]">{m.organization}</span>
+                          <span className="font-medium text-xs text-[#0a2e6b]">{m.organization}</span>
                         </div>
                       </td>
                       <td className="py-3.5 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
@@ -818,7 +818,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
             <button className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 text-xs cursor-pointer">
               ‹
             </button>
-            <button className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#0B3B82] text-white text-xs font-bold">
+            <button className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#0a2e6b] text-white text-xs font-bold">
               1
             </button>
             <button className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 text-xs cursor-pointer">
@@ -837,7 +837,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-[#102A43]">About Insured Members</h4>
+              <h4 className="text-sm font-bold text-[#0a2e6b]">About Insured Members</h4>
             </div>
           </div>
           <p className="text-xs text-[#64748B] mb-4">
@@ -850,7 +850,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 <UserCheck className="w-3.5 h-3.5" />
               </div>
               <div>
-                <div className="text-xs font-bold text-[#102A43]">Accurate Profiles</div>
+                <div className="text-xs font-bold text-[#0a2e6b]">Accurate Profiles</div>
                 <div className="text-[10px] text-[#64748B] mt-0.5">Maintain up-to-date member information</div>
               </div>
             </div>
@@ -860,7 +860,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 <Users className="w-3.5 h-3.5" />
               </div>
               <div>
-                <div className="text-xs font-bold text-[#102A43]">Dependants Management</div>
+                <div className="text-xs font-bold text-[#0a2e6b]">Dependants Management</div>
                 <div className="text-[10px] text-[#64748B] mt-0.5">Track dependants and their relationships</div>
               </div>
             </div>
@@ -870,7 +870,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 <ShieldCheck className="w-3.5 h-3.5" />
               </div>
               <div>
-                <div className="text-xs font-bold text-[#102A43]">Coverage Validity</div>
+                <div className="text-xs font-bold text-[#0a2e6b]">Coverage Validity</div>
                 <div className="text-[10px] text-[#64748B] mt-0.5">Ensure valid coverage and plan eligibility</div>
               </div>
             </div>
@@ -884,7 +884,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-[#102A43]">Supported Relationship Types</h4>
+              <h4 className="text-sm font-bold text-[#0a2e6b]">Supported Relationship Types</h4>
             </div>
           </div>
           <p className="text-xs text-[#64748B] mb-4">
@@ -974,7 +974,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                         </div>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div className="flex items-center gap-3.5">
-                            <div className="w-12 h-12 rounded-2xl bg-[#0B3B82] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
+                            <div className="w-12 h-12 rounded-2xl bg-[#0a2e6b] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
                               {selectedMemberForView.principalName.charAt(0)}
                             </div>
                             <div>
@@ -1028,7 +1028,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-[#0B3B82]" />
+                      <Users className="w-4 h-4 text-[#0a2e6b]" />
                       <h4 className="text-sm font-black text-slate-900 uppercase tracking-wide">
                         DEPENDANTS ({viewDependents.length})
                       </h4>

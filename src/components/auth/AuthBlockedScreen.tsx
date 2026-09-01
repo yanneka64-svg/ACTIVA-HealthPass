@@ -55,7 +55,7 @@ export const AuthBlockedScreen: React.FC<AuthBlockedScreenProps> = ({
     >
       {/* Top Header Bar */}
       <header className="w-full flex items-center justify-between py-2 px-2 sm:px-4">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0a2e6b] shadow-2xs">
           <ShieldAlert className="w-3.5 h-3.5 text-red-600" />
           <span>ACTIVA Security Enforcement</span>
         </div>
@@ -75,7 +75,7 @@ export const AuthBlockedScreen: React.FC<AuthBlockedScreenProps> = ({
           </div>
 
           {/* Titles */}
-          <h2 className="text-lg font-bold text-[#0D2B63] tracking-tight">{title}</h2>
+          <h2 className="text-lg font-bold text-[#0a2e6b] tracking-tight">{title}</h2>
           <p className="text-xs text-[#778FAF] font-semibold mt-0.5">{subtitle}</p>
 
           {/* User Email Pill */}
@@ -96,7 +96,7 @@ export const AuthBlockedScreen: React.FC<AuthBlockedScreenProps> = ({
               id="blocked-logout-button"
               type="button"
               onClick={onLogout}
-              className="w-full py-3 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 px-4 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] active:bg-[#07214f] text-white text-xs sm:text-[13px] font-bold shadow-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
               <span>Return to Login / Se Déconnecter</span>

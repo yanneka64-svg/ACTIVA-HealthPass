@@ -18,8 +18,8 @@ export const AuthLoadingScreen: React.FC<AuthLoadingScreenProps> = ({
     >
       {/* Top Header Bar */}
       <header className="w-full flex items-center justify-between py-2 px-2 sm:px-4">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs">
-          <ShieldCheck className="w-3.5 h-3.5 text-[#0A347B]" />
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0a2e6b] shadow-2xs">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#0a2e6b]" />
           <span>ACTIVA Cloud Secure Gateway</span>
         </div>
       </header>
@@ -34,12 +34,12 @@ export const AuthLoadingScreen: React.FC<AuthLoadingScreenProps> = ({
 
           {/* Spinner indicator */}
           <div className="relative mb-5 flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full border-3 border-[#0A347B]/15 border-t-[#0A347B] animate-spin" />
-            <Loader2 className="w-5 h-5 text-[#0A347B] absolute animate-pulse" />
+            <div className="w-12 h-12 rounded-full border-3 border-[#0a2e6b]/15 border-t-[#0a2e6b] animate-spin" />
+            <Loader2 className="w-5 h-5 text-[#0a2e6b] absolute animate-pulse" />
           </div>
 
           {/* Title & Subtitle */}
-          <h2 className="text-base sm:text-lg font-bold text-[#0D2B63] tracking-tight">
+          <h2 className="text-base sm:text-lg font-bold text-[#0a2e6b] tracking-tight">
             {message}
           </h2>
           <p className="text-xs sm:text-[13px] text-[#556987] font-medium mt-1.5 max-w-[280px] leading-relaxed">
@@ -48,7 +48,7 @@ export const AuthLoadingScreen: React.FC<AuthLoadingScreenProps> = ({
 
           {/* Security badge */}
           <div className="mt-6 pt-5 border-t border-[#E8EDF2] w-full flex items-center justify-center gap-2 text-[11px] font-semibold text-[#778FAF]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00A878] animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00A859] animate-pulse" />
             <span>Zero-Trust Role-Based Authentication</span>
           </div>
         </div>

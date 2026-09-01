@@ -190,14 +190,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
       {/* Top Header Bar */}
       <header className="w-full flex items-center justify-between py-2 px-2 sm:px-4">
         {/* Left: ACTIVA Cloud Secure Portal */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs">
-          <Shield className="w-3.5 h-3.5 text-[#0A347B]" />
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0a2e6b] shadow-2xs">
+          <Shield className="w-3.5 h-3.5 text-[#0a2e6b]" />
           <span>ACTIVA Cloud Secure Portal</span>
         </div>
 
         {/* Right: English (Default) */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs">
-          <Globe className="w-3.5 h-3.5 text-[#0A34A3]" />
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0a2e6b] shadow-2xs">
+          <Globe className="w-3.5 h-3.5 text-[#0a2e6b]" />
           <span>English (Default)</span>
         </div>
       </header>
@@ -206,8 +206,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
       <div className="my-auto flex flex-col items-center justify-center">
         <div className="w-full max-w-[460px] bg-white rounded-[26px] shadow-xl shadow-slate-300/30 border border-[#E8EDF2] overflow-hidden flex flex-col transition-all duration-300">
           
-          {/* CARD NAVY HEADER (#0A347B) */}
-          <div className="bg-[#0A347B] pt-8 pb-7 px-6 text-white text-center flex flex-col items-center">
+          {/* CARD NAVY HEADER (#0a2e6b) */}
+          <div className="bg-[#0a2e6b] pt-8 pb-7 px-6 text-white text-center flex flex-col items-center">
             {/* Logo container with white background and moderate rounded corners */}
             <div className="mb-4 bg-white rounded-xl px-4 py-2 shadow-sm border border-slate-200/90 flex items-center justify-center">
               <Logo size="md" showTagline={true} transparent={true} />
@@ -234,7 +234,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
             {/* Corporate Email or Username */}
             <div>
-              <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
+              <label className="block text-[13px] font-semibold text-[#0a2e6b] mb-1.5">
                 Corporate Email or Username
               </label>
               <div className="relative">
@@ -244,7 +244,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="e.g. by.ekani@group-activa.com"
-                  className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                  className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0a2e6b] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0a2e6b] focus:ring-2 focus:ring-[#0a2e6b]/20 focus:bg-white transition duration-150"
                   autoComplete="username"
                   required
                 />
@@ -254,7 +254,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
             {/* Password */}
             <div>
-              <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
+              <label className="block text-[13px] font-semibold text-[#0a2e6b] mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -264,7 +264,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                  className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0a2e6b] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0a2e6b] focus:ring-2 focus:ring-[#0a2e6b]/20 focus:bg-white transition duration-150"
                   autoComplete="current-password"
                   required
                 />
@@ -278,7 +278,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 id="login-submit-button"
                 type="submit"
                 disabled={isLoggingIn}
-                className="w-full py-3.5 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3.5 px-4 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] active:bg-[#07214f] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>{isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
                 <ArrowRight className="w-4 h-4" />
@@ -293,7 +293,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
 
         {/* Version underneath on background */}
-        <div className="mt-3 text-center text-xs font-mono font-bold text-[#0D2B63]">
+        <div className="mt-3 text-center text-xs font-mono font-bold text-[#0a2e6b]">
           v2.4.0
         </div>
       </div>

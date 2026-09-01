@@ -756,7 +756,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                           <span className="font-bold text-slate-900 font-mono">
                             {acc.username || 'Not assigned'}
                           </span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#0A347B]/10 border border-[#0A347B]/20 text-[#0A347B] text-[10px] font-extrabold">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#0a2e6b]/10 border border-[#0a2e6b]/20 text-[#0a2e6b] text-[10px] font-extrabold">
                             {acc.entity || (acc.country ? (acc.country.startsWith('ACTIVA') ? acc.country : `ACTIVA ${acc.country}`) : 'ACTIVA Liberia')}
                           </span>
                         </div>
@@ -1008,7 +1008,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <button
                 type="button"
                 onClick={() => setCredentialDialog((prev) => ({ ...prev, isOpen: false }))}
-                className="py-2.5 px-8 bg-[#0a2540] hover:bg-[#071d33] text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+                className="py-2.5 px-8 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
               >
                 Done
               </button>
@@ -1097,7 +1097,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <div className="bg-sky-50/40 border border-sky-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-2.5">
-                    <ShieldCheck className="w-5 h-5 text-[#0a2540] shrink-0 mt-0.5" />
+                    <ShieldCheck className="w-5 h-5 text-[#0a2e6b] shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
                         Attribution des Habilitations ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} actives)
@@ -1147,7 +1147,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       onClick={() => setActivePermCategory(cat.id)}
                       className={`px-3.5 py-1.5 rounded-full text-xs transition whitespace-nowrap cursor-pointer ${
                         activePermCategory === cat.id
-                          ? 'bg-[#0a2540] text-white font-bold shadow-2xs'
+                          ? 'bg-[#0a2e6b] text-white font-bold shadow-2xs'
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium'
                       }`}
                     >
@@ -1290,7 +1290,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   <select
                     value={formData.entity || 'ACTIVA Liberia'}
                     onChange={(e) => setFormData({ ...formData, entity: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-bold text-[#0a2540] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-bold text-[#0a2e6b] focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {ACTIVA_ENTITIES.map((ent) => (
                       <option key={ent.id} value={ent.name}>
@@ -1328,7 +1328,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-[#0a2540] hover:bg-[#071d33] disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>Enregistrer les Modifications</span>
@@ -1420,7 +1420,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <div className="bg-sky-50/40 border border-sky-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-2.5">
-                    <ShieldCheck className="w-5 h-5 text-[#0a2540] shrink-0 mt-0.5" />
+                    <ShieldCheck className="w-5 h-5 text-[#0a2e6b] shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
                         Attribution des Habilitations ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} actives)
@@ -1470,7 +1470,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       onClick={() => setActivePermCategory(cat.id)}
                       className={`px-3.5 py-1.5 rounded-full text-xs transition whitespace-nowrap cursor-pointer ${
                         activePermCategory === cat.id
-                          ? 'bg-[#0a2540] text-white font-bold shadow-2xs'
+                          ? 'bg-[#0a2e6b] text-white font-bold shadow-2xs'
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium'
                       }`}
                     >
@@ -1639,7 +1639,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   <select
                     value={formData.entity || 'ACTIVA Liberia'}
                     onChange={(e) => setFormData({ ...formData, entity: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-bold text-[#0a2540] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-bold text-[#0a2e6b] focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {ACTIVA_ENTITIES.map((ent) => (
                       <option key={ent.id} value={ent.name}>
@@ -1704,7 +1704,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-[#0a2540] hover:bg-[#071d33] disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>Créer le Compte & Attribuer</span>

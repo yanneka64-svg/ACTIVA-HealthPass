@@ -237,7 +237,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
   // Benefit badge styling
   const getBenefitBadgeStyle = (name: string) => {
     if (name.includes('Outpatient')) {
-      return 'bg-blue-50 text-[#0A347B] border-blue-200';
+      return 'bg-blue-50 text-[#0a2e6b] border-blue-200';
     }
     if (name.includes('Inpatient') || name.includes('Hospital')) {
       return 'bg-indigo-50 text-indigo-800 border-indigo-200';
@@ -494,7 +494,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. TOP POLICY AGE LIMITS & REAL-TIME ELIGIBILITY CONTROLS BANNER */}
-      <div className="bg-gradient-to-r from-blue-900 via-[#0A3D8A] to-[#124B9E] rounded-3xl p-6 text-white shadow-xl border border-blue-800/60 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-900 via-[#0a2e6b] to-[#0a2e6b] rounded-3xl p-6 text-white shadow-xl border border-blue-800/60 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -546,9 +546,9 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             <button
               id="configure-age-limits-btn"
               onClick={() => openAgeLimitsModal()}
-              className="px-4 py-3 rounded-2xl bg-white text-[#0A347B] hover:bg-blue-50 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
+              className="px-4 py-3 rounded-2xl bg-white text-[#0a2e6b] hover:bg-blue-50 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
             >
-              <Settings className="w-4 h-4 text-[#0A347B]" />
+              <Settings className="w-4 h-4 text-[#0a2e6b]" />
               <span>Configure Age Limits</span>
             </button>
 
@@ -577,7 +577,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 setCurrentPage(1);
               }}
               placeholder="Search benefit name or organization..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A347B] focus:bg-white transition"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           </div>
@@ -589,7 +589,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               setSelectedBenefitFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
           >
             <option value="ALL">All Benefit Types</option>
             {availableBenefits.map((b) => (
@@ -608,7 +608,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 setItemsPerPage(Number(e.target.value));
                 setCurrentPage(1);
               }}
-              className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+              className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
@@ -625,7 +625,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
         <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2.5">
-              <Sliders className="w-4 h-4 text-[#0A347B]" />
+              <Sliders className="w-4 h-4 text-[#0a2e6b]" />
               <h2 className="font-extrabold text-sm text-slate-900">
                 Coverage Ceilings & Limits Matrix
               </h2>
@@ -645,7 +645,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             <p>{t.noData}</p>
             <button
               onClick={openNewBenefitLimitWizard}
-              className="text-[#0A347B] font-bold hover:underline cursor-pointer"
+              className="text-[#0a2e6b] font-bold hover:underline cursor-pointer"
             >
               + Create a new benefit limit
             </button>
@@ -720,7 +720,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       {/* Organization */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg bg-blue-50 text-[#0A347B] flex items-center justify-center font-bold text-[10px] shrink-0 border border-blue-100">
+                          <div className="w-6 h-6 rounded-lg bg-blue-50 text-[#0a2e6b] flex items-center justify-center font-bold text-[10px] shrink-0 border border-blue-100">
                             <Building2 className="w-3.5 h-3.5" />
                           </div>
                           <div>
@@ -771,7 +771,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       {/* Age Limits Column */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-[#0A347B] border border-blue-100 text-[10px] font-bold" title={`Principal ≤ ${maxP} yrs`}>
+                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-[#0a2e6b] border border-blue-100 text-[10px] font-bold" title={`Principal ≤ ${maxP} yrs`}>
                             P: ≤{maxP}y
                           </span>
                           <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold" title={`Spouse ≤ ${maxS} yrs`}>
@@ -812,7 +812,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => openEditCeilingModal(c)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-[#0A347B] hover:bg-blue-50 transition cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-[#0a2e6b] hover:bg-blue-50 transition cursor-pointer"
                             title="Edit benefit limits"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -856,7 +856,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   onClick={() => setCurrentPage(p)}
                   className={`w-7 h-7 rounded-lg text-xs font-bold transition cursor-pointer ${
                     currentPage === p
-                      ? 'bg-[#0A347B] text-white'
+                      ? 'bg-[#0a2e6b] text-white'
                       : 'border border-slate-200 text-slate-700 hover:bg-white'
                   }`}
                 >
@@ -880,7 +880,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
       {ageLimitsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95">
-            <div className="px-6 py-4.5 bg-gradient-to-r from-[#0A3D8A] to-[#124B9E] text-white flex items-center justify-between">
+            <div className="px-6 py-4.5 bg-gradient-to-r from-[#0a2e6b] to-[#0a2e6b] text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <ShieldAlert className="w-5 h-5 text-amber-300" />
                 <h3 className="text-base font-black">Configure Policy Age Limits</h3>
@@ -909,7 +909,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                     setAgeLimitChild(ex?.maxAgeChild ?? 21);
                     setAgeLimitStudent(ex?.maxAgeStudent ?? 25);
                   }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
                 >
                   {availableOrgs.map((org) => (
                     <option key={org.id} value={org.name}>
@@ -921,7 +921,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
                 <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-                  <label className="block text-xs font-extrabold text-[#0A347B] mb-1">
+                  <label className="block text-xs font-extrabold text-[#0a2e6b] mb-1">
                     Principal Insured (Max Age)
                   </label>
                   <div className="flex items-center gap-2">
@@ -931,7 +931,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       max="100"
                       value={ageLimitPrincipal}
                       onChange={(e) => setAgeLimitPrincipal(parseInt(e.target.value, 10) || 65)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
                     />
                     <span className="text-xs font-bold text-slate-400">years</span>
                   </div>
@@ -949,7 +949,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       max="100"
                       value={ageLimitSpouse}
                       onChange={(e) => setAgeLimitSpouse(parseInt(e.target.value, 10) || 65)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
                     />
                     <span className="text-xs font-bold text-slate-400">years</span>
                   </div>
@@ -967,7 +967,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       max="40"
                       value={ageLimitChild}
                       onChange={(e) => setAgeLimitChild(parseInt(e.target.value, 10) || 21)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
                     />
                     <span className="text-xs font-bold text-slate-400">years</span>
                   </div>
@@ -985,7 +985,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       max="40"
                       value={ageLimitStudent}
                       onChange={(e) => setAgeLimitStudent(parseInt(e.target.value, 10) || 25)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
                     />
                     <span className="text-xs font-bold text-slate-400">years</span>
                   </div>
@@ -1029,7 +1029,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             {/* Drawer Top Header */}
             <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
               <div>
-                <h3 className="text-base font-bold text-[#0D2B63] tracking-tight">
+                <h3 className="text-base font-bold text-[#0a2e6b] tracking-tight">
                   {editingCeilingId ? 'Edit Benefit Limit' : 'New Benefit Limit'}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -1051,7 +1051,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 <div
                   className={`flex items-center gap-1.5 ${
                     wizardStep === 1
-                      ? 'text-[#0A347B]'
+                      ? 'text-[#0a2e6b]'
                       : wizardStep > 1
                       ? 'text-emerald-700'
                       : 'text-slate-400'
@@ -1060,7 +1060,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                       wizardStep === 1
-                        ? 'bg-[#0A347B] text-white'
+                        ? 'bg-[#0a2e6b] text-white'
                         : wizardStep > 1
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-slate-200 text-slate-600'
@@ -1076,7 +1076,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 <div
                   className={`flex items-center gap-1.5 ${
                     wizardStep === 2
-                      ? 'text-[#0A347B]'
+                      ? 'text-[#0a2e6b]'
                       : wizardStep > 2
                       ? 'text-emerald-700'
                       : 'text-slate-400'
@@ -1085,7 +1085,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                       wizardStep === 2
-                        ? 'bg-[#0A347B] text-white'
+                        ? 'bg-[#0a2e6b] text-white'
                         : wizardStep > 2
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-slate-200 text-slate-600'
@@ -1100,13 +1100,13 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 {/* Step 3 */}
                 <div
                   className={`flex items-center gap-1.5 ${
-                    wizardStep === 3 ? 'text-[#0A347B]' : 'text-slate-400'
+                    wizardStep === 3 ? 'text-[#0a2e6b]' : 'text-slate-400'
                   }`}
                 >
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                       wizardStep === 3
-                        ? 'bg-[#0A347B] text-white'
+                        ? 'bg-[#0a2e6b] text-white'
                         : 'bg-slate-200 text-slate-600'
                     }`}
                   >
@@ -1140,7 +1140,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                             setWizardAgeStudent(ex.maxAgeStudent ?? 25);
                           }
                         }}
-                        className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0A347B] focus:bg-white appearance-none cursor-pointer"
+                        className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] focus:bg-white appearance-none cursor-pointer"
                       >
                         {availableOrgs.map((org) => (
                           <option key={org.id} value={org.name}>
@@ -1156,7 +1156,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   {/* Age Limits per Policy Configuration */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                     <div className="flex items-center gap-2">
-                      <ShieldAlert className="w-4 h-4 text-[#0A347B]" />
+                      <ShieldAlert className="w-4 h-4 text-[#0a2e6b]" />
                       <span className="text-xs font-extrabold text-slate-900">
                         Configurable Policy Age Thresholds
                       </span>
@@ -1171,7 +1171,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           type="number"
                           value={wizardAgePrincipal}
                           onChange={(e) => setWizardAgePrincipal(parseInt(e.target.value, 10) || 65)}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
                         />
                       </div>
                       <div>
@@ -1182,7 +1182,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           type="number"
                           value={wizardAgeSpouse}
                           onChange={(e) => setWizardAgeSpouse(parseInt(e.target.value, 10) || 65)}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
                         />
                       </div>
                       <div>
@@ -1193,7 +1193,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           type="number"
                           value={wizardAgeChild}
                           onChange={(e) => setWizardAgeChild(parseInt(e.target.value, 10) || 21)}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
                         />
                       </div>
                       <div>
@@ -1204,7 +1204,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           type="number"
                           value={wizardAgeStudent}
                           onChange={(e) => setWizardAgeStudent(parseInt(e.target.value, 10) || 25)}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
                         />
                       </div>
                     </div>
@@ -1221,7 +1221,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       Selected Organization
                     </label>
                     <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-[#0A347B]" />
+                      <Building2 className="w-4 h-4 text-[#0a2e6b]" />
                       <span>{wizardOrg}</span>
                     </div>
                   </div>
@@ -1241,7 +1241,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                             onClick={() => toggleBenefitSelection(benefit)}
                             className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                               isSelected
-                                ? 'bg-[#0A347B] text-white shadow-2xs'
+                                ? 'bg-[#0a2e6b] text-white shadow-2xs'
                                 : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
                             }`}
                           >
@@ -1274,7 +1274,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           onClick={() => setActiveLimitsTab('monthly')}
                           className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                             activeLimitsTab === 'monthly'
-                              ? 'bg-white text-[#0A347B] shadow-2xs'
+                              ? 'bg-white text-[#0a2e6b] shadow-2xs'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
@@ -1285,7 +1285,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           onClick={() => setActiveLimitsTab('annual')}
                           className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                             activeLimitsTab === 'annual'
-                              ? 'bg-white text-[#0A347B] shadow-2xs'
+                              ? 'bg-white text-[#0a2e6b] shadow-2xs'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
@@ -1300,7 +1300,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-600 uppercase">
                             <th className="py-2.5 px-3">Benefit</th>
-                            <th className="py-2.5 px-2 text-center bg-blue-50/50 text-[#0A347B]">
+                            <th className="py-2.5 px-2 text-center bg-blue-50/50 text-[#0a2e6b]">
                               Outpatient
                             </th>
                             <th className="py-2.5 px-2 text-center bg-indigo-50/50 text-indigo-900">
@@ -1341,7 +1341,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                               parseFloat(e.target.value) || 0
                                             )
                                           }
-                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0A347B]"
+                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0a2e6b]"
                                         />
                                       </div>
                                     </div>
@@ -1366,7 +1366,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                               parseFloat(e.target.value) || 0
                                             )
                                           }
-                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0A347B]"
+                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0a2e6b]"
                                         />
                                       </div>
                                     </div>
@@ -1397,7 +1397,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                               parseFloat(e.target.value) || 0
                                             )
                                           }
-                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0A347B]"
+                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0a2e6b]"
                                         />
                                       </div>
                                     </div>
@@ -1422,7 +1422,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                               parseFloat(e.target.value) || 0
                                             )
                                           }
-                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0A347B]"
+                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0a2e6b]"
                                         />
                                       </div>
                                     </div>
@@ -1461,7 +1461,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                         {wizardSelectedBenefits.map((b) => (
                           <span
                             key={b}
-                            className="px-2.5 py-1 rounded-lg bg-blue-50 text-[#0A347B] border border-blue-200 text-xs font-bold"
+                            className="px-2.5 py-1 rounded-lg bg-blue-50 text-[#0a2e6b] border border-blue-200 text-xs font-bold"
                           >
                             {b}
                           </span>
@@ -1484,7 +1484,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                             <div className="font-bold text-slate-900">{benefit}</div>
                             <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
                               <div className="p-2 bg-blue-50/50 rounded-lg">
-                                <span className="font-bold text-[#0A347B] block">Outpatient</span>
+                                <span className="font-bold text-[#0a2e6b] block">Outpatient</span>
                                 <div>Monthly: Princ ${cfg.outpatientMonthlyPrincipal} | Dep ${cfg.outpatientMonthlyDependent}</div>
                                 <div>Annual: Princ ${cfg.outpatientAnnualPrincipal} | Dep ${cfg.outpatientAnnualDependent}</div>
                               </div>
@@ -1521,7 +1521,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setWizardStep((s) => (s + 1) as 1 | 2 | 3)}
-                    className="px-4 py-2 rounded-xl bg-[#0A347B] hover:bg-[#072559] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className="px-4 py-2 rounded-xl bg-[#0a2e6b] hover:bg-[#072559] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <span>{wizardStep === 1 ? 'Next: Benefits & Limits' : 'Next: Review & Save'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
