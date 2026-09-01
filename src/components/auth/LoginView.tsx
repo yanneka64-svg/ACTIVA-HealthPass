@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, User, ArrowRight, AlertCircle, Globe, Shield } from 'lucide-react';
 import { Language } from '../../types';
 import { Logo } from '../Logo';
@@ -12,6 +12,58 @@ interface LoginViewProps {
   onLanguageChange?: (lang: Language) => void;
 }
 
+// === AMÉLIORATION AJOUTÉE (sécurité) : verrouillage temporaire côté client après des
+// tentatives de connexion échouées répétées, par nom d'utilisateur/email saisi (stocké dans
+// sessionStorage, effacé à la fermeture de l'onglet). Ceci s'ajoute — sans le remplacer — au
+// rate limiting déjà appliqué côté serveur par Firebase Auth lui-même (erreur
+// 'auth/too-many-requests' déjà gérée plus bas) : une défense en profondeur supplémentaire,
+// visible plus tôt et sans dépendre uniquement du blocage serveur.
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 60_000;
+
+function loginAttemptKey(identifier: string) {
+  return `activa_login_attempts_${identifier.toLowerCase().trim()}`;
+}
+function loginLockoutKey(identifier: string) {
+  return `activa_login_lockout_${identifier.toLowerCase().trim()}`;
+}
+
+function getLockoutRemainingMs(identifier: string): number {
+  if (!identifier) return 0;
+  try {
+    const until = Number(sessionStorage.getItem(loginLockoutKey(identifier)) || 0);
+    return Math.max(0, until - Date.now());
+  } catch {
+    return 0; // sessionStorage unavailable (e.g. private mode edge cases) -> fail open, no lockout
+  }
+}
+
+function recordFailedLoginAttempt(identifier: string) {
+  if (!identifier) return;
+  try {
+    const key = loginAttemptKey(identifier);
+    const attempts = Number(sessionStorage.getItem(key) || 0) + 1;
+    if (attempts >= MAX_LOGIN_ATTEMPTS) {
+      sessionStorage.setItem(loginLockoutKey(identifier), String(Date.now() + LOCKOUT_DURATION_MS));
+      sessionStorage.removeItem(key);
+    } else {
+      sessionStorage.setItem(key, String(attempts));
+    }
+  } catch {
+    // sessionStorage unavailable -> silently skip client-side tracking (server-side limit still applies)
+  }
+}
+
+function clearLoginAttempts(identifier: string) {
+  if (!identifier) return;
+  try {
+    sessionStorage.removeItem(loginAttemptKey(identifier));
+    sessionStorage.removeItem(loginLockoutKey(identifier));
+  } catch {
+    // ignore
+  }
+}
+
 export const LoginView: React.FC<LoginViewProps> = ({
   onLoginSuccess,
 }) => {
@@ -19,15 +71,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [lockoutRemainingSec, setLockoutRemainingSec] = useState(0);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanUsername = username.trim();
-    if (!cleanUsername || !password) {
-      setError('Please enter your Corporate Email / Username and Password.');
-      return;
-    }
+  // Live countdown while locked out, so the user sees when they can retry.
+  useEffect(() => {
+    if (lockoutRemainingSec <= 0) return;
+    const interval = setInterval(() => {
+      const remaining = Math.ceil(getLockoutRemainingMs(username.trim()) / 1000);
+      setLockoutRemainingSec(remaining);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutRemainingSec, username]);
 
+  const attemptLogin = async (cleanUsername: string): Promise<boolean> => {
     setIsLoggingIn(true);
     setError(null);
 
@@ -69,7 +125,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       if (matchingAccountDoc && matchingAccountDoc.isActive === false) {
         setError('Ce compte est désactivé par l’administrateur. / This account has been deactivated. Please contact your administrator.');
         setIsLoggingIn(false);
-        return;
+        return false;
       }
 
       // Build candidate emails to try with Firebase Auth
@@ -125,7 +181,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         }
 
         onLoginSuccess(userCredential.user);
-        return;
+        return true;
       }
 
       // 4. If sign in did not find user in Firebase Auth, but matching account was created by Admin in Firestore:
@@ -134,7 +190,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         if (storedPwd && storedPwd !== password) {
           setError('Mot de passe incorrect. Veuillez vérifier les identifiants fournis par l’administrateur. / Incorrect password. Please verify the credentials provided by your administrator.');
           setIsLoggingIn(false);
-          return;
+          return false;
         }
 
         // Auto-provision Firebase Auth credential for this registered corporate account
@@ -158,13 +214,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
           const userDocRef = doc(db, 'accounts', userCredential.user.uid);
           await setDoc(userDocRef, { ...matchingAccountDoc, id: userCredential.user.uid }, { merge: true });
           onLoginSuccess(userCredential.user);
-          return;
+          return true;
         }
       }
 
       // 5. If no account matches in Firestore and no Firebase Auth user exists:
       setError('Identifiant ou mot de passe incorrect. Veuillez vérifier vos identifiants. / Invalid username or password.');
       setIsLoggingIn(false);
+      return false;
     } catch (err: any) {
       console.error('Login error:', err);
       if (
@@ -180,8 +237,37 @@ export const LoginView: React.FC<LoginViewProps> = ({
       } else {
         setError(err.message || 'Authentication failed. Please check your credentials.');
       }
+      return false;
     } finally {
       setIsLoggingIn(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUsername = username.trim();
+    if (!cleanUsername || !password) {
+      setError('Please enter your Corporate Email / Username and Password.');
+      return;
+    }
+
+    const remainingMs = getLockoutRemainingMs(cleanUsername);
+    if (remainingMs > 0) {
+      setLockoutRemainingSec(Math.ceil(remainingMs / 1000));
+      setError(`Too many failed attempts. Please try again in ${Math.ceil(remainingMs / 1000)}s. / Trop de tentatives échouées, veuillez réessayer dans ${Math.ceil(remainingMs / 1000)}s.`);
+      return;
+    }
+
+    const success = await attemptLogin(cleanUsername);
+    if (success) {
+      clearLoginAttempts(cleanUsername);
+    } else {
+      recordFailedLoginAttempt(cleanUsername);
+      const remaining = getLockoutRemainingMs(cleanUsername);
+      if (remaining > 0) {
+        setLockoutRemainingSec(Math.ceil(remaining / 1000));
+        setError(`Too many failed attempts. Please try again in ${Math.ceil(remaining / 1000)}s. / Trop de tentatives échouées, veuillez réessayer dans ${Math.ceil(remaining / 1000)}s.`);
+      }
     }
   };
 
@@ -277,10 +363,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
               <button
                 id="login-submit-button"
                 type="submit"
-                disabled={isLoggingIn}
+                disabled={isLoggingIn || lockoutRemainingSec > 0}
                 className="w-full py-3.5 px-4 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] active:bg-[#07214f] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>{isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
+                <span>{lockoutRemainingSec > 0 ? `Try again in ${lockoutRemainingSec}s` : isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

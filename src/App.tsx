@@ -1034,25 +1034,42 @@ export default function App() {
             setChangePasswordModalOpen(false);
           }
         }}
-        onSuccess={async (newPwd) => {
+        onSuccess={async (newPwd, currentPwd) => {
           if (auth.currentUser) {
             try {
-              const { updatePassword } = await import('firebase/auth');
+              const { updatePassword, EmailAuthProvider, reauthenticateWithCredential } = await import('firebase/auth');
+
+              // === AMÉLIORATION AJOUTÉE (sécurité) : vérifier le mot de passe ACTUEL avant
+              // d'autoriser le changement. Avant ce correctif, le champ "mot de passe actuel"
+              // du formulaire n'était jamais vérifié : quiconque disposait d'une session déjà
+              // connectée (poste non verrouillé, session volée) pouvait changer le mot de passe
+              // du compte sans le connaître, verrouillant le titulaire légitime hors de son
+              // compte. Non applicable lors d'un premier login forcé (currentPwd absent) : la
+              // connexion avec le mot de passe temporaire vient de se produire à l'instant.
+              if (currentPwd && auth.currentUser.email) {
+                const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPwd);
+                await reauthenticateWithCredential(auth.currentUser, credential);
+              }
+
               await updatePassword(auth.currentUser, newPwd);
-              
+
               const { doc, updateDoc } = await import('firebase/firestore');
               await updateDoc(doc(db, 'accounts', auth.currentUser.uid), {
                 isTemporaryPassword: false,
                 mustChangePassword: false,
                 passwordChangedAt: new Date().toISOString()
               });
-              
+
               setForcedFirstLogin(false);
               setForcedPasswordExpiry(false);
               setChangePasswordModalOpen(false);
               alert("Password updated successfully.");
             } catch (error: any) {
-              alert("Error updating password: " + error.message);
+              if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                alert("The current password you entered is incorrect.");
+              } else {
+                alert("Error updating password: " + error.message);
+              }
             }
           }
         }}

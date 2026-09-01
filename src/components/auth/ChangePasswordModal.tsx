@@ -6,7 +6,11 @@ import { useTranslation } from '../../i18n/translations';
 interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose?: () => void;
-  onSuccess: (newPassword: string) => void;
+  // === AMÉLIORATION AJOUTÉE (sécurité) : le mot de passe ACTUEL saisi par l'utilisateur
+  // est désormais transmis à onSuccess (2e paramètre, absent lors d'un premier login forcé
+  // où le champ n'existe pas) afin que l'appelant puisse le vérifier par ré-authentification
+  // avant d'autoriser le changement — voir App.tsx.
+  onSuccess: (newPassword: string, currentPassword?: string) => void;
   lang: Language;
   isForcedFirstLogin?: boolean;
   isExpiredPassword?: boolean;
@@ -51,7 +55,9 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
       return;
     }
     setError(null);
-    onSuccess(newPassword);
+    // isForcedFirstLogin: pas de champ "mot de passe actuel" (l'utilisateur vient de se
+    // connecter avec son mot de passe temporaire) -> currentPassword reste undefined.
+    onSuccess(newPassword, isForcedFirstLogin ? undefined : currentPassword);
   };
 
   const modalTitle = customTitle || (isExpiredPassword ? 'Renouvellement Périodique du Mot de Passe' : isForcedFirstLogin ? t.auth.changePasswordTitle : t.changePassword);
