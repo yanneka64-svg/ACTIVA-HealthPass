@@ -45,10 +45,15 @@ export function drawPdfLogoStrip(doc: jsPDF, pageWidth: number, bannerBottomY: n
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6);
-  doc.setCharSpace(0.3);
+  const charSpace = 0.3;
+  doc.setCharSpace(charSpace);
   doc.setTextColor(148, 163, 184);
   const label = 'IN PARTNERSHIP WITH';
-  const labelWidth = doc.getTextWidth(label);
+  // === AMÉLIORATION AJOUTÉE : getTextWidth() ne tient PAS compte de l'espacement des
+  // lettres appliqué par setCharSpace() — sans ce correctif, le label empiétait sur le
+  // logo Globus (largeur réelle sous-estimée). On ajoute donc l'espacement cumulé
+  // (charSpace * nombre de caractères) à la largeur mesurée avant de positionner le texte.
+  const labelWidth = doc.getTextWidth(label) + charSpace * label.length;
   const labelX = pageWidth - 14 - globusW - 5 - labelWidth;
   doc.text(label, labelX, y + logoH / 2 + 1.1);
   doc.setCharSpace(0);
