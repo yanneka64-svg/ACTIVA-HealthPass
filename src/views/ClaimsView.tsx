@@ -113,7 +113,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
     organization: '',
     provider: '',
     amount: '',
-    careType: 'Consultation & Soins Spécialisés',
+    careType: 'Consultation & Specialized Care',
     serviceDate: new Date().toISOString().split('T')[0],
   });
 

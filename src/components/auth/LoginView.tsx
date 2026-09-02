@@ -12,12 +12,12 @@ interface LoginViewProps {
   onLanguageChange?: (lang: Language) => void;
 }
 
-// === AMÉLIORATION AJOUTÉE (sécurité) : verrouillage temporaire côté client après des
-// tentatives de connexion échouées répétées, par nom d'utilisateur/email saisi (stocké dans
-// sessionStorage, effacé à la fermeture de l'onglet). Ceci s'ajoute — sans le remplacer — au
-// rate limiting déjà appliqué côté serveur par Firebase Auth lui-même (erreur
-// 'auth/too-many-requests' déjà gérée plus bas) : une défense en profondeur supplémentaire,
-// visible plus tôt et sans dépendre uniquement du blocage serveur.
+// === ADDED IMPROVEMENT (security): temporary client-side lockout after repeated failed
+// login attempts, keyed by the username/email entered (stored in sessionStorage, cleared
+// when the tab closes). This is additive — it does not replace — the rate limiting already
+// enforced server-side by Firebase Auth itself ('auth/too-many-requests' error already
+// handled below): an extra layer of defense in depth, surfaced earlier and not solely
+// reliant on the server-side block.
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 60_000;
 
@@ -123,7 +123,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
       // Check if matched account is deactivated
       if (matchingAccountDoc && matchingAccountDoc.isActive === false) {
-        setError('Ce compte est désactivé par l’administrateur. / This account has been deactivated. Please contact your administrator.');
+        setError('This account has been deactivated. Please contact your administrator.');
         setIsLoggingIn(false);
         return false;
       }
@@ -188,7 +188,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       if (matchingAccountDoc) {
         const storedPwd = matchingAccountDoc.password || matchingAccountDoc.tempPassword;
         if (storedPwd && storedPwd !== password) {
-          setError('Mot de passe incorrect. Veuillez vérifier les identifiants fournis par l’administrateur. / Incorrect password. Please verify the credentials provided by your administrator.');
+          setError('Incorrect password. Please verify the credentials provided by your administrator.');
           setIsLoggingIn(false);
           return false;
         }
@@ -219,7 +219,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
 
       // 5. If no account matches in Firestore and no Firebase Auth user exists:
-      setError('Identifiant ou mot de passe incorrect. Veuillez vérifier vos identifiants. / Invalid username or password.');
+      setError('Invalid username or password.');
       setIsLoggingIn(false);
       return false;
     } catch (err: any) {
@@ -229,11 +229,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
         err.code === 'auth/wrong-password' ||
         err.code === 'auth/user-not-found'
       ) {
-        setError('Identifiant ou mot de passe incorrect. Veuillez vérifier vos identifiants fournis par l’administrateur. / Invalid username or password. Please verify your credentials.');
+        setError('Invalid username or password. Please verify your credentials.');
       } else if (err.code === 'auth/too-many-requests') {
-        setError('Trop de tentatives infructueuses. Veuillez patienter un instant. / Too many attempts. Please try again shortly.');
+        setError('Too many attempts. Please try again shortly.');
       } else if (err.code === 'auth/weak-password') {
-        setError('Le mot de passe doit comporter au moins 6 caractères.');
+        setError('Password must be at least 6 characters long.');
       } else {
         setError(err.message || 'Authentication failed. Please check your credentials.');
       }
@@ -254,7 +254,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const remainingMs = getLockoutRemainingMs(cleanUsername);
     if (remainingMs > 0) {
       setLockoutRemainingSec(Math.ceil(remainingMs / 1000));
-      setError(`Too many failed attempts. Please try again in ${Math.ceil(remainingMs / 1000)}s. / Trop de tentatives échouées, veuillez réessayer dans ${Math.ceil(remainingMs / 1000)}s.`);
+      setError(`Too many failed attempts. Please try again in ${Math.ceil(remainingMs / 1000)}s.`);
       return;
     }
 
@@ -266,7 +266,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       const remaining = getLockoutRemainingMs(cleanUsername);
       if (remaining > 0) {
         setLockoutRemainingSec(Math.ceil(remaining / 1000));
-        setError(`Too many failed attempts. Please try again in ${Math.ceil(remaining / 1000)}s. / Trop de tentatives échouées, veuillez réessayer dans ${Math.ceil(remaining / 1000)}s.`);
+        setError(`Too many failed attempts. Please try again in ${Math.ceil(remaining / 1000)}s.`);
       }
     }
   };

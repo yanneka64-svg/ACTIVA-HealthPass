@@ -1,18 +1,17 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // === AMÉLIORATION AJOUTÉE ===
-    // Ce projet Firebase n'avait aucune règle Storage explicite dans le dépôt : Firebase
-    // Storage n'était d'ailleurs jamais utilisé par le code (voir src/utils/storageUtils.ts).
-    // Ce fichier verrouille l'accès aux photos d'assurés/enrôlements aux seuls utilisateurs
-    // authentifiés, à l'image de firestore.rules — cohérent avec le reste de l'audit de
-    // sécurité (aucun accès anonyme aux données personnelles des assurés).
+    // === ADDED IMPROVEMENT ===
+    // This Firebase project had no explicit Storage rules in the repository: Firebase
+    // Storage was in fact never used by the code (see src/utils/storageUtils.ts). This
+    // file restricts access to member/enrollment photos to authenticated users only,
+    // mirroring firestore.rules — consistent with the rest of the security audit (no
+    // anonymous access to members' personal data).
     //
-    // IMPORTANT (déploiement) : ce fichier doit être déployé sur le projet Firebase via
-    // `firebase deploy --only storage` pour prendre effet. Cette session n'a pas d'accès de
-    // déploiement au projet réel. Tant qu'il n'est pas déployé, l'upload utilise le repli
-    // automatique vers le stockage base64 existant (voir storageUtils.ts) — aucune régression
-    // possible en attendant.
+    // IMPORTANT (deployment): this file must be deployed to the Firebase project via
+    // `firebase deploy --only storage` to take effect. This session has no deployment
+    // access to the real project. Until it's deployed, uploads use the automatic fallback
+    // to the existing base64 storage (see storageUtils.ts) — no regression in the meantime.
     match /{allPaths=**} {
       allow read, write: if request.auth != null;
     }

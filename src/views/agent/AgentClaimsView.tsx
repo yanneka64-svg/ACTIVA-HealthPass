@@ -590,7 +590,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
         </div>
       </div>
 
-      {/* Modal: Saisir une Nouvelle Réclamation */}
+      {/* Modal: Enter a New Claim */}
       {showNewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden my-4 sm:my-8 animate-in zoom-in-95 flex flex-col max-h-[92vh]">
@@ -1278,7 +1278,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
         </div>
       )}
 
-      {/* Modal Détails Réclamation */}
+      {/* Claim Details Modal */}
       {selectedClaimDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden animate-in zoom-in-95 max-h-[90vh] flex flex-col">

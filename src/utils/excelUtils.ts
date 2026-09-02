@@ -225,33 +225,33 @@ export function generateMemberTemplateExcel() {
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), 'ACTIVA_Members_Import_Template.xlsx');
 }
 
-// ================= AMÉLIORATION AJOUTÉE : IMPORT MULTI-ORGANISATIONS (classeur "Staff / Deps") =================
-// Import dédié pour les classeurs RH historiques structurés comme le fichier client fourni :
-// une paire de feuilles "<Organisation> - Staff" / "<Organisation> - Deps" PAR employeur, au lieu
-// d'une seule feuille plate. Ce format est INCOMPATIBLE avec parseMemberExcel() ci-dessus
-// (qui ne lit que la 1ère feuille et une seule organisation) : on ne modifie donc PAS
-// parseMemberExcel / generateMemberTemplateExcel (toujours disponibles pour les imports simples,
-// mono-feuille) — ce bloc ajoute un second chemin d'import, en plus.
+// ================= ADDED IMPROVEMENT: MULTI-ORGANIZATION IMPORT ("Staff / Deps" workbook) =================
+// Dedicated import for the legacy HR workbooks structured like the client's provided file:
+// a pair of sheets "<Organization> - Staff" / "<Organization> - Deps" PER employer, instead
+// of a single flat sheet. This format is INCOMPATIBLE with parseMemberExcel() above (which
+// only reads the 1st sheet and a single organization): parseMemberExcel /
+// generateMemberTemplateExcel are therefore left untouched (still available for simple,
+// single-sheet imports) — this block adds a second, additional import path.
 //
-// Règles de correspondance déduites du fichier réel fourni par le client :
-// - Feuille "<Org> - Staff" : 'Card No.', 'Primary Insured Name', 'Date of Birth', puis
-//   optionnellement 'Contact', 'Spouse Name' + 'Spouse Date of Birth', et des paires
-//   'Child N Name' + 'Child N Date of Birth' (N = 1..9). C'est la SEULE source du nom des
-//   ayants droit (le nom du conjoint/enfant n'apparaît nulle part dans la feuille "Deps").
-// - Feuille "<Org> - Deps" (mêmes 7 colonnes partout) : 'Card No.' (carte PROPRE à l'ayant
-//   droit), 'Relationship' ('Spouse' ou 'Child N' — le N correspond exactement à la colonne
-//   'Child N Name' de la feuille Staff), 'Date of Birth', 'Primary Insured' (nom du PRINCIPAL,
-//   pas de l'ayant droit), 'Primary Card No.', 'Organization', 'Biometrics'. C'est la SEULE
-//   source du numéro de carte individuel de chaque ayant droit — indispensable à
-//   l'identification / aux réclamations le concernant.
-// - L'organisation est déduite du nom de feuille (tout ce qui précède " - Staff"/" - Deps").
+// Matching rules inferred from the client's real file:
+// - Sheet "<Org> - Staff": 'Card No.', 'Primary Insured Name', 'Date of Birth', then
+//   optionally 'Contact', 'Spouse Name' + 'Spouse Date of Birth', and pairs of
+//   'Child N Name' + 'Child N Date of Birth' (N = 1..9). This is the ONLY source of a
+//   dependent's name (the spouse's/child's name appears nowhere on the "Deps" sheet).
+// - Sheet "<Org> - Deps" (same 7 columns everywhere): 'Card No.' (card OWNED by the
+//   dependent), 'Relationship' ('Spouse' or 'Child N' — N matches exactly the 'Child N
+//   Name' column on the Staff sheet), 'Date of Birth', 'Primary Insured' (the PRINCIPAL's
+//   name, not the dependent's), 'Primary Card No.', 'Organization', 'Biometrics'. This is
+//   the ONLY source of each dependent's individual card number — essential for
+//   identifying them / processing claims on their behalf.
+// - The organization is inferred from the sheet name (everything before " - Staff"/" - Deps").
 //
-// Le résultat alimente à la fois `dependents[]` (structuré, avec cardNo propre — utilisé par
-// eligibilityService et la recherche Agent) ET les champs hérités `spouseName`/`children`
-// (chaîne "Nom (âge yrs)", même convention que parseMemberExcel / generateMemberTemplateExcel,
-// pour rester compatible avec l'affichage historique de AgentIdentificationView / MembersView).
-// Fusion avec les assurés déjà en base par numéro de carte, comme parseMemberExcel : un
-// réimport du même fichier met à jour au lieu de dupliquer.
+// The result feeds both `dependents[]` (structured, with its own cardNo — used by
+// eligibilityService and the Agent search) AND the legacy `spouseName`/`children` fields
+// (string "Name (age yrs)", same convention as parseMemberExcel / generateMemberTemplateExcel,
+// to stay compatible with the existing display in AgentIdentificationView / MembersView).
+// Merges with members already in the database by card number, like parseMemberExcel: a
+// re-import of the same file updates rather than duplicates.
 
 const STAFF_SHEET_SUFFIX = /\s*-\s*staff\s*$/i;
 const DEPS_SHEET_SUFFIX = /\s*-\s*deps\s*$/i;
@@ -259,9 +259,9 @@ const CHILD_NAME_HEADER = /^child\s*(\d+)\s*name$/i;
 const CHILD_DOB_HEADER = /^child\s*(\d+)\s*(?:date of birth|dob|birth date)$/i;
 const CHILD_RELATIONSHIP_NUMBER = /child\s*(\d+)/i;
 
-// Convertit une valeur de cellule Excel (objet Date JS, numéro de série Excel, ou texte libre)
-// en 'YYYY-MM-DD'. Renvoie '' si la valeur est vide/illisible, pour laisser l'appelant décider
-// de la valeur par défaut (même logique que parseMemberExcel, qui utilise déjà des fallbacks).
+// Converts an Excel cell value (JS Date object, Excel serial number, or free text)
+// into 'YYYY-MM-DD'. Returns '' if the value is empty/unreadable, letting the caller decide
+// on the default value (same logic as parseMemberExcel, which already uses fallbacks).
 export function excelCellToISODate(raw: any): string {
   if (raw === undefined || raw === null || raw === '') return '';
   if (raw instanceof Date) {
@@ -300,11 +300,11 @@ function calcAgeFromISODate(iso: string): number | undefined {
   return Math.max(0, age);
 }
 
-// Normalisation cosmétique "TOUT MAJUSCULES" -> "Casse de titre" (ex: "ORANGE LIBERIA" ->
-// "Orange Liberia"), appliquée UNIQUEMENT quand le nom de feuille est entièrement en
-// majuscules. Les noms déjà en casse mixte (ex: "Samaritain Purse") ne sont pas modifiés.
-// Purement cosmétique : les comparaisons d'organisation dans le reste de l'app sont déjà
-// insensibles à la casse (.toLowerCase().trim()), donc cela n'affecte aucune logique métier.
+// Cosmetic "ALL CAPS" -> "Title Case" normalization (e.g. "ORANGE LIBERIA" ->
+// "Orange Liberia"), applied ONLY when the sheet name is entirely uppercase. Names already
+// in mixed case (e.g. "Samaritain Purse") are left unchanged. Purely cosmetic: organization
+// comparisons elsewhere in the app are already case-insensitive (.toLowerCase().trim()), so
+// this doesn't affect any business logic.
 function titleCaseIfAllCaps(name: string): string {
   const trimmed = (name || '').trim();
   if (!trimmed || !/[A-Z]/.test(trimmed) || trimmed !== trimmed.toUpperCase()) return trimmed;
@@ -315,10 +315,11 @@ function titleCaseIfAllCaps(name: string): string {
     .join(' ');
 }
 
-// Si une organisation du même nom (insensible à la casse) existe déjà dans `existingOrganizations`
-// (ex: "Orange Liberia Telecom" créée depuis l'écran Organisations), on réutilise EXACTEMENT ce nom
-// au lieu du nom déduit de la feuille, pour que ceilings/eligibilityService/OrganizationsView
-// retrouvent bien l'organisation existante. Sinon on garde le nom déduit de la feuille.
+// If an organization with the same name (case-insensitive) already exists in
+// `existingOrganizations` (e.g. "Orange Liberia Telecom" created from the Organizations
+// screen), we reuse that EXACT name instead of the name inferred from the sheet, so that
+// ceilings/eligibilityService/OrganizationsView correctly find the existing organization.
+// Otherwise we keep the name inferred from the sheet.
 function reconcileOrganizationName(sheetOrgName: string, existingOrganizations: Organization[]): string {
   const match = existingOrganizations.find(
     (o) => o.name.toLowerCase().trim() === sheetOrgName.toLowerCase().trim()
@@ -350,7 +351,7 @@ export async function parseActivaMultiOrgExcel(
     reader.onload = (e) => {
       try {
         const buffer = e.target?.result;
-        // cellDates: true => les colonnes "Date of Birth" arrivent en objets Date JS exploitables
+        // cellDates: true => "Date of Birth" columns arrive as usable JS Date objects
         const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
         const sheetNames = workbook.SheetNames;
         const staffSheetNames = sheetNames.filter((n) => STAFF_SHEET_SUFFIX.test(n));
@@ -436,9 +437,9 @@ export async function parseActivaMultiOrgExcel(
             if (depsRows.length > 0) {
               const depsHeaders = Object.keys(depsRows[0]);
               const depPrincipalCardHeader = depsHeaders.find((h) => /primary\s*card/i.test(h));
-              // Exclusion explicite de "Primary Card No." : sans elle, la détection par alias
-              // (qui matche "card no" en sous-chaîne) pourrait s'y accrocher selon l'ordre des
-              // colonnes du fichier au lieu de la véritable colonne "Card No." de l'ayant droit.
+              // Explicit exclusion of "Primary Card No.": without it, alias-based detection
+              // (which matches "card no" as a substring) could latch onto it depending on the
+              // file's column order, instead of the dependent's actual "Card No." column.
               const depCardHeader = depsHeaders.find((h) => h !== depPrincipalCardHeader && matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.cardNo));
               const depRelHeader = depsHeaders.find((h) => matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.relationship));
               const depDobHeader = depsHeaders.find((h) => matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.birthDate));
@@ -603,47 +604,47 @@ export async function parseActivaMultiOrgExcel(
   });
 }
 
-// Modèle de classeur téléchargeable, reproduisant EXACTEMENT la structure attendue par
-// parseActivaMultiOrgExcel() ci-dessus (une paire de feuilles "<Organisation> - Staff" /
-// "<Organisation> - Deps"), avec une feuille d'instructions et un exemple concret. Pour
-// ajouter une organisation, il suffit de dupliquer les 2 feuilles d'exemple et de renommer
-// "Example Org" par le nom réel de l'organisation (en conservant " - Staff" / " - Deps").
+// Downloadable workbook template, reproducing EXACTLY the structure expected by
+// parseActivaMultiOrgExcel() above (a pair of sheets "<Organization> - Staff" /
+// "<Organization> - Deps"), with an instructions sheet and a concrete example. To add an
+// organization, simply duplicate the 2 example sheets and rename "Example Org" to the
+// organization's real name (keeping " - Staff" / " - Deps").
 export function generateMultiOrgTemplateExcel() {
   const wb = XLSX.utils.book_new();
 
   const instructions = [
-    ['ACTIVA HealthPass — Modèle d\'import multi-organisations (Staff / Deps)'],
+    ['ACTIVA HealthPass — Multi-Organization Import Template (Staff / Deps)'],
     [''],
-    ['1. Une organisation = une PAIRE de feuilles nommées EXACTEMENT :'],
-    ['   "<Nom Organisation> - Staff"  et  "<Nom Organisation> - Deps"'],
-    ['   (respecter les espaces autour du tiret, comme dans les 2 feuilles d\'exemple ci-jointes)'],
+    ['1. One organization = a PAIR of sheets named EXACTLY:'],
+    ['   "<Organization Name> - Staff"  and  "<Organization Name> - Deps"'],
+    ['   (keep the spaces around the dash, as in the 2 example sheets provided)'],
     [''],
-    ['2. Feuille "... - Staff" (1 ligne = 1 assuré PRINCIPAL) :'],
-    ['   - Card No. : numéro de carte du principal (obligatoire, unique)'],
-    ['   - Primary Insured Name : nom complet du principal (obligatoire)'],
-    ['   - Date of Birth : date de naissance du principal (JJ/MM/AAAA ou AAAA-MM-JJ)'],
-    ['   - Contact : téléphone (optionnel)'],
-    ['   - Spouse Name / Spouse Date of Birth : conjoint (optionnel)'],
+    ['2. Sheet "... - Staff" (1 row = 1 PRINCIPAL insured member):'],
+    ['   - Card No.: principal\'s card number (required, unique)'],
+    ['   - Primary Insured Name: principal\'s full name (required)'],
+    ['   - Date of Birth: principal\'s date of birth (DD/MM/YYYY or YYYY-MM-DD)'],
+    ['   - Contact: phone number (optional)'],
+    ['   - Spouse Name / Spouse Date of Birth: spouse (optional)'],
     ['   - Child 1 Name / Child 1 Date of Birth, Child 2 Name / Child 2 Date of Birth, ... :'],
-    ['     un enfant par paire de colonnes. Ajoutez autant de paires "Child N" que nécessaire.'],
+    ['     one child per column pair. Add as many "Child N" pairs as needed.'],
     [''],
-    ['3. Feuille "... - Deps" (1 ligne = 1 ayant droit, conjoint OU enfant) — donne à chaque'],
-    ['   ayant droit son PROPRE numéro de carte, utilisé pour l\'identifier/le rembourser :'],
-    ['   - Card No. : numéro de carte PROPRE à l\'ayant droit (obligatoire, unique)'],
-    ['   - Relationship : "Spouse" pour le conjoint, ou "Child 1" / "Child 2" / ... — le numéro'],
-    ['     doit correspondre EXACTEMENT à la colonne "Child N Name" de la feuille Staff'],
-    ['   - Date of Birth : date de naissance de l\'ayant droit'],
-    ['   - Primary Insured : nom du PRINCIPAL (pas de l\'ayant droit)'],
-    ['   - Primary Card No. : numéro de carte du PRINCIPAL (fait le lien avec la feuille Staff)'],
-    ['   - Organization : nom de l\'organisation (identique au nom de feuille)'],
-    ['   - Biometrics : "Yes" si les empreintes biométriques ont déjà été enregistrées'],
+    ['3. Sheet "... - Deps" (1 row = 1 dependent, spouse OR child) — gives each'],
+    ['   dependent their OWN card number, used to identify/reimburse them:'],
+    ['   - Card No.: card number OWNED by the dependent (required, unique)'],
+    ['   - Relationship: "Spouse" for the spouse, or "Child 1" / "Child 2" / ... — the number'],
+    ['     must EXACTLY match the "Child N Name" column on the Staff sheet'],
+    ['   - Date of Birth: dependent\'s date of birth'],
+    ['   - Primary Insured: PRINCIPAL\'s name (not the dependent\'s)'],
+    ['   - Primary Card No.: PRINCIPAL\'s card number (links back to the Staff sheet)'],
+    ['   - Organization: organization name (identical to the sheet name)'],
+    ['   - Biometrics: "Yes" if biometric fingerprints have already been captured'],
     [''],
-    ['4. Si la feuille "... - Deps" d\'une organisation est vide ou absente, les conjoints/enfants'],
-    ['   seront quand même importés depuis la feuille "Staff", mais SANS numéro de carte propre'],
-    ['   (à compléter plus tard depuis l\'écran Assurés).'],
+    ['4. If an organization\'s "... - Deps" sheet is empty or missing, spouses/children'],
+    ['   will still be imported from the "Staff" sheet, but WITHOUT their own card number'],
+    ['   (to be completed later from the Insured Members screen).'],
     [''],
-    ['5. Réimporter ce fichier après modification met à jour les fiches existantes (par numéro de'],
-    ['   carte) au lieu de les dupliquer — vous pouvez donc l\'utiliser aussi pour des mises à jour.'],
+    ['5. Re-importing this file after editing it updates existing records (by card'],
+    ['   number) instead of duplicating them — so you can also use it for updates.'],
   ];
   const wsInstructions = XLSX.utils.aoa_to_sheet(instructions);
   wsInstructions['!cols'] = [{ wch: 100 }];

@@ -204,7 +204,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   const [selectedOrg, setSelectedOrg] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [importModalOpen, setImportModalOpen] = useState(false);
-  // === AMÉLIORATION AJOUTÉE : import multi-organisations dédié (classeur "Staff / Deps")
+  // === ADDED IMPROVEMENT: dedicated multi-organization import (Staff / Deps workbook)
   const [importMultiOrgModalOpen, setImportMultiOrgModalOpen] = useState(false);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -460,10 +460,10 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       });
     });
 
-    // === AMÉLIORATION AJOUTÉE : upload la photo capturée/téléversée vers Firebase Storage
-    // (au lieu de l'enregistrer en base64 dans le document Firestore) au moment de la
-    // sauvegarde, une seule fois. Repli automatique et transparent vers le comportement
-    // existant (base64 inline) si l'upload échoue — voir storageUtils.ts.
+    // === ADDED IMPROVEMENT: upload the captured/uploaded photo to Firebase Storage
+    // (instead of saving it as base64 in the Firestore document) once, at save time.
+    // Automatic, transparent fallback to the existing behavior (inline base64) if the
+    // upload fails — see storageUtils.ts.
     const resolvedPhotoUrl = photoData
       ? await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim())
       : editingMember?.photoUrl;
@@ -618,14 +618,14 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
           </button>
           )}
 
-          {/* === AMÉLIORATION AJOUTÉE : import dédié pour les classeurs multi-organisations
-              (paires de feuilles "<Organisation> - Staff" / "<Organisation> - Deps"), distinct
-              du bouton "Import Excel" ci-dessus qui ne lit qu'une seule feuille/organisation === */}
+          {/* === ADDED IMPROVEMENT: dedicated import for multi-organization workbooks
+              (sheet pairs "<Organization> - Staff" / "<Organization> - Deps"), distinct
+              from the "Import Excel" button above, which only reads a single sheet/organization === */}
           {userRole === 'Admin' && (
             <button
               id="import-members-multi-org-btn"
               onClick={() => setImportMultiOrgModalOpen(true)}
-              title="Importer un classeur multi-organisations (feuilles &quot;Organisation - Staff&quot; / &quot;Organisation - Deps&quot;)"
+              title="Import a multi-organization workbook (sheets &quot;Organization - Staff&quot; / &quot;Organization - Deps&quot;)"
               className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0a2e6b] border border-blue-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
             >
               <UploadCloud className="w-4 h-4 text-[#0a2e6b]" />
@@ -1626,13 +1626,13 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       )}
 
       {/* WEBCAM CAPTURE MODAL */}
-      {/* === CORRECTIF (bug préexistant) : la prop passée était "onCapture", qui n'existe pas
-          sur WebcamCaptureModal (dont la vraie prop est "onPhotoCaptured") — le callback
-          handlePhotoCaptured n'était donc JAMAIS appelé. Concrètement : dans cet écran
-          (Assurés/Membres), le bouton "Capturer une photo" ouvrait bien la caméra et
-          l'animation de capture se déroulait, mais la photo prise n'était jamais rattachée
-          à la fiche de l'assuré. tsc ne détecte pas ce genre d'erreur de prop dans ce projet
-          (voir vérification ci-dessous), d'où sa présence silencieuse. === */}
+      {/* === FIX (pre-existing bug): the prop passed was "onCapture", which doesn't exist
+          on WebcamCaptureModal (whose real prop is "onPhotoCaptured") — the
+          handlePhotoCaptured callback was therefore NEVER called. Concretely, on this
+          screen (Members), clicking "Capture Photo" did open the camera and the capture
+          animation did play out, but the captured photo was never attached to the
+          member's record. tsc does not catch this kind of prop error in this project
+          (verified empirically), hence its silent presence. === */}
       <WebcamCaptureModal
         isOpen={isWebcamModalOpen}
         onClose={() => setIsWebcamModalOpen(false)}
@@ -1640,8 +1640,8 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       />
 
       {/* BIOMETRIC FINGERPRINT SCANNER MODAL */}
-      {/* === CORRECTIF (même bug) : "onCapture" -> "onFingerprintCaptured" (vraie prop du
-          composant) === */}
+      {/* === FIX (same bug): "onCapture" -> "onFingerprintCaptured" (the component's real
+          prop) === */}
       <BiometricFingerprintModal
         isOpen={isFingerprintModalOpen}
         onClose={() => setIsFingerprintModalOpen(false)}
@@ -1662,9 +1662,9 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         }}
       />
 
-      {/* === AMÉLIORATION AJOUTÉE : MODALE D'IMPORT MULTI-ORGANISATIONS (Staff / Deps) ===
-          Réutilise le même composant ExcelImportModal et le même onImportMembers (donc la même
-          persistance Firestore corrigée dans App.tsx) — seul le parseur et le modèle diffèrent. */}
+      {/* === ADDED IMPROVEMENT: MULTI-ORGANIZATION IMPORT MODAL (Staff / Deps) ===
+          Reuses the same ExcelImportModal component and the same onImportMembers (so the same
+          Firestore persistence fixed in App.tsx) — only the parser and template differ. */}
       <ExcelImportModal<Member>
         isOpen={importMultiOrgModalOpen}
         onClose={() => setImportMultiOrgModalOpen(false)}

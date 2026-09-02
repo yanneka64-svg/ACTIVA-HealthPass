@@ -218,9 +218,10 @@ export interface MedicalForm {
   organization: string;
   providerId: string;
   providerName: string;
-  // Care modality (Ambulatoire / Hospitalisation)
+  // Care modality (Outpatient / Inpatient)
   coverageType: 'Outpatient' | 'Inpatient';
-  // Consultation type (Généraliste / Spécialiste)
+  // Consultation type (Generalist / Specialist) — French variants kept for backward
+  // compatibility with existing/legacy French-tagged records.
   practitionerType?: 'Generalist' | 'Specialist' | 'Généraliste' | 'Spécialiste';
   doctorSpecialty?: string;
   outpatientBalanceUSD: number;

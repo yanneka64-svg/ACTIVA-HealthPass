@@ -314,7 +314,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                   type="text"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="Ex: JFK Medical Center"
+                  placeholder="e.g. JFK Medical Center"
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                   required
                 />
@@ -362,7 +362,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                   type="text"
                   value={formLocation}
                   onChange={(e) => setFormLocation(e.target.value)}
-                  placeholder="Ex: Monrovia — Sinkor"
+                  placeholder="e.g. Monrovia — Sinkor"
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium"
                   required
                 />

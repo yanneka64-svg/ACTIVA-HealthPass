@@ -11,13 +11,13 @@ interface ExcelImportModalProps<T> {
   onClose: () => void;
   lang: Language;
   title: string;
-  // === AMÉLIORATION AJOUTÉE : 'members-multi-org' pour le nouvel import multi-organisations
-  // (classeur "<Organisation> - Staff" / "<Organisation> - Deps"), en plus des 3 imports existants.
+  // === ADDED IMPROVEMENT: 'members-multi-org' for the new multi-organization import
+  // (workbook "<Organization> - Staff" / "<Organization> - Deps"), in addition to the 3 existing imports.
   targetType: 'members' | 'organizations' | 'providers' | 'members-multi-org';
   onImport: (file: File) => Promise<ImportResult<T>>;
   onSuccess: (items: T[]) => void;
-  // Quand fourni, remplace le modèle Excel généré en interne par downloadSampleTemplate()
-  // (utilisé par 'members-multi-org' pour proposer le vrai modèle Staff/Deps téléchargeable).
+  // When provided, replaces the internally generated Excel template with downloadSampleTemplate()
+  // (used by 'members-multi-org' to offer the real downloadable Staff/Deps template).
   onDownloadTemplate?: () => void;
 }
 
@@ -83,8 +83,8 @@ export function ExcelImportModal<T>({
   };
 
   const downloadSampleTemplate = () => {
-    // === AMÉLIORATION AJOUTÉE : un modèle personnalisé (ex: generateMultiOrgTemplateExcel)
-    // prend le pas sur la génération générique ci-dessous quand il est fourni.
+    // === ADDED IMPROVEMENT: a custom template (e.g. generateMultiOrgTemplateExcel)
+    // takes precedence over the generic generation below when provided.
     if (onDownloadTemplate) {
       onDownloadTemplate();
       return;
@@ -298,8 +298,8 @@ export function ExcelImportModal<T>({
                 </div>
               </div>
 
-              {/* === AMÉLIORATION AJOUTÉE : détails propres à l'import multi-organisations
-                  (organisations détectées, nouvelles organisations, ayants droit orphelins) === */}
+              {/* === ADDED IMPROVEMENT: details specific to the multi-organization import
+                  (organizations detected, new organizations, orphan dependents) === */}
               {targetType === 'members-multi-org' && (() => {
                 const multiOrgResult = result as unknown as {
                   organizationsFound?: string[];
@@ -310,17 +310,17 @@ export function ExcelImportModal<T>({
                   <div className="space-y-2 pt-1">
                     {!!multiOrgResult.organizationsFound?.length && (
                       <p className="text-xs text-emerald-800">
-                        <span className="font-bold">{multiOrgResult.organizationsFound.length}</span> organisation(s) traitée(s) : {multiOrgResult.organizationsFound.join(', ')}
+                        <span className="font-bold">{multiOrgResult.organizationsFound.length}</span> organization(s) processed: {multiOrgResult.organizationsFound.join(', ')}
                       </p>
                     )}
                     {!!multiOrgResult.newOrganizationsDetected?.length && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                        <span className="font-bold">Nouvelles organisations détectées</span> (à créer/vérifier dans Organisations &amp; Plafonds pour un calcul de plafond correct) : {multiOrgResult.newOrganizationsDetected.join(', ')}
+                        <span className="font-bold">New organizations detected</span> (create/verify them under Organizations &amp; Ceilings for correct ceiling calculation): {multiOrgResult.newOrganizationsDetected.join(', ')}
                       </div>
                     )}
                     {!!multiOrgResult.orphanDependents && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                        <span className="font-bold">{multiOrgResult.orphanDependents}</span> ayant(s) droit de la feuille "Deps" n'ont pas pu être associé(s) à un nom (aucune colonne "Child N Name"/"Spouse Name" correspondante trouvée dans la feuille "Staff") — ignoré(s) pour éviter d'importer un ayant droit sans nom.
+                        <span className="font-bold">{multiOrgResult.orphanDependents}</span> dependent(s) from the "Deps" sheet could not be matched to a name (no matching "Child N Name"/"Spouse Name" column found on the "Staff" sheet) — skipped to avoid importing a nameless dependent.
                       </div>
                     )}
                   </div>

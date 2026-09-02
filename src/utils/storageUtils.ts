@@ -1,27 +1,27 @@
-// === AMÉLIORATION AJOUTÉE : upload des photos capturées vers Firebase Storage =================
-// Avant ce fichier, les photos capturées via WebcamCaptureModal/BiometricCameraModal
-// (assurés, enrôlements) étaient stockées telles quelles — une chaîne base64
-// "data:image/jpeg;base64,..." pouvant peser 50 à 200+ Ko — DIRECTEMENT dans le champ
-// `photoUrl` du document Firestore. Firebase Storage est initialisé dans lib/firebase.ts
-// (export const storage = getStorage(app)) mais n'était utilisé NULLE PART dans l'application.
+// === ADDED IMPROVEMENT: upload captured photos to Firebase Storage =================
+// Before this file, photos captured via WebcamCaptureModal/BiometricCameraModal
+// (members, enrollments) were stored as-is — a base64 string
+// "data:image/jpeg;base64,..." that can weigh 50 to 200+ KB — DIRECTLY in the
+// `photoUrl` field of the Firestore document. Firebase Storage is initialized in
+// lib/firebase.ts (export const storage = getStorage(app)) but was used NOWHERE in the app.
 //
-// Risque concret : un document Firestore est limité à ~1 Mo. Une fiche assuré qui accumule
-// plusieurs photos (principal + ayants droit) et grandit avec l'historique (dependents[],
-// claims liées) peut s'approcher de cette limite ; l'écriture échouerait alors silencieusement
-// (Firestore refuse le document sans que l'UI ne l'explique clairement). C'est aussi plus lourd
-// et plus lent à charger que nécessaire (chaque lecture de la liste des assurés transporte
-// toutes les photos en base64, même quand on n'affiche qu'un tableau sans photo).
+// Concrete risk: a Firestore document is limited to ~1 MiB. A member record that
+// accumulates several photos (principal + dependents) and grows with history
+// (dependents[], linked claims) can approach that limit; the write would then fail
+// silently (Firestore rejects the document without the UI explaining it clearly). It's
+// also heavier and slower to load than necessary (every read of the member list carries
+// every photo as base64, even when only a table with no photo is displayed).
 //
-// Ce module envoie la photo vers Firebase Storage et ne stocke dans Firestore que l'URL de
-// téléchargement (courte, stable). Repli automatique et silencieux vers l'ancien comportement
-// (stocker la chaîne base64 telle quelle) si l'upload échoue pour une raison quelconque
-// (règles Storage pas encore déployées sur le projet Firebase, hors-ligne, quota...) — donc
-// AUCUNE régression possible par rapport à l'existant : au pire, c'est identique à avant.
+// This module sends the photo to Firebase Storage and only stores the download URL
+// (short, stable) in Firestore. Automatic, silent fallback to the previous behavior
+// (storing the base64 string as-is) if the upload fails for any reason (Storage rules
+// not yet deployed on the Firebase project, offline, quota...) — so there is NO possible
+// regression versus the existing behavior: at worst, it's identical to before.
 //
-// IMPORTANT (déploiement) : comme pour firestore.rules, le fichier storage.rules à la racine
-// du dépôt doit être déployé sur le projet Firebase (`firebase deploy --only storage`) pour
-// que l'upload réussisse. Tant que ce n'est pas fait, le repli ci-dessous garantit que la
-// capture photo continue de fonctionner exactement comme aujourd'hui.
+// IMPORTANT (deployment): like firestore.rules, the storage.rules file at the repo root
+// must be deployed to the Firebase project (`firebase deploy --only storage`) for the
+// upload to succeed. Until that's done, the fallback below guarantees that photo capture
+// keeps working exactly as it does today.
 
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';

@@ -203,7 +203,7 @@ export const Topbar: React.FC<TopbarProps> = ({
         </div>
 
         {/* Global Page Title and Subtitle */}
-        {/* === AMÉLIORATION AJOUTÉE : le titre suit désormais la couleur du rôle actif (theme.palette.pageTitleColor) au lieu d'un bleu fixe, pour rester cohérent avec la Sidebar (Admin/Superviseur/Agent) === */}
+        {/* === ADDED IMPROVEMENT: the title now follows the active role's color (theme.palette.pageTitleColor) instead of a fixed blue, to stay consistent with the Sidebar (Admin/Supervisor/Agent) === */}
         <div className="min-w-0">
           <h1 className={`text-base sm:text-lg lg:text-xl font-bold ${theme.palette.pageTitleColor} tracking-tight truncate leading-tight`}>
             {title}
@@ -261,7 +261,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-3 border-b border-[#E8EDF2] flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {/* === AMÉLIORATION AJOUTÉE : couleurs du panneau notifications alignées sur le thème du rôle actif === */}
+                  {/* === ADDED IMPROVEMENT: notification panel colors aligned with the active role's theme === */}
                   <h3 className={`text-xs font-extrabold ${theme.palette.pageTitleColor} uppercase tracking-wider`}>
                     Notifications
                   </h3>
@@ -375,7 +375,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                 <p className="text-[11px] text-[#778FAF] truncate mt-0.5">{currentUser?.email || "admin@activa-assurance.com"}</p>
 
                 {/* User Role & Dynamic Entity Badges */}
-                {/* === AMÉLIORATION AJOUTÉE : le badge d'entité utilise la couleur du rôle actif au lieu du bleu Agent fixe === */}
+                {/* === ADDED IMPROVEMENT: the entity badge uses the active role's color instead of a fixed Agent blue === */}
                 <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
                   <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A859] text-[10px] font-extrabold border border-[#00A859]/30">
                     Active: {role || 'User'}

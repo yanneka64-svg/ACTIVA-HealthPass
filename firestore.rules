@@ -5,29 +5,27 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // === CORRECTIF DE SÉCURITÉ CRITIQUE ===
-    // Avant ce correctif, TOUTES les collections avaient `allow read, write: if true;` —
-    // c'est-à-dire que N'IMPORTE QUI sur Internet, sans être connecté, pouvait lire et
-    // modifier/supprimer l'intégralité de la base : dossiers médicaux et données
-    // personnelles des assurés (members, claims, medicalForms, enrollments), données
-    // financières (invoices, ceilings), et surtout les comptes utilisateurs (accounts),
-    // qui stockent un mot de passe temporaire en clair (champs `password`/`tempPassword`).
-    // Ce fichier, une fois DÉPLOYÉ sur le projet Firebase (voir note en bas), restreint
-    // l'accès aux seuls utilisateurs authentifiés pour toutes les collections métier.
+    // === CRITICAL SECURITY FIX ===
+    // Before this fix, EVERY collection had `allow read, write: if true;` — meaning
+    // ANYONE on the Internet, without being signed in, could read and modify/delete the
+    // entire database: medical records and personal data of insured members (members,
+    // claims, medicalForms, enrollments), financial data (invoices, ceilings), and above
+    // all user accounts (accounts), which store a temporary password in plaintext
+    // (`password`/`tempPassword` fields).
+    // This file, once DEPLOYED to the Firebase project (see note at the bottom), restricts
+    // access to authenticated users only for every business collection.
     //
-    // Exception documentée : la collection `accounts` doit rester lisible sans
-    // authentification en LECTURE SEULE, car l'écran de connexion (LoginView.tsx) a
-    // besoin de retrouver le compte correspondant au nom d'utilisateur saisi AVANT que
-    // la connexion Firebase Auth n'existe (et la fonctionnalité "Réinitialiser le mot de
-    // passe" en dépend également). Interdire cette lecture casserait la connexion par nom
-    // d'utilisateur et la réinitialisation de mot de passe pour de vrais utilisateurs.
-    // C'est un risque résiduel connu, documenté dans le rapport d'audit fourni à
-    // l'utilisateur : la correction complète nécessite de déplacer cette recherche vers
-    // une Cloud Function (Admin SDK), hors de portée de ce correctif (aucun accès de
-    // déploiement/test sur le projet Firebase réel depuis cet environnement). En
-    // attendant, l'ÉCRITURE sur `accounts` est déjà restreinte aux utilisateurs
-    // authentifiés ci-dessous, ce qui empêche déjà la création/modification/suppression
-    // de comptes par un attaquant non authentifié (le pire des deux risques).
+    // Documented exception: the `accounts` collection must remain readable without
+    // authentication in READ-ONLY mode, because the login screen (LoginView.tsx) needs to
+    // look up the account matching the entered username BEFORE the Firebase Auth session
+    // exists (and the "Reset Password" feature depends on it too). Blocking this read
+    // would break username-based login and password resets for real users. This is a
+    // known residual risk, documented in the audit report delivered to the user: the full
+    // fix requires moving this lookup to a Cloud Function (Admin SDK), which is out of
+    // scope for this fix (no deployment/testing access to the real Firebase project from
+    // this environment). In the meantime, WRITE access to `accounts` is already restricted
+    // to authenticated users below, which already prevents an unauthenticated attacker
+    // from creating/modifying/deleting accounts (the more severe of the two risks).
     match /accounts/{userId} {
       allow read: if true;
       allow write: if isSignedIn();
@@ -77,8 +75,8 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    // Retiré : le catch-all `match /{document=**} { allow read, write: if true; }` qui
-    // ouvrait aussi TOUTE future collection non listée ci-dessus à tout le monde. Sans
-    // règle explicite, Firestore refuse l'accès par défaut — c'est le comportement voulu.
+    // Removed: the open catch-all `match /{document=**} { allow read, write: if true; }`
+    // which also opened up ANY future collection not listed above to everyone. Without an
+    // explicit rule, Firestore denies access by default — that is the intended behavior.
   }
 }

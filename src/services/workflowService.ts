@@ -278,15 +278,15 @@ export const WorkflowService = {
 
   /**
    * Supervisor approves a claim
-   * === AMÉLIORATION AJOUTÉE : génère désormais automatiquement la facture / le reçu de
-   * règlement correspondant (collection `invoices`, consultée par InvoicesView / l'écran
-   * "Reçus"). Avant ce correctif, RIEN dans l'application n'écrivait jamais dans cette
-   * collection : l'écran Factures affichait en permanence les données de démonstration
-   * initiales, jamais les réclamations réellement approuvées au jour le jour.
-   * `members`/`organizations` sont optionnels (rétrocompatibles avec un appel existant sans
-   * ces paramètres) et servent uniquement à enrichir le reçu (nom du titulaire de la
-   * famille, taux de couverture réel de l'organisation) ; en leur absence, des valeurs par
-   * défaut raisonnables sont utilisées et le reçu est tout de même créé.
+   * === ADDED IMPROVEMENT: now automatically generates the corresponding settlement
+   * invoice/receipt (collection `invoices`, consumed by InvoicesView / the "Receipts"
+   * screen). Before this fix, NOTHING in the application ever wrote to that collection:
+   * the Invoices screen permanently displayed the initial demo data, never the claims
+   * actually approved day to day.
+   * `members`/`organizations` are optional (backward-compatible with an existing call
+   * without these parameters) and are only used to enrich the receipt (family head's
+   * name, the organization's real coverage rate); in their absence, reasonable defaults
+   * are used and the receipt is still created.
    */
   approveClaim: async (
     claim: Claim,

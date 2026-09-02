@@ -22,14 +22,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setBiometricMatchMessage(null);
-    // === AMÉLIORATION AJOUTÉE : recherche robuste (harmonisée avec MembersView / eligibilityService) ===
-    // - trim() sur la saisie pour ignorer les espaces superflus (copier-coller, clavier mobile)
-    // - correspondance PARTIELLE (includes) sur le numéro de carte au lieu d'une égalité stricte,
-    //   pour retrouver un assuré même si l'agent ne saisit pas le numéro complet
-    // - garde-fous (m.cardNo || '', m.principalName || '') pour éviter qu'une fiche mal formée
-    //   (import Excel incomplet, champ manquant) ne fasse planter la recherche pour TOUS les assurés
-    // - extension de la recherche aux ayants droit (conjoint, enfants, dépendants structurés) afin
-    //   qu'un accueil puisse identifier le dossier familial même en tapant le nom d'un dépendant
+    // === ADDED IMPROVEMENT: robust search (aligned with MembersView / eligibilityService) ===
+    // - trim() on the input to ignore stray whitespace (copy/paste, mobile keyboard)
+    // - PARTIAL match (includes) on the card number instead of strict equality,
+    //   so a member can be found even if the agent doesn't type the full number
+    // - guards (m.cardNo || '', m.principalName || '') so a malformed record
+    //   (incomplete Excel import, missing field) doesn't crash the search for ALL members
+    // - search extended to dependents (spouse, children, structured dependents) so
+    //   front desk staff can identify the family file even by typing a dependent's name
     const q = searchQuery.toLowerCase().trim();
     const found = members.find((m) => {
       const cardNo = (m.cardNo || '').toLowerCase().trim();

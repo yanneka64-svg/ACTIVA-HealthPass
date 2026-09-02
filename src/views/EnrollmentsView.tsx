@@ -193,8 +193,8 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cardNo = newEnrForm.cardNo || `ACT-2026-${Math.floor(9000 + Math.random() * 1000)}`;
-    // === AMÉLIORATION AJOUTÉE : upload vers Firebase Storage avec repli automatique vers le
-    // stockage base64 existant en cas d'échec (voir storageUtils.ts / MembersView.tsx).
+    // === ADDED IMPROVEMENT: upload to Firebase Storage with an automatic fallback to the
+    // existing base64 storage on failure (see storageUtils.ts / MembersView.tsx).
     const resolvedPhotoUrl = newEnrForm.photoUrl
       ? await uploadPhotoOrFallback(newEnrForm.photoUrl, 'enrollment-photos', cardNo)
       : newEnrForm.photoUrl;
@@ -227,7 +227,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
           <div className="flex items-center gap-2.5">
             <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <div>
-              <span className="font-extrabold block">Séparation des Tâches (SoD) :</span>
+              <span className="font-extrabold block">Separation of Duties (SoD):</span>
               <span>{sodAlertMessage}</span>
             </div>
           </div>
@@ -339,7 +339,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                         </span>
                         {enr.assignedAgentName && (
                           <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
-                            Affecté : {enr.assignedAgentName}
+                            Assigned to: {enr.assignedAgentName}
                           </span>
                         )}
                       </td>
@@ -446,7 +446,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
         )}
       </div>
 
-      {/* SECTION 2: Historique des enrôlements */}
+      {/* SECTION 2: Enrollment History */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -530,7 +530,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                         <button
                           onClick={() => openDeleteModal(enr)}
                           className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                          title="Supprimer (Admin)"
+                          title="Delete (Admin)"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -640,7 +640,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   type="text"
                   value={assignAgentName}
                   onChange={(e) => setAssignAgentName(e.target.value)}
-                  placeholder="Ex: Agent Martin / ag.martin"
+                  placeholder="e.g. Agent Martin / ag.martin"
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
                   required
                 />
@@ -811,7 +811,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   type="text"
                   value={newEnrForm.fullName}
                   onChange={(e) => setNewEnrForm({ ...newEnrForm, fullName: e.target.value })}
-                  placeholder="Ex: NOM Prénom"
+                  placeholder="e.g. First Last"
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                   required
                 />

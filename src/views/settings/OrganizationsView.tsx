@@ -436,7 +436,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                   type="text"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="Ex: Liberia Petroleum Refining Company"
+                  placeholder="e.g. Liberia Petroleum Refining Company"
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                   required
                 />

@@ -360,11 +360,11 @@ export const FirestoreService = {
     }
   },
 
-  // === AMÉLIORATION AJOUTÉE : la collection `invoices` n'avait AUCUNE méthode d'écriture
-  // (seul subscribeToInvoices existait) — rien dans l'application ne créait jamais de
-  // facture/reçu, y compris à l'approbation d'une réclamation. L'écran Factures/Reçus
-  // affichait donc en permanence les données de démonstration initiales, jamais les vraies
-  // réclamations approuvées. Voir WorkflowService.approveClaim, qui utilise cette méthode.
+  // === ADDED IMPROVEMENT: the `invoices` collection had NO write method at all
+  // (only subscribeToInvoices existed) — nothing in the application ever created an
+  // invoice/receipt, including when a claim was approved. The Invoices/Receipts screen
+  // therefore permanently displayed the initial demo data, never the real approved
+  // claims. See WorkflowService.approveClaim, which uses this method.
   addInvoice: async (data: Partial<InvoiceItem>) => {
     try {
       return await addDoc(collection(db, 'invoices'), data);

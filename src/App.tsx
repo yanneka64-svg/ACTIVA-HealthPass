@@ -501,14 +501,14 @@ export default function App() {
     FirestoreService.deleteMember(id);
   };
 
-  // === CORRECTIF (bug préexistant) : cette fonction appelait FirestoreService.addMember()
-  // (= addDoc, création d'un NOUVEAU document) sur CHAQUE élément renvoyé par le parseur
-  // Excel, y compris les assurés déjà existants simplement mis à jour en mémoire. Résultat :
-  // réimporter un fichier sur une base déjà peuplée DUPLIQUAIT tous les assurés existants
-  // dans Firestore. Les parseurs (parseMemberExcel, parseActivaMultiOrgExcel...) marquent
-  // les nouvelles fiches avec un id temporaire préfixé "mem-imp-" ; on route donc désormais
-  // vers updateMember() pour les fiches déjà en base (id Firestore réel) et addMember()
-  // uniquement pour les nouvelles fiches (id temporaire, retiré avant l'écriture).
+  // === FIX (pre-existing bug): this function called FirestoreService.addMember()
+  // (= addDoc, creating a NEW document) on EVERY item returned by the Excel parser,
+  // including existing members that were merely updated in memory. Result: re-importing a
+  // file on an already-populated database DUPLICATED every existing member in Firestore.
+  // The parsers (parseMemberExcel, parseActivaMultiOrgExcel...) mark new records with a
+  // temporary id prefixed "mem-imp-", so we now route to updateMember() for records already
+  // in the database (real Firestore id) and to addMember() only for genuinely new records
+  // (temporary id, stripped before the write).
   const handleImportMembers = (imported: Partial<Member>[]) => {
     imported.forEach((i) => {
       if (i.id && !i.id.startsWith('mem-imp-')) {
@@ -602,7 +602,7 @@ export default function App() {
     FirestoreService.deleteOrganization(id);
   };
 
-  // === CORRECTIF (même bug que handleImportMembers, voir commentaire ci-dessus) ===
+  // === FIX (same bug as handleImportMembers, see comment above) ===
   const handleImportOrgs = (imported: Partial<Organization>[]) => {
     imported.forEach((i) => {
       if (i.id && !i.id.startsWith('org-imp-')) {
@@ -630,7 +630,7 @@ export default function App() {
     
   };
 
-  // === CORRECTIF (même bug que handleImportMembers, voir commentaire ci-dessus) ===
+  // === FIX (same bug as handleImportMembers, see comment above) ===
   const handleImportProviders = (imported: Partial<Provider>[]) => {
     imported.forEach((i) => {
       if (i.id && !i.id.startsWith('prv-imp-')) {
@@ -705,8 +705,8 @@ export default function App() {
   const activeRole = userRole;
   const isCurrentSectionPermitted = isSectionAllowedForRole(activeRole, currentSection);
   const effectiveSection: NavSection = isCurrentSectionPermitted ? currentSection : getDefaultSectionForRole(activeRole);
-  // === AMÉLIORATION AJOUTÉE : thème dérivé du rôle actif, utilisé pour harmoniser la barre de
-  // navigation mobile et le toast global avec la Sidebar (Admin = ardoise, Superviseur = teal, Agent = bleu)
+  // === ADDED IMPROVEMENT: theme derived from the active role, used to keep the mobile
+  // navigation bar and the global toast consistent with the Sidebar (Admin = slate, Supervisor = teal, Agent = blue)
   const activeRoleTheme = getRoleTheme(activeRole);
 
   return (
@@ -754,7 +754,7 @@ export default function App() {
         />
 
         {/* Global Toast Notification */}
-        {/* === AMÉLIORATION AJOUTÉE : le toast reprend la couleur du rôle actif (theme.palette.modalHeaderBg) au lieu d'un bleu Agent fixe === */}
+        {/* === ADDED IMPROVEMENT: the toast now uses the active role's color (theme.palette.modalHeaderBg) instead of a fixed Agent blue === */}
         {toastMessage && (
           <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
             <div className={`${activeRoleTheme.palette.modalHeaderBg} text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-white/10 text-xs font-semibold`}>
@@ -778,9 +778,9 @@ export default function App() {
               providers={providers}
               onNavigate={handleSelectSection}
               onApproveClaim={handleApproveClaim}
-              onRejectClaim={(c) => handleRejectClaim(c, 'Rejet médical', '')}
+              onRejectClaim={(c) => handleRejectClaim(c, 'Medical rejection', '')}
               onApproveEnrollment={handleApproveEnrollment}
-              onRejectEnrollment={(e) => handleRejectEnrollment(e, 'Photo non conforme')}
+              onRejectEnrollment={(e) => handleRejectEnrollment(e, 'Non-compliant photo')}
             />
           )}
 
@@ -963,8 +963,8 @@ export default function App() {
         </main>
 
         {/* Mobile & Tablet Miniature Bottom Navigation Bar */}
-        {/* === AMÉLIORATION AJOUTÉE : la barre mobile reprend la couleur du rôle actif (theme.palette.avatarBg),
-            au lieu d'être toujours bleue, pour rester cohérente avec la Sidebar desktop du même rôle === */}
+        {/* === ADDED IMPROVEMENT: the mobile bar now uses the active role's color (theme.palette.avatarBg)
+            instead of always being blue, to stay consistent with the desktop Sidebar of the same role === */}
         <nav className={`lg:hidden fixed bottom-0 left-0 right-0 h-16 ${activeRoleTheme.palette.avatarBg} border-t border-white/10 z-30 flex items-center justify-around px-2 shadow-lg backdrop-blur-md`}>
           <button
             onClick={() => handleSelectSection('dashboard')}
@@ -1039,13 +1039,13 @@ export default function App() {
             try {
               const { updatePassword, EmailAuthProvider, reauthenticateWithCredential } = await import('firebase/auth');
 
-              // === AMÉLIORATION AJOUTÉE (sécurité) : vérifier le mot de passe ACTUEL avant
-              // d'autoriser le changement. Avant ce correctif, le champ "mot de passe actuel"
-              // du formulaire n'était jamais vérifié : quiconque disposait d'une session déjà
-              // connectée (poste non verrouillé, session volée) pouvait changer le mot de passe
-              // du compte sans le connaître, verrouillant le titulaire légitime hors de son
-              // compte. Non applicable lors d'un premier login forcé (currentPwd absent) : la
-              // connexion avec le mot de passe temporaire vient de se produire à l'instant.
+              // === ADDED IMPROVEMENT (security): verify the CURRENT password before
+              // allowing the change. Before this fix, the form's "current password" field was
+              // never actually verified: anyone with an already-authenticated session (an
+              // unlocked workstation, a stolen session) could change the account's password
+              // without knowing it, locking the legitimate owner out of their own account. Not
+              // applicable on a forced first login (currentPwd absent): the sign-in with the
+              // temporary password just happened.
               if (currentPwd && auth.currentUser.email) {
                 const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPwd);
                 await reauthenticateWithCredential(auth.currentUser, credential);

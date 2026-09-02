@@ -109,8 +109,8 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
       return;
     }
 
-    // === AMÉLIORATION AJOUTÉE : upload vers Firebase Storage avec repli automatique vers le
-    // stockage base64 existant en cas d'échec (voir storageUtils.ts / MembersView.tsx).
+    // === ADDED IMPROVEMENT: upload to Firebase Storage with an automatic fallback to the
+    // existing base64 storage on failure (see storageUtils.ts / MembersView.tsx).
     const resolvedPhotoUrl = photoData
       ? await uploadPhotoOrFallback(photoData, 'enrollment-photos', form.cardNo)
       : undefined;
