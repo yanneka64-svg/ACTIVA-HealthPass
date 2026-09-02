@@ -75,7 +75,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     <div className="space-y-6">
       {/* Search Bar */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
-        <h2 className="text-lg font-bold text-[#0a2e6b] mb-4">Insured Member Lookup & Verification</h2>
+        <h2 className="text-lg font-bold text-[var(--brand-900)] mb-4">Insured Member Lookup & Verification</h2>
         <div className="flex flex-col md:flex-row gap-4 items-center">
           <form onSubmit={handleSearch} className="relative flex-1 w-full">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -84,7 +84,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Enter health card number or insured member name..."
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] focus:bg-white transition"
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
             />
           </form>
           <div className="text-slate-400 font-medium text-sm">OR</div>
@@ -120,11 +120,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
               <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
-                <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center overflow-hidden">
+                <div className="w-16 h-16 rounded-full bg-[var(--brand-50)] flex items-center justify-center overflow-hidden">
                   {selectedMember.photoUrl ? (
                     <img src={selectedMember.photoUrl} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    <User className="w-8 h-8 text-[#0a2e6b]" />
+                    <User className="w-8 h-8 text-[var(--brand-900)]" />
                   )}
                 </div>
                 <div>
@@ -157,7 +157,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     <Activity className="w-4 h-4" />
                     <span className="text-xs font-semibold">Organization</span>
                   </div>
-                  <span className="text-sm font-bold text-[#0a2e6b] truncate max-w-[150px]">{selectedMember.organization}</span>
+                  <span className="text-sm font-bold text-[var(--brand-900)] truncate max-w-[150px]">{selectedMember.organization}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-slate-500">
@@ -202,14 +202,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
               <h3 className="text-sm font-bold text-slate-800 mb-4">Coverage Ceilings & Available Balances (USD / LRD)</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-5 rounded-2xl border border-blue-100 bg-blue-50/50">
-                  <div className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">Outpatient (Ambulatory & Routine Care)</div>
+                <div className="p-5 rounded-2xl border border-[var(--brand-100)] bg-[var(--brand-50)]/50">
+                  <div className="text-xs font-bold text-[var(--brand-600)] mb-2 uppercase tracking-wider">Outpatient (Ambulatory & Routine Care)</div>
                   <div className="flex justify-between items-end mb-1">
-                    <span className="text-2xl font-black text-[#0a2e6b]">{formatAmount(selectedMember.outpatientBalanceUSD || 500)}</span>
+                    <span className="text-2xl font-black text-[var(--brand-900)]">{formatAmount(selectedMember.outpatientBalanceUSD || 500)}</span>
                     <span className="text-xs text-slate-500 font-semibold mb-1">/ {formatAmount(selectedMember.outpatientCeilingUSD || 1000)}</span>
                   </div>
-                  <div className="w-full bg-blue-200 rounded-full h-2 mt-3 overflow-hidden">
-                    <div className="bg-[#0a2e6b] h-2 rounded-full transition-all duration-500" style={{ width: '50%' }}></div>
+                  <div className="w-full bg-[var(--brand-200)] rounded-full h-2 mt-3 overflow-hidden">
+                    <div className="bg-[var(--brand-900)] h-2 rounded-full transition-all duration-500" style={{ width: '50%' }}></div>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-2 font-medium">Standard benefit balance within approved ceiling limit</p>
                 </div>
@@ -247,7 +247,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         <div className="text-slate-400 font-mono text-[11px]">{claim.providerName} • {claim.serviceDate}</div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-[#0a2e6b] font-mono">{formatAmount(claim.amountUSD || 0)}</div>
+                        <div className="font-bold text-[var(--brand-900)] font-mono">{formatAmount(claim.amountUSD || 0)}</div>
                         <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           claim.status === 'Validated' || claim.status === 'Approved'
                             ? 'bg-emerald-50 text-emerald-700'

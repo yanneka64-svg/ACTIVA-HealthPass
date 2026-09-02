@@ -145,14 +145,14 @@ export const BiometricCameraModal: React.FC<BiometricCameraModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[94vh]">
         {/* Header */}
-        <div className="px-5 py-4 bg-[#0a2e6b] text-white flex items-center justify-between flex-shrink-0">
+        <div className="px-5 py-4 bg-[var(--brand-900)] text-white flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
               <Camera className="w-4 h-4 text-emerald-300" />
             </div>
             <div>
               <h3 className="font-bold text-sm sm:text-base leading-tight">{title}</h3>
-              <p className="text-[11px] text-blue-100 hidden sm:block">
+              <p className="text-[11px] text-[var(--brand-100)] hidden sm:block">
                 Align face inside the oval guide for ISO/ICAO medical ID standard
               </p>
             </div>

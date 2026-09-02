@@ -22,6 +22,7 @@ import { Language, Claim, Enrollment, Member, Organization, Provider, NavSection
 import { useTranslation } from '../i18n/translations';
 import { useCurrency, CurrencyMode } from '../services/currency';
 import { canApproveRecord } from '../services/permissions';
+import { getRoleTheme } from '../theme/roleTheme';
 
 interface DashboardViewProps {
   lang?: Language;
@@ -55,6 +56,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const t = useTranslation('en');
   const { mode: currencyMode, setMode: setCurrencyMode, formatAmount, exchangeRate } = useCurrency();
+  // === AMÉLIORATION AJOUTÉE : couleurs de graphiques alignées sur la teinte du rôle actif.
+  const roleTheme = getRoleTheme(userRole);
 
   const normalizedRole = (userRole || 'Admin').toLowerCase();
   const isAgent = normalizedRole.includes('agent');
@@ -118,7 +121,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const grandTotalOrgClaims = orgClaimTotals.reduce((sum, item) => sum + item.amount, 0) || 1;
 
   const chartColors = [
-    '#0a2e6b', // Brand Navy
+    roleTheme.palette.hexRamp['900'], // Brand color for the active role
     '#00A859', // Medical Emerald
     '#3b82f6', // Bright Blue
     '#f59e0b', // Amber
@@ -183,7 +186,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 id="currency-select-agent"
                 value={currencyMode}
                 onChange={(e) => setCurrencyMode(e.target.value as CurrencyMode)}
-                className="appearance-none pl-8 pr-9 py-2 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] cursor-pointer shadow-2xs transition"
+                className="appearance-none pl-8 pr-9 py-2 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] cursor-pointer shadow-2xs transition"
               >
                 <option value="USD">USD ($) - US Dollar</option>
                 <option value="LRD">LRD (L$) - Liberian Dollar</option>
@@ -196,13 +199,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Informational Scope & Separation of Duties Card */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50/50 border border-blue-200 rounded-2xl p-4 flex items-center justify-between gap-4">
+        <div className="bg-gradient-to-r from-[var(--brand-50)] to-indigo-50/50 border border-[var(--brand-200)] rounded-2xl p-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#0a2e6b] text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-[var(--brand-900)] text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
               <Sparkles className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <h4 className="text-xs font-extrabold text-[#0a2e6b]">
+              <h4 className="text-xs font-extrabold text-[var(--brand-900)]">
                 Separation of Duties (SoD) Principle
               </h4>
               <p className="text-[11px] text-slate-600">
@@ -210,7 +213,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </p>
             </div>
           </div>
-          <span className="hidden sm:inline-flex px-3 py-1 bg-white text-[#0a2e6b] text-xs font-bold rounded-xl border border-blue-200 shadow-2xs">
+          <span className="hidden sm:inline-flex px-3 py-1 bg-white text-[var(--brand-900)] text-xs font-bold rounded-xl border border-[var(--brand-200)] shadow-2xs">
             Permissions: VIEW + CREATE + EDIT + SUBMIT
           </span>
         </div>
@@ -223,7 +226,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="mt-3 flex items-end justify-between">
               <div className="text-2xl font-bold text-slate-800">{myTotalCount}</div>
-              <span className="text-xs font-bold text-blue-600">Activity</span>
+              <span className="text-xs font-bold text-[var(--brand-600)]">Activity</span>
             </div>
             <p className="text-[10px] text-slate-400 mt-2 font-medium">
               {myClaims.length} claims • {myEnrollments.length} enrollments
@@ -280,11 +283,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onClick={() => onNavigate('medical_form')}
             className="p-4 bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl shadow-xs text-left transition group flex items-start gap-3"
           >
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0a2e6b] group-hover:bg-[#0a2e6b] group-hover:text-white flex items-center justify-center shrink-0 transition">
+            <div className="w-10 h-10 rounded-xl bg-[var(--brand-50)] text-[var(--brand-900)] group-hover:bg-[var(--brand-900)] group-hover:text-white flex items-center justify-center shrink-0 transition">
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-slate-800 group-hover:text-[#0a2e6b] transition">
+              <h4 className="text-xs font-bold text-slate-800 group-hover:text-[var(--brand-900)] transition">
                 Direct Care Voucher
               </h4>
               <p className="text-[11px] text-slate-500 mt-0.5">
@@ -332,14 +335,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#0a2e6b]" />
+              <Clock className="w-4 h-4 text-[var(--brand-900)]" />
               <h3 className="font-bold text-sm text-slate-800">
                 Your Recent Records & Tracking
               </h3>
             </div>
             <button
               onClick={() => onNavigate('claims')}
-              className="text-[11px] font-bold text-[#0a2e6b] hover:underline inline-flex items-center gap-0.5"
+              className="text-[11px] font-bold text-[var(--brand-900)] hover:underline inline-flex items-center gap-0.5"
             >
               <span>View all my claims</span>
               <ChevronRight className="w-3 h-3" />
@@ -397,7 +400,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <span>To Revise</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-extrabold">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--brand-50)] text-[var(--brand-700)] border border-[var(--brand-200)] text-[11px] font-extrabold">
                           <Clock className="w-3.5 h-3.5" />
                           <span>Pending</span>
                         </span>
@@ -423,7 +426,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isSupervisor ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}`}>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isSupervisor ? 'bg-indigo-100 text-indigo-800' : 'bg-[var(--brand-100)] text-[var(--brand-800)]'}`}>
               {isSupervisor ? 'Supervision Workspace' : 'General Administration'}
             </span>
             <h2 className="text-sm font-bold text-slate-800 tracking-tight">
@@ -446,7 +449,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               id="currency-select-dropdown"
               value={currencyMode}
               onChange={(e) => setCurrencyMode(e.target.value as CurrencyMode)}
-              className="appearance-none pl-8 pr-9 py-2 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] cursor-pointer shadow-2xs transition"
+              className="appearance-none pl-8 pr-9 py-2 bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] cursor-pointer shadow-2xs transition"
             >
               <option value="USD">USD ($) - US Dollar</option>
               <option value="LRD">LRD (L$) - Liberian Dollar</option>
@@ -503,7 +506,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3 flex items-end justify-between">
             <div className="text-2xl font-bold text-slate-800">{pendingClaimsCount}</div>
-            <div className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold">
+            <div className="bg-[var(--brand-100)] text-[var(--brand-700)] px-2 py-0.5 rounded text-[10px] font-bold">
               ACTION REQUIRED
             </div>
           </div>
@@ -538,13 +541,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <h3 className="font-bold text-sm text-slate-800">
                 {t.dashboard.pendingClaimsWidget}
               </h3>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--brand-100)] text-[var(--brand-700)]">
                 {pendingClaimsCount}
               </span>
             </div>
             <button
               onClick={() => onNavigate('claims')}
-              className="text-[11px] font-bold text-[#0a2e6b] hover:underline inline-flex items-center gap-0.5"
+              className="text-[11px] font-bold text-[var(--brand-900)] hover:underline inline-flex items-center gap-0.5"
             >
               <span>{t.dashboard.viewAll}</span>
               <ChevronRight className="w-3 h-3" />
@@ -564,7 +567,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] font-semibold text-[#0a2e6b]">
+                      <span className="font-mono text-[11px] font-semibold text-[var(--brand-900)]">
                         {claim.reference}
                       </span>
                       <span className="text-[11px] text-slate-300">•</span>
@@ -598,7 +601,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             disabled={!approvalCheck.allowed}
                             className={`px-2.5 py-1 rounded font-bold text-[10px] transition ${
                               approvalCheck.allowed
-                                ? 'bg-[#0a2e6b] hover:bg-[#07214f] text-white cursor-pointer'
+                                ? 'bg-[var(--brand-900)] hover:bg-[#07214f] text-white cursor-pointer'
                                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                             }`}
                             title={approvalCheck.allowed ? t.approve : approvalCheck.reason}
@@ -693,7 +696,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
             <button
               onClick={() => onNavigate('organizations')}
-              className="text-[#0a2e6b] font-bold hover:underline"
+              className="text-[var(--brand-900)] font-bold hover:underline"
             >
               Manage
             </button>
@@ -716,7 +719,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <button
               onClick={() => onNavigate('enrollments')}
-              className="text-[11px] font-bold text-[#0a2e6b] hover:underline inline-flex items-center gap-0.5"
+              className="text-[11px] font-bold text-[var(--brand-900)] hover:underline inline-flex items-center gap-0.5"
             >
               <span>{t.dashboard.viewAll}</span>
               <ChevronRight className="w-3 h-3" />
@@ -747,7 +750,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <span
                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
                           enr.hasPhoto
-                            ? 'bg-blue-50 text-[#0a2e6b]'
+                            ? 'bg-[var(--brand-50)] text-[var(--brand-900)]'
                             : 'bg-slate-100 text-slate-400'
                         }`}
                       >
@@ -813,12 +816,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="lg:col-span-6 bg-white rounded-xl border border-slate-100 shadow-xs p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Building className="w-4 h-4 text-[#0a2e6b]" />
+              <Building className="w-4 h-4 text-[var(--brand-900)]" />
               <h3 className="font-bold text-sm text-slate-800">{t.dashboard.topProviders}</h3>
             </div>
             <button
               onClick={() => onNavigate('providers')}
-              className="text-[11px] font-bold text-[#0a2e6b] hover:underline"
+              className="text-[11px] font-bold text-[var(--brand-900)] hover:underline"
             >
               {t.dashboard.viewAll}
             </button>
@@ -852,7 +855,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       className="h-full rounded-full transition-all duration-700"
                       style={{
                         width: `${barPercent}%`,
-                        backgroundColor: idx === 0 ? '#0a2e6b' : idx === 1 ? '#10b981' : '#3b82f6',
+                        backgroundColor: idx === 0 ? roleTheme.palette.hexRamp['900'] : idx === 1 ? '#10b981' : roleTheme.palette.hexRamp['500'],
                       }}
                     ></div>
                   </div>

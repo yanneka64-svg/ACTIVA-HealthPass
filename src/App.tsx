@@ -31,7 +31,8 @@ import {
   getDefaultSectionForRole,
   isSectionAllowedForRole,
 } from './utils/authUtils';
-import { getRoleTheme } from './theme/roleTheme';
+import { getRoleTheme, getRoleCssVars } from './theme/roleTheme';
+import { useIdleLogout } from './hooks/useIdleLogout';
 
 // Views
 import { DashboardView } from './views/DashboardView';
@@ -329,6 +330,24 @@ export default function App() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isReloadingDemo, setIsReloadingDemo] = useState<boolean>(false);
+
+  // === AMÉLIORATION AJOUTÉE : déconnexion automatique après inactivité (sécurité) ===
+  // Auparavant, un compte restait connecté indéfiniment tant que l'onglet restait ouvert,
+  // même sans utilisation — un risque réel sur un poste partagé (agence, guichet). Un
+  // avertissement s'affiche 60s avant l'échéance (15 min d'inactivité par défaut), puis la
+  // déconnexion est automatique si aucune activité (souris/clavier/tactile) n'est détectée.
+  useIdleLogout({
+    enabled: authStatus === 'authenticated',
+    onWarning: () => {
+      // Note: this warning toast is part of the authenticated view's own JSX, so it can
+      // only be shown BEFORE the timeout fires (while still authenticated) — once
+      // handleLogout() below runs, authStatus flips and the app re-renders straight to
+      // the login screen, unmounting this toast along with the rest of this view.
+      setToastMessage('You will be automatically logged out in 1 minute due to inactivity.');
+      setTimeout(() => setToastMessage(null), 8000);
+    },
+    onTimeout: handleLogout,
+  });
 
   const handleResetDemoData = async () => {
     setIsReloadingDemo(true);
@@ -708,6 +727,13 @@ export default function App() {
   // === ADDED IMPROVEMENT: theme derived from the active role, used to keep the mobile
   // navigation bar and the global toast consistent with the Sidebar (Admin = slate, Supervisor = teal, Agent = blue)
   const activeRoleTheme = getRoleTheme(activeRole);
+  // === AMÉLIORATION AJOUTÉE : variables CSS --brand-50..900 dérivées du rôle actif, posées
+  // sur le conteneur racine ci-dessous. Toutes les vues/fenêtres/boutons qui utilisaient la
+  // couleur Activa Navy codée en dur (#0a2e6b / blue-NN Tailwind) ont été convertis pour
+  // référencer ces variables (`bg-[var(--brand-900)]` etc.) — voir roleTheme.ts. Résultat :
+  // chaque interface (Admin/Superviseur/Agent) porte désormais la même couleur partout
+  // (bandeaux, boutons, fenêtres modales) que sa barre latérale, au lieu du bleu fixe d'origine.
+  const roleCssVars = getRoleCssVars(activeRole);
 
   // === AMÉLIORATION AJOUTÉE : la barre de navigation mobile (bottom nav) affichait
   // auparavant TOUJOURS les 4 mêmes icônes (Dashboard/Claims/Invoices/Enrollments), qui ne
@@ -749,7 +775,10 @@ export default function App() {
         ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0a2e6b] font-sans flex antialiased selection:bg-[#0a2e6b] selection:text-white">
+    <div
+      className="min-h-screen bg-[#F8FAFC] text-[var(--brand-900)] font-sans flex antialiased selection:bg-[var(--brand-900)] selection:text-white"
+      style={roleCssVars}
+    >
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
@@ -942,6 +971,7 @@ export default function App() {
               invoices={invoices}
               organizations={organizations}
               providers={providers}
+              userRole={activeRole}
             />
           )}
 

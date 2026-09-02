@@ -132,7 +132,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search provider by name, location, convention..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] focus:bg-white"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           </div>
@@ -140,7 +140,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
           >
             <option value="ALL">All Provider Types</option>
             <option value="Hôpital">{t.providers.types.hospital}</option>
@@ -154,7 +154,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
           <select
             value={kypFilter}
             onChange={(e) => setKypFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
           >
             <option value="ALL">All KYP Statuses</option>
             <option value="validated">{t.providers.kypValidated}</option>
@@ -181,7 +181,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
 
           <button
             onClick={openCreateModal}
-            className="px-3.5 py-2 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>New Provider</span>
@@ -193,7 +193,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Stethoscope className="w-4 h-4 text-[#0a2e6b]" />
+            <Stethoscope className="w-4 h-4 text-[var(--brand-900)]" />
             <h3 className="font-extrabold text-sm text-slate-900">{t.providers.title}</h3>
             <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-black">
               {filteredProviders.length}
@@ -224,7 +224,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                   <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 px-4 font-bold text-slate-900">{p.name}</td>
                     <td className="py-3 px-4">
-                      <span className="px-2.5 py-1 rounded-md bg-blue-50 text-[#0a2e6b] font-semibold text-[11px]">
+                      <span className="px-2.5 py-1 rounded-md bg-[var(--brand-50)] text-[var(--brand-900)] font-semibold text-[11px]">
                         {p.type}
                       </span>
                     </td>
@@ -262,7 +262,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => openEditModal(p)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-[#0a2e6b] hover:bg-blue-50 transition cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-[var(--brand-900)] hover:bg-[var(--brand-50)] transition cursor-pointer"
                           title={t.edit}
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -288,12 +288,12 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-[#0a2e6b] p-6 text-white flex items-center justify-between">
+            <div className="bg-[var(--brand-900)] p-6 text-white flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-base">
                   {editingProvider ? 'Edit Healthcare Provider' : t.providers.createBtn}
                 </h3>
-                <p className="text-xs text-blue-100">
+                <p className="text-xs text-[var(--brand-100)]">
                   Healthcare facility accreditation & contract
                 </p>
               </div>
@@ -404,7 +404,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-bold shadow-md shadow-[#0a2e6b]/20 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-bold shadow-md shadow-[var(--brand-900)]/20 cursor-pointer"
                 >
                   {t.save}
                 </button>

@@ -189,7 +189,7 @@ export const Topbar: React.FC<TopbarProps> = ({
       <div className="flex items-center gap-3 min-w-0">
         {onToggleSidebar && (
           <button 
-            className="lg:hidden p-2 -ml-1 text-[#0a2e6b] hover:bg-slate-50 rounded-xl transition cursor-pointer"
+            className="lg:hidden p-2 -ml-1 text-[var(--brand-900)] hover:bg-slate-50 rounded-xl transition cursor-pointer"
             onClick={onToggleSidebar}
             aria-label="Toggle navigation menu"
           >
@@ -227,7 +227,7 @@ export const Topbar: React.FC<TopbarProps> = ({
         {/* Language Pill */}
         <div
           id="app-language-indicator"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[#0a2e6b] shadow-2xs hover:bg-slate-50 transition cursor-default"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[var(--brand-900)] shadow-2xs hover:bg-slate-50 transition cursor-default"
           title="System Language: English (Official)"
         >
           <Globe className="w-3.5 h-3.5 text-[#2563EB]" />
@@ -305,7 +305,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                             : notif.type === 'enrollment'
                             ? 'bg-emerald-100 text-emerald-700'
                             : notif.type === 'invoice'
-                            ? 'bg-blue-100 text-blue-700'
+                            ? 'bg-[var(--brand-100)] text-[var(--brand-700)]'
                             : 'bg-purple-100 text-purple-700'
                         }`}
                       >

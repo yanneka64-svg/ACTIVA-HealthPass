@@ -249,7 +249,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={t.search}
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] focus:bg-white"
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         </div>
@@ -259,7 +259,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
           <select
             value={selectedOrgFilter}
             onChange={(e) => setSelectedOrgFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
           >
             <option value="ALL">{t.all}</option>
             {organizations.map((org) => (
@@ -272,7 +272,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
           <select
             value={selectedStatusFilter}
             onChange={(e) => setSelectedStatusFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
           >
             <option value="ALL">All Statuses</option>
             <option value="pending">{t.pending}</option>
@@ -284,7 +284,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
           {userRole !== 'Superviseur' && userRole !== 'Supervisor' && (
             <button
               onClick={() => setNewEnrModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5"
+              className="px-3.5 py-2 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
               <span>{t.enrollments.newEnrollment}</span>
@@ -331,8 +331,8 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 {pendingEnrollments.map((enr) => {
                   const approvalCheck = canApproveRecord(userRole, currentUser, enr);
                   return (
-                    <tr key={enr.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-[#0a2e6b] whitespace-nowrap">
+                    <tr key={enr.id} className="hover:bg-[var(--brand-50)]/30 transition-colors">
+                      <td className="py-3.5 px-4 font-bold text-[var(--brand-900)] whitespace-nowrap">
                         {enr.reference}
                         <span className="block text-[10px] text-slate-400 font-normal">
                           {enr.submissionDate}
@@ -365,10 +365,10 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                               setSelectedEnrForBiometrics(enr);
                               setBiometricModalOpen(true);
                             }}
-                            className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0a2e6b] border border-blue-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                            className="px-2.5 py-1.5 rounded-lg bg-[var(--brand-50)] hover:bg-[var(--brand-100)] text-[var(--brand-900)] border border-[var(--brand-200)] text-xs font-bold transition flex items-center gap-1 shadow-2xs"
                             title={'Review biometric file before approval'}
                           >
-                            <Scan className="w-3.5 h-3.5 text-[#0a2e6b]" />
+                            <Scan className="w-3.5 h-3.5 text-[var(--brand-900)]" />
                             <span>{'Verify'}</span>
                           </button>
 
@@ -609,7 +609,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
       {assignModalOpen && selectedEnrToAssign && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-[#0a2e6b] p-6 text-white flex items-center justify-between">
+            <div className="bg-[var(--brand-900)] p-6 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white">
                   <UserCheck className="w-6 h-6" />
@@ -618,7 +618,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   <h3 className="font-bold text-base">
                     Assign to Agent
                   </h3>
-                  <p className="text-xs text-blue-100">
+                  <p className="text-xs text-[var(--brand-100)]">
                     {selectedEnrToAssign.reference} • {selectedEnrToAssign.fullName}
                   </p>
                 </div>
@@ -641,7 +641,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   value={assignAgentName}
                   onChange={(e) => setAssignAgentName(e.target.value)}
                   placeholder="e.g. Agent Martin / ag.martin"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
                   required
                 />
               </div>
@@ -656,7 +656,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-bold"
+                  className="px-5 py-2.5 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-bold"
                 >
                   Assign
                 </button>
@@ -787,10 +787,10 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
       {newEnrModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden">
-            <div className="bg-[#0a2e6b] p-6 text-white flex items-center justify-between">
+            <div className="bg-[var(--brand-900)] p-6 text-white flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-base">{t.enrollments.newEnrollment}</h3>
-                <p className="text-xs text-blue-100">
+                <p className="text-xs text-[var(--brand-100)]">
                   {'New beneficiary enrollment request'}
                 </p>
               </div>
@@ -878,11 +878,11 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 
                 <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center overflow-hidden">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--brand-50)] border border-[var(--brand-200)] flex items-center justify-center overflow-hidden">
                       {newEnrForm.photoUrl ? (
                         <img src={newEnrForm.photoUrl} alt="Photo" className="w-full h-full object-cover" />
                       ) : (
-                        <Camera className="w-5 h-5 text-[#0a2e6b]" />
+                        <Camera className="w-5 h-5 text-[var(--brand-900)]" />
                       )}
                     </div>
                     <div>
@@ -904,7 +904,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setCameraModalOpen(true)}
-                    className="px-3 py-1.5 rounded-lg bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className="px-3 py-1.5 rounded-lg bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <Camera className="w-3.5 h-3.5" />
                     <span>{newEnrForm.photoUrl ? 'Retake' : 'Open Camera'}</span>
@@ -953,7 +953,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-bold shadow-md shadow-[#0a2e6b]/20"
+                  className="px-5 py-2.5 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-bold shadow-md shadow-[var(--brand-900)]/20"
                 >
                   {t.save}
                 </button>

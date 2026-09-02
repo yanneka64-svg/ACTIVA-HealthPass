@@ -104,14 +104,14 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[95vh]">
         {/* Header */}
-        <div className="px-5 py-4 bg-[#0a2e6b] text-white flex items-center justify-between flex-shrink-0">
+        <div className="px-5 py-4 bg-[var(--brand-900)] text-white flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
               <Fingerprint className="w-4 h-4 text-emerald-300" />
             </div>
             <div>
               <h3 className="font-extrabold text-sm sm:text-base leading-tight">{title}</h3>
-              <p className="text-[11px] text-blue-100 hidden sm:block">
+              <p className="text-[11px] text-[var(--brand-100)] hidden sm:block">
                 {subtitle}
               </p>
             </div>
@@ -148,7 +148,7 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
                   }}
                   className={`px-2.5 py-2 rounded-xl text-xs font-bold border transition text-center cursor-pointer ${
                     selectedFinger === item.id
-                      ? 'bg-[#0a2e6b] text-white border-[#0a2e6b] shadow-xs'
+                      ? 'bg-[var(--brand-900)] text-white border-[var(--brand-900)] shadow-xs'
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
@@ -267,7 +267,7 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
                 type="button"
                 onClick={handleStartCapture}
                 disabled={sensorStatus === 'capturing'}
-                className="px-5 py-2 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-extrabold transition flex items-center gap-1.5 shadow-sm shadow-blue-900/20 cursor-pointer disabled:opacity-50"
+                className="px-5 py-2 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-extrabold transition flex items-center gap-1.5 shadow-sm shadow-[var(--brand-900)]/20 cursor-pointer disabled:opacity-50"
               >
                 <Fingerprint className="w-4 h-4 text-emerald-300" />
                 <span>{sensorStatus === 'capturing' ? 'Acquiring...' : 'Trigger Sensor'}</span>

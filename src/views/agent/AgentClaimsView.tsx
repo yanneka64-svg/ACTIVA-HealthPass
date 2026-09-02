@@ -389,7 +389,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search claim by reference, member, card no, provider..."
-            className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] focus:bg-white transition font-medium"
+            className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition font-medium"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
           {searchTerm && (
@@ -406,7 +406,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
         <button
           type="button"
           onClick={() => setShowNewModal(true)}
-          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
         >
           <Plus className="w-4 h-4" />
           <span>New Claim Intake</span>
@@ -435,7 +435,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               <div key={claim.id} className="p-4 hover:bg-slate-50/80 transition space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-mono font-bold text-xs text-[#0a2e6b]">{claim.reference}</span>
+                    <span className="font-mono font-bold text-xs text-[var(--brand-900)]">{claim.reference}</span>
                     <span className="text-[10px] text-slate-400 ml-2">{claim.serviceDate}</span>
                   </div>
                   <span
@@ -471,7 +471,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
-                  <span className="px-2 py-0.5 rounded bg-blue-50 text-[#0a2e6b] text-[10px] font-bold">
+                  <span className="px-2 py-0.5 rounded bg-[var(--brand-50)] text-[var(--brand-900)] text-[10px] font-bold">
                     {claim.careType}
                   </span>
                   <div className="flex items-center gap-2">
@@ -483,7 +483,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     )}
                     <button
                       onClick={() => setSelectedClaimDetail(claim)}
-                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-[#0a2e6b] font-bold text-xs text-slate-700 transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-[var(--brand-50)] hover:text-[var(--brand-900)] font-bold text-xs text-slate-700 transition cursor-pointer"
                     >
                       Details
                     </button>
@@ -519,7 +519,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               ) : (
                 filteredClaims.map((claim) => (
                   <tr key={claim.id} className="hover:bg-slate-50 transition">
-                    <td className="py-3 px-4 font-bold text-[#0a2e6b] whitespace-nowrap">
+                    <td className="py-3 px-4 font-bold text-[var(--brand-900)] whitespace-nowrap">
                       {claim.reference}
                       <span className="block text-[10px] text-slate-400 font-normal">{claim.serviceDate}</span>
                     </td>
@@ -534,7 +534,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-md bg-blue-50 text-[#0a2e6b] text-[10px] font-bold inline-block">
+                      <span className="px-2 py-0.5 rounded-md bg-[var(--brand-50)] text-[var(--brand-900)] text-[10px] font-bold inline-block">
                         {claim.careType}
                       </span>
                     </td>
@@ -576,7 +576,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     <td className="py-3 px-4 text-center">
                       <button
                         onClick={() => setSelectedClaimDetail(claim)}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-[#0a2e6b] hover:bg-blue-50 transition cursor-pointer"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-[var(--brand-900)] hover:bg-[var(--brand-50)] transition cursor-pointer"
                         title="View Details"
                       >
                         <FileText className="w-4 h-4" />
@@ -595,10 +595,10 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden my-4 sm:my-8 animate-in zoom-in-95 flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="bg-[#0a2e6b] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0">
+            <div className="bg-[var(--brand-900)] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="font-extrabold text-base sm:text-lg">Submit Direct-Billing Claim</h3>
-                <p className="text-xs text-blue-100">Itemized medical procedures, diagnostic notes & document upload</p>
+                <p className="text-xs text-[var(--brand-100)]">Itemized medical procedures, diagnostic notes & document upload</p>
               </div>
               <button
                 onClick={() => setShowNewModal(false)}
@@ -639,8 +639,8 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
               {/* HIGH FREQUENCY ALERT */}
               {frequencyWarning && (
-                <div className="bg-blue-50 border border-blue-200 text-blue-900 p-3.5 rounded-2xl flex gap-3 items-start animate-in zoom-in-95 shadow-2xs">
-                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[#0a2e6b]" />
+                <div className="bg-[var(--brand-50)] border border-[var(--brand-200)] text-[var(--brand-900)] p-3.5 rounded-2xl flex gap-3 items-start animate-in zoom-in-95 shadow-2xs">
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[var(--brand-900)]" />
                   <div>
                     <p className="text-xs font-bold leading-relaxed">{frequencyWarning}</p>
                   </div>
@@ -658,7 +658,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               <div className="space-y-3.5 bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-[#0a2e6b]" />
+                    <User className="w-4 h-4 text-[var(--brand-900)]" />
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
                       1. Beneficiary Identification & Policy
                     </h4>
@@ -681,7 +681,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       value={principalNameInput}
                       onChange={(e) => handlePrincipalNameChange(e.target.value)}
                       placeholder="Name or select from directory..."
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
                     />
                     <datalist id="members-name-list">
@@ -703,7 +703,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       value={memberCardInput}
                       onChange={(e) => handleCardInputChange(e.target.value)}
                       placeholder="e.g. ACT-2026-10023..."
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
                     />
                     <datalist id="members-card-list">
@@ -726,7 +726,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       value={organizationInput}
                       onChange={(e) => setOrganizationInput(e.target.value)}
                       placeholder="e.g. Firestone, Orange Liberia..."
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                     />
                   </div>
 
@@ -739,7 +739,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         type="button"
                         onClick={() => setCurrency('USD')}
                         className={`py-1.5 rounded-lg text-xs font-extrabold transition cursor-pointer ${
-                          currency === 'USD' ? 'bg-[#0a2e6b] text-white shadow-xs' : 'text-slate-700 hover:bg-white/50'
+                          currency === 'USD' ? 'bg-[var(--brand-900)] text-white shadow-xs' : 'text-slate-700 hover:bg-white/50'
                         }`}
                       >
                         USD ($)
@@ -748,7 +748,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         type="button"
                         onClick={() => setCurrency('LRD')}
                         className={`py-1.5 rounded-lg text-xs font-extrabold transition cursor-pointer ${
-                          currency === 'LRD' ? 'bg-[#0a2e6b] text-white shadow-xs' : 'text-slate-700 hover:bg-white/50'
+                          currency === 'LRD' ? 'bg-[var(--brand-900)] text-white shadow-xs' : 'text-slate-700 hover:bg-white/50'
                         }`}
                       >
                         LRD (L$)
@@ -769,7 +769,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         value={patientName}
                         onChange={(e) => setPatientName(e.target.value)}
                         placeholder="Full name of the patient..."
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                         required
                       />
                     </div>
@@ -780,7 +780,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       <select
                         value={patientRelationship}
                         onChange={(e) => setPatientRelationship(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       >
                         <option value="Principal">Principal Insured</option>
                         <option value="Spouse">Spouse</option>
@@ -800,7 +800,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                           onClick={() => handleBeneficiarySelect(b.name, b.relation)}
                           className={`px-2 py-0.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
                             patientName === b.name
-                              ? 'bg-[#0a2e6b] text-white shadow-2xs'
+                              ? 'bg-[var(--brand-900)] text-white shadow-2xs'
                               : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
                         >
@@ -816,7 +816,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               {/* 2. Provider & Attending Physician */}
               <div className="space-y-3.5 bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200">
                 <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                  <Stethoscope className="w-4 h-4 text-[#0a2e6b]" />
+                  <Stethoscope className="w-4 h-4 text-[var(--brand-900)]" />
                   <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
                     2. Healthcare Provider & Physician
                   </h4>
@@ -830,7 +830,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     <select
                       value={selectedProviderName}
                       onChange={(e) => setSelectedProviderName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
                     >
                       <option value="">Select healthcare provider...</option>
@@ -851,7 +851,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       value={doctorName}
                       onChange={(e) => setDoctorName(e.target.value)}
                       placeholder="e.g. Dr. Samuel Johnson"
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
                     />
                   </div>
@@ -862,7 +862,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               <div className="space-y-3.5 bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-[#0a2e6b]" />
+                    <Activity className="w-4 h-4 text-[var(--brand-900)]" />
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
                       3. Itemized Medical Acts & Procedures ({medicalActs.length})
                     </h4>
@@ -876,7 +876,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         type="button"
                         onClick={() => setCurrency('USD')}
                         className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
-                          currency === 'USD' ? 'bg-[#0a2e6b] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
+                          currency === 'USD' ? 'bg-[var(--brand-900)] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                       >
                         USD ($)
@@ -885,7 +885,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         type="button"
                         onClick={() => setCurrency('LRD')}
                         className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
-                          currency === 'LRD' ? 'bg-[#0a2e6b] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
+                          currency === 'LRD' ? 'bg-[var(--brand-900)] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                       >
                         LRD (L$)
@@ -981,13 +981,13 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 </div>
 
                 {/* Total Summary Box with USD and LRD */}
-                <div className="p-4 bg-[#0a2e6b]/10 border border-[#0a2e6b]/20 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div className="p-4 bg-[var(--brand-900)]/10 border border-[var(--brand-900)]/20 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                   <div>
                     <span className="text-xs font-extrabold text-slate-800">Total Claimed Amount:</span>
                     <p className="text-[11px] text-slate-600">{medicalActs.length} itemized medical act(s)</p>
                   </div>
                   <div className="text-left sm:text-right">
-                    <div className="text-lg sm:text-xl font-black text-[#0a2e6b]">
+                    <div className="text-lg sm:text-xl font-black text-[var(--brand-900)]">
                       {currency === 'USD' ? `$${totalAmount.toFixed(2)} USD` : `L$ ${totalAmount.toLocaleString('en-US')} LRD`}
                     </div>
                     <div className="text-xs font-bold text-slate-600">
@@ -1003,7 +1003,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               <div className="space-y-3.5 bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-2">
-                    <Paperclip className="w-4 h-4 text-[#0a2e6b]" />
+                    <Paperclip className="w-4 h-4 text-[var(--brand-900)]" />
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
                       4. Supporting Documents & Medical Proof
                     </h4>
@@ -1023,7 +1023,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-[#0a2e6b]" />
+                        <FileText className="w-3.5 h-3.5 text-[var(--brand-900)]" />
                         Medical Prescription
                       </span>
                       {prescriptionFile && (
@@ -1042,7 +1042,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => prescriptionInputRef.current?.click()}
-                      className="w-full py-2 px-3 border border-dashed border-[#0a2e6b]/40 hover:border-[#0a2e6b] bg-blue-50/40 hover:bg-blue-50 text-[#0a2e6b] rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full py-2 px-3 border border-dashed border-[var(--brand-900)]/40 hover:border-[var(--brand-900)] bg-[var(--brand-50)]/40 hover:bg-[var(--brand-50)] text-[var(--brand-900)] rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Upload className="w-3.5 h-3.5" />
                       <span>{prescriptionFile ? 'Replace Prescription' : 'Attach Prescription'}</span>
@@ -1054,7 +1054,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setPreviewDocModal(prescriptionFile)}
-                            className="p-1 text-slate-500 hover:text-[#0a2e6b] cursor-pointer"
+                            className="p-1 text-slate-500 hover:text-[var(--brand-900)] cursor-pointer"
                           >
                             <Eye className="w-3 h-3" />
                           </button>
@@ -1105,7 +1105,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setPreviewDocModal(invoiceFile)}
-                            className="p-1 text-slate-500 hover:text-[#0a2e6b] cursor-pointer"
+                            className="p-1 text-slate-500 hover:text-[var(--brand-900)] cursor-pointer"
                           >
                             <Eye className="w-3 h-3" />
                           </button>
@@ -1164,7 +1164,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                           <div className="flex items-center gap-2 min-w-0">
                             {att.type === 'image' && <ImageIcon className="w-4 h-4 text-emerald-600 shrink-0" />}
                             {att.type === 'pdf' && <FileText className="w-4 h-4 text-rose-600 shrink-0" />}
-                            {att.type === 'word' && <File className="w-4 h-4 text-blue-600 shrink-0" />}
+                            {att.type === 'word' && <File className="w-4 h-4 text-[var(--brand-600)] shrink-0" />}
                             {att.type !== 'image' && att.type !== 'pdf' && att.type !== 'word' && (
                               <Paperclip className="w-4 h-4 text-slate-500 shrink-0" />
                             )}
@@ -1177,7 +1177,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                             <button
                               type="button"
                               onClick={() => setPreviewDocModal(att)}
-                              className="p-1 text-slate-500 hover:text-[#0a2e6b] cursor-pointer"
+                              className="p-1 text-slate-500 hover:text-[var(--brand-900)] cursor-pointer"
                               title="Preview"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -1237,7 +1237,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       {previewDocModal && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden">
-            <div className="bg-[#0a2e6b] p-4 text-white flex items-center justify-between">
+            <div className="bg-[var(--brand-900)] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4" />
                 <span className="font-bold text-xs truncate max-w-sm">{previewDocModal.name}</span>
@@ -1258,7 +1258,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 />
               ) : (
                 <div className="p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-3">
-                  <div className="w-16 h-16 rounded-2xl bg-blue-100 text-[#0a2e6b] flex items-center justify-center mx-auto">
+                  <div className="w-16 h-16 rounded-2xl bg-[var(--brand-100)] text-[var(--brand-900)] flex items-center justify-center mx-auto">
                     {previewDocModal.type === 'word' ? <File className="w-8 h-8" /> : <FileText className="w-8 h-8" />}
                   </div>
                   <h4 className="font-extrabold text-slate-800 text-sm">{previewDocModal.name}</h4>
@@ -1268,7 +1268,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               <a
                 href={previewDocModal.url}
                 download={previewDocModal.name}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--brand-900)] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold transition shadow-xs"
               >
                 <Download className="w-4 h-4" />
                 <span>Download Document</span>
@@ -1282,10 +1282,10 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       {selectedClaimDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden animate-in zoom-in-95 max-h-[90vh] flex flex-col">
-            <div className="bg-[#0a2e6b] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0">
+            <div className="bg-[var(--brand-900)] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="font-bold text-base">Claim Record: {selectedClaimDetail.reference}</h3>
-                <p className="text-xs text-blue-100">Service Date: {selectedClaimDetail.serviceDate}</p>
+                <p className="text-xs text-[var(--brand-100)]">Service Date: {selectedClaimDetail.serviceDate}</p>
               </div>
               <button
                 onClick={() => setSelectedClaimDetail(null)}
@@ -1365,7 +1365,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 </div>
                 <div>
                   <span className="text-slate-400 font-medium block">Healthcare Facility</span>
-                  <span className="font-bold text-[#0a2e6b]">{selectedClaimDetail.provider}</span>
+                  <span className="font-bold text-[var(--brand-900)]">{selectedClaimDetail.provider}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 font-medium block">Attending Physician</span>
@@ -1374,8 +1374,8 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               </div>
 
               {selectedClaimDetail.comments && !selectedClaimDetail.rejectionReason && (
-                <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl text-slate-700">
-                  <span className="font-bold text-[#0a2e6b] block mb-1">Details & Beneficiary:</span>
+                <div className="p-3 bg-[var(--brand-50)]/50 border border-[var(--brand-100)] rounded-xl text-slate-700">
+                  <span className="font-bold text-[var(--brand-900)] block mb-1">Details & Beneficiary:</span>
                   <p>{selectedClaimDetail.comments}</p>
                 </div>
               )}
@@ -1384,7 +1384,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               {selectedClaimDetail.attachments && selectedClaimDetail.attachments.length > 0 && (
                 <div>
                   <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-1.5">
-                    <Paperclip className="w-3.5 h-3.5 text-[#0a2e6b]" />
+                    <Paperclip className="w-3.5 h-3.5 text-[var(--brand-900)]" />
                     <span>Submitted Supporting Documents ({selectedClaimDetail.attachments.length})</span>
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1393,7 +1393,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         <div className="flex items-center gap-2 min-w-0">
                           {att.type === 'image' && <ImageIcon className="w-4 h-4 text-emerald-600 shrink-0" />}
                           {att.type === 'pdf' && <FileText className="w-4 h-4 text-rose-600 shrink-0" />}
-                          {att.type === 'word' && <File className="w-4 h-4 text-blue-600 shrink-0" />}
+                          {att.type === 'word' && <File className="w-4 h-4 text-[var(--brand-600)] shrink-0" />}
                           {att.type !== 'image' && att.type !== 'pdf' && att.type !== 'word' && (
                             <Paperclip className="w-4 h-4 text-slate-500 shrink-0" />
                           )}
@@ -1402,7 +1402,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         <a
                           href={att.url}
                           download={att.name}
-                          className="p-1 rounded bg-white border border-slate-200 text-slate-700 hover:text-[#0a2e6b]"
+                          className="p-1 rounded bg-white border border-slate-200 text-slate-700 hover:text-[var(--brand-900)]"
                           title="Download"
                         >
                           <Download className="w-3.5 h-3.5" />
@@ -1442,7 +1442,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
                 <span className="text-sm font-bold text-slate-700">Total Claim Amount:</span>
                 <div className="text-right">
-                  <span className="text-lg font-black text-[#0a2e6b] block">
+                  <span className="text-lg font-black text-[var(--brand-900)] block">
                     ${selectedClaimDetail.amount?.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
                   </span>
                   <span className="text-xs font-bold text-slate-500">

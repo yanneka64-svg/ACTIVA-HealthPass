@@ -197,7 +197,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             onClick={() => setActiveTab('create')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
               activeTab === 'create'
-                ? 'bg-[#0a2e6b] text-white shadow-xs'
+                ? 'bg-[var(--brand-900)] text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -210,7 +210,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             onClick={() => setActiveTab('list')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
               activeTab === 'list'
-                ? 'bg-[#0a2e6b] text-white shadow-xs'
+                ? 'bg-[var(--brand-900)] text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -243,10 +243,10 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
 
       {activeTab === 'create' ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="px-8 py-6 bg-[#0a2e6b] text-white flex items-center justify-between">
+          <div className="px-8 py-6 bg-[var(--brand-900)] text-white flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold">Insured Biometric Enrollment</h2>
-              <p className="text-sm text-blue-100 mt-1">
+              <p className="text-sm text-[var(--brand-100)] mt-1">
                 Identity capture and biometric enrollment for health card issuance
               </p>
             </div>
@@ -271,7 +271,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             {/* Section 1: Card & Identity Info */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                <Shield className="w-4 h-4 text-[#0a2e6b]" />
+                <Shield className="w-4 h-4 text-[var(--brand-900)]" />
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
                   Beneficiary Identity
                 </h3>
@@ -286,7 +286,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     type="text"
                     value={form.cardNo}
                     onChange={(e) => setForm({ ...form, cardNo: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-[#0a2e6b] font-mono focus:ring-2 focus:ring-[#0a2e6b]"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-[var(--brand-900)] font-mono focus:ring-2 focus:ring-[var(--brand-900)]"
                     required
                     placeholder="e.g. ACT-2026-10293"
                   />
@@ -300,7 +300,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     type="text"
                     value={form.fullName}
                     onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                     required
                     placeholder="e.g. John Doe"
                   />
@@ -314,7 +314,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     type="date"
                     value={form.birthDate}
                     onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                     required
                   />
                 </div>
@@ -326,7 +326,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                   <select
                     value={form.gender}
                     onChange={(e) => setForm({ ...form, gender: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                   >
                     <option value="M">Male</option>
                     <option value="F">Female</option>
@@ -340,7 +340,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                   <select
                     value={form.organization}
                     onChange={(e) => setForm({ ...form, organization: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                     required
                   >
                     {organizations.map((org) => (
@@ -356,7 +356,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             {/* Section 2: Policy Status and Relationship */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                <User className="w-4 h-4 text-[#0a2e6b]" />
+                <User className="w-4 h-4 text-[var(--brand-900)]" />
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
                   Policy Status & Beneficiary Tier
                 </h3>
@@ -370,7 +370,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                   <select
                     value={form.relationship}
                     onChange={(e) => setForm({ ...form, relationship: e.target.value as RelationshipType })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                   >
                     <option value="Principal">Principal Insured</option>
                     <option value="Conjoint">Spouse</option>
@@ -389,7 +389,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                         type="text"
                         value={form.mainInsuredName}
                         onChange={(e) => setForm({ ...form, mainInsuredName: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                         placeholder="e.g. Samuel Doe"
                         required={form.relationship !== 'Principal'}
                       />
@@ -403,7 +403,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                         type="text"
                         value={form.mainInsuredCardNo}
                         onChange={(e) => setForm({ ...form, mainInsuredCardNo: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-[#0a2e6b] font-mono focus:ring-2 focus:ring-[#0a2e6b]"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-[var(--brand-900)] font-mono focus:ring-2 focus:ring-[var(--brand-900)]"
                         placeholder="e.g. ACT-2026-00100"
                         required={form.relationship !== 'Principal'}
                       />
@@ -416,7 +416,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             {/* Section 3: Contact */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                <Phone className="w-4 h-4 text-[#0a2e6b]" />
+                <Phone className="w-4 h-4 text-[var(--brand-900)]" />
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
                   Contact Details
                 </h3>
@@ -429,7 +429,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     type="tel"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                     placeholder="+231 77 123 4567"
                   />
                 </div>
@@ -440,7 +440,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                     placeholder="insured@organization.com"
                   />
                 </div>
@@ -450,7 +450,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             {/* Section 4: Biometrics & Photo Capture */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                <Fingerprint className="w-4 h-4 text-[#0a2e6b]" />
+                <Fingerprint className="w-4 h-4 text-[var(--brand-900)]" />
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
                   Biometric Capture & Facial Identification
                 </h3>
@@ -459,7 +459,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Photo Box */}
                 <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center justify-center space-y-4">
-                  <div className="w-28 h-28 rounded-full border-2 border-dashed border-[#0a2e6b] overflow-hidden flex items-center justify-center bg-white shadow-xs">
+                  <div className="w-28 h-28 rounded-full border-2 border-dashed border-[var(--brand-900)] overflow-hidden flex items-center justify-center bg-white shadow-xs">
                     {photoData ? (
                       <img src={photoData} alt="Captured Profile" className="w-full h-full object-cover" />
                     ) : (
@@ -471,7 +471,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsWebcamModalOpen(true)}
-                      className="px-3.5 py-2 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      className="px-3.5 py-2 bg-[var(--brand-900)] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
                       <Camera className="w-3.5 h-3.5 text-emerald-300" />
                       <span>Capture Webcam</span>
@@ -528,7 +528,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
               <button
                 type="submit"
-                className="px-8 py-3.5 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2 cursor-pointer"
+                className="px-8 py-3.5 bg-[var(--brand-900)] hover:bg-[#07214f] text-white rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2 cursor-pointer"
               >
                 <UserCheck className="w-4 h-4" />
                 <span>Submit Enrollment for Validation</span>
@@ -546,7 +546,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search requests by card no, name, reference..."
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
+                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
               />
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             </div>
@@ -555,7 +555,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#0a2e6b]"
+                className="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[var(--brand-900)]"
               >
                 <option value="ALL">All Status</option>
                 <option value="pending">Pending Validation ({pendingCount})</option>
@@ -586,7 +586,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {filteredEnrollments.map((enr) => (
                     <tr key={enr.id} className="hover:bg-slate-50/60 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-[#0a2e6b]">{enr.cardNo}</td>
+                      <td className="py-3 px-4 font-mono font-bold text-[var(--brand-900)]">{enr.cardNo}</td>
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-800">{enr.fullName}</div>
                         <div className="text-[10px] text-slate-400">{enr.relationship}</div>
@@ -650,7 +650,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <UserCheck className="w-5 h-5 text-[#0a2e6b]" />
+                <UserCheck className="w-5 h-5 text-[var(--brand-900)]" />
                 <h3 className="font-bold text-base text-slate-900">Enrollment File Details</h3>
               </div>
               <button
@@ -664,7 +664,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             <div className="space-y-3 text-xs">
               <div className="flex justify-between py-1.5 border-b border-slate-100">
                 <span className="text-slate-500 font-medium">Health Card No:</span>
-                <span className="font-mono font-bold text-[#0a2e6b]">{selectedEnrDetails.cardNo}</span>
+                <span className="font-mono font-bold text-[var(--brand-900)]">{selectedEnrDetails.cardNo}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100">
                 <span className="text-slate-500 font-medium">Full Name:</span>

@@ -1,6 +1,22 @@
+import type { CSSProperties } from 'react';
 import { normalizeRole } from '../utils/authUtils';
 
 export type UserRole = 'Admin' | 'Supervisor' | 'Agent';
+
+// === AMÉLIORATION AJOUTÉE : rampe de nuances (50 -> 900) par rôle ===
+// Toutes les vues de l'application utilisaient auparavant la couleur "Activa Navy"
+// (#0a2e6b) codée en dur pour les boutons, bandeaux, fenêtres modales et badges — même
+// dans les interfaces Admin (slate) et Superviseur (sarcelle), qui n'ont donc jamais
+// vraiment porté leur propre couleur ailleurs que dans la barre latérale. Cette rampe
+// fournit, pour chaque rôle, un jeu de nuances Tailwind-compatibles (mêmes teintes que
+// celles déjà utilisées dans la palette ci-dessous : slate pour Admin, teal pour
+// Superviseur, blue pour Agent — 900 = couleur de marque exacte du rôle) afin que TOUT
+// élément (bouton, fenêtre, barre) puisse désormais suivre la couleur du bandeau qui
+// porte le menu. Exposée à la fois en variables CSS (getRoleCssVars, pour les classes
+// Tailwind `bg-[var(--brand-900)]` etc.) et en valeurs hexadécimales brutes (pour les
+// couleurs de graphiques calculées en JS, ex. Recharts).
+export type BrandRampKey = '50' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+export type BrandHexRamp = Record<BrandRampKey, string>;
 
 export interface RoleThemeConfig {
   role: UserRole;
@@ -27,6 +43,7 @@ export interface RoleThemeConfig {
     accentBadge: string;
     accentRing: string;
     accentGlow: string;
+    hexRamp: BrandHexRamp;
   };
 }
 
@@ -55,6 +72,11 @@ export const ADMIN_THEME: RoleThemeConfig = {
     accentBadge: 'bg-[#1F2937] text-white',
     accentRing: 'focus:ring-[#1F2937]',
     accentGlow: 'bg-gray-500/20',
+    // Tailwind's native "slate" ramp — already the exact family used above (#0F172A = slate-900).
+    hexRamp: {
+      '50': '#f8fafc', '100': '#f1f5f9', '200': '#e2e8f0', '300': '#cbd5e1', '400': '#94a3b8',
+      '500': '#64748b', '600': '#475569', '700': '#334155', '800': '#1e293b', '900': '#0f172a',
+    },
   },
 };
 
@@ -83,6 +105,11 @@ export const SUPERVISOR_THEME: RoleThemeConfig = {
     accentBadge: 'bg-[#0F766E] text-white',
     accentRing: 'focus:ring-[#0F766E]',
     accentGlow: 'bg-teal-400/20',
+    // Tailwind's native "teal" ramp — already the exact family used above (#134E4A = teal-900).
+    hexRamp: {
+      '50': '#f0fdfa', '100': '#ccfbf1', '200': '#99f6e4', '300': '#5eead4', '400': '#2dd4bf',
+      '500': '#14b8a6', '600': '#0d9488', '700': '#0f766e', '800': '#115e59', '900': '#134e4a',
+    },
   },
 };
 
@@ -111,8 +138,30 @@ export const AGENT_THEME: RoleThemeConfig = {
     accentBadge: 'bg-[#0A347B] text-white',
     accentRing: 'focus:ring-[#0A347B]',
     accentGlow: 'bg-blue-400/20',
+    // Tailwind's native "blue" ramp for 50-800; 900 kept as the exact original brand hex
+    // (#0a2e6b, slightly darker than Tailwind's blue-900) so Agent's UI stays pixel-identical.
+    hexRamp: {
+      '50': '#eff6ff', '100': '#dbeafe', '200': '#bfdbfe', '300': '#93c5fd', '400': '#60a5fa',
+      '500': '#3b82f6', '600': '#2563eb', '700': '#1d4ed8', '800': '#1e40af', '900': '#0a2e6b',
+    },
   },
 };
+
+/**
+ * Returns a React inline-style object of CSS custom properties (--brand-50 .. --brand-900)
+ * for the given role, meant to be spread on a top-level wrapping element once the user's
+ * role is known (post-authentication). Every view/component below that element can then
+ * reference `bg-[var(--brand-900)]`, `text-[var(--brand-600)]`, etc. instead of a hardcoded
+ * color, and automatically picks up the correct role color everywhere.
+ */
+export function getRoleCssVars(roleInput?: string | null): CSSProperties {
+  const theme = getRoleTheme(roleInput);
+  const vars: Record<string, string> = {};
+  (Object.keys(theme.palette.hexRamp) as BrandRampKey[]).forEach((key) => {
+    vars[`--brand-${key}`] = theme.palette.hexRamp[key];
+  });
+  return vars as CSSProperties;
+}
 
 export function getRoleTheme(roleInput?: string | null): RoleThemeConfig {
   const normalized = normalizeRole(roleInput);

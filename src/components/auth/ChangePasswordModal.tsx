@@ -67,14 +67,14 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="bg-[#0a2e6b] p-6 text-white text-center relative">
+        <div className="bg-[var(--brand-900)] p-6 text-white text-center relative">
           <div className="w-12 h-12 rounded-2xl bg-white/10 mx-auto flex items-center justify-center text-emerald-300 mb-3 shadow-inner">
             <KeyRound className="w-6 h-6" />
           </div>
           <h3 className="font-extrabold text-lg tracking-tight">
             {modalTitle}
           </h3>
-          <p className="text-xs text-blue-100 mt-1 max-w-xs mx-auto leading-relaxed">
+          <p className="text-xs text-[var(--brand-100)] mt-1 max-w-xs mx-auto leading-relaxed">
             {modalSubtitle}
           </p>
 
@@ -107,7 +107,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] focus:bg-white transition"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
                   placeholder="••••••••"
                   required
                 />
@@ -125,7 +125,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] focus:bg-white transition"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
                 placeholder="••••••••"
                 required
               />
@@ -142,7 +142,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] focus:bg-white transition"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
                 placeholder="••••••••"
                 required
               />
@@ -210,7 +210,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               disabled={!isFormValid}
               className={`flex-1 py-2.5 px-4 rounded-xl text-white text-xs font-bold shadow-md transition flex items-center justify-center gap-2 ${
                 isFormValid
-                  ? 'bg-[#0a2e6b] hover:bg-[#07214f]'
+                  ? 'bg-[var(--brand-900)] hover:bg-[#07214f]'
                   : 'bg-slate-300 cursor-not-allowed text-slate-500'
               }`}
             >

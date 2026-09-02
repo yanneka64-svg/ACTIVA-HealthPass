@@ -129,7 +129,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
             TOTAL INVOICED VOLUME
           </p>
-          <p className="text-2xl sm:text-3xl font-extrabold text-[#0a2e6b] mt-2 tracking-tight">
+          <p className="text-2xl sm:text-3xl font-extrabold text-[var(--brand-900)] mt-2 tracking-tight">
             {formatAmount(totalInvoiced)}
           </p>
           <p className="text-xs text-[#778FAF] mt-1.5 font-medium">
@@ -155,7 +155,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
             PATIENT DIRECT CO-PAY
           </p>
-          <p className="text-2xl sm:text-3xl font-extrabold text-[#0a2e6b] mt-2 tracking-tight">
+          <p className="text-2xl sm:text-3xl font-extrabold text-[var(--brand-900)] mt-2 tracking-tight">
             {formatAmount(totalCopay)}
           </p>
           <p className="text-xs text-[#778FAF] mt-1.5 font-medium">
@@ -168,7 +168,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
             PROCESSED INVOICES
           </p>
-          <p className="text-2xl sm:text-3xl font-extrabold text-[#0a2e6b] mt-2 tracking-tight">
+          <p className="text-2xl sm:text-3xl font-extrabold text-[var(--brand-900)] mt-2 tracking-tight">
             {filteredInvoices.length}
           </p>
           <div className="flex items-center gap-1.5 text-xs text-[#00A859] font-bold mt-1.5">
@@ -186,8 +186,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             onClick={() => setViewMode('full')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'full'
-                ? 'bg-[#0a2e6b] text-white shadow-xs'
-                : 'text-[#778FAF] hover:text-[#0a2e6b]'
+                ? 'bg-[var(--brand-900)] text-white shadow-xs'
+                : 'text-[#778FAF] hover:text-[var(--brand-900)]'
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
@@ -197,8 +197,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             onClick={() => setViewMode('patient')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'patient'
-                ? 'bg-[#0a2e6b] text-white shadow-xs'
-                : 'text-[#778FAF] hover:text-[#0a2e6b]'
+                ? 'bg-[var(--brand-900)] text-white shadow-xs'
+                : 'text-[#778FAF] hover:text-[var(--brand-900)]'
             }`}
           >
             <User className="w-3.5 h-3.5" />
@@ -208,8 +208,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             onClick={() => setViewMode('family')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'family'
-                ? 'bg-[#0a2e6b] text-white shadow-xs'
-                : 'text-[#778FAF] hover:text-[#0a2e6b]'
+                ? 'bg-[var(--brand-900)] text-white shadow-xs'
+                : 'text-[#778FAF] hover:text-[var(--brand-900)]'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
@@ -226,7 +226,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search invoice"
-              className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs text-[#0a2e6b] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0a2e6b] focus:ring-1 focus:ring-[#0a2e6b] focus:bg-white transition"
+              className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs text-[var(--brand-900)] placeholder:text-[#778FAF] focus:outline-none focus:border-[var(--brand-900)] focus:ring-1 focus:ring-[var(--brand-900)] focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-[#778FAF] absolute left-3 top-2.5" />
             {searchTerm && (
@@ -240,7 +240,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
           <select
             value={orgFilter}
             onChange={(e) => setOrgFilter(e.target.value)}
-            className="px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[#0a2e6b] focus:outline-none focus:border-[#0a2e6b] cursor-pointer whitespace-nowrap"
+            className="px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[var(--brand-900)] focus:outline-none focus:border-[var(--brand-900)] cursor-pointer whitespace-nowrap"
           >
             <option value="ALL">All Organizations</option>
             {uniqueOrgs.map((org) => (
@@ -287,7 +287,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                       <tr key={inv.id} className="hover:bg-[#F8FAFC]/80 transition">
                         {/* INVOICE REF */}
                         <td className="py-4 px-5 align-top">
-                          <div className="font-bold text-[#0a2e6b] font-mono text-xs">{inv.reference}</div>
+                          <div className="font-bold text-[var(--brand-900)] font-mono text-xs">{inv.reference}</div>
                           <div className="text-[11px] text-[#778FAF] mt-0.5">
                             Claim: <span className="font-mono">{inv.claimId || `SIN-${inv.id.substring(0, 8)}`}</span>
                           </div>
@@ -300,9 +300,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                         <td className="py-4 px-5 align-top">
                           <div className="flex items-center gap-1.5">
                             <User className="w-3.5 h-3.5 text-[#778FAF] shrink-0" />
-                            <span className="font-bold text-[#0a2e6b]">{inv.patientName}</span>
+                            <span className="font-bold text-[var(--brand-900)]">{inv.patientName}</span>
                           </div>
-                          <div className="text-[11px] font-mono text-[#0a2e6b] font-semibold mt-0.5">
+                          <div className="text-[11px] font-mono text-[var(--brand-900)] font-semibold mt-0.5">
                             {inv.patientPolicyNumber || 'ACT-2025-0089'}
                           </div>
                           <div className="text-[11px] text-[#778FAF] mt-0.5 truncate max-w-[180px]">
@@ -312,7 +312,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
 
                         {/* HEALTHCARE FACILITY */}
                         <td className="py-4 px-5 align-top">
-                          <div className="font-bold text-[#0a2e6b]">{inv.provider}</div>
+                          <div className="font-bold text-[var(--brand-900)]">{inv.provider}</div>
                           <div className="text-[11px] text-[#778FAF] mt-0.5">
                             🩺 {inv.prescribingDoctor || 'Dr. Medical Staff'}
                           </div>
@@ -320,7 +320,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
 
                         {/* ACT & CARE CATEGORY */}
                         <td className="py-4 px-5 align-top">
-                          <div className="font-medium text-[#0a2e6b] max-w-[200px] truncate">
+                          <div className="font-medium text-[var(--brand-900)] max-w-[200px] truncate">
                             {inv.description || inv.careType}
                           </div>
                           <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10px] font-semibold text-[#778FAF]">
@@ -329,7 +329,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                         </td>
 
                         {/* INVOICED */}
-                        <td className="py-4 px-4 text-right align-top font-bold text-[#0a2e6b] text-[13px]">
+                        <td className="py-4 px-4 text-right align-top font-bold text-[var(--brand-900)] text-[13px]">
                           {formatAmount(inv.amount)}
                         </td>
 
@@ -339,7 +339,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                         </td>
 
                         {/* COPAY */}
-                        <td className="py-4 px-4 text-right align-top font-bold text-[#0a2e6b] text-[13px]">
+                        <td className="py-4 px-4 text-right align-top font-bold text-[var(--brand-900)] text-[13px]">
                           {formatAmount(copay)}
                         </td>
 
@@ -367,9 +367,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                         <td className="py-4 px-5 text-center align-top">
                           <button
                             onClick={() => setViewSlipInvoice(inv)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#F8FAFC] border border-[#E8EDF2] hover:border-[#0a2e6b] text-[#0a2e6b] rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#F8FAFC] border border-[#E8EDF2] hover:border-[var(--brand-900)] text-[var(--brand-900)] rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
                           >
-                            <Eye className="w-3.5 h-3.5 text-[#0a2e6b]" />
+                            <Eye className="w-3.5 h-3.5 text-[var(--brand-900)]" />
                             <span>Invoice</span>
                           </button>
                         </td>
@@ -393,13 +393,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {viewMode === 'patient' ? (
-                      <User className="w-4 h-4 text-[#0a2e6b]" />
+                      <User className="w-4 h-4 text-[var(--brand-900)]" />
                     ) : (
-                      <Users className="w-4 h-4 text-[#0a2e6b]" />
+                      <Users className="w-4 h-4 text-[var(--brand-900)]" />
                     )}
-                    <h3 className="font-bold text-sm text-[#0a2e6b]">{g.name}</h3>
+                    <h3 className="font-bold text-sm text-[var(--brand-900)]">{g.name}</h3>
                   </div>
-                  <span className="px-2 py-0.5 bg-[#EAF2FF] text-[#0a2e6b] rounded-full text-[10px] font-bold">
+                  <span className="px-2 py-0.5 bg-[#EAF2FF] text-[var(--brand-900)] rounded-full text-[10px] font-bold">
                     {g.count} Invoices
                   </span>
                 </div>
@@ -412,8 +412,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                       key={item.id}
                       className="flex items-center justify-between text-xs py-1 border-b border-slate-50 last:border-0"
                     >
-                      <span className="font-mono text-[#0a2e6b] font-semibold">{item.reference}</span>
-                      <span className="font-bold text-[#0a2e6b]">{formatAmount(item.amount)}</span>
+                      <span className="font-mono text-[var(--brand-900)] font-semibold">{item.reference}</span>
+                      <span className="font-bold text-[var(--brand-900)]">{formatAmount(item.amount)}</span>
                     </div>
                   ))}
                   {g.items.length > 3 && (
@@ -425,13 +425,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
               <div className="pt-3 border-t border-[#E8EDF2] flex items-center justify-between">
                 <div>
                   <span className="text-[10px] text-[#778FAF] uppercase font-bold block">Total Amount</span>
-                  <span className="text-base font-extrabold text-[#0a2e6b]">{formatAmount(g.totalAmount)}</span>
+                  <span className="text-base font-extrabold text-[var(--brand-900)]">{formatAmount(g.totalAmount)}</span>
                 </div>
                 <button
                   onClick={() => {
                     setViewSlipInvoice(g.items[0]);
                   }}
-                  className="px-3 py-1.5 bg-[#F8FAFC] hover:bg-[#EAF2FF] border border-[#E8EDF2] text-[#0a2e6b] text-xs font-bold rounded-lg transition"
+                  className="px-3 py-1.5 bg-[#F8FAFC] hover:bg-[#EAF2FF] border border-[#E8EDF2] text-[var(--brand-900)] text-xs font-bold rounded-lg transition"
                 >
                   View Details
                 </button>
@@ -447,11 +447,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-[#E8EDF2] max-h-[90vh] overflow-y-auto space-y-6">
             <div className="flex items-center justify-between border-b border-[#E8EDF2] pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-[#EAF2FF] rounded-xl text-[#0a2e6b]">
+                <div className="p-2.5 bg-[#EAF2FF] rounded-xl text-[var(--brand-900)]">
                   <Receipt className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#0a2e6b]">
+                  <h3 className="text-base font-bold text-[var(--brand-900)]">
                     Certified Medical Slip #{viewSlipInvoice.reference}
                   </h3>
                   <p className="text-xs text-[#778FAF]">Official ACTIVA HealthPass Disbursement Voucher</p>
@@ -459,7 +459,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
               </div>
               <button
                 onClick={() => setViewSlipInvoice(null)}
-                className="p-1.5 text-[#778FAF] hover:text-[#0a2e6b] hover:bg-[#F8FAFC] rounded-lg transition"
+                className="p-1.5 text-[#778FAF] hover:text-[var(--brand-900)] hover:bg-[#F8FAFC] rounded-lg transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -469,26 +469,26 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-xl border border-[#E8EDF2] text-xs">
               <div>
                 <p className="text-[#778FAF] font-medium">Patient</p>
-                <p className="font-bold text-[#0a2e6b] mt-0.5">{viewSlipInvoice.patientName}</p>
-                <p className="font-mono text-[10px] text-[#0a2e6b]">
+                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.patientName}</p>
+                <p className="font-mono text-[10px] text-[var(--brand-900)]">
                   {viewSlipInvoice.patientPolicyNumber || 'ACT-2025-0089'}
                 </p>
               </div>
               <div>
                 <p className="text-[#778FAF] font-medium">Healthcare Provider</p>
-                <p className="font-bold text-[#0a2e6b] mt-0.5">{viewSlipInvoice.provider}</p>
+                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.provider}</p>
               </div>
               <div>
                 <p className="text-[#778FAF] font-medium">Organization</p>
-                <p className="font-bold text-[#0a2e6b] mt-0.5">{viewSlipInvoice.organization}</p>
+                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.organization}</p>
               </div>
               <div>
                 <p className="text-[#778FAF] font-medium">Care Category</p>
-                <p className="font-bold text-[#0a2e6b] mt-0.5">{viewSlipInvoice.careType}</p>
+                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.careType}</p>
               </div>
               <div>
                 <p className="text-[#778FAF] font-medium">Service Date</p>
-                <p className="font-bold text-[#0a2e6b] mt-0.5">{viewSlipInvoice.serviceDate || '2025-08-18'}</p>
+                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.serviceDate || '2025-08-18'}</p>
               </div>
               <div>
                 <p className="text-[#778FAF] font-medium">Validation Status</p>
@@ -502,7 +502,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             <div className="border border-[#E8EDF2] rounded-xl p-4 space-y-2">
               <div className="flex justify-between text-xs text-[#778FAF]">
                 <span>Total Invoiced Amount</span>
-                <span className="font-bold text-[#0a2e6b]">{formatAmount(viewSlipInvoice.amount)}</span>
+                <span className="font-bold text-[var(--brand-900)]">{formatAmount(viewSlipInvoice.amount)}</span>
               </div>
               <div className="flex justify-between text-xs text-[#00A859] font-semibold">
                 <span>Covered by ACTIVA ({viewSlipInvoice.coveragePercentage || 80}%)</span>
@@ -514,7 +514,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                   )}
                 </span>
               </div>
-              <div className="flex justify-between text-xs text-[#0a2e6b] pt-2 border-t border-[#E8EDF2] font-bold">
+              <div className="flex justify-between text-xs text-[var(--brand-900)] pt-2 border-t border-[#E8EDF2] font-bold">
                 <span>Patient Direct Co-Pay</span>
                 <span>
                   {formatAmount(
@@ -534,14 +534,14 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => printBordereauSlip(viewSlipInvoice, lang)}
-                className="px-4 py-2 bg-[#F8FAFC] hover:bg-[#EAF2FF] border border-[#E8EDF2] text-[#0a2e6b] rounded-xl text-xs font-bold flex items-center gap-2 transition"
+                className="px-4 py-2 bg-[#F8FAFC] hover:bg-[#EAF2FF] border border-[#E8EDF2] text-[var(--brand-900)] rounded-xl text-xs font-bold flex items-center gap-2 transition"
               >
-                <Printer className="w-4 h-4 text-[#0a2e6b]" />
+                <Printer className="w-4 h-4 text-[var(--brand-900)]" />
                 <span>Print Slip</span>
               </button>
               <button
                 onClick={() => downloadBordereauPDF(viewSlipInvoice, lang)}
-                className="px-4 py-2 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs"
+                className="px-4 py-2 bg-[var(--brand-900)] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs"
               >
                 <Download className="w-4 h-4" />
                 <span>Download PDF Voucher</span>
