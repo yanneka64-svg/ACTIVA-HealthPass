@@ -191,6 +191,10 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       memberId: selectedMember.id,
       memberName: selectedMember.principalName,
       memberCardNo: selectedMember.cardNo,
+      // === AMÉLIORATION AJOUTÉE : date de naissance et sexe transmis au PDF (remplacent
+      // l'affichage du solde disponible dans le document imprimé) ===
+      memberBirthDate: selectedMember.birthDate,
+      memberGender: selectedMember.gender,
       organization: selectedMember.organization,
       providerId: selectedProvider.id,
       providerName: selectedProvider.name,

@@ -225,10 +225,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         </div>
       </div>
 
-      {/* 3. TABS & FILTER TOOLBAR (Aligned on a single horizontal line) */}
-      <div className="bg-white rounded-2xl p-3 sm:p-3.5 border border-[#E8EDF2] shadow-xs flex flex-wrap items-center justify-between gap-3">
-        {/* Navigation Tabs */}
-        <div className="inline-flex p-1 bg-[#F8FAFC] rounded-xl border border-[#E8EDF2] shrink-0">
+      {/* 3. TABS & FILTER TOOLBAR */}
+      {/* === AMÉLIORATION AJOUTÉE : sur mobile, la barre passait en dépassement horizontal
+          (le champ de recherche et le filtre organisation gardaient une largeur minimale fixe
+          qui dépassait l'écran, forçant toute la page à défiler horizontalement). Chaque bloc
+          est maintenant en pleine largeur et empilé verticalement en dessous de `sm`, et
+          redevient une seule ligne horizontale comme avant à partir de `sm`. ===  */}
+      <div className="bg-white rounded-2xl p-3 sm:p-3.5 border border-[#E8EDF2] shadow-xs flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-between gap-3">
+        {/* Navigation Tabs — scrollable horizontally instead of wrapping/overflowing on narrow screens */}
+        <div className="flex sm:inline-flex p-1 bg-[#F8FAFC] rounded-xl border border-[#E8EDF2] shrink-0 overflow-x-auto">
           <button
             onClick={() => setViewMode('full')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
@@ -264,10 +269,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           </button>
         </div>
 
-        {/* Search & Filters on the same line */}
-        <div className="flex items-center gap-2.5 flex-1 min-w-[280px] sm:flex-initial justify-end">
+        {/* Search & Filters: full-width stacked on mobile, inline on the same row from sm */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto sm:flex-1 sm:min-w-[280px] sm:justify-end">
           {/* Search */}
-          <div className="relative min-w-[200px] flex-1 sm:w-64 sm:flex-initial">
+          <div className="relative w-full sm:w-64">
             <input
               type="text"
               value={searchTerm}
@@ -287,7 +292,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           <select
             value={orgFilter}
             onChange={(e) => setOrgFilter(e.target.value)}
-            className="px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[#0D2B63] focus:outline-none focus:border-slate-800 cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-auto px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[#0D2B63] focus:outline-none focus:border-slate-800 cursor-pointer whitespace-nowrap"
           >
             <option value="ALL">All Organizations</option>
             {uniqueOrgs.map((org) => (
@@ -301,21 +306,125 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
       {/* 4. MAIN DATA VIEW */}
       {viewMode === 'full' ? (
-        /* Full Data Table matching Screenshot */
-        <div className="bg-white rounded-2xl border border-[#E8EDF2] shadow-xs overflow-hidden">
+        <>
+        {/* === AMÉLIORATION AJOUTÉE : sur téléphone, le tableau (9 colonnes) forçait toute la
+            page à défiler horizontalement et seules 2 colonnes restaient visibles à l'écran —
+            une liste de fiches empilées verticalement le remplace en dessous de `sm`, avec
+            exactement les mêmes informations et actions (Slip / Suppression) qu'une ligne du
+            tableau. Le tableau original reste inchangé à partir de `sm`. === */}
+        <div className="sm:hidden space-y-3">
+          {filteredInvoices.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-[#E8EDF2] p-8 text-center text-[#778FAF] font-medium text-xs">
+              No invoices found matching your criteria.
+            </div>
+          ) : (
+            filteredInvoices.map((inv) => {
+              const covered = inv.coveredAmount !== undefined ? inv.coveredAmount : (inv.amount * (inv.coveragePercentage || 80)) / 100;
+              const copay = Math.max(0, inv.amount - covered);
+              const claimRef = inv.claimId || `SIN-${inv.id.substring(0, 8)}`;
+
+              return (
+                <div key={inv.id} className="bg-white rounded-2xl border border-[#E8EDF2] shadow-xs p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 font-mono text-xs truncate">{inv.reference}</div>
+                      <div className="text-[10.5px] text-[#778FAF] truncate">{claimRef} · {inv.serviceDate || '2025-08-18'}</div>
+                    </div>
+                    {inv.status === 'valid' || inv.status === 'approved' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A878] text-[10.5px] font-bold shrink-0">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Validated</span>
+                      </span>
+                    ) : inv.status === 'pending' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF6D9] text-[#F5B942] text-[10.5px] font-bold shrink-0">
+                        <Clock className="w-3 h-3" />
+                        <span>Pending</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#DC4C4C] text-[10.5px] font-bold shrink-0">
+                        <X className="w-3 h-3" />
+                        <span>Rejected</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <User className="w-3.5 h-3.5 text-[#778FAF] shrink-0" />
+                    <span className="font-bold text-[#0D2B63] truncate">{inv.patientName}</span>
+                    <span className="text-[10.5px] font-mono text-slate-500 shrink-0">{inv.patientPolicyNumber || 'ACT-2025-0089'}</span>
+                  </div>
+
+                  <div className="text-xs truncate">
+                    <span className="font-bold text-[#0D2B63]">{inv.provider}</span>
+                    <span className="text-[10.5px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
+                  </div>
+
+                  <span className="inline-block px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10.5px] font-semibold text-[#0D2B63]" title={inv.description || inv.careType}>
+                    {inv.careType}
+                  </span>
+
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#E8EDF2] text-center">
+                    <div>
+                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Invoiced</div>
+                      <div className="font-bold text-[#0D2B63] text-xs">{formatAmount(inv.amount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Covered</div>
+                      <div className="font-bold text-[#00A878] text-xs">{formatAmount(covered)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Copay</div>
+                      <div className="font-bold text-[#0D2B63] text-xs">{formatAmount(copay)}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <button
+                      onClick={() => setViewSlipInvoice(inv)}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-700" />
+                      <span>View Slip</span>
+                    </button>
+                    {canDeleteInvoice && (
+                      <button
+                        onClick={() => setInvoiceToDelete(inv)}
+                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer"
+                        title="Delete invoice (Admin)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Full Data Table matching Screenshot — desktop/tablet only, see mobile cards above */}
+        <div className="hidden sm:block bg-white rounded-2xl border border-[#E8EDF2] shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[900px]">
+            {/* === AMÉLIORATION AJOUTÉE : tableau réorganisé pour que chaque ligne (en-tête ET
+                contenu) tienne sur une seule ligne — cellules en `whitespace-nowrap`/`truncate`
+                au lieu de s'empiler sur 2-3 lignes, alignement vertical centré au lieu de
+                `align-top`, padding uniformisé, et intitulés de colonnes allégés
+                ("HEALTHCARE FACILITY" → "FACILITY", "ACT & CARE CATEGORY" → "CATEGORY").
+                Les informations secondaires (n° de sinistre, date, organisation, médecin,
+                libellé détaillé) restent accessibles via une infobulle (title) plutôt que
+                d'occuper une ligne supplémentaire. === */}
+            <table className="w-full text-left border-collapse min-w-[880px]">
               <thead>
                 <tr className="border-b border-[#E8EDF2] bg-[#F8FAFC] text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-                  <th className="py-3.5 px-5">INVOICE REF</th>
-                  <th className="py-3.5 px-5">PATIENT</th>
-                  <th className="py-3.5 px-5">HEALTHCARE FACILITY</th>
-                  <th className="py-3.5 px-5">ACT & CARE CATEGORY</th>
-                  <th className="py-3.5 px-4 text-right">INVOICED ($)</th>
-                  <th className="py-3.5 px-4 text-right text-[#00A878]">COVERED ($)</th>
-                  <th className="py-3.5 px-4 text-right">COPAY ($)</th>
-                  <th className="py-3.5 px-5 text-center">STATUS</th>
-                  <th className="py-3.5 px-5 text-center">ACTIONS</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Invoice Ref</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Patient</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Facility</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Category</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">Invoiced ($)</th>
+                  <th className="py-3 px-4 text-right text-[#00A878] whitespace-nowrap">Covered ($)</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">Copay ($)</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8EDF2] text-xs">
@@ -329,69 +438,66 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   filteredInvoices.map((inv) => {
                     const covered = inv.coveredAmount !== undefined ? inv.coveredAmount : (inv.amount * (inv.coveragePercentage || 80)) / 100;
                     const copay = Math.max(0, inv.amount - covered);
+                    const claimRef = inv.claimId || `SIN-${inv.id.substring(0, 8)}`;
 
                     return (
                       <tr key={inv.id} className="hover:bg-[#F8FAFC]/80 transition">
-                        {/* INVOICE REF */}
-                        <td className="py-4 px-5 align-top">
-                          <div className="font-bold text-slate-900 font-mono text-xs">{inv.reference}</div>
-                          <div className="text-[11px] text-[#778FAF] mt-0.5">
-                            Claim: <span className="font-mono">{inv.claimId || `SIN-${inv.id.substring(0, 8)}`}</span>
-                          </div>
-                          <div className="text-[11px] text-[#778FAF] mt-0.5">
-                            🗓 {inv.serviceDate || '2025-08-18'}
+                        {/* INVOICE REF — reference + claim + date, all on one line */}
+                        <td className="py-3 px-4 align-middle max-w-[190px]" title={`Claim: ${claimRef} • ${inv.serviceDate || '2025-08-18'}`}>
+                          <div className="flex items-baseline gap-1.5 truncate">
+                            <span className="font-bold text-slate-900 font-mono text-xs">{inv.reference}</span>
+                            <span className="text-[10.5px] text-[#778FAF] truncate">
+                              {claimRef} · {inv.serviceDate || '2025-08-18'}
+                            </span>
                           </div>
                         </td>
 
-                        {/* PATIENT */}
-                        <td className="py-4 px-5 align-top">
-                          <div className="flex items-center gap-1.5">
+                        {/* PATIENT — name + card number on one line, organization as tooltip */}
+                        <td className="py-3 px-4 align-middle max-w-[200px]" title={inv.organization}>
+                          <div className="flex items-center gap-1.5 truncate">
                             <User className="w-3.5 h-3.5 text-[#778FAF] shrink-0" />
-                            <span className="font-bold text-[#0D2B63]">{inv.patientName}</span>
-                          </div>
-                          <div className="text-[11px] font-mono text-slate-700 font-semibold mt-0.5">
-                            {inv.patientPolicyNumber || 'ACT-2025-0089'}
-                          </div>
-                          <div className="text-[11px] text-[#778FAF] mt-0.5 truncate max-w-[180px]">
-                            🏢 {inv.organization}
+                            <span className="font-bold text-[#0D2B63] truncate">{inv.patientName}</span>
+                            <span className="text-[10.5px] font-mono text-slate-500 shrink-0">
+                              {inv.patientPolicyNumber || 'ACT-2025-0089'}
+                            </span>
                           </div>
                         </td>
 
-                        {/* HEALTHCARE FACILITY */}
-                        <td className="py-4 px-5 align-top">
-                          <div className="font-bold text-[#0D2B63]">{inv.provider}</div>
-                          <div className="text-[11px] text-[#778FAF] mt-0.5">
-                            🩺 {inv.prescribingDoctor || 'Dr. Medical Staff'}
+                        {/* FACILITY — provider + doctor on one line */}
+                        <td className="py-3 px-4 align-middle max-w-[190px]">
+                          <div className="truncate">
+                            <span className="font-bold text-[#0D2B63]">{inv.provider}</span>
+                            <span className="text-[10.5px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
                           </div>
                         </td>
 
-                        {/* ACT & CARE CATEGORY */}
-                        <td className="py-4 px-5 align-top">
-                          <div className="font-medium text-[#0D2B63] max-w-[200px] truncate">
-                            {inv.description || inv.careType}
-                          </div>
-                          <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10px] font-semibold text-[#778FAF]">
+                        {/* CATEGORY — single badge, full description as tooltip */}
+                        <td className="py-3 px-4 align-middle max-w-[160px]">
+                          <span
+                            className="inline-block max-w-full truncate align-bottom px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10.5px] font-semibold text-[#0D2B63]"
+                            title={inv.description || inv.careType}
+                          >
                             {inv.careType}
                           </span>
                         </td>
 
                         {/* INVOICED */}
-                        <td className="py-4 px-4 text-right align-top font-bold text-[#0D2B63] text-[13px]">
+                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-bold text-[#0D2B63] text-[13px]">
                           {formatAmount(inv.amount)}
                         </td>
 
                         {/* COVERED */}
-                        <td className="py-4 px-4 text-right align-top font-bold text-[#00A878] text-[13px]">
+                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-bold text-[#00A878] text-[13px]">
                           {formatAmount(covered)}
                         </td>
 
                         {/* COPAY */}
-                        <td className="py-4 px-4 text-right align-top font-bold text-[#0D2B63] text-[13px]">
+                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-bold text-[#0D2B63] text-[13px]">
                           {formatAmount(copay)}
                         </td>
 
                         {/* STATUS */}
-                        <td className="py-4 px-5 text-center align-top">
+                        <td className="py-3 px-4 text-center align-middle whitespace-nowrap">
                           {inv.status === 'valid' || inv.status === 'approved' ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#DEFEEB] text-[#00A878] text-[11px] font-bold">
                               <CheckCircle2 className="w-3 h-3" />
@@ -411,7 +517,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         </td>
 
                         {/* ACTIONS */}
-                        <td className="py-4 px-5 text-center align-top">
+                        <td className="py-3 px-4 text-center align-middle whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => setViewSlipInvoice(inv)}
@@ -441,6 +547,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             </table>
           </div>
         </div>
+        </>
       ) : (
         /* Grouped Views */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

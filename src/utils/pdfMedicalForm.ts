@@ -101,20 +101,31 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
     doc.text('INPATIENT ADMISSION', 155, currentY + 14);
   }
 
+  // === AMÉLIORATION AJOUTÉE : "Available Balance" retiré du PDF et remplacé par la date de
+  // naissance et le sexe de l'assuré ; "Voucher Validity" reste inchangé, décalé pour laisser
+  // la place à la ligne "Gender" supplémentaire (4 lignes sur cette colonne au lieu de 3,
+  // espacées de 5mm au lieu de 6mm — la hauteur de l'encadré ne change pas) ===
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
-  doc.text('Available Balance :', 120, currentY + 20);
+  doc.text('Date of Birth :', 120, currentY + 19);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 168, 89);
-  const bal = isOutpatient ? form.outpatientBalanceUSD : form.inpatientBalanceUSD;
-  doc.text(`$${bal ?? 600} USD`, 155, currentY + 20);
+  doc.setTextColor(15, 23, 42);
+  doc.text(form.memberBirthDate || 'N/A', 155, currentY + 19);
 
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
-  doc.text('Voucher Validity :', 120, currentY + 26);
+  doc.text('Gender :', 120, currentY + 24);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  const genderLabel = form.memberGender === 'F' ? 'Female' : form.memberGender === 'M' ? 'Male' : 'N/A';
+  doc.text(genderLabel, 155, currentY + 24);
+
+  doc.setTextColor(71, 85, 105);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Voucher Validity :', 120, currentY + 29);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(10, 52, 123);
-  doc.text('48 Hours (Standard Term)', 155, currentY + 26);
+  doc.text('48 Hours (Standard Term)', 155, currentY + 29);
 
   currentY += 41;
 
@@ -137,12 +148,12 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.setTextColor(15, 23, 42);
   doc.text(form.providerName || 'N/A', 55, currentY + 14);
 
+  // === AMÉLIORATION AJOUTÉE : le champ "Attending Physician" ne préremplit plus aucune
+  // valeur (ni le nom saisi par l'agent, ni le texte par défaut "Dr. General Practitioner") —
+  // l'espace reste vierge, réservé à la signature/identification du médecin traitant ===
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
   doc.text('Attending Physician :', 18, currentY + 21);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(form.doctorName || 'Dr. _______________________', 55, currentY + 21);
 
   // Practitioner Type: Generalist or Specialist
   doc.setTextColor(71, 85, 105);

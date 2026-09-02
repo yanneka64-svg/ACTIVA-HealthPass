@@ -221,6 +221,10 @@ export interface MedicalForm {
   memberId: string;
   memberName: string;
   memberCardNo: string;
+  // === AMÉLIORATION AJOUTÉE : date de naissance et sexe de l'assuré, capturés au moment de
+  // la génération du Medical Form pour remplacer l'affichage du solde disponible sur le PDF ===
+  memberBirthDate?: string;
+  memberGender?: 'M' | 'F';
   organization: string;
   providerId: string;
   providerName: string;

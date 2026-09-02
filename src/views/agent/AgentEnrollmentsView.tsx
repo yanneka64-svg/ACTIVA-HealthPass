@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   UserCheck,
   ShieldCheck,
@@ -74,6 +74,32 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
   const [selectedPrincipalCardNo, setSelectedPrincipalCardNo] = useState('');
 
   const principalDirectory = useMemo(() => dedupeMembersByCardNo(members), [members]);
+
+  // === AMÉLIORATION AJOUTÉE : remplace l'ancien menu déroulant "Select Principal Insured
+  // from Directory" par une saisie intelligente (autocomplete) sur le champ du nom de
+  // l'assuré principal — l'agent tape quelques lettres, une liste de suggestions filtrées
+  // dans l'annuaire s'affiche, et le choix pré-remplit toujours le nom, le n° de carte et
+  // l'organisation comme avant ===
+  const [principalSearchOpen, setPrincipalSearchOpen] = useState(false);
+  const principalSearchRef = useRef<HTMLDivElement>(null);
+
+  const principalSuggestions = useMemo(() => {
+    const q = form.mainInsuredName.trim().toLowerCase();
+    if (!q) return principalDirectory.slice(0, 6);
+    return principalDirectory
+      .filter((m) => m.principalName.toLowerCase().includes(q) || m.cardNo.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [principalDirectory, form.mainInsuredName]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (principalSearchRef.current && !principalSearchRef.current.contains(event.target as Node)) {
+        setPrincipalSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const [hasPhoto, setHasPhoto] = useState(false);
   const [hasBiometrics, setHasBiometrics] = useState(false);
@@ -465,49 +491,53 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                       </span>
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Select Principal Insured from Directory:
-                      </label>
-                      <select
-                        value={selectedPrincipalCardNo}
-                        onChange={(e) => {
-                          const cardNo = e.target.value;
-                          setSelectedPrincipalCardNo(cardNo);
-                          const match = principalDirectory.find((m) => m.cardNo === cardNo);
-                          if (match) {
-                            setForm((prev) => ({
-                              ...prev,
-                              mainInsuredName: match.principalName,
-                              mainInsuredCardNo: match.cardNo,
-                              organization: match.organization || prev.organization,
-                            }));
-                          }
-                        }}
-                        className="w-full px-3.5 py-2.5 bg-white border border-amber-300 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500"
-                      >
-                        <option value="">-- Choose Existing Principal Insured --</option>
-                        {principalDirectory.map((m) => (
-                          <option key={m.id} value={m.cardNo}>
-                            {m.principalName} — {m.cardNo}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
+                      <div className="relative" ref={principalSearchRef}>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">
                           Principal Insured Full Name <span className="text-rose-500">*</span>
                         </label>
-                        <input
-                          type="text"
-                          value={form.mainInsuredName}
-                          onChange={(e) => setForm({ ...form, mainInsuredName: e.target.value })}
-                          className="w-full px-3.5 py-2 bg-white border border-amber-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500"
-                          placeholder="e.g. Tamban Musa"
-                          required={form.relationship !== 'Principal'}
-                        />
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-amber-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={form.mainInsuredName}
+                            onChange={(e) => {
+                              setForm({ ...form, mainInsuredName: e.target.value });
+                              setSelectedPrincipalCardNo('');
+                              setPrincipalSearchOpen(true);
+                            }}
+                            onFocus={() => setPrincipalSearchOpen(true)}
+                            autoComplete="off"
+                            className="w-full pl-8 pr-3.5 py-2 bg-white border border-amber-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                            placeholder="Type to search the insured directory..."
+                            required={form.relationship !== 'Principal'}
+                          />
+                        </div>
+                        {/* Smart suggestions dropdown, filtered live from the existing member directory */}
+                        {principalSearchOpen && principalSuggestions.length > 0 && (
+                          <div className="absolute z-20 mt-1 w-full bg-white border border-amber-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                            {principalSuggestions.map((m) => (
+                              <button
+                                type="button"
+                                key={m.id}
+                                onClick={() => {
+                                  setSelectedPrincipalCardNo(m.cardNo);
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    mainInsuredName: m.principalName,
+                                    mainInsuredCardNo: m.cardNo,
+                                    organization: m.organization || prev.organization,
+                                  }));
+                                  setPrincipalSearchOpen(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2 hover:bg-amber-50 text-xs border-b border-amber-50 last:border-0 cursor-pointer"
+                              >
+                                <span className="font-bold text-slate-800">{m.principalName}</span>
+                                <span className="text-slate-400 font-mono ml-1.5">{m.cardNo}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">

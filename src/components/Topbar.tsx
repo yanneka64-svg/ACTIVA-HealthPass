@@ -264,8 +264,15 @@ export const Topbar: React.FC<TopbarProps> = ({
               marge) sur mobile, au lieu d'un panneau `absolute` de 320-384px ancré à droite de
               la cloche qui débordait et se retrouvait tronqué à gauche de l'écran. À partir de
               `sm`, on revient au positionnement `absolute` habituel sous la cloche. === */}
+          {/* === AMÉLIORATION AJOUTÉE : `max-w-full` retiré du panneau ci-dessous — comme ce
+              panneau est positionné en `absolute` par rapport au petit conteneur `relative`
+              qui enveloppe juste l'icône de la cloche (32px de large), `max-width: 100%` se
+              résolvait à 32px et écrasait toute la largeur du panneau (w-96) en un mince
+              ruban vertical illisible sur desktop/tablette. La largeur mobile (`inset-x-4`)
+              et desktop (`sm:w-96`) suffisent déjà à contraindre le panneau, `max-w-full`
+              était inutile. === */}
           {notificationsOpen && (
-            <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-96 max-w-full bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-96 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-3 border-b border-[#E8EDF2] flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <h3 className="text-xs font-extrabold text-[#0D2B63] uppercase tracking-wider">
@@ -372,9 +379,11 @@ export const Topbar: React.FC<TopbarProps> = ({
           </button>
 
           {/* === AMÉLIORATION AJOUTÉE : même correctif que le panneau de notifications — ancré
-              aux bords de l'écran sur mobile pour ne jamais déborder === */}
+              aux bords de l'écran sur mobile pour ne jamais déborder, et `max-w-full` retiré
+              (il se résolvait à la largeur du petit conteneur `relative` de l'avatar plutôt
+              que celle du panneau, écrasant sa largeur) === */}
           {profileMenuOpen && (
-            <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-72 max-w-full bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in duration-150">
+            <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-72 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in duration-150">
               <div className="px-4 py-3 border-b border-[#E8EDF2]">
                 <p className="text-xs font-extrabold text-[#0D2B63]">
                   {userName}
