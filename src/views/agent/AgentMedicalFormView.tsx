@@ -39,6 +39,12 @@ interface AgentMedicalFormViewProps {
   lang?: Language;
   onCreateMedicalForm?: (form: Partial<MedicalForm>) => void;
   onUpdateMedicalForm?: (form: MedicalForm) => void;
+  // === AMÉLIORATION AJOUTÉE : pré-remplissage automatique de l'assuré quand on arrive
+  // depuis le bouton "Medical Form" de l'onglet Identification — voir App.tsx.
+  // `onConsumedInitialMember` réinitialise l'état côté App une fois la pré-sélection
+  // appliquée, pour ne pas la ré-imposer lors d'une prochaine visite manuelle de l'onglet.
+  initialMemberCardNo?: string | null;
+  onConsumedInitialMember?: () => void;
 }
 
 const COMMON_SPECIALTIES = [
@@ -66,12 +72,35 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   lang = 'en',
   onCreateMedicalForm,
   onUpdateMedicalForm,
+  initialMemberCardNo,
+  onConsumedInitialMember,
 }) => {
   const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
-  
+
   // Selection States
   const [selectedMemberCard, setSelectedMemberCard] = useState<string>('');
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
+  // === AMÉLIORATION AJOUTÉE : saisie intelligente (recherche + liste de suggestions) pour
+  // sélectionner l'assuré, en remplacement du menu déroulant listant TOUS les membres
+  // (peu utilisable avec des centaines/milliers d'assurés). Le texte tapé sert à filtrer
+  // en direct ; le champ affiche le nom sélectionné une fois un assuré choisi.
+  const [memberSearchText, setMemberSearchText] = useState('');
+  const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
+
+  // Auto-select the member handed off from the Identification tab (via the "Medical
+  // Form" quick-action button), then let App.tsx clear that hand-off state so a later
+  // manual visit to this tab starts fresh.
+  React.useEffect(() => {
+    if (initialMemberCardNo) {
+      const match = members.find((m) => m.cardNo === initialMemberCardNo);
+      if (match) {
+        setSelectedMemberCard(match.cardNo);
+        setMemberSearchText(`${match.principalName} — ${match.cardNo}`);
+      }
+      onConsumedInitialMember?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMemberCardNo]);
   
   // Practitioner (Generalist vs Specialist) and Treatment (Outpatient vs Inpatient)
   const [practitionerType, setPractitionerType] = useState<'Generalist' | 'Specialist'>('Generalist');
@@ -98,6 +127,27 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   const selectedMember = useMemo(() => {
     return members.find((m) => m.cardNo === selectedMemberCard) || null;
   }, [members, selectedMemberCard]);
+
+  // === AMÉLIORATION AJOUTÉE : résultats de la saisie intelligente (nom ou n° de carte),
+  // limités pour rester une liste de suggestions rapide et non un export complet.
+  const memberSearchResults = useMemo(() => {
+    const q = memberSearchText.trim().toLowerCase();
+    if (!q || selectedMemberCard) return [];
+    return members
+      .filter((m) => (m.principalName || '').toLowerCase().includes(q) || (m.cardNo || '').toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [members, memberSearchText, selectedMemberCard]);
+
+  const handlePickMember = (m: Member) => {
+    setSelectedMemberCard(m.cardNo);
+    setMemberSearchText(`${m.principalName} — ${m.cardNo}`);
+    setIsMemberDropdownOpen(false);
+  };
+
+  const handleClearMemberSelection = () => {
+    setSelectedMemberCard('');
+    setMemberSearchText('');
+  };
 
   // Selected Provider Object
   const selectedProvider = useMemo(() => {
@@ -293,23 +343,64 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
               <form onSubmit={handleGenerateForm} className="p-6 space-y-5">
                 {/* 1. Member Selection */}
-                <div>
+                {/* === AMÉLIORATION AJOUTÉE : menu déroulant listant TOUS les assurés
+                    remplacé par une saisie intelligente (recherche par nom ou n° de carte,
+                    suggestions filtrées en direct) — inutilisable avec des centaines/
+                    milliers de membres, un menu déroulant classique. === */}
+                <div className="relative">
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     1. Select Insured Beneficiary <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={selectedMemberCard}
-                    onChange={(e) => setSelectedMemberCard(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
-                    required
-                  >
-                    <option value="">Select a member from directory...</option>
-                    {members.map((m) => (
-                      <option key={m.id} value={m.cardNo}>
-                        {m.principalName} — {m.cardNo} ({m.organization})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={memberSearchText}
+                      onChange={(e) => {
+                        setMemberSearchText(e.target.value);
+                        setSelectedMemberCard('');
+                        setIsMemberDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsMemberDropdownOpen(true)}
+                      onBlur={() => setTimeout(() => setIsMemberDropdownOpen(false), 150)}
+                      placeholder="Type a member name or card number..."
+                      className="w-full pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
+                    />
+                    {selectedMemberCard && (
+                      <button
+                        type="button"
+                        onClick={handleClearMemberSelection}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer"
+                        title="Clear selection"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {isMemberDropdownOpen && memberSearchResults.length > 0 && (
+                    <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                      {memberSearchResults.map((m) => (
+                        <button
+                          type="button"
+                          key={m.id}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handlePickMember(m)}
+                          className="w-full text-left px-3.5 py-2 hover:bg-[var(--brand-50)] transition flex items-center justify-between gap-2 border-b border-slate-50 last:border-b-0 cursor-pointer"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-slate-800 truncate">{m.principalName}</div>
+                            <div className="text-[10px] text-slate-400 font-mono truncate">{m.cardNo} • {m.organization}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {isMemberDropdownOpen && memberSearchText.trim() && !selectedMemberCard && memberSearchResults.length === 0 && (
+                    <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg px-3.5 py-2.5 text-[11px] text-slate-500">
+                      No insured member matches "{memberSearchText.trim()}".
+                    </div>
+                  )}
 
                   {/* Auto-filled details */}
                   {selectedMember && (

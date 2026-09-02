@@ -1,37 +1,45 @@
-import React, { useState } from 'react';
-import { Search, User, CreditCard, Shield, Clock, HeartPulse, Activity, AlertTriangle, Fingerprint } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Search, User, CreditCard, Shield, Clock, HeartPulse, Activity, AlertTriangle, Fingerprint, Users, FileCheck, ScanFace, Stethoscope } from 'lucide-react';
 import { Member, Claim, Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
+import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
 
 interface AgentIdentificationViewProps {
   members: Member[];
   claims: Claim[];
   lang: Language;
+  // === AMÉLIORATION AJOUTÉE : permet de générer une fiche maladie directement depuis
+  // l'identification, sans re-sélectionner l'assuré dans l'onglet Médical Form.
+  onGenerateMedicalForm?: (member: Member) => void;
 }
 
-export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = ({ members, claims, lang }) => {
+// Maximum number of matching candidates shown while typing (kept small and scrollable —
+// this is a live lookup helper, not a full directory export).
+const MAX_SEARCH_RESULTS = 8;
+
+export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = ({ members, claims, lang, onGenerateMedicalForm }) => {
   const t = useTranslation(lang);
   const { formatAmount } = useCurrency();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [isFingerprintModalOpen, setIsFingerprintModalOpen] = useState(false);
   const [biometricMatchMessage, setBiometricMatchMessage] = useState<string | null>(null);
+  // === AMÉLIORATION AJOUTÉE : consultation de la biométrie de l'assuré identifié.
+  const [isBiometricViewerOpen, setIsBiometricViewerOpen] = useState(false);
+  // Tracks whether the results dropdown should render — closed right after picking a
+  // result so it doesn't linger open showing that same single match underneath the field.
+  const [isResultsDropdownOpen, setIsResultsDropdownOpen] = useState(false);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setBiometricMatchMessage(null);
-    // === ADDED IMPROVEMENT: robust search (aligned with MembersView / eligibilityService) ===
-    // - trim() on the input to ignore stray whitespace (copy/paste, mobile keyboard)
-    // - PARTIAL match (includes) on the card number instead of strict equality,
-    //   so a member can be found even if the agent doesn't type the full number
-    // - guards (m.cardNo || '', m.principalName || '') so a malformed record
-    //   (incomplete Excel import, missing field) doesn't crash the search for ALL members
-    // - search extended to dependents (spouse, children, structured dependents) so
-    //   front desk staff can identify the family file even by typing a dependent's name
+  // === AMÉLIORATION AJOUTÉE : la recherche affiche désormais la LISTE de tous les assurés
+  // correspondants (importés via Excel ou issus d'un enrôlement validé — les deux
+  // alimentent le même tableau `members`, sans filtrage) au lieu d'un seul résultat choisi
+  // arbitrairement, pour que l'agent puisse repérer le bon dossier parmi des homonymes.
+  const searchResults = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    const found = members.find((m) => {
+    if (!q) return [];
+    const matches = members.filter((m) => {
       const cardNo = (m.cardNo || '').toLowerCase().trim();
       const principalName = (m.principalName || '').toLowerCase().trim();
       const spouseName = (m.spouseName || '').toLowerCase().trim();
@@ -43,7 +51,24 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         (m.children || []).some((c) => (c || '').toLowerCase().includes(q))
       );
     });
-    setSelectedMember(found || null);
+    return matches.slice(0, MAX_SEARCH_RESULTS);
+  }, [members, searchQuery]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setBiometricMatchMessage(null);
+    // Enter/submit with exactly one match still auto-selects it (fast path for an agent
+    // typing a full, unambiguous card number); otherwise the dropdown list below is used.
+    if (searchResults.length === 1) {
+      setSelectedMember(searchResults[0]);
+    }
+  };
+
+  const handleSelectResult = (member: Member) => {
+    setSelectedMember(member);
+    setSearchQuery(member.cardNo);
+    setBiometricMatchMessage(null);
+    setIsResultsDropdownOpen(false);
   };
 
   const handleOpenBiometricScanner = () => {
@@ -65,10 +90,19 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     return Math.abs(new Date(diff).getUTCFullYear() - 1970);
   };
 
+  // === AMÉLIORATION AJOUTÉE : nombre total de dépendants (conjoint + enfants), utilisé
+  // pour l'affichage explicite "nombre de dépendants" demandé, en plus de la liste des noms.
+  const dependentsCount = selectedMember
+    ? (selectedMember.spouseName ? 1 : 0) + (selectedMember.children?.length || 0)
+    : 0;
+
+  // === AMÉLIORATION FIX : `claim.providerName`/`claim.amountUSD` n'existent pas sur le
+  // type Claim (seuls `provider`/`amount` existent) — ces champs s'affichaient donc
+  // toujours vides/à $0. Corrigé ci-dessous.
   const memberClaims = selectedMember
     ? claims.filter((c) => c.memberCardNo === selectedMember.cardNo).sort((a, b) => new Date(b.serviceDate).getTime() - new Date(a.serviceDate).getTime())
     : [];
-  
+
   const last5Claims = memberClaims.slice(0, 5);
 
   return (
@@ -76,22 +110,51 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
       {/* Search Bar */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
         <h2 className="text-lg font-bold text-[var(--brand-900)] mb-4">Insured Member Lookup & Verification</h2>
-        <div className="flex flex-col md:flex-row gap-4 items-center">
+        <div className="flex flex-col md:flex-row gap-4 items-start">
           <form onSubmit={handleSearch} className="relative flex-1 w-full">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setBiometricMatchMessage(null);
+                setIsResultsDropdownOpen(true);
+              }}
+              onFocus={() => setIsResultsDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setIsResultsDropdownOpen(false), 150)}
               placeholder="Enter health card number or insured member name..."
               className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
             />
+
+            {/* === AMÉLIORATION AJOUTÉE : liste déroulante des assurés correspondants,
+                affichée en direct pendant la saisie (import Excel et enrôlements validés
+                confondus — même source de données, aucun filtrage). === */}
+            {isResultsDropdownOpen && searchQuery.trim() && searchResults.length > 0 && (
+              <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg max-h-72 overflow-y-auto">
+                {searchResults.map((m) => (
+                  <button
+                    type="button"
+                    key={m.id}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSelectResult(m)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-[var(--brand-50)] transition flex items-center justify-between gap-3 border-b border-slate-50 last:border-b-0 cursor-pointer"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-800 truncate">{m.principalName}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{m.cardNo} • {m.organization}</div>
+                    </div>
+                    <span className="text-[10px] font-bold text-[var(--brand-900)] shrink-0">Select</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </form>
-          <div className="text-slate-400 font-medium text-sm">OR</div>
+          <div className="text-slate-400 font-medium text-sm hidden md:block pt-3">OR</div>
           <button
             type="button"
             onClick={handleOpenBiometricScanner}
-            className="px-6 py-3 rounded-xl font-bold text-sm shadow-xs transition flex items-center gap-2 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white"
+            className="px-6 py-3 rounded-xl font-bold text-sm shadow-xs transition flex items-center gap-2 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white shrink-0"
           >
             <Fingerprint className="w-5 h-5" />
             <span>Biometric Fingerprint Scan</span>
@@ -105,7 +168,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
           </div>
         )}
 
-        {!selectedMember && searchQuery && !biometricMatchMessage && (
+        {searchQuery.trim() && searchResults.length === 0 && !biometricMatchMessage && (
           <div className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700">
             <AlertTriangle className="w-5 h-5" />
             <span className="text-sm font-semibold">No insured member found matching this search criteria.</span>
@@ -136,7 +199,30 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                   </div>
                 </div>
               </div>
-              
+
+              {/* === AMÉLIORATION AJOUTÉE : Action rapide — Générer une fiche maladie et
+                  consulter la biométrie directement depuis l'identification. === */}
+              <div className="grid grid-cols-2 gap-2 mb-6">
+                {onGenerateMedicalForm && (
+                  <button
+                    type="button"
+                    onClick={() => onGenerateMedicalForm(selectedMember)}
+                    className="px-3 py-2.5 rounded-xl bg-[#00A859] hover:bg-[#008f4c] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <FileCheck className="w-4 h-4" />
+                    <span>Medical Form</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsBiometricViewerOpen(true)}
+                  className="px-3 py-2.5 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <ScanFace className="w-4 h-4" />
+                  <span>Biometrics</span>
+                </button>
+              </div>
+
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-slate-500">
@@ -144,6 +230,13 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     <span className="text-xs font-semibold">Card Number</span>
                   </div>
                   <span className="text-sm font-bold text-slate-900 font-mono">{selectedMember.cardNo}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-xs font-semibold">Date of Birth</span>
+                  </div>
+                  <span className="text-sm font-bold text-slate-900 font-mono">{selectedMember.birthDate || '—'}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-slate-500">
@@ -166,6 +259,22 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                   </div>
                   <span className="text-sm font-bold text-slate-900">{selectedMember.relationship}</span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <Users className="w-4 h-4" />
+                    <span className="text-xs font-semibold">Dependents</span>
+                  </div>
+                  <span className="text-sm font-bold text-slate-900">{dependentsCount}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <Fingerprint className="w-4 h-4" />
+                    <span className="text-xs font-semibold">Biometrics</span>
+                  </div>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${selectedMember.hasBiometrics ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {selectedMember.hasBiometrics ? 'Captured' : 'Not captured'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -173,7 +282,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
               <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <HeartPulse className="w-4 h-4 text-rose-500" />
-                Attached Family Dependents
+                Attached Family Dependents ({dependentsCount})
               </h3>
               {selectedMember.children.length === 0 && !selectedMember.spouseName ? (
                 <p className="text-xs text-slate-500 italic">No dependents attached to this policy.</p>
@@ -241,17 +350,24 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
               ) : (
                 <div className="divide-y divide-slate-100">
                   {last5Claims.map((claim) => (
-                    <div key={claim.id} className="py-3 flex items-center justify-between text-xs">
-                      <div>
+                    <div key={claim.id} className="py-3 flex items-center justify-between text-xs gap-3">
+                      <div className="min-w-0">
                         <div className="font-bold text-slate-800">{claim.careType}</div>
-                        <div className="text-slate-400 font-mono text-[11px]">{claim.providerName} • {claim.serviceDate}</div>
+                        <div className="text-slate-400 font-mono text-[11px] truncate">{claim.provider} • {claim.serviceDate}</div>
+                        {/* === AMÉLIORATION AJOUTÉE : nom du médecin traitant === */}
+                        {claim.doctorName && (
+                          <div className="text-slate-400 text-[11px] flex items-center gap-1 mt-0.5">
+                            <Stethoscope className="w-3 h-3" />
+                            <span className="truncate">{claim.doctorName}</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold text-[var(--brand-900)] font-mono">{formatAmount(claim.amountUSD || 0)}</div>
+                      <div className="text-right shrink-0">
+                        <div className="font-bold text-[var(--brand-900)] font-mono">{formatAmount(claim.amount || 0)}</div>
                         <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          claim.status === 'Validated' || claim.status === 'Approved'
+                          claim.status === 'approved'
                             ? 'bg-emerald-50 text-emerald-700'
-                            : claim.status === 'Rejected'
+                            : claim.status === 'rejected'
                             ? 'bg-rose-50 text-rose-700'
                             : 'bg-amber-50 text-amber-700'
                         }`}>
@@ -274,6 +390,16 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         onFingerprintCaptured={handleFingerprintCaptured}
         title="Biometric Insured Identification"
         subtitle="AFIS 1:N Biometric Fingerprint Matcher"
+      />
+
+      {/* === AMÉLIORATION AJOUTÉE : consultation de la biométrie (photo + empreinte) de
+          l'assuré identifié, réutilise le même composant que côté Admin (MembersView). */}
+      <AttachmentBiometricViewerModal
+        isOpen={isBiometricViewerOpen}
+        onClose={() => setIsBiometricViewerOpen(false)}
+        lang={lang}
+        type="member"
+        data={selectedMember}
       />
     </div>
   );

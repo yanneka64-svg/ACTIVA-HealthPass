@@ -71,6 +71,15 @@ export default function App() {
     sessionStorage.setItem('activa_current_section', sec);
   };
 
+  // === AMÉLIORATION AJOUTÉE : carte du membre identifié à pré-remplir automatiquement en
+  // arrivant sur l'onglet Medical Form, déclenché par le bouton "Medical Form" de
+  // AgentIdentificationView — évite à l'agent de re-sélectionner le même assuré.
+  const [medicalFormPrefillCardNo, setMedicalFormPrefillCardNo] = useState<string | null>(null);
+  const handleGenerateMedicalFormFromIdentification = (member: Member) => {
+    setMedicalFormPrefillCardNo(member.cardNo);
+    handleSelectSection('medical_form');
+  };
+
   useEffect(() => {
     let unsubAccountListener: (() => void) | null = null;
 
@@ -912,7 +921,12 @@ export default function App() {
           )}
 
           {effectiveSection === 'identification' && (
-            <AgentIdentificationView members={members} claims={claims} lang={lang} />
+            <AgentIdentificationView
+              members={members}
+              claims={claims}
+              lang={lang}
+              onGenerateMedicalForm={handleGenerateMedicalFormFromIdentification}
+            />
           )}
 
           {effectiveSection === 'medical_form' && (
@@ -925,6 +939,8 @@ export default function App() {
               lang={lang}
               onCreateMedicalForm={(form) => FirestoreService.addMedicalForm(form)}
               onUpdateMedicalForm={(form) => FirestoreService.updateMedicalForm(form)}
+              initialMemberCardNo={medicalFormPrefillCardNo}
+              onConsumedInitialMember={() => setMedicalFormPrefillCardNo(null)}
             />
           )}
 
