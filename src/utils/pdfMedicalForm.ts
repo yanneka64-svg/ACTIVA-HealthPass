@@ -1,5 +1,7 @@
 import jsPDF from 'jspdf';
 import { MedicalForm } from '../types';
+// === AMÉLIORATION AJOUTÉE : logos Activa (en-tête) et Globus (pied de page) sur la fiche médicale PDF ===
+import { ACTIVA_LOGO_BASE64, ACTIVA_LOGO_ASPECT, GLOBUS_LOGO_BASE64, GLOBUS_LOGO_ASPECT } from '../assets/logos';
 
 export const generateMedicalFormPDF = (form: MedicalForm) => {
   const doc = new jsPDF({
@@ -9,6 +11,7 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   });
 
   const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
+  const pageHeight = doc.internal.pageSize.getHeight(); // 297mm
 
   // Header Background bar - ACTIVA Blue #0A347B
   doc.setFillColor(10, 52, 123);
@@ -18,11 +21,10 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.setFillColor(0, 168, 89);
   doc.rect(0, 28, pageWidth, 2.5, 'F');
 
-  // Header Title - Refined Typography
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text('ACTIVA HealthPass', 14, 11);
+  // === AMÉLIORATION AJOUTÉE : logo Activa (fond transparent) à la place de la mention texte "ACTIVA HealthPass" ===
+  const activaLogoHeight = 9.5;
+  const activaLogoWidth = activaLogoHeight * ACTIVA_LOGO_ASPECT;
+  doc.addImage(ACTIVA_LOGO_BASE64, 'PNG', 14, 4, activaLogoWidth, activaLogoHeight);
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
@@ -313,6 +315,13 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
     currentY + 8.5,
     { align: 'center' }
   );
+
+  // === AMÉLIORATION AJOUTÉE : logo Globus en bas de page ===
+  const globusLogoHeight = 9;
+  const globusLogoWidth = globusLogoHeight * GLOBUS_LOGO_ASPECT;
+  const globusLogoX = (pageWidth - globusLogoWidth) / 2;
+  const globusLogoY = pageHeight - globusLogoHeight - 7;
+  doc.addImage(GLOBUS_LOGO_BASE64, 'PNG', globusLogoX, globusLogoY, globusLogoWidth, globusLogoHeight);
 
   return doc;
 };

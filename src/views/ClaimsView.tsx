@@ -428,13 +428,15 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                           {isSupervisor && (
                             <>
                               {/* Approve Button with SoD check */}
+                              {/* === AMÉLIORATION AJOUTÉE : vert aligné à la couleur de la barre de menu Superviseur
+                                  (roleTheme.palette.primaryColor = #0F766E) au lieu d'un vert générique === */}
                               <button
                                 type="button"
                                 onClick={() => handleApproveAttempt(claim)}
                                 disabled={!approvalCheck.allowed}
                                 className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
                                   approvalCheck.allowed
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer'
+                                    ? `${roleTheme.palette.primaryColor} text-white shadow-xs cursor-pointer`
                                     : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
                                 }`}
                                 title={approvalCheck.allowed ? t.approve : approvalCheck.reason}
@@ -444,13 +446,14 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                               </button>
 
                               {/* Reject Button */}
+                              {/* === AMÉLIORATION AJOUTÉE : rouge éclairci (rose-500/400 au lieu de rose-700/600) === */}
                               <button
                                 type="button"
                                 onClick={() => openRejectModal(claim)}
-                                className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                                className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                                 title={t.reject}
                               >
-                                <X className="w-3.5 h-3.5 text-rose-600" />
+                                <X className="w-3.5 h-3.5 text-rose-400" />
                                 <span>{t.reject}</span>
                               </button>
                             </>
@@ -576,8 +579,9 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                           <span>Returned</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-extrabold">
-                          <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                        // === AMÉLIORATION AJOUTÉE : rouge éclairci pour le badge "Rejected" côté Superviseur ===
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${isSupervisor ? 'bg-rose-50 text-rose-500 border border-rose-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                          <XCircle className={`w-3.5 h-3.5 ${isSupervisor ? 'text-rose-400' : 'text-rose-600'}`} />
                           <span>{t.rejectedStatus}</span>
                         </span>
                       )}
@@ -586,7 +590,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                       <div className="flex items-center justify-between gap-2">
                         {claim.rejectionReason || claim.returnReason ? (
                           <div>
-                            <p className={`font-semibold ${claim.status === 'returned' ? 'text-amber-800' : 'text-rose-700'}`}>
+                            <p className={`font-semibold ${claim.status === 'returned' ? 'text-amber-800' : (isSupervisor ? 'text-rose-500' : 'text-rose-700')}`}>
                               {claim.rejectionReason || claim.returnReason}
                             </p>
                             {claim.comments && (
@@ -596,7 +600,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                             )}
                           </div>
                         ) : (
-                          <span className="text-emerald-700 font-medium">
+                          <span className={`font-medium ${isSupervisor ? roleTheme.palette.primaryText : 'text-emerald-700'}`}>
                             Coverage approved
                           </span>
                         )}
@@ -799,7 +803,8 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
       {rejectModalOpen && selectedClaimToReject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-rose-700 p-6 text-white flex items-center justify-between">
+            {/* === AMÉLIORATION AJOUTÉE : rouge éclairci (rose-500 au lieu de rose-700) — action réservée au Superviseur === */}
+            <div className="bg-rose-500 p-6 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white">
                   <AlertCircle className="w-6 h-6" />
@@ -873,7 +878,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold shadow-md shadow-rose-500/20 cursor-pointer"
                 >
                   {t.claims.confirmReject}
                 </button>

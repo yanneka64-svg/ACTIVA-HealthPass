@@ -20,7 +20,6 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
-  Settings,
   ArrowRight,
   MoreVertical,
   ShieldAlert,
@@ -506,9 +505,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
               <span>Policy Age Limits & Real-Time Eligibility Verification</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Coverage Ceilings & Age Thresholds
-            </h2>
+            {/* === AMÉLIORATION AJOUTÉE : titre "Coverage Ceilings & Age Thresholds" retiré à la demande === */}
             <p className="text-xs text-gray-300 leading-relaxed font-medium">
               Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
             </p>
@@ -546,21 +543,16 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               </div>
             </div>
 
-            <button
-              id="configure-age-limits-btn"
-              onClick={() => openAgeLimitsModal()}
-              className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-slate-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
-            >
-              <Settings className="w-4 h-4 text-slate-800" />
-              <span>Configure Age Limits</span>
-            </button>
-
+            {/* === AMÉLIORATION AJOUTÉE : bouton "Configure Age Limits" retiré — un seul bouton
+                subsiste ("Configure Benefit Limit"), restylé en blanc comme demandé.
+                openAgeLimitsModal reste disponible dans le code (état ageLimitsModalOpen conservé)
+                pour ne rien supprimer côté logique métier, seul le déclencheur visuel est retiré. */}
             <button
               id="configure-benefit-limit-btn"
               onClick={openNewBenefitLimitWizard}
-              className="px-4 py-3 rounded-2xl bg-slate-700 hover:bg-slate-800 text-white border border-slate-600 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
+              className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-slate-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
             >
-              <Plus className="w-4 h-4 text-white" />
+              <Plus className="w-4 h-4 text-slate-800" />
               <span>Configure Benefit Limit</span>
             </button>
           </div>

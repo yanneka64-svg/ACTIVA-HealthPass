@@ -63,6 +63,9 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
   // Supervisor) au lieu du bleu marine Agent affiché en dur auparavant peu importe qui
   // consultait cet écran (EnrollmentsView est partagé Admin + Supervisor).
   const roleTheme = getRoleTheme(userRole);
+  // === AMÉLIORATION AJOUTÉE : détection du rôle Superviseur pour aligner le vert (validation) et
+  // éclaircir le rouge (rejet) sur l'interface Superviseur uniquement (Admin conserve ses couleurs actuelles) ===
+  const isSupervisor = userRole === 'Superviseur' || userRole === 'Supervisor';
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('ALL');
@@ -372,13 +375,14 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
 
                           {userRole !== 'Agent' && (
                             <>
+                              {/* === AMÉLIORATION AJOUTÉE : vert aligné à la barre de menu Superviseur, rouge éclairci === */}
                               <button
                                 type="button"
                                 onClick={() => handleApproveAttempt(enr)}
                                 disabled={!approvalCheck.allowed}
                                 className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
                                   approvalCheck.allowed
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer'
+                                    ? (isSupervisor ? `${roleTheme.palette.primaryColor} text-white shadow-xs cursor-pointer` : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer')
                                     : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
                                 }`}
                                 title={approvalCheck.allowed ? t.approve : approvalCheck.reason}
@@ -390,10 +394,10 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => openRejectModal(enr)}
-                                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center gap-1"
+                                className={`px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-bold transition flex items-center gap-1 ${isSupervisor ? 'text-rose-500' : 'text-rose-700'}`}
                                 title={t.reject}
                               >
-                                <X className="w-3.5 h-3.5 text-rose-600" />
+                                <X className={`w-3.5 h-3.5 ${isSupervisor ? 'text-rose-400' : 'text-rose-600'}`} />
                                 <span>{t.reject}</span>
                               </button>
 
@@ -506,19 +510,20 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                           <span>Returned</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-extrabold">
-                          <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                        // === AMÉLIORATION AJOUTÉE : rouge éclairci pour le badge "Rejected" côté Superviseur ===
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-50 border border-rose-200 ${isSupervisor ? 'text-rose-500' : 'text-rose-700'}`}>
+                          <XCircle className={`w-3.5 h-3.5 ${isSupervisor ? 'text-rose-400' : 'text-rose-600'}`} />
                           <span>{t.rejectedStatus}</span>
                         </span>
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-slate-500 text-[11px]">
                       {enr.rejectionReason || enr.returnReason ? (
-                        <span className={`font-semibold ${enr.status === 'returned' ? 'text-amber-800' : 'text-rose-700'}`}>
+                        <span className={`font-semibold ${enr.status === 'returned' ? 'text-amber-800' : (isSupervisor ? 'text-rose-500' : 'text-rose-700')}`}>
                           {enr.rejectionReason || enr.returnReason}
                         </span>
                       ) : (
-                        <span className="text-emerald-700 font-medium">
+                        <span className={`font-medium ${isSupervisor ? roleTheme.palette.primaryText : 'text-emerald-700'}`}>
                           Health card issued & activated
                         </span>
                       )}
@@ -706,7 +711,8 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
       {rejectModalOpen && selectedEnrToReject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden">
-            <div className="bg-rose-700 p-6 text-white flex items-center justify-between">
+            {/* === AMÉLIORATION AJOUTÉE : rouge éclairci côté Superviseur === */}
+            <div className={`${isSupervisor ? 'bg-rose-500' : 'bg-rose-700'} p-6 text-white flex items-center justify-between`}>
               <div>
                 <h3 className="font-bold text-base">{t.enrollments.rejectModalTitle}</h3>
                 <p className="text-xs text-rose-100">{selectedEnrToReject.fullName}</p>
@@ -771,7 +777,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20"
+                  className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-md ${isSupervisor ? 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/20' : 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'}`}
                 >
                   {t.claims.confirmReject}
                 </button>

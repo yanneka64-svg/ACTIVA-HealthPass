@@ -630,9 +630,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           </button>
                         );
                       })()}
+                      {/* === AMÉLIORATION AJOUTÉE : rouge éclairci côté Superviseur === */}
                       <button
                         onClick={() => onRejectClaim(claim)}
-                        className="bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 px-2.5 py-1 rounded font-semibold text-[10px] transition"
+                        className={`bg-slate-100 text-slate-600 px-2.5 py-1 rounded font-semibold text-[10px] transition ${isSupervisor ? 'hover:bg-rose-50 hover:text-rose-500' : 'hover:bg-rose-50 hover:text-rose-600'}`}
                         title={t.reject}
                       >
                         {t.reject}
@@ -809,7 +810,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           disabled={!approvalCheck.allowed}
                           className={`p-1.5 rounded transition ${
                             approvalCheck.allowed
-                              ? 'bg-emerald-50 hover:bg-[#00A859] text-[#00A859] hover:text-white cursor-pointer'
+                              // === AMÉLIORATION AJOUTÉE : vert aligné à la barre de menu Superviseur ===
+                              ? (isSupervisor ? 'bg-teal-50 hover:bg-[#0F766E] text-[#0F766E] hover:text-white cursor-pointer' : 'bg-emerald-50 hover:bg-[#00A859] text-[#00A859] hover:text-white cursor-pointer')
                               : 'bg-slate-100 text-slate-300 cursor-not-allowed'
                           }`}
                           title={approvalCheck.allowed ? t.approve : approvalCheck.reason}
@@ -820,7 +822,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     })()}
                     <button
                       onClick={() => onRejectEnrollment(enr)}
-                      className="p-1.5 rounded bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white transition"
+                      // === AMÉLIORATION AJOUTÉE : rouge éclairci côté Superviseur ===
+                      className={`p-1.5 rounded transition ${isSupervisor ? 'bg-rose-50 hover:bg-rose-500 text-rose-500 hover:text-white' : 'bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white'}`}
                       title={t.reject}
                     >
                       <X className="w-3.5 h-3.5" />
