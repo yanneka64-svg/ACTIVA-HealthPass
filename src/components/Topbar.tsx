@@ -216,9 +216,13 @@ export const Topbar: React.FC<TopbarProps> = ({
       </div>
 
       {/* Right Global Controls */}
+      {/* === AMÉLIORATION AJOUTÉE : la bande "Online" et la pastille "English" surchargeaient
+          l'en-tête sur mobile/tablette (texte tronqué, panneaux qui débordaient) — masquées
+          en dessous de md (768px), où seuls la cloche de notification et l'avatar restent
+          visibles ; à partir de md elles réapparaissent comme avant === */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
         {/* Online Status Badge */}
-        <div className="flex items-center gap-1.5 px-3 py-1 bg-[#ECFDF5] border border-emerald-200 rounded-full text-xs font-semibold text-[#047857]">
+        <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-[#ECFDF5] border border-emerald-200 rounded-full text-xs font-semibold text-[#047857]">
           <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse"></div>
           <span>Online</span>
         </div>
@@ -226,7 +230,7 @@ export const Topbar: React.FC<TopbarProps> = ({
         {/* Language Pill */}
         <div
           id="app-language-indicator"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[#102A43] shadow-2xs hover:bg-slate-50 transition cursor-default"
+          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[#102A43] shadow-2xs hover:bg-slate-50 transition cursor-default"
           title="System Language: English (Official)"
         >
           <Globe className={`w-3.5 h-3.5 ${theme.palette.primaryText}`} />
@@ -256,8 +260,12 @@ export const Topbar: React.FC<TopbarProps> = ({
           </button>
 
           {/* Notifications Flyout Panel */}
+          {/* === AMÉLIORATION AJOUTÉE : positionné en `fixed` ancré aux bords de l'écran (avec
+              marge) sur mobile, au lieu d'un panneau `absolute` de 320-384px ancré à droite de
+              la cloche qui débordait et se retrouvait tronqué à gauche de l'écran. À partir de
+              `sm`, on revient au positionnement `absolute` habituel sous la cloche. === */}
           {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-96 max-w-full bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-3 border-b border-[#E8EDF2] flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <h3 className="text-xs font-extrabold text-[#0D2B63] uppercase tracking-wider">
@@ -363,8 +371,10 @@ export const Topbar: React.FC<TopbarProps> = ({
             </div>
           </button>
 
+          {/* === AMÉLIORATION AJOUTÉE : même correctif que le panneau de notifications — ancré
+              aux bords de l'écran sur mobile pour ne jamais déborder === */}
           {profileMenuOpen && (
-            <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in duration-150">
+            <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-72 max-w-full bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in duration-150">
               <div className="px-4 py-3 border-b border-[#E8EDF2]">
                 <p className="text-xs font-extrabold text-[#0D2B63]">
                   {userName}

@@ -166,7 +166,7 @@ export const AttachmentBiometricViewerModal: React.FC<AttachmentBiometricViewerM
               <FileText className="w-3.5 h-3.5" />
               <span>
                 {claimData?.attachments && claimData.attachments.length > 0
-                  ? `Pièces & Documents (${claimData.attachments.length})`
+                  ? `Attachments & Documents (${claimData.attachments.length})`
                   : 'Prescription & Invoice (2)'}
               </span>
             </button>

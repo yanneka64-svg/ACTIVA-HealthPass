@@ -67,7 +67,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
       // Check if matched account is deactivated
       if (matchingAccountDoc && matchingAccountDoc.isActive === false) {
-        setError('Ce compte est désactivé par l’administrateur. / This account has been deactivated. Please contact your administrator.');
+        setError('This account has been deactivated. Please contact your administrator.');
         setIsLoggingIn(false);
         return;
       }
@@ -132,7 +132,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       if (matchingAccountDoc) {
         const storedPwd = matchingAccountDoc.password || matchingAccountDoc.tempPassword;
         if (storedPwd && storedPwd !== password) {
-          setError('Mot de passe incorrect. Veuillez vérifier les identifiants fournis par l’administrateur. / Incorrect password. Please verify the credentials provided by your administrator.');
+          setError('Incorrect password. Please verify the credentials provided by your administrator.');
           setIsLoggingIn(false);
           return;
         }
@@ -163,7 +163,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
 
       // 5. If no account matches in Firestore and no Firebase Auth user exists:
-      setError('Identifiant ou mot de passe incorrect. Veuillez vérifier vos identifiants. / Invalid username or password.');
+      setError('Invalid username or password. Please verify your credentials.');
       setIsLoggingIn(false);
     } catch (err: any) {
       console.error('Login error:', err);
@@ -172,11 +172,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
         err.code === 'auth/wrong-password' ||
         err.code === 'auth/user-not-found'
       ) {
-        setError('Identifiant ou mot de passe incorrect. Veuillez vérifier vos identifiants fournis par l’administrateur. / Invalid username or password. Please verify your credentials.');
+        setError('Invalid username or password. Please verify your credentials.');
       } else if (err.code === 'auth/too-many-requests') {
-        setError('Trop de tentatives infructueuses. Veuillez patienter un instant. / Too many attempts. Please try again shortly.');
+        setError('Too many failed attempts. Please wait a moment and try again.');
       } else if (err.code === 'auth/weak-password') {
-        setError('Le mot de passe doit comporter au moins 6 caractères.');
+        setError('Password must be at least 6 characters long.');
       } else {
         setError(err.message || 'Authentication failed. Please check your credentials.');
       }

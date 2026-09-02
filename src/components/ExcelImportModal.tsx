@@ -77,7 +77,7 @@ export function ExcelImportModal<T>({
             success: false,
             errors: [
               persistErr?.message ||
-                'Les données ont été lues mais leur enregistrement a échoué. Veuillez réessayer.',
+                'The data was read successfully but failed to save. Please try again.',
             ],
           });
         }
@@ -91,7 +91,7 @@ export function ExcelImportModal<T>({
         updated: 0,
         ignored: 0,
         missingHeaders: [],
-        errors: [err.message || 'Erreur inattendue'],
+        errors: [err.message || 'Unexpected error'],
         parsedItems: [],
       });
     } finally {

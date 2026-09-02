@@ -228,7 +228,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
           <div className="flex items-center gap-2.5">
             <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <div>
-              <span className="font-extrabold block">Séparation des Tâches (SoD) :</span>
+              <span className="font-extrabold block">Segregation of Duties (SoD):</span>
               <span>{sodAlertMessage}</span>
             </div>
           </div>
@@ -340,7 +340,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                         </span>
                         {enr.assignedAgentName && (
                           <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
-                            Affecté : {enr.assignedAgentName}
+                            Assigned: {enr.assignedAgentName}
                           </span>
                         )}
                       </td>
@@ -533,7 +533,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                         <button
                           onClick={() => openDeleteModal(enr)}
                           className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                          title="Supprimer (Admin)"
+                          title="Delete (Admin)"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -815,7 +815,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   type="text"
                   value={newEnrForm.fullName}
                   onChange={(e) => setNewEnrForm({ ...newEnrForm, fullName: e.target.value })}
-                  placeholder="Ex: NOM Prénom"
+                  placeholder="e.g. LAST NAME First name"
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                   required
                 />

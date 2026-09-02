@@ -40,10 +40,10 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
 
         <div>
           <h3 className="text-base font-extrabold text-slate-900">
-            Avertissement d'Inactivité
+            Inactivity Warning
           </h3>
           <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-            Pour des raisons de sécurité et de conformité assurance, votre session va expirer dans :
+            For security and insurance compliance reasons, your session will expire in:
           </p>
         </div>
 
@@ -52,7 +52,7 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
         </div>
 
         <p className="text-[11px] text-slate-400">
-          Souhaitez-vous prolonger votre session de travail ?
+          Would you like to extend your working session?
         </p>
 
         <div className="grid grid-cols-2 gap-3 pt-2">
@@ -62,7 +62,7 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
             className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
-            <span>Déconnexion</span>
+            <span>Log Out</span>
           </button>
 
           <button
@@ -71,7 +71,7 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
             className={`py-2.5 px-4 ${accentBtnClass} text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98`}
           >
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>Rester Connecté</span>
+            <span>Stay Connected</span>
           </button>
         </div>
       </div>

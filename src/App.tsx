@@ -927,9 +927,9 @@ export default function App() {
               providers={providers}
               onNavigate={handleSelectSection}
               onApproveClaim={handleApproveClaim}
-              onRejectClaim={(c) => handleRejectClaim(c, 'Rejet médical', '')}
+              onRejectClaim={(c) => handleRejectClaim(c, 'Medical rejection', '')}
               onApproveEnrollment={handleApproveEnrollment}
-              onRejectEnrollment={(e) => handleRejectEnrollment(e, 'Photo non conforme')}
+              onRejectEnrollment={(e) => handleRejectEnrollment(e, 'Non-compliant photo')}
             />
           )}
 
@@ -1160,7 +1160,7 @@ export default function App() {
                 }`}
               >
                 <FileCheck className={`w-5 h-5 ${effectiveSection === 'medical_form' ? 'text-emerald-400' : ''}`} />
-                <span className="text-[10px] mt-0.5">Fiche Médicale</span>
+                <span className="text-[10px] mt-0.5">Medical Form</span>
               </button>
 
               <button
@@ -1170,7 +1170,7 @@ export default function App() {
                 }`}
               >
                 <Receipt className={`w-5 h-5 ${effectiveSection === 'claims' ? 'text-emerald-400' : ''}`} />
-                <span className="text-[10px] mt-0.5">Prestations</span>
+                <span className="text-[10px] mt-0.5">Claims</span>
               </button>
 
               <button
@@ -1180,7 +1180,7 @@ export default function App() {
                 }`}
               >
                 <UserCheck className={`w-5 h-5 ${effectiveSection === 'enrollments' ? 'text-emerald-400' : ''}`} />
-                <span className="text-[10px] mt-0.5">Enrôlement</span>
+                <span className="text-[10px] mt-0.5">Enrollment</span>
               </button>
             </>
           ) : activeRole === 'Supervisor' ? (
@@ -1202,7 +1202,7 @@ export default function App() {
                 }`}
               >
                 <FileCheck className={`w-5 h-5 ${effectiveSection === 'medical_form' ? 'text-emerald-300' : ''}`} />
-                <span className="text-[10px] mt-0.5">Fiches Méd.</span>
+                <span className="text-[10px] mt-0.5">Med. Forms</span>
               </button>
 
               <button
@@ -1227,7 +1227,7 @@ export default function App() {
                 }`}
               >
                 <UserCheck className={`w-5 h-5 ${effectiveSection === 'enrollments_validation' ? 'text-emerald-300' : ''}`} />
-                <span className="text-[10px] mt-0.5">Val. Enrôl.</span>
+                <span className="text-[10px] mt-0.5">Val. Enroll.</span>
                 {pendingEnrollmentsCount > 0 && (
                   <span className="absolute top-1 right-2 w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
                     {pendingEnrollmentsCount}
@@ -1254,7 +1254,7 @@ export default function App() {
                 }`}
               >
                 <Receipt className={`w-5 h-5 ${effectiveSection === 'claims' ? 'text-emerald-400' : ''}`} />
-                <span className="text-[10px] mt-0.5">Prestations</span>
+                <span className="text-[10px] mt-0.5">Claims</span>
                 {pendingClaimsCount > 0 && (
                   <span className="absolute top-1 right-2 w-4 h-4 bg-emerald-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
                     {pendingClaimsCount}
@@ -1269,7 +1269,7 @@ export default function App() {
                 }`}
               >
                 <FileText className={`w-5 h-5 ${effectiveSection === 'receipts' ? 'text-emerald-400' : ''}`} />
-                <span className="text-[10px] mt-0.5">Factures</span>
+                <span className="text-[10px] mt-0.5">Invoices</span>
               </button>
 
               <button
@@ -1279,7 +1279,7 @@ export default function App() {
                 }`}
               >
                 <Users className={`w-5 h-5 ${effectiveSection === 'members' ? 'text-emerald-400' : ''}`} />
-                <span className="text-[10px] mt-0.5">Assurés</span>
+                <span className="text-[10px] mt-0.5">Members</span>
               </button>
             </>
           )}

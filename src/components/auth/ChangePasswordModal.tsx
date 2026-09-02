@@ -54,7 +54,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
     e.preventDefault();
     if (!isFormValid) {
       setError(
-        'Veuillez respecter tous les critères de sécurité du mot de passe.'
+        'Please meet all the password security requirements.'
       );
       return;
     }
@@ -62,8 +62,8 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
     onSuccess(newPassword);
   };
 
-  const modalTitle = customTitle || (isExpiredPassword ? 'Renouvellement Périodique du Mot de Passe' : isForcedFirstLogin ? t.auth.changePasswordTitle : t.changePassword);
-  const modalSubtitle = customSubtitle || (isExpiredPassword ? 'Votre mot de passe a atteint la limite de validité de 2 mois. Veuillez définir un nouveau mot de passe.' : isForcedFirstLogin ? t.auth.changePasswordSubtitle : 'Sécurisation de votre compte');
+  const modalTitle = customTitle || (isExpiredPassword ? 'Periodic Password Renewal' : isForcedFirstLogin ? t.auth.changePasswordTitle : t.changePassword);
+  const modalSubtitle = customSubtitle || (isExpiredPassword ? 'Your password has reached its 2-month validity limit. Please set a new password.' : isForcedFirstLogin ? t.auth.changePasswordSubtitle : 'Securing your account');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
@@ -160,15 +160,15 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             <div className="grid grid-cols-1 gap-1 text-[11px]">
               <div className={`flex items-center gap-2 font-medium ${hasMinLength ? 'text-emerald-600' : 'text-slate-400'}`}>
                 {hasMinLength ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
-                <span>8 caractères minimum</span>
+                <span>Minimum 8 characters</span>
               </div>
               <div className={`flex items-center gap-2 font-medium ${hasUpper ? 'text-emerald-600' : 'text-slate-400'}`}>
                 {hasUpper ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
-                <span>Au moins une majuscule</span>
+                <span>At least one uppercase letter</span>
               </div>
               <div className={`flex items-center gap-2 font-medium ${hasLower ? 'text-emerald-600' : 'text-slate-400'}`}>
                 {hasLower ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
-                <span>Au moins une minuscule</span>
+                <span>At least one lowercase letter</span>
               </div>
               <div
                 className={`flex items-center gap-2 font-medium ${

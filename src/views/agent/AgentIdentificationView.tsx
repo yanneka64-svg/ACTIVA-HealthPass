@@ -92,7 +92,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         birthDate: m.birthDate,
         gender: m.gender || 'M',
         organization: m.organization || 'Orange Liberia Telecom',
-        status: m.status || 'Actif',
+        status: m.status || 'Active',
         hasPhoto: m.hasPhoto || !!m.photoUrl,
         photoUrl: m.photoUrl,
         hasBiometrics: m.hasBiometrics || !!m.fingerprintScore,
@@ -115,11 +115,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
           cardNo: depCardNo,
           fullName: d.fullName,
           isPrincipal: false,
-          relationship: d.relationship || 'Ayant Droit',
+          relationship: d.relationship || 'Dependent',
           birthDate: d.birthDate,
           gender: d.gender || (d.relationship === 'spouse' ? (m.gender === 'M' ? 'F' : 'M') : 'M'),
           organization: m.organization || 'Orange Liberia Telecom',
-          status: m.status || 'Actif',
+          status: m.status || 'Active',
           hasPhoto: !!(d as any).photoUrl || (m.hasPhoto && idx === 0),
           photoUrl: (d as any).photoUrl,
           hasBiometrics: false,
@@ -198,7 +198,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     try {
       const diff = Date.now() - new Date(birthDate).getTime();
       const age = Math.abs(new Date(diff).getUTCFullYear() - 1970);
-      return isNaN(age) ? '—' : `${age} ans`;
+      return isNaN(age) ? '—' : `${age} years`;
     } catch {
       return '—';
     }
@@ -309,24 +309,24 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-extrabold text-base tracking-tight">{selectedBeneficiary.fullName}</h3>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                    IDENTIFIÉ & VÉRIFIÉ
+                    IDENTIFIED & VERIFIED
                   </span>
                   {!selectedBeneficiary.isPrincipal && (
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-200 border border-amber-400/30">
-                      DÉPENDANT ({selectedBeneficiary.relationship})
+                      DEPENDENT ({selectedBeneficiary.relationship})
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-blue-200 font-mono mt-0.5">
-                  Carte #{selectedBeneficiary.cardNo} • {selectedBeneficiary.organization}
+                  Card #{selectedBeneficiary.cardNo} • {selectedBeneficiary.organization}
                   {!selectedBeneficiary.isPrincipal && (
-                    <span> • Rattaché à : {selectedBeneficiary.principalName} (#{selectedBeneficiary.principalCardNo})</span>
+                    <span> • Linked to: {selectedBeneficiary.principalName} (#{selectedBeneficiary.principalCardNo})</span>
                   )}
                 </p>
               </div>
             </div>
 
-            {/* Direct Action Button: Générer une Fiche Maladie */}
+            {/* Direct Action Button: Generate Medical Form */}
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
               <button
                 type="button"
@@ -348,14 +348,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white active:scale-98"
               >
                 <FileCheck className="w-4 h-4" />
-                <span>Générer Fiche Maladie</span>
+                <span>Generate Medical Form</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedBeneficiary(null)}
                 className="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition cursor-pointer"
               >
-                Fermer
+                Close
               </button>
             </div>
           </div>
@@ -384,7 +384,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
                       <span>{calculateAge(selectedBeneficiary.birthDate)}</span>
                       <span>•</span>
-                      <span>{selectedBeneficiary.gender === 'F' ? 'Femme' : 'Homme'}</span>
+                      <span>{selectedBeneficiary.gender === 'F' ? 'Female' : 'Male'}</span>
                       <span>•</span>
                       <span className="font-semibold text-emerald-700">{selectedBeneficiary.status}</span>
                     </div>
@@ -393,27 +393,27 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
 
                 <div className="space-y-2.5 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 font-semibold">Date de Naissance :</span>
+                    <span className="text-slate-500 font-semibold">Date of Birth:</span>
                     <span className="font-bold text-slate-800">{selectedBeneficiary.birthDate || '—'}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 font-semibold">Entreprise / Sponsor :</span>
+                    <span className="text-slate-500 font-semibold">Company / Sponsor:</span>
                     <span className="font-bold text-[#0A347B] truncate max-w-[170px]">{selectedBeneficiary.organization}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 font-semibold">Qualité / Statut :</span>
+                    <span className="text-slate-500 font-semibold">Category / Status:</span>
                     <span className={`font-bold ${selectedBeneficiary.isPrincipal ? 'text-[#0A347B]' : 'text-amber-700'}`}>
-                      {selectedBeneficiary.isPrincipal ? 'Assuré Principal (Titulaire)' : `Dépendant (${selectedBeneficiary.relationship})`}
+                      {selectedBeneficiary.isPrincipal ? 'Primary Insured (Policyholder)' : `Dependent (${selectedBeneficiary.relationship})`}
                     </span>
                   </div>
                   {!selectedBeneficiary.isPrincipal && (
                     <div className="flex items-center justify-between bg-amber-50 p-2 rounded-lg border border-amber-200">
-                      <span className="text-amber-800 font-semibold">Assuré Titulaire :</span>
+                      <span className="text-amber-800 font-semibold">Policyholder:</span>
                       <span className="font-bold text-amber-900">{selectedBeneficiary.principalName}</span>
                     </div>
                   )}
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 font-semibold">Téléphone / Contact :</span>
+                    <span className="text-slate-500 font-semibold">Phone / Contact:</span>
                     <span className="font-bold text-slate-800">{selectedBeneficiary.parentMember.phone || '+231 77 000 1122'}</span>
                   </div>
                 </div>
@@ -424,25 +424,25 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <Fingerprint className="w-4 h-4 text-[#00A859]" />
-                    <span>Enrôlement Biométrique</span>
+                    <span>Biometric Enrollment</span>
                   </h4>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
                     {selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore
                       ? `AFIS Match: ${selectedBeneficiary.fingerprintScore ?? 96}%`
-                      : 'Rattaché Police Principale'}
+                      : 'Linked to Primary Policy'}
                   </span>
                 </div>
                 <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Capteur Optique :</span>
+                    <span className="text-slate-500">Optical Sensor:</span>
                     <span className="font-bold text-slate-800">{selectedBeneficiary.parentMember.fingerprintSensor || 'FAP-20 USB Optical Scanner'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Date d'Enrôlement :</span>
+                    <span className="text-slate-500">Enrollment Date:</span>
                     <span className="font-bold text-slate-800 font-mono">{selectedBeneficiary.parentMember.fingerprintDate || selectedBeneficiary.parentMember.createdAt || '2026-01-15'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Gabarit AFIS :</span>
+                    <span className="text-slate-500">AFIS Template:</span>
                     <span className="font-bold text-emerald-700 font-mono">
                       {selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore ? 'ENROLLED_VERIFIED' : 'POLICY_VERIFIED'}
                     </span>
@@ -450,19 +450,19 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 </div>
               </div>
 
-              {/* Dependents / Ayants Droit Card */}
+              {/* Dependents Card */}
               <div className="bg-slate-50/80 rounded-xl p-5 border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <HeartPulse className="w-4 h-4 text-rose-500" />
-                    <span>Dépendants de la Police ({dependentsList.length})</span>
+                    <span>Policy Dependents ({dependentsList.length})</span>
                   </h4>
                   <span className="text-[10px] font-bold text-slate-400">Total: {dependentsList.length}</span>
                 </div>
 
                 {dependentsList.length === 0 ? (
                   <p className="text-xs text-slate-400 italic bg-white p-3 rounded-lg border border-slate-200 text-center">
-                    Aucun ayant droit / dépendant rattaché à cette police.
+                    No dependents linked to this policy.
                   </p>
                 ) : (
                   <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
@@ -478,7 +478,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         <div>
                           <div className="font-bold text-slate-800">{dep.fullName}</div>
                           <div className="text-[10px] text-slate-400 font-mono">
-                            {dep.cardNo || `${selectedBeneficiary.principalCardNo}-D${idx + 1}`} • {dep.age ? `${dep.age} ans` : dep.birthDate}
+                            {dep.cardNo || `${selectedBeneficiary.principalCardNo}-D${idx + 1}`} • {dep.age ? `${dep.age} years` : dep.birthDate}
                           </div>
                         </div>
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-[#0A347B] border border-blue-100">
@@ -496,13 +496,13 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
               {/* Coverage Ceilings & Balances */}
               <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-2xs space-y-4">
                 <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  Plafonds de Couverture & Soldes Disponibles (USD / LRD)
+                  Coverage Ceilings & Available Balances (USD / LRD)
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Outpatient */}
                   <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/40 space-y-2">
                     <div className="text-xs font-bold text-[#0A347B] uppercase tracking-wide">
-                      Ambulatoire (Outpatient Care)
+                      Outpatient Care
                     </div>
                     <div className="flex justify-between items-baseline">
                       <span className="text-2xl font-black text-[#0A347B]">
@@ -528,14 +528,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                       />
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      Consultations, pharmacie, examens de laboratoire & biologie
+                      Consultations, pharmacy, lab & diagnostic tests
                     </p>
                   </div>
 
                   {/* Inpatient */}
                   <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/40 space-y-2">
                     <div className="text-xs font-bold text-emerald-700 uppercase tracking-wide">
-                      Hospitalisation (Inpatient Care)
+                      Inpatient Care
                     </div>
                     <div className="flex justify-between items-baseline">
                       <span className="text-2xl font-black text-[#00A859]">
@@ -561,7 +561,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                       />
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      Séjours hospitaliers, interventions chirurgicales et soins intensifs
+                      Hospital stays, surgical procedures and intensive care
                     </p>
                   </div>
                 </div>
@@ -572,27 +572,27 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                   <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-[#0A347B]" />
-                    <span>5 Dernières Prestations Médicales Effectuées</span>
+                    <span>Last 5 Medical Services Rendered</span>
                   </h4>
                   <span className="text-[11px] text-slate-400 font-medium">
-                    Total historique: {memberClaims.length}
+                    Total history: {memberClaims.length}
                   </span>
                 </div>
 
                 {last5Claims.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 text-xs italic bg-slate-50 rounded-xl border border-slate-100">
-                    Aucune prestation enregistrée pour cet assuré à ce jour.
+                    No services recorded for this member to date.
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="border-b border-slate-200 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
-                          <th className="py-2.5 px-3">Prestation / Soin</th>
+                          <th className="py-2.5 px-3">Service / Care</th>
                           <th className="py-2.5 px-3">Date</th>
-                          <th className="py-2.5 px-3">Médecin Traitant</th>
-                          <th className="py-2.5 px-3">Prestataire de Soins</th>
-                          <th className="py-2.5 px-3 text-right">Montant & Statut</th>
+                          <th className="py-2.5 px-3">Attending Physician</th>
+                          <th className="py-2.5 px-3">Healthcare Provider</th>
+                          <th className="py-2.5 px-3 text-right">Amount & Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -645,10 +645,10 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
           <div>
             <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
               <Users className="w-4 h-4 text-[#0A347B]" />
-              <span>Répertoire Complet des Assurés & Dépendants ({filteredBeneficiaries.length})</span>
+              <span>Full Directory of Insured Members & Dependents ({filteredBeneficiaries.length})</span>
             </h3>
             <p className="text-xs text-slate-500">
-              Tous les assurés (principaux et ayants droit) sont consultables et identifiables directement.
+              All insured members (principals and dependents) can be looked up and identified directly.
             </p>
           </div>
 
@@ -660,7 +660,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 filterType === 'all' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Tous ({allBeneficiaries.length})
+              All ({allBeneficiaries.length})
             </button>
             <button
               onClick={() => setFilterType('principals')}
@@ -668,7 +668,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 filterType === 'principals' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Assurés Principaux ({allBeneficiaries.filter((b) => b.isPrincipal).length})
+              Primary Insured ({allBeneficiaries.filter((b) => b.isPrincipal).length})
             </button>
             <button
               onClick={() => setFilterType('dependents')}
@@ -676,7 +676,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 filterType === 'dependents' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Dépendants ({allBeneficiaries.filter((b) => !b.isPrincipal).length})
+              Dependents ({allBeneficiaries.filter((b) => !b.isPrincipal).length})
             </button>
             <button
               onClick={() => setFilterType('WithBiometrics')}
@@ -684,26 +684,26 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 filterType === 'WithBiometrics' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Biométrie OK
+              Biometrics OK
             </button>
           </div>
         </div>
 
         {filteredBeneficiaries.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs font-medium bg-slate-50 rounded-xl border border-slate-100">
-            Aucun assuré ne correspond à votre recherche.
+            No member matches your search.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/70 text-[10.5px] font-extrabold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">N° CARTE</th>
-                  <th className="py-3 px-4">NOM DE L'ASSURÉ</th>
-                  <th className="py-3 px-4">QUALITÉ / POLICE</th>
-                  <th className="py-3 px-4">ORGANISATION</th>
-                  <th className="py-3 px-4 text-center">BIOMÉTRIE</th>
-                  <th className="py-3 px-4 text-center">STATUT</th>
+                  <th className="py-3 px-4">CARD NO.</th>
+                  <th className="py-3 px-4">MEMBER NAME</th>
+                  <th className="py-3 px-4">CATEGORY / POLICY</th>
+                  <th className="py-3 px-4">ORGANIZATION</th>
+                  <th className="py-3 px-4 text-center">BIOMETRICS</th>
+                  <th className="py-3 px-4 text-center">STATUS</th>
                   <th className="py-3 px-4 text-right">ACTION</th>
                 </tr>
               </thead>
@@ -731,18 +731,18 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           )}
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {calculateAge(b.birthDate)} • {b.gender === 'F' ? 'Femme' : 'Homme'}
+                          {calculateAge(b.birthDate)} • {b.gender === 'F' ? 'Female' : 'Male'}
                         </div>
                       </td>
                       <td className="py-3 px-4">
                         {b.isPrincipal ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
-                            <span>Titulaire Principal</span>
-                            <span className="text-[10px] text-slate-400">({b.dependentsCount} dép.)</span>
+                            <span>Primary Policyholder</span>
+                            <span className="text-[10px] text-slate-400">({b.dependentsCount} dep.)</span>
                           </span>
                         ) : (
                           <div className="text-[11px] text-slate-600">
-                            <span>Rattaché à : </span>
+                            <span>Linked to: </span>
                             <span className="font-bold text-[#0A347B]">{b.principalName}</span>
                           </div>
                         )}
@@ -758,14 +758,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           </span>
                         ) : (
                           <span className="text-[10px] text-slate-400">
-                            {b.isPrincipal ? 'Non enrôlé' : 'Police OK'}
+                            {b.isPrincipal ? 'Not enrolled' : 'Policy OK'}
                           </span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <span
                           className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            b.status === 'Actif' || b.status === 'Active'
+                            b.status === 'Active'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : 'bg-rose-50 text-rose-700 border border-rose-200'
                           }`}
@@ -782,7 +782,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           }}
                           className="px-3 py-1.5 rounded-lg bg-[#0A347B] hover:bg-[#08285e] text-white text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer"
                         >
-                          <span>Identifier</span>
+                          <span>Identify</span>
                           <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       </td>

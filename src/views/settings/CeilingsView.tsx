@@ -500,20 +500,19 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
       <div className="bg-gradient-to-r from-[#334155] via-[#3B485C] to-[#1E293B] rounded-3xl p-6 text-white shadow-xl border border-slate-600/70 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-gray-300">
+        {/* === AMÉLIORATION AJOUTÉE : le badge "Policy Age Limits & Real-Time Eligibility
+            Verification" est remonté sur la même ligne que les bulles PRIMARY INSURED / SPOUSE /
+            CHILD-DEPENDANT (au lieu d'être empilé au-dessus, avec le paragraphe descriptif qui
+            l'accompagnait) ; le paragraphe descriptif est descendu en dessous, sur toute la largeur === */}
+        <div className="relative z-10 space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-gray-300 shrink-0">
               <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
               <span>Policy Age Limits & Real-Time Eligibility Verification</span>
             </div>
-            {/* === AMÉLIORATION AJOUTÉE : titre "Coverage Ceilings & Age Thresholds" retiré à la demande === */}
-            <p className="text-xs text-gray-300 leading-relaxed font-medium">
-              Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
-            </p>
-          </div>
 
-          {/* Dynamic Age Limits Display Pills */}
-          <div className="flex flex-wrap items-center gap-3">
+            {/* Dynamic Age Limits Display Pills */}
+            <div className="flex flex-wrap items-center gap-3">
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
                 Primary Insured
@@ -556,7 +555,12 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               <PlusCircle className="w-4 h-4 text-slate-800" />
               <span>Configure Benefit Limit</span>
             </button>
+            </div>
           </div>
+
+          <p className="text-xs text-gray-300 leading-relaxed font-medium max-w-3xl">
+            Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
+          </p>
         </div>
       </div>
 

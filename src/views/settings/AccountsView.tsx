@@ -559,7 +559,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     // Prompt the on-screen credentials dialog with new password
     setCredentialDialog({
       isOpen: true,
-      title: 'Password Reset Successfully / Mot de Passe Réinitialisé',
+      title: 'Password Reset Successfully',
       email: acc.email,
       username: acc.username,
       password: newPassword,
@@ -1029,10 +1029,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 </div>
                 <div>
                   <h2 className="text-base font-extrabold text-slate-900">
-                    Modifier le Compte & Habilitations ({selectedAccount.username})
+                    Edit Account & Permissions ({selectedAccount.username})
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Mise à jour des coordonnées et des droits d'accès
+                    Update contact details and access rights
                   </p>
                 </div>
               </div>
@@ -1056,12 +1056,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
               {/* Profile Selection */}
               <div className="space-y-2">
-                <h3 className="text-xs font-extrabold text-slate-900">Profil & Rôle Principal :</h3>
+                <h3 className="text-xs font-extrabold text-slate-900">Profile & Primary Role:</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { role: 'Agent' as UserProfile, desc: 'Enrôlement, saisie & suivi de son périmètre' },
-                    { role: 'Supervisor' as UserProfile, desc: 'Validation, rejet, retour & reporting' },
-                    { role: 'Admin' as UserProfile, desc: 'Gestion globale, suppression & système' },
+                    { role: 'Agent' as UserProfile, desc: 'Enrollment, data entry & tracking within their scope' },
+                    { role: 'Supervisor' as UserProfile, desc: 'Validation, rejection, return & reporting' },
+                    { role: 'Admin' as UserProfile, desc: 'Global management, deletion & system administration' },
                   ].map(({ role, desc }) => {
                     const isSelected = formData.profile === role || (role === 'Supervisor' && formData.profile === 'Superviseur');
                     return (
@@ -1093,17 +1093,17 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 </div>
               </div>
 
-              {/* Attribution des Habilitations */}
+              {/* Permissions Assignment */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-2.5">
                     <ShieldCheck className="w-5 h-5 text-slate-700 shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
-                        Attribution des Habilitations ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} actives)
+                        Permissions Assignment ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} active)
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Modifiez individuellement les droits ou appliquez un profil type
+                        Adjust rights individually or apply a standard profile
                       </p>
                     </div>
                   </div>
@@ -1113,21 +1113,21 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       onClick={() => setFormData({ ...formData, permissions: getPermissionsForProfile(formData.profile) })}
                       className="px-3 py-1 bg-white border border-slate-300 text-slate-700 text-xs font-semibold rounded-full hover:bg-slate-100 transition cursor-pointer shadow-2xs"
                     >
-                      Profil par défaut ({formData.profile})
+                      Default Profile ({formData.profile})
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: HABILITATIONS_SCHEMA.map((h) => h.key) })}
                       className="px-3 py-1 bg-white border border-emerald-400 text-emerald-700 text-xs font-semibold rounded-full hover:bg-emerald-50 transition cursor-pointer shadow-2xs"
                     >
-                      Tout Activer
+                      Enable All
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: [] })}
                       className="px-3 py-1 bg-white border border-rose-400 text-rose-700 text-xs font-semibold rounded-full hover:bg-rose-50 transition cursor-pointer shadow-2xs"
                     >
-                      Tout Désactiver
+                      Disable All
                     </button>
                   </div>
                 </div>
@@ -1135,7 +1135,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 {/* Filter Categories Pills */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1">
                   {[
-                    { id: 'all', label: 'Toutes les catégories' },
+                    { id: 'all', label: 'All categories' },
                     { id: 'Dossier & Claim Management', label: 'Dossier & Claim Management' },
                     { id: 'Validation & Decision', label: 'Validation & Decision' },
                     { id: 'Statistics & Reporting', label: 'Statistics & Reporting' },
@@ -1331,7 +1331,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
-                  <span>Enregistrer les Modifications</span>
+                  <span>Save Changes</span>
                 </button>
               </div>
             </form>
@@ -1351,10 +1351,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 </div>
                 <div>
                   <h2 className="text-base font-extrabold text-slate-900">
-                    Créer un compte utilisateur & Attribuer les habilitations
+                    Create a User Account & Assign Permissions
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Définissez le profil et ajustez précisément les droits d'accès
+                    Define the profile and precisely adjust access rights
                   </p>
                 </div>
               </div>
@@ -1376,14 +1376,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 </div>
               )}
 
-              {/* Profil & Rôle Principal Selection (Screenshot 1) */}
+              {/* Profile & Primary Role Selection (Screenshot 1) */}
               <div className="space-y-2">
-                <h3 className="text-xs font-extrabold text-slate-900">Profil & Rôle Principal :</h3>
+                <h3 className="text-xs font-extrabold text-slate-900">Profile & Primary Role:</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { role: 'Agent' as UserProfile, desc: 'Enrôlement, saisie & suivi de son périmètre' },
-                    { role: 'Supervisor' as UserProfile, desc: 'Validation, rejet, retour & reporting' },
-                    { role: 'Admin' as UserProfile, desc: 'Gestion globale, suppression & système' },
+                    { role: 'Agent' as UserProfile, desc: 'Enrollment, data entry & tracking within their scope' },
+                    { role: 'Supervisor' as UserProfile, desc: 'Validation, rejection, return & reporting' },
+                    { role: 'Admin' as UserProfile, desc: 'Global management, deletion & system administration' },
                   ].map(({ role, desc }) => {
                     const isSelected = formData.profile === role || (role === 'Supervisor' && formData.profile === 'Superviseur');
                     return (
@@ -1416,17 +1416,17 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 </div>
               </div>
 
-              {/* Attribution des Habilitations (Screenshot 1) */}
+              {/* Permissions Assignment (Screenshot 1) */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-2.5">
                     <ShieldCheck className="w-5 h-5 text-slate-700 shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
-                        Attribution des Habilitations ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} actives)
+                        Permissions Assignment ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} active)
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Modifiez individuellement les droits ou appliquez un profil type
+                        Adjust rights individually or apply a standard profile
                       </p>
                     </div>
                   </div>
@@ -1436,21 +1436,21 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       onClick={() => setFormData({ ...formData, permissions: getPermissionsForProfile(formData.profile) })}
                       className="px-3 py-1 bg-white border border-slate-300 text-slate-700 text-xs font-semibold rounded-full hover:bg-slate-100 transition cursor-pointer shadow-2xs"
                     >
-                      Profil par défaut ({formData.profile})
+                      Default Profile ({formData.profile})
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: HABILITATIONS_SCHEMA.map((h) => h.key) })}
                       className="px-3 py-1 bg-white border border-emerald-400 text-emerald-700 text-xs font-semibold rounded-full hover:bg-emerald-50 transition cursor-pointer shadow-2xs"
                     >
-                      Tout Activer
+                      Enable All
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: [] })}
                       className="px-3 py-1 bg-white border border-rose-400 text-rose-700 text-xs font-semibold rounded-full hover:bg-rose-50 transition cursor-pointer shadow-2xs"
                     >
-                      Tout Désactiver
+                      Disable All
                     </button>
                   </div>
                 </div>
@@ -1458,7 +1458,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 {/* Filter Categories Pills */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1">
                   {[
-                    { id: 'all', label: 'Toutes les catégories' },
+                    { id: 'all', label: 'All categories' },
                     { id: 'Dossier & Claim Management', label: 'Dossier & Claim Management' },
                     { id: 'Validation & Decision', label: 'Validation & Decision' },
                     { id: 'Statistics & Reporting', label: 'Statistics & Reporting' },
@@ -1707,7 +1707,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
-                  <span>Créer le Compte & Attribuer</span>
+                  <span>Create Account & Assign</span>
                 </button>
               </div>
             </form>
