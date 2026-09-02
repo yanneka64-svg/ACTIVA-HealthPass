@@ -50,7 +50,7 @@ import { AgentIdentificationView } from './views/agent/AgentIdentificationView';
 import { AgentMedicalFormView } from './views/agent/AgentMedicalFormView';
 import { AgentClaimsView } from './views/agent/AgentClaimsView';
 import { AgentEnrollmentsView } from './views/agent/AgentEnrollmentsView';
-import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon } from 'lucide-react';
+import { LayoutDashboard, Receipt, FileText, UserCheck, FileCheck, Users, Menu as MenuIcon } from 'lucide-react';
 
 export type AuthStateStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'inactive' | 'invalid_role';
 
@@ -709,6 +709,45 @@ export default function App() {
   // navigation bar and the global toast consistent with the Sidebar (Admin = slate, Supervisor = teal, Agent = blue)
   const activeRoleTheme = getRoleTheme(activeRole);
 
+  // === AMÉLIORATION AJOUTÉE : la barre de navigation mobile (bottom nav) affichait
+  // auparavant TOUJOURS les 4 mêmes icônes (Dashboard/Claims/Invoices/Enrollments), qui ne
+  // correspondent pas aux sections réellement autorisées pour Agent et Superviseur (voir
+  // ROLE_ALLOWED_SECTIONS dans authUtils.ts) — un Agent tapant "Dashboard" ou "Invoices",
+  // ou un Superviseur tapant "Claims"/"Invoices"/"Enroll", était silencieusement renvoyé
+  // vers la section par défaut de son rôle (via effectiveSection), rendant ces boutons
+  // inopérants. Cette liste reprend, par rôle, les mêmes sections/icônes déjà utilisées
+  // dans la Sidebar desktop (filteredOverviewItems) pour rester 100% cohérent, en ne
+  // gardant que les 4 accès les plus utilisés au quotidien pour un accès rapide — le
+  // bouton "Menu" (inchangé) donne toujours accès à l'intégralité des sections du rôle.
+  type MobileNavItem = {
+    section: NavSection;
+    label: string;
+    Icon: typeof LayoutDashboard;
+    badge?: number;
+  };
+  const mobileNavItems: MobileNavItem[] =
+    activeRole === 'Agent'
+      ? [
+          { section: 'identification', label: 'ID Check', Icon: Users },
+          { section: 'medical_form', label: 'Med. Form', Icon: FileCheck },
+          { section: 'claims', label: 'Claims', Icon: Receipt, badge: pendingClaimsCount },
+          { section: 'enrollments', label: 'Enroll', Icon: UserCheck, badge: pendingEnrollmentsCount },
+        ]
+      : activeRole === 'Supervisor'
+      ? [
+          { section: 'dashboard', label: 'Overview', Icon: LayoutDashboard },
+          { section: 'medical_form', label: 'Med. Form', Icon: FileCheck },
+          { section: 'claims_validation', label: 'Claims', Icon: FileCheck, badge: pendingClaimsCount },
+          { section: 'enrollments_validation', label: 'Enroll', Icon: UserCheck, badge: pendingEnrollmentsCount },
+        ]
+      : [
+          // Admin (and any fallback): unchanged from the original 4-icon set.
+          { section: 'dashboard', label: 'Overview', Icon: LayoutDashboard },
+          { section: 'claims', label: 'Claims', Icon: Receipt, badge: pendingClaimsCount },
+          { section: 'invoices', label: 'Invoices', Icon: FileText },
+          { section: 'enrollments', label: 'Enroll', Icon: UserCheck, badge: pendingEnrollmentsCount },
+        ];
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0a2e6b] font-sans flex antialiased selection:bg-[#0a2e6b] selection:text-white">
       {/* Mobile Sidebar Overlay */}
@@ -966,55 +1005,27 @@ export default function App() {
         {/* === ADDED IMPROVEMENT: the mobile bar now uses the active role's color (theme.palette.avatarBg)
             instead of always being blue, to stay consistent with the desktop Sidebar of the same role === */}
         <nav className={`lg:hidden fixed bottom-0 left-0 right-0 h-16 ${activeRoleTheme.palette.avatarBg} border-t border-white/10 z-30 flex items-center justify-around px-2 shadow-lg backdrop-blur-md`}>
-          <button
-            onClick={() => handleSelectSection('dashboard')}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
-              effectiveSection === 'dashboard' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
-            }`}
-          >
-            <LayoutDashboard className={`w-5 h-5 ${effectiveSection === 'dashboard' ? activeRoleTheme.palette.activeIconColor : ''}`} />
-            <span className="text-[10px] mt-0.5">Overview</span>
-          </button>
-
-          <button
-            onClick={() => handleSelectSection('claims')}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition relative ${
-              effectiveSection === 'claims' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
-            }`}
-          >
-            <Receipt className={`w-5 h-5 ${effectiveSection === 'claims' ? activeRoleTheme.palette.activeIconColor : ''}`} />
-            <span className="text-[10px] mt-0.5">Claims</span>
-            {pendingClaimsCount > 0 && (
-              <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                {pendingClaimsCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => handleSelectSection('invoices')}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
-              effectiveSection === 'invoices' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
-            }`}
-          >
-            <FileText className={`w-5 h-5 ${effectiveSection === 'invoices' ? activeRoleTheme.palette.activeIconColor : ''}`} />
-            <span className="text-[10px] mt-0.5">Invoices</span>
-          </button>
-
-          <button
-            onClick={() => handleSelectSection('enrollments')}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition relative ${
-              effectiveSection === 'enrollments' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
-            }`}
-          >
-            <UserCheck className={`w-5 h-5 ${effectiveSection === 'enrollments' ? activeRoleTheme.palette.activeIconColor : ''}`} />
-            <span className="text-[10px] mt-0.5">Enroll</span>
-            {pendingEnrollmentsCount > 0 && (
-              <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                {pendingEnrollmentsCount}
-              </span>
-            )}
-          </button>
+          {mobileNavItems.map((item) => {
+            const isActive = effectiveSection === item.section;
+            const { Icon } = item;
+            return (
+              <button
+                key={item.section}
+                onClick={() => handleSelectSection(item.section)}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition relative ${
+                  isActive ? 'text-white font-bold' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <Icon className={`w-5 h-5 ${isActive ? activeRoleTheme.palette.activeIconColor : ''}`} />
+                <span className="text-[10px] mt-0.5">{item.label}</span>
+                {!!item.badge && item.badge > 0 && (
+                  <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
 
           <button
             onClick={() => setSidebarOpen(true)}

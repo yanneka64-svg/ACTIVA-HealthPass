@@ -1,6 +1,13 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { InvoiceItem, Language } from '../types';
+import { drawPdfLogoStrip, PDF_LOGO_STRIP_HEIGHT } from './pdfBranding';
+import {
+  ACTIVA_LOGO_PNG_BASE64,
+  ACTIVA_LOGO_ASPECT_RATIO,
+  GLOBUS_LOGO_PNG_BASE64,
+  GLOBUS_LOGO_ASPECT_RATIO,
+} from '../assets/logoAssets';
 
 /**
  * Formatter for monetary values according to active currency mode (USD / LRD / DUAL)
@@ -64,14 +71,22 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
     { align: 'right' }
   );
 
+  // === AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus sous le bandeau de couleur
+  // existant (voir pdfBranding.ts). Comme ce document utilise des coordonnées Y fixes
+  // (pas de "currentY" cumulatif), seuls les DEUX repères qui suivent immédiatement le
+  // bandeau (38 et 42) sont décalés de PDF_LOGO_STRIP_HEIGHT ; tout le reste du document
+  // est déjà positionné de façon relative (finalY1/finalY2 issus d'autoTable), donc il
+  // se décale automatiquement sans qu'aucune autre ligne n'ait besoin d'être touchée.
+  drawPdfLogoStrip(doc, 210, 29);
+
   // Section: Beneficiary & Provider info cards
   doc.setTextColor(10, 46, 107);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('1. File & Policy Identification', 14, 38);
+  doc.text('1. File & Policy Identification', 14, 38 + PDF_LOGO_STRIP_HEIGHT);
 
   autoTable(doc, {
-    startY: 42,
+    startY: 42 + PDF_LOGO_STRIP_HEIGHT,
     theme: 'grid',
     head: [[
       'Beneficiary & Insured',
@@ -243,6 +258,34 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             padding-bottom: 16px;
             margin-bottom: 24px;
           }
+          /* === AMÉLIORATION AJOUTÉE : bandeau logos (ACTIVA + partenaire Globus), miroir de
+             la version PDF (pdfBranding.ts). Nouvelle règle CSS indépendante — ne modifie
+             en rien la disposition flex existante de .header ci-dessus. */
+          .letterhead-logos {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0 14px 0;
+            margin-bottom: 4px;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          .letterhead-logos img {
+            height: 26px;
+            width: auto;
+            display: block;
+          }
+          .letterhead-partner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .letterhead-partner .label {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: #94a3b8;
+          }
           .brand-title {
             font-size: 24px;
             font-weight: 900;
@@ -270,6 +313,8 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             font-weight: 800;
             color: #0a2e6b;
             text-transform: uppercase;
+            /* AMÉLIORATION AJOUTÉE : léger espacement des lettres pour un titre plus soigné */
+            letter-spacing: 0.4px;
           }
           .doc-badge .ref {
             font-family: monospace;
@@ -334,6 +379,8 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             padding: 10px 12px;
             font-size: 11px;
             text-transform: uppercase;
+            /* AMÉLIORATION AJOUTÉE : léger espacement des lettres pour des entêtes plus affinées */
+            letter-spacing: 0.4px;
           }
           td {
             padding: 10px 12px;
@@ -420,6 +467,16 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
               Date: ${currentDate}
             </div>
+          </div>
+        </div>
+
+        <!-- AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus, juste sous l'entête
+             existant — nouveau bloc, la structure/flex du .header ci-dessus est intacte. -->
+        <div class="letterhead-logos">
+          <img src="${ACTIVA_LOGO_PNG_BASE64}" alt="ACTIVA" style="aspect-ratio: ${ACTIVA_LOGO_ASPECT_RATIO};" />
+          <div class="letterhead-partner">
+            <span class="label">In partnership with</span>
+            <img src="${GLOBUS_LOGO_PNG_BASE64}" alt="Globus" style="aspect-ratio: ${GLOBUS_LOGO_ASPECT_RATIO};" />
           </div>
         </div>
 

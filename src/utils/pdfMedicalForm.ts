@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { MedicalForm } from '../types';
+import { drawPdfLogoStrip, drawRefinedHeaderTitle, PDF_LOGO_STRIP_HEIGHT } from './pdfBranding';
 
 export const generateMedicalFormPDF = (form: MedicalForm) => {
   const doc = new jsPDF({
@@ -19,14 +20,17 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.rect(0, 28, pageWidth, 3, 'F');
 
   // Header Title
+  // === AMÉLIORATION AJOUTÉE : léger espacement des lettres (setCharSpace via
+  // drawRefinedHeaderTitle) sur le titre principal pour un rendu plus soigné/typographié
+  // qu'une capitale grasse compacte par défaut.
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
-  doc.text('ACTIVA HealthPass', 14, 12);
+  drawRefinedHeaderTitle(doc, 'ACTIVA HealthPass', 14, 12, { charSpace: 0.2 });
 
   doc.setFontSize(9.5);
   doc.setFont('helvetica', 'normal');
-  doc.text('HEALTHCARE AUTHORIZATION & MEDICAL PRESCRIPTION VOUCHER', 14, 18);
+  drawRefinedHeaderTitle(doc, 'HEALTHCARE AUTHORIZATION & MEDICAL PRESCRIPTION VOUCHER', 14, 18);
   doc.setFontSize(7.5);
   doc.text('Direct-Billing Healthcare Network • Official ACTIVA Insurance Document', 14, 23);
 
@@ -42,7 +46,13 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   // Reset text color
   doc.setTextColor(30, 41, 59);
 
-  let currentY = 38;
+  // === AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus sous le bandeau de couleur
+  // existant (aucune ligne de texte positionnée en dur ci-dessus n'a été déplacée) — voir
+  // pdfBranding.ts. Le curseur vertical qui alimente le reste du document est décalé
+  // d'autant (38 -> 38 + PDF_LOGO_STRIP_HEIGHT).
+  drawPdfLogoStrip(doc, pageWidth, 31);
+
+  let currentY = 38 + PDF_LOGO_STRIP_HEIGHT;
 
   // 1. SECTION: BENEFICIARY & COVERAGE IDENTIFICATION
   doc.setFillColor(241, 245, 249);
@@ -53,7 +63,7 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(10, 46, 107);
-  doc.text('1. BENEFICIARY IDENTIFICATION & COVERAGE MODALITIES', 18, currentY + 6);
+  drawRefinedHeaderTitle(doc, '1. BENEFICIARY IDENTIFICATION & COVERAGE MODALITIES', 18, currentY + 6, { charSpace: 0.15 });
 
   doc.setTextColor(51, 65, 85);
   doc.setFontSize(8.5);
@@ -109,7 +119,7 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(10, 46, 107);
-  doc.text('2. HEALTHCARE PROVIDER & CONSULTATION TYPE', 18, currentY + 6);
+  drawRefinedHeaderTitle(doc, '2. HEALTHCARE PROVIDER & CONSULTATION TYPE', 18, currentY + 6, { charSpace: 0.15 });
 
   doc.setTextColor(51, 65, 85);
   doc.setFontSize(8.5);
@@ -149,14 +159,16 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   // 3. SECTION: MEDICAL DIAGNOSIS & PRESCRIPTIONS (PHYSICIAN SECTION)
   doc.setDrawColor(10, 46, 107);
   doc.setLineWidth(0.4);
-  doc.roundedRect(14, currentY, pageWidth - 28, 98, 2, 2, 'S');
+  // === AMÉLIORATION AJOUTÉE : box height reduced 98→88 (reclaims unused bottom padding) to
+  // offset the +PDF_LOGO_STRIP_HEIGHT added earlier, keeping the document within the A4 page.
+  doc.roundedRect(14, currentY, pageWidth - 28, 88, 2, 2, 'S');
 
   doc.setFillColor(10, 46, 107);
   doc.rect(14, currentY, pageWidth - 28, 8, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text('3. PHYSICIAN FRAMEWORK — MEDICAL DIAGNOSIS & PRESCRIPTION ORDERS', 18, currentY + 5.5);
+  drawRefinedHeaderTitle(doc, '3. PHYSICIAN FRAMEWORK — MEDICAL DIAGNOSIS & PRESCRIPTION ORDERS', 18, currentY + 5.5, { charSpace: 0.15 });
 
   doc.setTextColor(51, 65, 85);
   doc.setFont('helvetica', 'bold');
@@ -208,7 +220,7 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.text('4. _______________________________________________________________________________________________', 18, currentY + 78);
   doc.text('5. _______________________________________________________________________________________________', 18, currentY + 84);
 
-  currentY += 104;
+  currentY += 94;
 
   // 4. SIGNATURES (INSURED & DOCTOR)
   const sigBoxWidth = (pageWidth - 33) / 2;

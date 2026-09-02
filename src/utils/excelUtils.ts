@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Member, Organization, Provider, Claim, InvoiceItem, DependentItem } from '../types';
+import { drawPdfLogoStrip, drawRefinedHeaderTitle, PDF_LOGO_STRIP_HEIGHT } from './pdfBranding';
 
 // Normalization helper: remove accents, lowercase, trim, remove symbols
 export function normalizeHeader(header: string): string {
@@ -1334,20 +1335,26 @@ export function exportReportsToPDF(
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.text('ACTIVA HEALTHCARE ASSURANCE', 15, 12);
+  drawRefinedHeaderTitle(doc, 'ACTIVA HEALTHCARE ASSURANCE', 15, 12, { charSpace: 0.2 });
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('ANALYTICAL OPERATIONS & PERFORMANCE REPORT', 15, 19);
+  drawRefinedHeaderTitle(doc, 'ANALYTICAL OPERATIONS & PERFORMANCE REPORT', 15, 19);
   doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 15, 24);
 
-  let currentY = 40;
+  // === AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus sous le bandeau de couleur
+  // existant (voir pdfBranding.ts). Le document utilise déjà un curseur "currentY" cumulatif
+  // pour tout ce qui suit, donc décaler son point de départ suffit à propager le changement
+  // sans toucher au reste de la mise en page (autoTable gère lui-même la pagination).
+  drawPdfLogoStrip(doc, pageWidth, 31);
+
+  let currentY = 40 + PDF_LOGO_STRIP_HEIGHT;
 
   // KPI Summary
   doc.setTextColor(10, 46, 107);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('1. CONSOLIDATED KEY METRICS', 15, currentY);
+  drawRefinedHeaderTitle(doc, '1. CONSOLIDATED KEY METRICS', 15, currentY, { charSpace: 0.15 });
   currentY += 8;
 
   const cardW = (pageWidth - 30 - 15) / 4;
@@ -1383,7 +1390,7 @@ export function exportReportsToPDF(
   doc.setTextColor(10, 46, 107);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('2. EXPENDITURE BREAKDOWN BY HEALTHCARE FACILITY', 15, currentY);
+  drawRefinedHeaderTitle(doc, '2. EXPENDITURE BREAKDOWN BY HEALTHCARE FACILITY', 15, currentY, { charSpace: 0.15 });
   currentY += 4;
 
   const provRows = providerDistribution.slice(0, 8).map(p => [
@@ -1412,7 +1419,7 @@ export function exportReportsToPDF(
   doc.setTextColor(10, 46, 107);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('3. CLAIMS CONSUMPTION BY POLICY / ORGANIZATION', 15, nextY);
+  drawRefinedHeaderTitle(doc, '3. CLAIMS CONSUMPTION BY POLICY / ORGANIZATION', 15, nextY, { charSpace: 0.15 });
 
   const orgRows = orgDistribution.slice(0, 8).map(o => [
     o.name,
@@ -1466,24 +1473,29 @@ export function generateExecutiveReportPDF(metrics: {
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.text('ACTIVA HEALTHCARE ASSURANCE', 15, 12);
+  drawRefinedHeaderTitle(doc, 'ACTIVA HEALTHCARE ASSURANCE', 15, 12, { charSpace: 0.2 });
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('EXECUTIVE OPERATIONS & HEALTH CLAIMS REPORT', 15, 19);
+  drawRefinedHeaderTitle(doc, 'EXECUTIVE OPERATIONS & HEALTH CLAIMS REPORT', 15, 19);
   doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 15, 24);
 
   doc.setFontSize(7.5);
   doc.text('CONFIDENTIAL & AUDIT READY', pageWidth - 14, 12, { align: 'right' });
   doc.text('ACTIVA HealthPass Portal', pageWidth - 14, 18, { align: 'right' });
 
-  let currentY = 40;
+  // === AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus (voir pdfBranding.ts) ; comme
+  // pour exportReportsToPDF ci-dessus, décaler le point de départ du curseur "currentY"
+  // suffit à propager le changement sur tout le reste du document.
+  drawPdfLogoStrip(doc, pageWidth, 31);
+
+  let currentY = 40 + PDF_LOGO_STRIP_HEIGHT;
 
   // KPI Highlights Grid
   doc.setTextColor(10, 46, 107);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('1. KEY EXECUTIVE PERFORMANCE INDICATORS', 15, currentY);
+  drawRefinedHeaderTitle(doc, '1. KEY EXECUTIVE PERFORMANCE INDICATORS', 15, currentY, { charSpace: 0.15 });
   currentY += 6;
 
   const cardW = (pageWidth - 30 - 15) / 4;
@@ -1525,7 +1537,7 @@ export function generateExecutiveReportPDF(metrics: {
   doc.setTextColor(10, 46, 107);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('2. RECENT CLAIMS & SETTLEMENTS BREAKDOWN', 15, currentY);
+  drawRefinedHeaderTitle(doc, '2. RECENT CLAIMS & SETTLEMENTS BREAKDOWN', 15, currentY, { charSpace: 0.15 });
   currentY += 4;
 
   const tableRows = metrics.claimsList.slice(0, 15).map(c => [
