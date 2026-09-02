@@ -22,6 +22,7 @@ import { Enrollment, Language, Organization, RelationshipType, UserProfile } fro
 import { useTranslation } from '../i18n/translations';
 import { AttachmentBiometricViewerModal } from '../components/AttachmentBiometricViewerModal';
 import { BiometricCameraModal } from '../components/BiometricCameraModal';
+import { uploadPhotoOrFallback } from '../utils/storageUtils';
 import { BiometricFingerprintModal } from '../components/BiometricFingerprintModal';
 import {
   canApproveRecord,
@@ -189,19 +190,25 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
     }
   };
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cardNo = newEnrForm.cardNo || `ACT-2026-${Math.floor(9000 + Math.random() * 1000)}`;
+    // === AMÉLIORATION AJOUTÉE : upload vers Firebase Storage avec repli automatique vers le
+    // stockage base64 existant en cas d'échec (voir storageUtils.ts / MembersView.tsx).
+    const resolvedPhotoUrl = newEnrForm.photoUrl
+      ? await uploadPhotoOrFallback(newEnrForm.photoUrl, 'enrollment-photos', cardNo)
+      : newEnrForm.photoUrl;
     onCreateEnrollment({
       reference: `ENR-2026-${Math.floor(100 + Math.random() * 900)}`,
       fullName: newEnrForm.fullName || 'New Beneficiary',
-      cardNo: newEnrForm.cardNo || `ACT-2026-${Math.floor(9000 + Math.random() * 1000)}`,
+      cardNo,
       birthDate: newEnrForm.birthDate,
       organization: newEnrForm.organization || (organizations[0]?.name || 'Standard'),
       relationship: newEnrForm.relationship,
       submissionDate: new Date().toISOString().split('T')[0],
       hasPhoto: newEnrForm.hasPhoto,
       hasBiometrics: newEnrForm.hasBiometrics,
-      photoUrl: newEnrForm.photoUrl,
+      photoUrl: resolvedPhotoUrl,
       idDocumentUrl: newEnrForm.idDocumentUrl,
       fingerprintScore: newEnrForm.fingerprintScore,
       status: 'pending',

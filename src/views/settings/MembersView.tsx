@@ -35,6 +35,7 @@ import { Member, Language, Organization, RelationshipType, MemberStatus, Depende
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { exportMembersToCSV, exportMembersToExcel, parseMemberExcel, parseActivaMultiOrgExcel, generateMultiOrgTemplateExcel } from '../../utils/excelUtils';
+import { uploadPhotoOrFallback } from '../../utils/storageUtils';
 import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
 import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
@@ -438,7 +439,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     setFormChildren(formChildren.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formCardNo.trim() || !formPrincipalName.trim() || !formOrg.trim()) return;
 
@@ -459,6 +460,14 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       });
     });
 
+    // === AMÉLIORATION AJOUTÉE : upload la photo capturée/téléversée vers Firebase Storage
+    // (au lieu de l'enregistrer en base64 dans le document Firestore) au moment de la
+    // sauvegarde, une seule fois. Repli automatique et transparent vers le comportement
+    // existant (base64 inline) si l'upload échoue — voir storageUtils.ts.
+    const resolvedPhotoUrl = photoData
+      ? await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim())
+      : editingMember?.photoUrl;
+
     if (editingMember) {
       onUpdateMember({
         ...editingMember,
@@ -476,7 +485,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         children: formChildren,
         status: formStatus,
         hasPhoto: formHasPhoto || !!photoData,
-        photoUrl: photoData || editingMember.photoUrl || undefined,
+        photoUrl: resolvedPhotoUrl || undefined,
         hasBiometrics: formHasBiometrics || !!biometricData,
         fingerprintScore: biometricData?.score || editingMember.fingerprintScore || (formHasBiometrics ? 96 : undefined),
         fingerprintSensor: 'FAP-20 USB Optical Scanner',
@@ -498,7 +507,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         children: formChildren,
         status: formStatus,
         hasPhoto: formHasPhoto || !!photoData,
-        photoUrl: photoData || undefined,
+        photoUrl: resolvedPhotoUrl || undefined,
         hasBiometrics: formHasBiometrics || !!biometricData,
         fingerprintScore: biometricData?.score || (formHasBiometrics ? 96 : undefined),
         fingerprintSensor: 'FAP-20 USB Optical Scanner',
@@ -1617,17 +1626,26 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       )}
 
       {/* WEBCAM CAPTURE MODAL */}
+      {/* === CORRECTIF (bug préexistant) : la prop passée était "onCapture", qui n'existe pas
+          sur WebcamCaptureModal (dont la vraie prop est "onPhotoCaptured") — le callback
+          handlePhotoCaptured n'était donc JAMAIS appelé. Concrètement : dans cet écran
+          (Assurés/Membres), le bouton "Capturer une photo" ouvrait bien la caméra et
+          l'animation de capture se déroulait, mais la photo prise n'était jamais rattachée
+          à la fiche de l'assuré. tsc ne détecte pas ce genre d'erreur de prop dans ce projet
+          (voir vérification ci-dessous), d'où sa présence silencieuse. === */}
       <WebcamCaptureModal
         isOpen={isWebcamModalOpen}
         onClose={() => setIsWebcamModalOpen(false)}
-        onCapture={handlePhotoCaptured}
+        onPhotoCaptured={handlePhotoCaptured}
       />
 
       {/* BIOMETRIC FINGERPRINT SCANNER MODAL */}
+      {/* === CORRECTIF (même bug) : "onCapture" -> "onFingerprintCaptured" (vraie prop du
+          composant) === */}
       <BiometricFingerprintModal
         isOpen={isFingerprintModalOpen}
         onClose={() => setIsFingerprintModalOpen(false)}
-        onCapture={handleFingerprintCaptured}
+        onFingerprintCaptured={handleFingerprintCaptured}
       />
 
       {/* EXCEL IMPORT MODAL */}

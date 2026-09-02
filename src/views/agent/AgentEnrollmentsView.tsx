@@ -27,6 +27,7 @@ import {
 import { Organization, Enrollment, UserProfile, Language, RelationshipType } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
+import { uploadPhotoOrFallback } from '../../utils/storageUtils';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
 
@@ -101,12 +102,18 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     setHasBiometrics(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.cardNo || !form.fullName || !form.organization) {
       alert('Please fill out all mandatory fields.');
       return;
     }
+
+    // === AMÉLIORATION AJOUTÉE : upload vers Firebase Storage avec repli automatique vers le
+    // stockage base64 existant en cas d'échec (voir storageUtils.ts / MembersView.tsx).
+    const resolvedPhotoUrl = photoData
+      ? await uploadPhotoOrFallback(photoData, 'enrollment-photos', form.cardNo)
+      : undefined;
 
     const newEnrollment: Partial<Enrollment> = {
       reference: `ENR-2026-${Math.floor(100 + Math.random() * 900)}`,
@@ -121,7 +128,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
       phone: form.phone,
       email: form.email,
       hasPhoto: hasPhoto || Boolean(photoData),
-      photoUrl: photoData || undefined,
+      photoUrl: resolvedPhotoUrl,
       hasBiometrics: hasBiometrics,
       fingerprintScore: biometricData?.score || 96,
       status: 'pending',
