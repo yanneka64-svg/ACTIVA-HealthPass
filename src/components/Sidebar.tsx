@@ -221,7 +221,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title="OVERVIEW"
           isOpen={isOverviewOpen}
           onToggle={() => setIsOverviewOpen((prev) => !prev)}
-          titleColor={isAdmin ? 'text-gray-400' : isSupervisor ? 'text-teal-200/70' : 'text-blue-200/70'}
+          titleColor={isAdmin ? 'text-slate-300/90' : isSupervisor ? 'text-teal-200/80' : 'text-blue-200/80'}
         >
           {filteredOverviewItems.map(renderNavItem)}
         </CollapsibleNavSection>
@@ -233,7 +233,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="MANAGEMENT"
             isOpen={isManagementOpen}
             onToggle={() => setIsManagementOpen((prev) => !prev)}
-            titleColor="text-gray-400"
+            titleColor="text-slate-300/90"
           >
             {managementItems.map(renderNavItem)}
           </CollapsibleNavSection>
@@ -246,7 +246,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="SYSTEM"
             isOpen={isSystemOpen}
             onToggle={() => setIsSystemOpen((prev) => !prev)}
-            titleColor="text-gray-400"
+            titleColor="text-slate-300/90"
           >
             {systemItems.map(renderNavItem)}
           </CollapsibleNavSection>
@@ -254,7 +254,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Status & Version Indicator */}
-      <div className="p-3 border-t border-white/10 bg-black/15 relative z-10">
+      <div className="p-3 border-t border-white/10 bg-slate-900/20 relative z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10">
             <div className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse flex-shrink-0" />
