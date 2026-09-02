@@ -1,59 +1,92 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() { 
-      return request.auth != null; 
+    function isSignedIn() {
+      return request.auth != null;
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité ===
+    // Toutes les règles ci-dessous exigeaient auparavant `allow read, write: if true`,
+    // c'est-à-dire un accès total et anonyme (sans connexion) à TOUTES les données de
+    // l'application (assurés, sinistres, factures, dossiers médicaux, journaux d'audit...)
+    // depuis n'importe où sur Internet, par quiconque connaît l'URL du projet Firebase.
+    // Vérification faite dans le code (App.tsx : l'écran de connexion s'affiche tant que
+    // `authStatus === 'unauthenticated'` et aucun listener Firestore n'est démarré avant
+    // cela) : chaque collection ci-dessous n'est lue/écrite par l'application QUE lorsque
+    // l'utilisateur est déjà connecté via Firebase Auth. Restreindre ces règles à
+    // `isSignedIn()` ne change donc aucun comportement pour un utilisateur légitime déjà
+    // connecté — cela bloque uniquement les accès anonymes non prévus par l'application.
     match /accounts/{userId} {
-      allow read, write: if true;
+      // NOTE : la lecture reste volontairement ouverte (if true) car l'écran de connexion
+      // (LoginView.tsx) doit pouvoir rechercher un compte correspondant (email/identifiant)
+      // dans Firestore AVANT que la connexion Firebase Auth n'existe (flux de "première
+      // connexion" où le compte est créé par un Admin dans Firestore avant tout compte
+      // Firebase Auth). Restreindre cette lecture casserait ce flux de connexion existant.
+      // En revanche, l'écriture est restreinte : d'après le code, toute écriture sur
+      // /accounts (création/mise à jour de compte, changement de statut, association du
+      // compte à l'UID Firebase) n'a lieu qu'une fois la session Firebase Auth déjà établie.
+      allow read: if true;
+      allow write: if isSignedIn();
     }
-    
+
     match /members/{memberId} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
-    
+
     match /claims/{claimId} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
 
     match /medicalForms/{formId} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
 
     match /enrollments/{enrollmentId} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
 
     match /invoices/{invoiceId} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
-    
+
     match /organizations/{orgId} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
-    
+
     match /providers/{providerId} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
-    
+
     match /ceilings/{ceilingId} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
 
     match /loginLogs/{logId} {
-      allow read, write: if true;
-    }
-    
-    match /auditLogs/{logId} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
 
+    match /auditLogs/{logId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // === AMÉLIORATION AJOUTÉE : règle manquante ===
+    // La collection /notifications est utilisée par l'application
+    // (FirestoreService.subscribeToNotifications, appelé uniquement après connexion) mais
+    // n'avait pas de règle dédiée ci-dessus : elle retombait donc sur le catch-all
+    // `allow read, write: if true` tout en bas, exposé à tout Internet. Ajout d'une règle
+    // explicite alignée sur le reste, sans changement de comportement pour l'application.
+    match /notifications/{notificationId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // === AMÉLIORATION AJOUTÉE : sécurité ===
+    // Le catch-all ci-dessous couvrait auparavant `if true` (accès total anonyme à
+    // n'importe quelle collection non listée ci-dessus, y compris futures). Toutes les
+    // collections réellement utilisées par le code sont désormais explicitement listées
+    // au-dessus ; ce filet de sécurité reste actif (pour ne pas bloquer une collection non
+    // encore recensée) mais exige désormais au minimum une connexion Firebase Auth.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
   }
 }
-
-
-
