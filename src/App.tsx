@@ -1,7 +1,7 @@
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, getDoc, getDocs, onSnapshot, setDoc, collection } from 'firebase/firestore';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Language,
   NavSection,
@@ -50,6 +50,7 @@ import { AgentMedicalFormView } from './views/agent/AgentMedicalFormView';
 import { AgentClaimsView } from './views/agent/AgentClaimsView';
 import { AgentEnrollmentsView } from './views/agent/AgentEnrollmentsView';
 import { InactivityWarningModal } from './components/InactivityWarningModal';
+import { playSuccessSound, playNotificationSound } from './utils/sound'; // === AMÉLIORATION AJOUTÉE : sons de confirmation & notification ===
 import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon, Users, FileCheck } from 'lucide-react';
 
 export type AuthStateStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'inactive' | 'invalid_role';
@@ -62,9 +63,11 @@ export default function App() {
   const [forcedFirstLogin, setForcedFirstLogin] = useState(false);
   const [forcedPasswordExpiry, setForcedPasswordExpiry] = useState(false);
 
-  // Inactivity Auto-Logout (15 mins = 900s timeout, warning at 120s remaining)
-  const INACTIVITY_TIMEOUT_SECONDS = 900;
-  const WARNING_BEFORE_SECONDS = 120;
+  // Inactivity Auto-Logout
+  // === AMÉLIORATION AJOUTÉE : délai réduit à 5 minutes (300s) d'inactivité, avertissement
+  // à 60s restantes, sur demande explicite (auparavant 15 minutes / avertissement à 2 min) ===
+  const INACTIVITY_TIMEOUT_SECONDS = 300;
+  const WARNING_BEFORE_SECONDS = 60;
   const [inactivityRemainingSeconds, setInactivityRemainingSeconds] = useState(INACTIVITY_TIMEOUT_SECONDS);
   const [showInactivityModal, setShowInactivityModal] = useState(false);
 
@@ -336,7 +339,7 @@ export default function App() {
     }
   };
 
-  // Inactivity Auto-Logout Effect (15m inactivity threshold, warning at 2m left)
+  // Inactivity Auto-Logout Effect (5m inactivity threshold, warning at 1m left)
   useEffect(() => {
     if (authStatus !== 'authenticated') {
       setShowInactivityModal(false);
@@ -383,6 +386,32 @@ export default function App() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isReloadingDemo, setIsReloadingDemo] = useState<boolean>(false);
+
+  // === AMÉLIORATION AJOUTÉE : jouer un son de confirmation à chaque opération validée
+  // (approbation, sauvegarde, soumission, import, etc.), matérialisée ici par l'apparition
+  // d'un toast de succès. Les toasts d'erreur (message contenant "Error"/"error") sont
+  // exclus pour ne pas jouer un son de succès sur un échec.
+  useEffect(() => {
+    if (toastMessage && !/error/i.test(toastMessage)) {
+      playSuccessSound();
+    }
+  }, [toastMessage]);
+
+  // === AMÉLIORATION AJOUTÉE : jouer un son dès qu'une nouvelle notification arrive
+  // (écoute temps réel Firestore). La première synchronisation (chargement initial /
+  // connexion) ne déclenche jamais de son — seules les notifications réellement NOUVELLES
+  // qui arrivent après coup en déclenchent un.
+  const prevNotificationIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const currentIds = new Set(notifications.map((n) => n.id));
+    if (prevNotificationIdsRef.current !== null) {
+      const hasNewNotification = notifications.some((n) => !prevNotificationIdsRef.current!.has(n.id));
+      if (hasNewNotification) {
+        playNotificationSound();
+      }
+    }
+    prevNotificationIdsRef.current = currentIds;
+  }, [notifications]);
 
   const handleResetDemoData = async () => {
     setIsReloadingDemo(true);

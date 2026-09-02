@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search,
-  Plus,
   UploadCloud,
   Download,
   Users,
@@ -629,7 +628,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
               onClick={openCreateModal}
             className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" />
             <span>New Member</span>
           </button>
           )}

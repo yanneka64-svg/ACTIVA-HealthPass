@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Search,
   Plus,
+  PlusCircle, // === AMÉLIORATION AJOUTÉE : "+" entouré d'un cercle, harmonisé sur toute l'interface ===
   Sliders,
   Edit2,
   Trash2,
@@ -552,7 +553,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               onClick={openNewBenefitLimitWizard}
               className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-slate-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
             >
-              <Plus className="w-4 h-4 text-slate-800" />
+              <PlusCircle className="w-4 h-4 text-slate-800" />
               <span>Configure Benefit Limit</span>
             </button>
           </div>
@@ -638,11 +639,13 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
         {filteredCeilings.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs font-medium space-y-2">
             <p>{t.noData}</p>
+            {/* === AMÉLIORATION AJOUTÉE : "+" textuel remplacé par l'icône ronde harmonisée === */}
             <button
               onClick={openNewBenefitLimitWizard}
-              className="text-slate-700 font-bold hover:underline cursor-pointer"
+              className="text-slate-700 font-bold hover:underline cursor-pointer inline-flex items-center gap-1.5"
             >
-              + Create a new benefit limit
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>Create a new benefit limit</span>
             </button>
           </div>
         ) : (

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
-  Plus,
+  PlusCircle, // === AMÉLIORATION AJOUTÉE : "+" entouré d'un cercle, harmonisé sur toute l'interface ===
   Receipt,
   AlertCircle,
   CheckCircle2,
@@ -408,7 +408,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
           onClick={() => setShowNewModal(true)}
           className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
         >
-          <Plus className="w-4 h-4" />
+          <PlusCircle className="w-4 h-4" />
           <span>New Claim Intake</span>
         </button>
       </div>
@@ -899,7 +899,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       onClick={handleAddAct}
                       className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#00A859] border border-emerald-200 rounded-lg text-xs font-bold transition flex items-center gap-1 ml-auto cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <PlusCircle className="w-3.5 h-3.5" />
                       <span>Add Medical Act</span>
                     </button>
                   </div>
@@ -1145,7 +1145,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       onClick={() => fileInputRef.current?.click()}
                       className="w-full py-2 px-3 border border-dashed border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <PlusCircle className="w-3.5 h-3.5" />
                       <span>Add Files</span>
                     </button>
                   </div>

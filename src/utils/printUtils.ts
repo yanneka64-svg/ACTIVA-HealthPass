@@ -520,10 +520,16 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
     </html>
   `;
 
-  // Always generate and download the high-quality PDF document as an infallible guarantee
-  downloadBordereauPDF(invoice, lang);
+  // === AMÉLIORATION AJOUTÉE : "Imprimer" ne doit plus déclencher un téléchargement du fichier.
+  // Auparavant, downloadBordereauPDF() était systématiquement appelé "as an infallible guarantee",
+  // ce qui téléchargeait le PDF à chaque clic sur Imprimer, en plus de l'aperçu d'impression.
+  // Le téléchargement reste disponible via le bouton "Download" dédié (downloadBordereauPDF),
+  // qui n'est plus appelé ici — seul l'aperçu/dialogue d'impression natif du navigateur est ouvert.
+  // Le PDF (downloadBordereauPDF) n'est utilisé qu'en tout dernier recours si l'impression HTML
+  // native échoue complètement (popup ET iframe bloqués), pour ne jamais laisser l'utilisateur
+  // sans rien du tout.
 
-  // Also attempt native browser print via popup or iframe
+  // Attempt native browser print via popup or iframe
   try {
     const printPopup = window.open('', '_blank', 'width=850,height=900');
     if (printPopup && !printPopup.closed) {
@@ -535,7 +541,7 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
           printPopup.focus();
           printPopup.print();
         } catch {
-          // Handled by PDF fallback
+          // Handled by PDF fallback below
         }
       }, 300);
       return;
@@ -566,7 +572,9 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
           printWindow.contentWindow?.focus();
           printWindow.contentWindow?.print();
         } catch (e) {
-          console.warn('Iframe print blocked by sandbox', e);
+          console.warn('Iframe print blocked by sandbox, falling back to PDF download', e);
+          // Last-resort fallback only: both popup and iframe print failed.
+          downloadBordereauPDF(invoice, lang);
         } finally {
           setTimeout(() => {
             if (document.body.contains(printWindow)) {
@@ -575,8 +583,13 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
           }, 2000);
         }
       }, 350);
+      return;
     }
   } catch (e) {
-    console.warn('Iframe print error', e);
+    console.warn('Iframe print error, falling back to PDF download', e);
   }
+
+  // Both popup and iframe print attempts failed outright (blocked or unsupported):
+  // fall back to the PDF download as a last resort so the user isn't left with nothing.
+  downloadBordereauPDF(invoice, lang);
 }

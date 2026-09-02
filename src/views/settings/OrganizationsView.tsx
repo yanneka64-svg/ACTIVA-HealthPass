@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search,
-  Plus,
+  PlusCircle, // === AMÉLIORATION AJOUTÉE : "+" entouré d'un cercle, harmonisé sur toute l'interface ===
   UploadCloud,
   Download,
   Building,
@@ -299,7 +299,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
             onClick={openCreateModal}
             className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" />
             <span>New Organization</span>
           </button>
         </div>

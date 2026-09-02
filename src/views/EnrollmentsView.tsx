@@ -4,7 +4,7 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Plus,
+  PlusCircle, // === AMÉLIORATION AJOUTÉE : "+" entouré d'un cercle, harmonisé sur toute l'interface ===
   Image as ImageIcon,
   Fingerprint,
   Camera,
@@ -287,7 +287,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
               onClick={() => setNewEnrModalOpen(true)}
               className={`px-3.5 py-2 rounded-xl ${roleTheme.palette.primaryColor} text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5`}
             >
-              <Plus className="w-4 h-4" />
+              <PlusCircle className="w-4 h-4" />
               <span>{t.enrollments.newEnrollment}</span>
             </button>
           )}

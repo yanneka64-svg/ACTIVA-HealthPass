@@ -15,7 +15,7 @@ import {
   FileText,
   Search,
   ExternalLink,
-  Plus,
+  PlusCircle, // === AMÉLIORATION AJOUTÉE : "+" entouré d'un cercle, harmonisé sur toute l'interface ===
   RefreshCw,
   Copy,
   Eye,
@@ -311,7 +311,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Plus className="w-3.5 h-3.5" />
+            <PlusCircle className="w-3.5 h-3.5" />
             <span>Nouvelle Fiche Médicale</span>
           </button>
           <button
