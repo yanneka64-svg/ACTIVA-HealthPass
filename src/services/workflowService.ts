@@ -1,4 +1,4 @@
-import { Enrollment, Claim, Member, AppNotification, DependentItem, DependentRelationship } from '../types';
+import { Enrollment, Claim, Member, Organization, InvoiceItem, AppNotification, DependentItem, DependentRelationship } from '../types';
 import { FirestoreService } from './firestore';
 
 /**
@@ -278,10 +278,21 @@ export const WorkflowService = {
 
   /**
    * Supervisor approves a claim
+   * === AMÉLIORATION AJOUTÉE : génère désormais automatiquement la facture / le reçu de
+   * règlement correspondant (collection `invoices`, consultée par InvoicesView / l'écran
+   * "Reçus"). Avant ce correctif, RIEN dans l'application n'écrivait jamais dans cette
+   * collection : l'écran Factures affichait en permanence les données de démonstration
+   * initiales, jamais les réclamations réellement approuvées au jour le jour.
+   * `members`/`organizations` sont optionnels (rétrocompatibles avec un appel existant sans
+   * ces paramètres) et servent uniquement à enrichir le reçu (nom du titulaire de la
+   * famille, taux de couverture réel de l'organisation) ; en leur absence, des valeurs par
+   * défaut raisonnables sont utilisées et le reçu est tout de même créé.
    */
   approveClaim: async (
     claim: Claim,
-    currentUser: any
+    currentUser: any,
+    members: Member[] = [],
+    organizations: Organization[] = []
   ): Promise<void> => {
     const updated: Claim = {
       ...claim,
@@ -305,6 +316,28 @@ export const WorkflowService = {
       targetSection: 'claims',
       entityId: claim.id,
     });
+
+    // Generate the settlement invoice/receipt from the approved claim
+    const member = members.find((m) => m.cardNo.toLowerCase().trim() === claim.memberCardNo.toLowerCase().trim());
+    const isPrincipal = !member || member.principalName.toLowerCase().trim() === claim.memberName.toLowerCase().trim();
+    const familyHead = isPrincipal ? claim.memberName : (member?.principalName || claim.memberName);
+    const org = organizations.find((o) => o.name.toLowerCase().trim() === claim.organization.toLowerCase().trim());
+
+    const newInvoice: Partial<InvoiceItem> = {
+      reference: claim.reference ? claim.reference.replace(/^CLM/i, 'INV') : `INV-${Date.now()}`,
+      patientName: claim.memberName,
+      familyHead,
+      cardNo: claim.memberCardNo,
+      organization: claim.organization,
+      provider: claim.provider,
+      amount: claim.amount,
+      serviceDate: claim.serviceDate,
+      status: 'valid',
+      careType: claim.careType,
+      prescribingDoctor: claim.doctorName,
+      coveragePercentage: org?.coverageRate ?? 80,
+    };
+    await FirestoreService.addInvoice(newInvoice);
   },
 
   /**

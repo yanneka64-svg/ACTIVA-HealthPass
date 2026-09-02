@@ -363,7 +363,7 @@ export default function App() {
   const handleApproveClaim = async (claimId: string) => {
     const claim = claims.find((c) => c.id === claimId);
     if (!claim) return;
-    await WorkflowService.approveClaim(claim, currentUser);
+    await WorkflowService.approveClaim(claim, currentUser, members, organizations);
     setToastMessage(`Claim #${claim.reference} approved successfully.`);
     setTimeout(() => setToastMessage(null), 3000);
   };
