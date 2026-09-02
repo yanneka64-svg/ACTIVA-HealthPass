@@ -263,7 +263,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search organization by name, policy..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:bg-white transition"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           </div>
@@ -271,7 +271,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
             <option value="ALL">All Statuses</option>
             <option value="Actif">Active</option>
@@ -309,9 +309,9 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <Building className="w-5 h-5 text-[#2563EB]" />
-            <h3 className="font-bold text-base text-[#102A43]">Partner & Client Organizations</h3>
-            <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-[#2563EB] text-xs font-bold border border-blue-100">
+            <Building className="w-5 h-5 text-slate-700" />
+            <h3 className="font-bold text-base text-slate-800">Partner & Client Organizations</h3>
+            <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
               {filteredOrgs.length}
             </span>
           </div>
@@ -342,19 +342,19 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     <tr
                       key={org.id}
                       onClick={() => setViewMembersOrg(org)}
-                      className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
+                      className="hover:bg-slate-50 cursor-pointer transition-colors group"
                       title="Click to view enrolled principal members for this organization"
                     >
-                      <td className="py-3.5 px-4 font-bold text-[#102A43]">
+                      <td className="py-3.5 px-4 font-bold text-slate-800">
                         <div className="flex items-center gap-2">
-                          <Building className="w-4 h-4 text-blue-600/70 group-hover:text-blue-600 flex-shrink-0" />
+                          <Building className="w-4 h-4 text-slate-500 group-hover:text-slate-700 flex-shrink-0" />
                           <span>{org.name}</span>
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-[#2563EB] whitespace-nowrap">
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-700 whitespace-nowrap">
                         {org.policyNumber}
                       </td>
-                      <td className="py-3.5 px-4 text-[#102A43] font-semibold">
+                      <td className="py-3.5 px-4 text-slate-800 font-semibold">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
                           <Users className="w-3 h-3 text-slate-500" />
                           {org.declaredMembers} members
@@ -432,7 +432,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
 
                           <button
                             onClick={() => openEditModal(org)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-[#2563EB] hover:bg-blue-50 transition cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                             title="Edit organization & coverage"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -459,16 +459,18 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-[#111827] p-6 text-white flex items-center justify-between">
+            {/* === AMÉLIORATION AJOUTÉE : en-tête de fenêtre passé au blanc/gris neutre pour
+                cohérence visuelle (auparavant fond noir #111827) === */}
+            <div className="bg-white border-b border-slate-200 p-6 text-slate-900 flex items-center justify-between">
               <div>
-                <h3 className="font-extrabold text-base">
+                <h3 className="font-extrabold text-base text-slate-900">
                   {editingOrg ? 'Edit Organization Policy' : 'Register New Organization'}
                 </h3>
-                <p className="text-xs text-gray-300">Collective Group Insurance Policy & Coverage</p>
+                <p className="text-xs text-slate-500">Collective Group Insurance Policy & Coverage</p>
               </div>
               <button
                 onClick={() => setModalOpen(false)}
-                className="p-1 rounded-lg hover:bg-white/15 text-white cursor-pointer"
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -498,7 +500,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     type="text"
                     value={formPolicy}
                     onChange={(e) => setFormPolicy(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-[#111827]"
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800"
                     required
                   />
                 </div>
@@ -548,7 +550,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                       onClick={() => setFormRate(rate.toString())}
                       className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
                         parseInt(formRate, 10) === rate
-                          ? 'bg-[#111827] text-white shadow-xs'
+                          ? 'bg-slate-700 text-white shadow-xs'
                           : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                       }`}
                     >
@@ -566,7 +568,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     step="5"
                     value={parseInt(formRate, 10) || 80}
                     onChange={(e) => setFormRate(e.target.value)}
-                    className="flex-1 accent-[#111827] cursor-pointer"
+                    className="flex-1 accent-slate-700 cursor-pointer"
                   />
                   <div className="flex items-center gap-1 w-20">
                     <input
@@ -631,7 +633,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#111827] hover:bg-[#1F2937] text-white text-xs font-bold shadow-sm cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-sm cursor-pointer"
                 >
                   {editingOrg ? 'Update Organization' : 'Save Organization'}
                 </button>
@@ -659,21 +661,21 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       {viewMembersOrg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
-            <div className="bg-[#111827] p-6 text-white flex items-center justify-between">
+            <div className="bg-white border-b border-slate-200 p-6 text-slate-900 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center">
-                  <Building className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center">
+                  <Building className="w-5 h-5 text-slate-700" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base">{viewMembersOrg.name}</h3>
-                  <p className="text-xs text-blue-100 font-mono">
+                  <h3 className="font-extrabold text-base text-slate-900">{viewMembersOrg.name}</h3>
+                  <p className="text-xs text-slate-500 font-mono">
                     Policy: {viewMembersOrg.policyNumber} • {viewMembersOrg.coverageRate}% Coverage Rate
                   </p>
                 </div>
               </div>
               <button
                 onClick={closeViewMembersOrg}
-                className="p-2 rounded-xl hover:bg-white/15 text-white cursor-pointer transition"
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 cursor-pointer transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -682,7 +684,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-600" />
+                  <Users className="w-4 h-4 text-slate-600" />
                   <span className="font-extrabold text-sm text-slate-800">
                     Enrolled Beneficiaries ({orgMembersList.length})
                   </span>
@@ -716,10 +718,10 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                           <tr
                             key={m.id || m.cardNo}
                             onClick={() => setViewMemberDependents(m)}
-                            className="hover:bg-blue-50/40 transition cursor-pointer"
+                            className="hover:bg-slate-50 transition cursor-pointer"
                             title="Click to view this member's dependents"
                           >
-                            <td className="py-3 px-4 font-mono font-bold text-blue-700">{m.cardNo}</td>
+                            <td className="py-3 px-4 font-mono font-bold text-slate-700">{m.cardNo}</td>
                             <td className="py-3 px-4 font-bold text-slate-800">{m.principalName}</td>
                             <td className="py-3 px-4 text-slate-600">{m.birthDate || '—'}</td>
                             <td className="py-3 px-4 text-slate-600">
@@ -769,21 +771,21 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       {viewMemberDependents && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
-            <div className="bg-[#0F766E] p-6 text-white flex items-center justify-between">
+            <div className="bg-white border-b border-slate-200 p-6 text-slate-900 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-slate-700" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base">{viewMemberDependents.principalName}</h3>
-                  <p className="text-xs text-emerald-100 font-mono">
+                  <h3 className="font-extrabold text-base text-slate-900">{viewMemberDependents.principalName}</h3>
+                  <p className="text-xs text-slate-500 font-mono">
                     Card #: {viewMemberDependents.cardNo} • {viewMemberDependents.organization}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setViewMemberDependents(null)}
-                className="p-2 rounded-xl hover:bg-white/15 text-white cursor-pointer transition"
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 cursor-pointer transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -791,7 +793,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
 
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
               <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#0F766E]" />
+                <Users className="w-4 h-4 text-slate-600" />
                 <span className="font-extrabold text-sm text-slate-800">
                   Dependents ({memberDependentsList.length})
                 </span>
@@ -844,7 +846,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               <button
                 type="button"
                 onClick={() => setViewMemberDependents(null)}
-                className="px-5 py-2 rounded-xl bg-[#0F766E] hover:bg-[#115E59] text-white text-xs font-bold transition cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
               >
                 Close
               </button>

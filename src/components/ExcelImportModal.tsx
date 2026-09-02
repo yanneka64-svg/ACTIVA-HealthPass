@@ -38,12 +38,14 @@ export function ExcelImportModal<T>({
 
   if (!isOpen) return null;
 
-  const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
-  const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
-
-  const headerBgClass = isAdmin ? 'bg-[#111827]' : isSupervisor ? 'bg-[#0F766E]' : 'bg-[#0A347B]';
-  const primaryBtnClass = isAdmin ? 'bg-slate-900 hover:bg-slate-800' : isSupervisor ? 'bg-[#0F766E] hover:bg-[#115E59]' : 'bg-[#0A347B] hover:bg-[#072659]';
-  const primaryTextClass = isAdmin ? 'text-slate-900' : isSupervisor ? 'text-[#0F766E]' : 'text-[#0A347B]';
+  // === AMÉLIORATION AJOUTÉE : cohérence visuelle — ce modal n'est utilisé que depuis les
+  // écrans Admin (Organizations/Members/Providers, tous réservés à l'Admin dans Sidebar),
+  // il variait pourtant sa couleur par rôle (noir #111827 / teal / bleu marine selon le cas).
+  // Fenêtre passée au blanc et boutons au gris de la barre latérale Admin, pour être
+  // cohérent avec le reste de l'interface.
+  const headerBgClass = 'bg-white border-b border-slate-200';
+  const primaryBtnClass = 'bg-slate-700 hover:bg-slate-800';
+  const primaryTextClass = 'text-slate-700';
 
   const handleFile = async (file: File) => {
     if (!file) return;
@@ -155,19 +157,19 @@ export function ExcelImportModal<T>({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
       <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className={`${headerBgClass} px-6 py-4.5 text-white flex items-center justify-between transition-colors`}>
+        <div className={`${headerBgClass} px-6 py-4.5 text-slate-900 flex items-center justify-between transition-colors`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-emerald-300">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-emerald-600">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-bold text-lg leading-tight">{title}</h3>
-              <p className="text-xs text-slate-200 mt-0.5">{t.excel.columnToleranceNote}</p>
+              <h3 className="font-bold text-lg leading-tight text-slate-900">{title}</h3>
+              <p className="text-xs text-slate-500 mt-0.5">{t.excel.columnToleranceNote}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-white/15 transition-colors text-white cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-500 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -312,7 +314,7 @@ export function ExcelImportModal<T>({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Template Assurés Principaux</span>
+                  <span>Primary Insured Template</span>
                 </button>
               </div>
             ) : (

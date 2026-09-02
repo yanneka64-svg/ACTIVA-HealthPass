@@ -7,6 +7,7 @@ interface InactivityWarningModalProps {
   onStayConnected: () => void;
   onLogout: () => void;
   lang?: string;
+  userRole?: string;
 }
 
 export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
@@ -15,12 +16,20 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
   onStayConnected,
   onLogout,
   lang = 'fr',
+  userRole = 'Admin',
 }) => {
   if (!isOpen) return null;
 
   const minutes = Math.floor(remainingSeconds / 60);
   const seconds = remainingSeconds % 60;
   const formattedTime = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+  // === AMÉLIORATION AJOUTÉE : accent gris pour Admin (au lieu du bleu marine Agent
+  // #0A347B affiché auparavant peu importe le rôle connecté) ===
+  const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
+  const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
+  const accentTextClass = isAdmin ? 'text-slate-800' : isSupervisor ? 'text-[#0F766E]' : 'text-[#0A347B]';
+  const accentBtnClass = isAdmin ? 'bg-slate-700 hover:bg-slate-800' : isSupervisor ? 'bg-[#0F766E] hover:bg-[#115E59]' : 'bg-[#0A347B] hover:bg-[#08285e]';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-in fade-in">
@@ -38,7 +47,7 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
           </p>
         </div>
 
-        <div className="py-3 px-6 bg-slate-50 rounded-2xl border border-slate-200 inline-block font-mono text-3xl font-black text-[#0A347B] tracking-wider">
+        <div className={`py-3 px-6 bg-slate-50 rounded-2xl border border-slate-200 inline-block font-mono text-3xl font-black ${accentTextClass} tracking-wider`}>
           {formattedTime}
         </div>
 
@@ -59,7 +68,7 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
           <button
             type="button"
             onClick={onStayConnected}
-            className="py-2.5 px-4 bg-[#0A347B] hover:bg-[#08285e] text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+            className={`py-2.5 px-4 ${accentBtnClass} text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98`}
           >
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             <span>Rester Connecté</span>

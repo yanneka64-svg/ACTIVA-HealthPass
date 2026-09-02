@@ -1274,6 +1274,7 @@ export default function App() {
         }}
         onLogout={handleLogout}
         lang={lang}
+        userRole={userRole || undefined}
       />
 
       {/* Global Change Password Modal from Topbar or Security Enforcement */}
@@ -1309,6 +1310,7 @@ export default function App() {
         lang={lang}
         isForcedFirstLogin={forcedFirstLogin}
         isExpiredPassword={forcedPasswordExpiry}
+        userRole={userRole || undefined}
       />
     </div>
   );

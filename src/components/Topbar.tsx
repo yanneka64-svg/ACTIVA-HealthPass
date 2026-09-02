@@ -229,7 +229,7 @@ export const Topbar: React.FC<TopbarProps> = ({
           className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[#102A43] shadow-2xs hover:bg-slate-50 transition cursor-default"
           title="System Language: English (Official)"
         >
-          <Globe className="w-3.5 h-3.5 text-[#2563EB]" />
+          <Globe className={`w-3.5 h-3.5 ${theme.palette.primaryText}`} />
           <span>English</span>
         </div>
 
@@ -273,7 +273,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                   <button
                     type="button"
                     onClick={handleMarkAllAsRead}
-                    className="text-[11px] font-bold text-[#0A347B] hover:text-[#072456] flex items-center gap-1 hover:underline cursor-pointer"
+                    className={`text-[11px] font-bold ${theme.palette.primaryText} hover:underline flex items-center gap-1 cursor-pointer`}
                   >
                     <CheckCheck className="w-3.5 h-3.5" />
                     <span>Mark all read</span>
@@ -314,7 +314,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1 mb-0.5">
-                          <p className={`text-xs font-bold truncate ${notif.unread ? 'text-[#0D2B63]' : 'text-slate-700'}`}>
+                          <p className={`text-xs font-bold truncate ${notif.unread ? theme.palette.pageTitleColor : 'text-slate-700'}`}>
                             {notif.title}
                           </p>
                           <span className="text-[10px] text-[#778FAF] shrink-0 font-medium">
@@ -325,14 +325,14 @@ export const Topbar: React.FC<TopbarProps> = ({
                           {notif.message}
                         </p>
                         {notif.targetSection && (
-                          <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-[#0A347B]">
+                          <div className={`mt-1.5 flex items-center gap-1 text-[10px] font-bold ${theme.palette.primaryText}`}>
                             <span>View details</span>
                             <ExternalLink className="w-2.5 h-2.5" />
                           </div>
                         )}
                       </div>
                       {notif.unread && (
-                        <div className="w-2 h-2 rounded-full bg-[#0A347B] shrink-0 mt-1.5"></div>
+                        <div className={`w-2 h-2 rounded-full ${theme.palette.avatarBg} shrink-0 mt-1.5`}></div>
                       )}
                     </div>
                   ))
@@ -377,7 +377,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                   <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A878] text-[10px] font-extrabold border border-[#00A878]/30">
                     Active: {role || 'User'}
                   </span>
-                  <span className="inline-block px-2.5 py-0.5 rounded-md bg-[#0A347B]/10 border border-[#0A347B]/20 text-[#0A347B] text-[10px] font-black">
+                  <span className="inline-block px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-300 text-slate-700 text-[10px] font-black">
                     {userEntity}
                   </span>
                 </div>
