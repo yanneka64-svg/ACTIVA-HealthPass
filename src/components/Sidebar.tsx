@@ -142,12 +142,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const isActive = currentSection === item.id;
     const Icon = item.icon;
 
+    // === AMÉLIORATION AJOUTÉE : forme arrondie retirée de la barre de navigation (menu
+    // latéral) sur demande — boutons de menu désormais à angles droits (rounded-xl
+    // supprimé), même chose pour le petit indicateur d'item actif (rounded-r-full retiré) ===
     return (
       <button
         key={item.id}
         id={`nav-item-${item.id}`}
         onClick={() => onSelectSection(item.id)}
-        className={`w-full relative flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[13px] transition-all duration-150 group text-left cursor-pointer ${
+        className={`w-full relative flex items-center justify-between px-3.5 py-2.5 text-[13px] transition-all duration-150 group text-left cursor-pointer ${
           isActive
             ? `${theme.palette.activeItemBg} ${theme.palette.activeItemText} shadow-xs`
             : `${theme.palette.inactiveText} ${theme.palette.inactiveHoverBg} font-medium`
@@ -155,7 +158,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Subtle active indicator bar on the left */}
         {isActive && (
-          <div className={`absolute left-0 top-2 bottom-2 w-1 rounded-r-full ${theme.palette.activeIndicator}`} />
+          <div className={`absolute left-0 top-2 bottom-2 w-1 ${theme.palette.activeIndicator}`} />
         )}
 
         <div className="flex items-center gap-3 min-w-0 pl-1">
