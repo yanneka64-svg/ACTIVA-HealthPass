@@ -1,38 +1,36 @@
 import React, { useState, useMemo } from 'react';
 import {
   UserCheck,
-  Shield,
+  ShieldCheck,
   Upload,
   CheckCircle2,
-  AlertTriangle,
-  Building,
   User,
   Fingerprint,
   Camera,
-  Calendar,
   CreditCard,
-  Mail,
-  Phone,
   Clock,
-  Sparkles,
   Search,
   Eye,
   XCircle,
   X,
-  FileCheck,
   ListOrdered,
   PlusCircle,
   Users
 } from 'lucide-react';
-import { Organization, Enrollment, UserProfile, Language, RelationshipType } from '../../types';
+import { Organization, Enrollment, Member, UserProfile, Language, RelationshipType } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
+import { dedupeMembersByCardNo } from '../../utils/memberUtils';
 
 interface AgentEnrollmentsViewProps {
   organizations: Organization[];
   enrollments?: Enrollment[];
+  // === AMÉLIORATION AJOUTÉE : liste des assurés existants, pour permettre de rattacher un
+  // dépendant à son assuré principal en le choisissant dans un annuaire plutôt qu'en ressaisissant
+  // manuellement son nom et son numéro de carte.
+  members?: Member[];
   currentUser?: any;
   userRole?: UserProfile;
   lang?: Language;
@@ -43,6 +41,7 @@ interface AgentEnrollmentsViewProps {
 export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
   organizations,
   enrollments = [],
+  members = [],
   currentUser,
   userRole = 'Agent',
   lang = 'en',
@@ -57,7 +56,10 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
 
   const [form, setForm] = useState({
     cardNo: '',
-    fullName: '',
+    // === AMÉLIORATION AJOUTÉE : nom scindé en Last Name / First Name côté saisie (le nom
+    // complet reste stocké en un seul champ "fullName" sur l'Enrollment, comme avant).
+    lastName: '',
+    firstName: '',
     birthDate: '1990-01-01',
     gender: 'M',
     relationship: 'Principal' as RelationshipType,
@@ -67,6 +69,11 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     phone: '',
     email: '',
   });
+
+  // === AMÉLIORATION AJOUTÉE : sélection de l'assuré principal existant depuis l'annuaire ===
+  const [selectedPrincipalCardNo, setSelectedPrincipalCardNo] = useState('');
+
+  const principalDirectory = useMemo(() => dedupeMembersByCardNo(members), [members]);
 
   const [hasPhoto, setHasPhoto] = useState(false);
   const [hasBiometrics, setHasBiometrics] = useState(false);
@@ -103,7 +110,8 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.cardNo || !form.fullName || !form.organization) {
+    const fullName = `${form.lastName} ${form.firstName}`.trim();
+    if (!form.cardNo || !fullName || !form.organization) {
       alert('Please fill out all mandatory fields.');
       return;
     }
@@ -111,11 +119,11 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     const newEnrollment: Partial<Enrollment> = {
       reference: `ENR-2026-${Math.floor(100 + Math.random() * 900)}`,
       cardNo: form.cardNo,
-      fullName: form.fullName,
+      fullName,
       birthDate: form.birthDate || '1990-01-01',
       gender: form.gender as 'M' | 'F',
       relationship: form.relationship,
-      mainInsuredName: form.relationship === 'Principal' ? form.fullName : form.mainInsuredName,
+      mainInsuredName: form.relationship === 'Principal' ? fullName : form.mainInsuredName,
       mainInsuredCardNo: form.relationship === 'Principal' ? form.cardNo : form.mainInsuredCardNo,
       organization: form.organization,
       phone: form.phone,
@@ -142,7 +150,8 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
       setSubmitted(false);
       setForm({
         cardNo: '',
-        fullName: '',
+        lastName: '',
+        firstName: '',
         birthDate: '1990-01-01',
         gender: 'M',
         relationship: 'Principal',
@@ -152,6 +161,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
         phone: '',
         email: '',
       });
+      setSelectedPrincipalCardNo('');
       setHasPhoto(false);
       setHasBiometrics(false);
       setPhotoData(null);
@@ -235,101 +245,294 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
       </div>
 
       {activeTab === 'create' ? (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="px-8 py-6 bg-[#0a2e6b] text-white flex items-center justify-between">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold">Insured Biometric Enrollment</h2>
-              <p className="text-sm text-blue-100 mt-1">
-                Identity capture and biometric enrollment for health card issuance
+              <h2 className="text-lg font-extrabold text-slate-900">Biometric Member Enrollment</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Certified optical fingerprint capture, facial photograph acquisition, and policy affiliation
               </p>
             </div>
-            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center">
-              <UserCheck className="w-6 h-6 text-white" />
-            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Biometric Standard ICAO 9303 &amp; NFIQ 2.0</span>
+            </span>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-8 space-y-8">
-            {submitted && (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-800 animate-in fade-in">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                <div>
-                  <p className="font-bold text-sm">Enrollment file successfully submitted!</p>
-                  <p className="text-xs text-emerald-700">
-                    The file has been routed to the supervisor for review and health card generation.
+          {submitted && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-800 animate-in fade-in">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div>
+                <p className="font-bold text-sm">Enrollment file successfully submitted!</p>
+                <p className="text-xs text-emerald-700">
+                  The file has been routed to the supervisor for review and health card generation.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+            {/* LEFT COLUMN: Biometric acquisition */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Fingerprint sensor */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <Fingerprint className="w-4 h-4 text-[#0a2e6b]" />
+                    <span>1. Fingerprint Sensor Scanner</span>
+                  </h3>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">Optical 500 DPI</span>
+                </div>
+
+                <div
+                  className={`rounded-xl border-2 border-dashed ${
+                    hasBiometrics ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-slate-50'
+                  } flex flex-col items-center justify-center gap-2 py-8 px-4 transition-colors`}
+                >
+                  <Fingerprint className={`w-10 h-10 ${hasBiometrics ? 'text-emerald-600' : 'text-slate-300'}`} />
+                  <p className="text-[11px] text-slate-500 text-center">
+                    {hasBiometrics
+                      ? `Fingerprint captured & verified (${biometricData?.score || 96}%)`
+                      : "Place the insured person's finger on the USB biometric sensor."}
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsFingerprintModalOpen(true)}
+                  className="w-full py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0a2e6b] border border-blue-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Fingerprint className="w-4 h-4" />
+                  <span>{hasBiometrics ? 'Re-trigger Fingerprint Scanner Device' : 'Trigger Fingerprint Scanner Device'}</span>
+                </button>
               </div>
-            )}
 
-            {/* Section 1: Card & Identity Info */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                <Shield className="w-4 h-4 text-[#0a2e6b]" />
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-                  Beneficiary Identity
-                </h3>
+              {/* Camera & photo */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-[#0a2e6b]" />
+                    <span>2. Camera &amp; Photo Capture</span>
+                  </h3>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">ICAO Portrait</span>
+                </div>
+
+                <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-3 py-6 px-4">
+                  <div className="w-20 h-20 rounded-xl overflow-hidden bg-white border border-slate-200 flex items-center justify-center shadow-xs shrink-0">
+                    {photoData ? (
+                      <img src={photoData} alt="Insured portrait" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-9 h-9 text-slate-300" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 text-center">
+                    Neutral facial framing complying with insurance standards.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsWebcamModalOpen(true)}
+                    className="flex-1 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0a2e6b] border border-blue-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>Activate Camera &amp; Take Photo</span>
+                  </button>
+                  <label className="px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload</span>
+                    <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                  </label>
+                </div>
+                {hasPhoto && (
+                  <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Photo attached
+                  </span>
+                )}
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Health Card No <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={form.cardNo}
-                    onChange={(e) => setForm({ ...form, cardNo: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-[#0a2e6b] font-mono focus:ring-2 focus:ring-[#0a2e6b]"
-                    required
-                    placeholder="e.g. ACT-2026-10293"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Full Legal Name <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={form.fullName}
-                    onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
-                    required
-                    placeholder="e.g. John Doe"
-                  />
+            {/* RIGHT COLUMN: Personal & policy details */}
+            <div className="lg:col-span-3">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <User className="w-4 h-4 text-[#0a2e6b]" />
+                    <span>3. Insured Personal &amp; Policy Details</span>
+                  </h3>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">All fields required</span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Date of Birth <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={form.birthDate}
-                    onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
-                    required
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Health Card Number: <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide shrink-0">ACTIVA Unique Identifier</span>
+                  </div>
+                  <div className="relative">
+                    <CreditCard className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={form.cardNo}
+                      onChange={(e) => setForm({ ...form, cardNo: e.target.value })}
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-[#0a2e6b] font-mono focus:ring-2 focus:ring-[#0a2e6b]"
+                      required
+                      placeholder="e.g. ACT-2026-8392"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Last Name:</label>
+                    <input
+                      type="text"
+                      value={form.lastName}
+                      onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      required
+                      placeholder="e.g. Williams, Doe, Cooper..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">First Name:</label>
+                    <input
+                      type="text"
+                      value={form.firstName}
+                      onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      required
+                      placeholder="e.g. Samuel, Victoria, Jonathan..."
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Date of Birth:</label>
+                    <input
+                      type="date"
+                      value={form.birthDate}
+                      onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Gender:</label>
+                    <select
+                      value={form.gender}
+                      onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                    >
+                      <option value="M">Male (M)</option>
+                      <option value="F">Female (F)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Gender <span className="text-rose-500">*</span>
-                  </label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Relationship:</label>
                   <select
-                    value={form.gender}
-                    onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                    value={form.relationship}
+                    onChange={(e) => {
+                      const relationship = e.target.value as RelationshipType;
+                      setForm({ ...form, relationship });
+                      if (relationship === 'Principal') {
+                        setSelectedPrincipalCardNo('');
+                      }
+                    }}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                   >
-                    <option value="M">Male</option>
-                    <option value="F">Female</option>
+                    <option value="Principal">Principal Insured (Self / Policyholder)</option>
+                    <option value="Spouse">Spouse (Dependent)</option>
+                    <option value="Child">Child (Dependent)</option>
                   </select>
                 </div>
 
+                {form.relationship !== 'Principal' && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Mandatory Link to Principal Insured</span>
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-200/70 text-amber-900 text-[10px] font-black uppercase tracking-wide shrink-0">
+                        Dependent
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Select Principal Insured from Directory:
+                      </label>
+                      <select
+                        value={selectedPrincipalCardNo}
+                        onChange={(e) => {
+                          const cardNo = e.target.value;
+                          setSelectedPrincipalCardNo(cardNo);
+                          const match = principalDirectory.find((m) => m.cardNo === cardNo);
+                          if (match) {
+                            setForm((prev) => ({
+                              ...prev,
+                              mainInsuredName: match.principalName,
+                              mainInsuredCardNo: match.cardNo,
+                              organization: match.organization || prev.organization,
+                            }));
+                          }
+                        }}
+                        className="w-full px-3.5 py-2.5 bg-white border border-amber-300 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                      >
+                        <option value="">-- Choose Existing Principal Insured --</option>
+                        {principalDirectory.map((m) => (
+                          <option key={m.id} value={m.cardNo}>
+                            {m.principalName} — {m.cardNo}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Principal Insured Full Name <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={form.mainInsuredName}
+                          onChange={(e) => setForm({ ...form, mainInsuredName: e.target.value })}
+                          className="w-full px-3.5 py-2 bg-white border border-amber-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500"
+                          placeholder="e.g. Tamban Musa"
+                          required={form.relationship !== 'Principal'}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Principal Insured Card Number <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={form.mainInsuredCardNo}
+                          onChange={(e) => setForm({ ...form, mainInsuredCardNo: e.target.value })}
+                          className="w-full px-3.5 py-2 bg-white border border-amber-200 rounded-xl text-sm font-bold text-[#0a2e6b] font-mono focus:ring-2 focus:ring-amber-500"
+                          placeholder="e.g. ACT-2025-0012"
+                          required={form.relationship !== 'Principal'}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Organization / Employer <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Affiliated Organization: <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">Corporate Group Policy</span>
+                  </div>
                   <select
                     value={form.organization}
                     onChange={(e) => setForm({ ...form, organization: e.target.value })}
@@ -339,193 +542,45 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     {organizations.map((org) => (
                       <option key={org.id} value={org.name}>
                         {org.name}
+                        {org.policyNumber ? ` — Policy: ${org.policyNumber}` : ''}
                       </option>
                     ))}
                   </select>
                 </div>
-              </div>
-            </div>
 
-            {/* Section 2: Policy Status and Relationship */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                <User className="w-4 h-4 text-[#0a2e6b]" />
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-                  Policy Status & Beneficiary Tier
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Relationship <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={form.relationship}
-                    onChange={(e) => setForm({ ...form, relationship: e.target.value as RelationshipType })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
-                  >
-                    <option value="Principal">Principal Insured</option>
-                    <option value="Conjoint">Spouse</option>
-                    <option value="Enfant">Child / Dependent</option>
-                    <option value="Ascendant">Parent / Ascendant</option>
-                  </select>
-                </div>
-
-                {form.relationship !== 'Principal' && (
-                  <>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Principal Insured Full Name <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.mainInsuredName}
-                        onChange={(e) => setForm({ ...form, mainInsuredName: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
-                        placeholder="e.g. Samuel Doe"
-                        required={form.relationship !== 'Principal'}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Principal Health Card No <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.mainInsuredCardNo}
-                        onChange={(e) => setForm({ ...form, mainInsuredCardNo: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-[#0a2e6b] font-mono focus:ring-2 focus:ring-[#0a2e6b]"
-                        placeholder="e.g. ACT-2026-00100"
-                        required={form.relationship !== 'Principal'}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Section 3: Contact */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                <Phone className="w-4 h-4 text-[#0a2e6b]" />
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-                  Contact Details
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
-                    placeholder="+231 77 123 4567"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
-                    placeholder="insured@organization.com"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Section 4: Biometrics & Photo Capture */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                <Fingerprint className="w-4 h-4 text-[#0a2e6b]" />
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-                  Biometric Capture & Facial Identification
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Photo Box */}
-                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center justify-center space-y-4">
-                  <div className="w-28 h-28 rounded-full border-2 border-dashed border-[#0a2e6b] overflow-hidden flex items-center justify-center bg-white shadow-xs">
-                    {photoData ? (
-                      <img src={photoData} alt="Captured Profile" className="w-full h-full object-cover" />
-                    ) : (
-                      <Camera className="w-8 h-8 text-slate-300" />
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsWebcamModalOpen(true)}
-                      className="px-3.5 py-2 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Camera className="w-3.5 h-3.5 text-emerald-300" />
-                      <span>Capture Webcam</span>
-                    </button>
-
-                    <label className="px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Upload Image</span>
-                      <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                    </label>
-                  </div>
-                  {hasPhoto && (
-                    <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Photo Captured & Attached
-                    </span>
-                  )}
-                </div>
-
-                {/* Fingerprint Box */}
-                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center justify-center space-y-4">
-                  <div
-                    className={`w-28 h-28 rounded-2xl border-2 border-dashed ${
-                      hasBiometrics ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white'
-                    } flex items-center justify-center shadow-xs transition-colors`}
-                  >
-                    <Fingerprint
-                      className={`w-12 h-12 ${hasBiometrics ? 'text-emerald-600' : 'text-slate-300'}`}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Phone:</label>
+                    <input
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      placeholder="+231 77 000 0000"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Email Address (Optional):</label>
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      placeholder="name@company.lr"
+                    />
+                  </div>
+                </div>
 
+                <div className="pt-2">
                   <button
-                    type="button"
-                    onClick={() => setIsFingerprintModalOpen(true)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                      hasBiometrics
-                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-300 hover:bg-emerald-200'
-                        : 'bg-[#00A859] hover:bg-[#008f4c] text-white'
-                    }`}
+                    type="submit"
+                    className="w-full py-3 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Fingerprint className="w-3.5 h-3.5" />
-                    <span>{hasBiometrics ? 'Rescan Fingerprint ✓' : 'Scan Fingerprint'}</span>
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Submit Enrollment Application for Approval</span>
                   </button>
-
-                  {hasBiometrics && (
-                    <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Fingerprint Encrypted & Verified (
-                      {biometricData?.score || 96}%)
-                    </span>
-                  )}
                 </div>
               </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-              <button
-                type="submit"
-                className="px-8 py-3.5 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2 cursor-pointer"
-              >
-                <UserCheck className="w-4 h-4" />
-                <span>Submit Enrollment for Validation</span>
-              </button>
             </div>
           </form>
         </div>

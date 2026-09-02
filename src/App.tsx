@@ -973,9 +973,10 @@ export default function App() {
 
           {effectiveSection === 'enrollments' && (
             activeRole === 'Agent' ? (
-              <AgentEnrollmentsView 
+              <AgentEnrollmentsView
                 organizations={organizations}
                 enrollments={enrollments}
+                members={members}
                 currentUser={currentUser}
                 userRole={activeRole}
                 lang={lang}

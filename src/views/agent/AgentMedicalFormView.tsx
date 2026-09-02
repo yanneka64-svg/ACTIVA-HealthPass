@@ -385,11 +385,20 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         </button>
                       </div>
 
-                      <div className={`pt-2 border-t ${isSupervisorView ? 'border-teal-200/60' : 'border-blue-200/60'} flex items-center justify-between text-xs`}>
-                        <span className="text-slate-500 text-[11px]">Available Outpatient Balance:</span>
-                        <span className="font-bold text-[#00A859] font-mono">
-                          ${selectedMember.outpatientBalanceUSD ?? 600} USD
-                        </span>
+                      {/* === AMÉLIORATION AJOUTÉE : remplace le solde disponible (déjà affiché plus bas
+                          dans la section "Care Modality & Coverage") par la date de naissance et le
+                          sexe de l'assuré sélectionné === */}
+                      <div className={`pt-2 border-t ${isSupervisorView ? 'border-teal-200/60' : 'border-blue-200/60'} grid grid-cols-2 gap-2 text-xs`}>
+                        <div>
+                          <span className="text-slate-500 text-[11px] block">Date of Birth:</span>
+                          <span className="font-bold text-slate-800">{selectedMember.birthDate || 'N/A'}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-slate-500 text-[11px] block">Gender:</span>
+                          <span className="font-bold text-slate-800">
+                            {selectedMember.gender === 'F' ? 'Female' : selectedMember.gender === 'M' ? 'Male' : 'N/A'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ) : (
