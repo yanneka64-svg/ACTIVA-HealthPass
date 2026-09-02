@@ -33,7 +33,7 @@ import {
 import { Member, Provider, Organization, MedicalForm, UserProfile, Language } from '../../types';
 import { generateMedicalFormPDF } from '../../utils/pdfMedicalForm';
 import { LogoIcon } from '../../components/Logo';
-import { ACTIVA_LOGO_BASE64 } from '../../assets/logos'; // === AMÉLIORATION AJOUTÉE : logo Activa pour la fiche médicale ===
+import { ACTIVA_LOGO_WHITE_BASE64 } from '../../assets/logos'; // === AMÉLIORATION AJOUTÉE : logo Activa (blanc) pour la fiche médicale ===
 
 interface AgentMedicalFormViewProps {
   providers: Provider[];
@@ -794,9 +794,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* Header Bar */}
                   <div className={`${isSupervisorView ? 'bg-[#0F766E]' : 'bg-[#0A347B]'} text-white p-3.5 rounded-lg flex items-center justify-between border-b-4 border-[#00A859]`}>
                     <div className="flex items-center gap-2.5">
-                      {/* === AMÉLIORATION AJOUTÉE : logo Activa (fond transparent) à la place de la mention texte "ACTIVA HealthPass" === */}
-                      <div className="w-9 h-9 rounded-md bg-white flex items-center justify-center shrink-0 p-1">
-                        <img src={ACTIVA_LOGO_BASE64} alt="Activa" className="w-full h-full object-contain" />
+                      {/* === AMÉLIORATION AJOUTÉE : logo Activa en BLANC (silhouette), posé directement
+                          sur le bandeau coloré à la place de la mention texte "ACTIVA HealthPass" —
+                          plus de pastille blanche derrière (le logo est déjà blanc, il ressort tout seul) === */}
+                      <div className="w-10 h-9 flex items-center justify-center shrink-0">
+                        <img src={ACTIVA_LOGO_WHITE_BASE64} alt="Activa" className="w-full h-full object-contain" />
                       </div>
                       <div>
                         <div className={`text-[9.5px] ${isSupervisorView ? 'text-teal-100' : 'text-blue-100'} uppercase`}>Fiche Médicale de Prise en Charge</div>

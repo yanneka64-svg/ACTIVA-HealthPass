@@ -1,15 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import {
   BarChart3,
-  FileSpreadsheet,
-  FileText,
   Building,
   Stethoscope,
   TrendingUp,
   Clock,
   CheckCircle2,
   DollarSign,
-  Loader2,
   Calendar,
 } from 'lucide-react';
 import { Language, Claim, Organization, Provider, InvoiceItem } from '../types';
@@ -17,6 +14,7 @@ import { useTranslation } from '../i18n/translations';
 import { exportReportsToExcel, exportReportsToPDF } from '../utils/excelUtils';
 import { useCurrency } from '../services/currency';
 import { getRoleTheme } from '../theme/roleTheme';
+import { ExportDropdown } from '../components/ExportDropdown'; // === AMÉLIORATION AJOUTÉE : bouton Export unique (PDF + Excel) ===
 
 interface ReportsViewProps {
   lang: Language;
@@ -225,37 +223,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
           <div className="h-6 w-px bg-slate-200 hidden sm:block mx-0.5"></div>
 
-          {/* PDF Export Button */}
-          <button
-            id="export-pdf-button"
-            type="button"
-            onClick={handleExportPDF}
-            disabled={isExportingPdf}
-            className="px-3.5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm shadow-rose-600/20 hover:shadow transition flex items-center gap-2 cursor-pointer whitespace-nowrap"
-          >
-            {isExportingPdf ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <FileText className="w-4 h-4" />
-            )}
-            <span>{t.reports.exportPdf}</span>
-          </button>
-
-          {/* Excel Export Button */}
-          <button
-            id="export-excel-report-button"
-            type="button"
-            onClick={handleExportExcel}
-            disabled={isExportingExcel}
-            className="px-3.5 py-2.5 rounded-xl bg-[#00A859] hover:bg-[#008f4c] text-white text-xs font-bold shadow-sm shadow-emerald-600/20 hover:shadow transition flex items-center gap-2 cursor-pointer whitespace-nowrap"
-          >
-            {isExportingExcel ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <FileSpreadsheet className="w-4 h-4" />
-            )}
-            <span>{t.reports.exportExcel}</span>
-          </button>
+          {/* === AMÉLIORATION AJOUTÉE : "Export to PDF" et "Export to Excel (.xlsx)" fusionnés
+              en un seul bouton "Export" (menu déroulant), coloré par rôle — gris Admin /
+              vert Superviseur, alignés sur la couleur de la bande de menu (roleTheme.palette.primaryColor) === */}
+          <ExportDropdown
+            lang={lang}
+            label="Export"
+            accentButtonClass={roleTheme.palette.primaryColor}
+            onExportPDF={handleExportPDF}
+            onExportExcel={handleExportExcel}
+          />
         </div>
       </div>
 

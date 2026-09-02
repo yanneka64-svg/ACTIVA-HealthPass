@@ -9,6 +9,11 @@ interface ExportDropdownProps {
   lang?: Language;
   label?: string;
   className?: string;
+  // === AMÉLIORATION AJOUTÉE : permet un bouton déclencheur "plein" coloré (ex: gris Admin
+  // ou vert Superviseur, alignés sur la bande de menu via roleTheme.palette.primaryColor)
+  // à la place du style blanc/discret par défaut — utilisé par ReportsView pour fusionner
+  // "Export to PDF" et "Export to Excel" en un seul bouton Export coloré par rôle.
+  accentButtonClass?: string;
 }
 
 export const ExportDropdown: React.FC<ExportDropdownProps> = ({
@@ -18,6 +23,7 @@ export const ExportDropdown: React.FC<ExportDropdownProps> = ({
   lang = 'en',
   label,
   className = '',
+  accentButtonClass,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -50,11 +56,15 @@ export const ExportDropdown: React.FC<ExportDropdownProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer hover:border-slate-300"
+        className={
+          accentButtonClass
+            ? `px-3.5 py-2.5 rounded-xl ${accentButtonClass} text-white text-xs font-bold shadow-sm transition flex items-center gap-2 cursor-pointer whitespace-nowrap`
+            : 'px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer hover:border-slate-300'
+        }
       >
-        <Download className="w-4 h-4 text-slate-500" />
+        <Download className={`w-4 h-4 ${accentButtonClass ? 'text-white' : 'text-slate-500'}`} />
         <span>{defaultLabel}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${accentButtonClass ? 'text-white/80' : 'text-slate-400'}`} />
       </button>
 
       {isOpen && (

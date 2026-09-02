@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import { MedicalForm } from '../types';
-// === AMÉLIORATION AJOUTÉE : logos Activa (en-tête) et Globus (pied de page) sur la fiche médicale PDF ===
-import { ACTIVA_LOGO_BASE64, ACTIVA_LOGO_ASPECT, GLOBUS_LOGO_BASE64, GLOBUS_LOGO_ASPECT } from '../assets/logos';
+// === AMÉLIORATION AJOUTÉE : logos Activa (en-tête, en blanc) et Globus (pied de page) sur la fiche médicale PDF ===
+import { ACTIVA_LOGO_WHITE_BASE64, ACTIVA_LOGO_ASPECT, GLOBUS_LOGO_BASE64, GLOBUS_LOGO_ASPECT } from '../assets/logos';
 
 export const generateMedicalFormPDF = (form: MedicalForm) => {
   const doc = new jsPDF({
@@ -21,10 +21,11 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.setFillColor(0, 168, 89);
   doc.rect(0, 28, pageWidth, 2.5, 'F');
 
-  // === AMÉLIORATION AJOUTÉE : logo Activa (fond transparent) à la place de la mention texte "ACTIVA HealthPass" ===
+  // === AMÉLIORATION AJOUTÉE : logo Activa en BLANC (silhouette) à la place de la mention texte
+  // "ACTIVA HealthPass", posé directement sur le bandeau navy ===
   const activaLogoHeight = 9.5;
   const activaLogoWidth = activaLogoHeight * ACTIVA_LOGO_ASPECT;
-  doc.addImage(ACTIVA_LOGO_BASE64, 'PNG', 14, 4, activaLogoWidth, activaLogoHeight);
+  doc.addImage(ACTIVA_LOGO_WHITE_BASE64, 'PNG', 14, 4, activaLogoWidth, activaLogoHeight);
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
@@ -316,11 +317,15 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
     { align: 'center' }
   );
 
-  // === AMÉLIORATION AJOUTÉE : logo Globus en bas de page ===
-  const globusLogoHeight = 9;
+  // === AMÉLIORATION AJOUTÉE : logo Globus en bas de page, légèrement agrandi et positionné
+  // sous le bandeau "mandatory notice" (au lieu d'être calculé depuis le bas de la page, ce
+  // qui le faisait chevaucher le bandeau) — repère relatif à currentY + hauteur du bandeau,
+  // avec une marge de sécurité pour ne jamais dépasser le bas de la page. ===
+  const globusLogoHeight = 11; // agrandi (auparavant 9)
   const globusLogoWidth = globusLogoHeight * GLOBUS_LOGO_ASPECT;
   const globusLogoX = (pageWidth - globusLogoWidth) / 2;
-  const globusLogoY = pageHeight - globusLogoHeight - 7;
+  const mandatoryBannerBottomY = currentY + 11;
+  const globusLogoY = Math.min(mandatoryBannerBottomY + 2, pageHeight - globusLogoHeight - 1);
   doc.addImage(GLOBUS_LOGO_BASE64, 'PNG', globusLogoX, globusLogoY, globusLogoWidth, globusLogoHeight);
 
   return doc;
