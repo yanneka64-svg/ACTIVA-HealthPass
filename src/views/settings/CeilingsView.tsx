@@ -501,11 +501,13 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         
         {/* === AMÉLIORATION AJOUTÉE : le badge "Policy Age Limits & Real-Time Eligibility
-            Verification" est remonté sur la même ligne que les bulles PRIMARY INSURED / SPOUSE /
-            CHILD-DEPENDANT (au lieu d'être empilé au-dessus, avec le paragraphe descriptif qui
-            l'accompagnait) ; le paragraphe descriptif est descendu en dessous, sur toute la largeur === */}
+            Verification" (et le paragraphe descriptif sous lui) sont désormais alignés en HAUT
+            (items-start, au lieu de items-center) — au même niveau vertical que le libellé
+            "PRIMARY INSURED" en haut de sa bulle — et restent justifiés à l'extrême gauche de la
+            bannière ; les bulles + le bouton "Configure Benefit Limit" gardent leur position
+            initiale à droite, inchangée. === */}
         <div className="relative z-10 space-y-3">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-gray-300 shrink-0">
               <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
               <span>Policy Age Limits & Real-Time Eligibility Verification</span>
