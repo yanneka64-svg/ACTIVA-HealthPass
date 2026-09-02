@@ -159,10 +159,22 @@ export async function parseMemberExcel(
 
         const headers = Object.keys(rawJson[0]);
 
-        // Check if this is a dedicated dependents sheet (Capture 3)
-        const isDedicatedDependentsSheet = headers.some(h =>
-          matchHeaderAlias(h, ['dependent card no', 'principal card no', 'parent card no', 'dependent name'])
-        );
+        // FIX: Check if this is a dedicated dependents sheet (Capture 3).
+        // Was using matchHeaderAlias(), which does a BIDIRECTIONAL substring match
+        // (norm.includes(alias) OR alias.includes(norm)) — since every principals-only
+        // file (Capture 2) has a "Card No." column, and "card no" is itself a substring of
+        // the alias "principal card no" (and "dependent card no" / "parent card no"), EVERY
+        // Capture 2 upload was being misclassified as a dependents sheet and then rejected
+        // for lacking "Dependent Full Name" — the exact bug reported ("Missing Required
+        // Columns: Dependent Full Name" on a principals-only import). Detection now checks
+        // for the actual distinguishing words ("dependent", "principal card", "parent
+        // card") appearing IN the header, one-directional only — "Card No." alone no longer
+        // matches, while genuine Capture 3 headers ("Dependent Card No.", "Dependent Full
+        // Name", "Principal Card No.") still do.
+        const isDedicatedDependentsSheet = headers.some((h) => {
+          const norm = normalizeHeader(h);
+          return norm.includes('dependent') || norm.includes('principal card') || norm.includes('parent card');
+        });
 
         if (isDedicatedDependentsSheet) {
           // Process as Dedicated Dependents Sheet (Capture 3)
