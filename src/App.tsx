@@ -452,6 +452,15 @@ export default function App() {
     FirestoreService.deleteClaim(claimId);
   };
 
+  // FIX: InvoicesView's delete-confirmation button called onDeleteInvoice(id), but this
+  // prop was never passed at either of InvoicesView's two call sites below ('invoices' for
+  // Admin, 'receipts' for Supervisor) — so confirming a deletion silently did nothing.
+  // FirestoreService.deleteInvoice already existed and works; it just needed wiring here,
+  // matching the same pattern already used for claims/members.
+  const handleDeleteInvoice = (invoiceId: string) => {
+    return FirestoreService.deleteInvoice(invoiceId);
+  };
+
   const handleCreateClaim = async (newClaim: Partial<Claim>) => {
     await WorkflowService.submitClaim(newClaim, currentUser);
     setToastMessage("Claim submitted for review.");
@@ -880,7 +889,12 @@ export default function App() {
           )}
 
           {effectiveSection === 'invoices' && (
-            <InvoicesView lang={lang} invoices={invoices} />
+            <InvoicesView
+              lang={lang}
+              invoices={invoices}
+              userRole={activeRole}
+              onDeleteInvoice={handleDeleteInvoice}
+            />
           )}
 
           {effectiveSection === 'enrollments' && (
@@ -968,7 +982,12 @@ export default function App() {
           )}
 
           {effectiveSection === 'receipts' && (
-            <InvoicesView lang={lang} invoices={invoices} />
+            <InvoicesView
+              lang={lang}
+              invoices={invoices}
+              userRole={activeRole}
+              onDeleteInvoice={handleDeleteInvoice}
+            />
           )}
 
           {effectiveSection === 'reports' && (
