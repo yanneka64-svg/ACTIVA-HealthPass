@@ -328,6 +328,66 @@ function reconcileOrganizationName(sheetOrgName: string, existingOrganizations: 
   return match ? match.name : sheetOrgName;
 }
 
+// === AMÉLIORATION AJOUTÉE : fusion non destructive des ayants droit (dépendants) =========
+// Avant ce correctif, ré-importer un fichier remplaçait ENTIÈREMENT le tableau
+// `dependents[]`/`children[]` existant dès que la ligne du fichier en contenait au moins un
+// — supprimant silencieusement tout ayant droit ajouté manuellement dans l'application et
+// absent de ce fichier Excel précis. `mergeDependentsForImport` fusionne au lieu de
+// remplacer : chaque dépendant importé est apparié à un dépendant existant (par numéro de
+// carte s'il existe des deux côtés, sinon par relation + nom complet), et seuls les champs
+// VIDES du dépendant existant sont complétés depuis l'import (jamais écrasés s'ils sont déjà
+// renseignés) — cohérent avec la règle "seules les informations manquantes sont mises à
+// jour". Un dépendant importé sans correspondance est ajouté (ex. nouvel enfant) ; un
+// dépendant existant absent de l'import est conservé tel quel (jamais supprimé par un import).
+function mergeDependentsForImport(
+  existingDeps: DependentItem[],
+  importedDeps: DependentItem[]
+): DependentItem[] {
+  const matchDependent = (imported: DependentItem): DependentItem | undefined => {
+    if (imported.cardNo) {
+      const byCard = existingDeps.find((d) => d.cardNo && d.cardNo.toLowerCase() === imported.cardNo!.toLowerCase());
+      if (byCard) return byCard;
+    }
+    return existingDeps.find(
+      (d) =>
+        d.relationship === imported.relationship &&
+        d.fullName.trim().toLowerCase() === imported.fullName.trim().toLowerCase()
+    );
+  };
+
+  const mergedByExistingId = new Map<DependentItem, DependentItem>();
+
+  importedDeps.forEach((imported) => {
+    const existing = matchDependent(imported);
+    if (!existing) {
+      mergedByExistingId.set(imported, imported);
+      return;
+    }
+    mergedByExistingId.set(existing, {
+      ...existing,
+      // Fields intentionally kept from the EXISTING record when already present — an
+      // import only fills in what's missing, it never overwrites a known value.
+      cardNo: existing.cardNo || imported.cardNo,
+      birthDate: existing.birthDate || imported.birthDate,
+      age: existing.age ?? imported.age,
+      gender: existing.gender || imported.gender,
+      // A biometric capture already on file must never be "un-captured" by a re-import.
+      hasBiometrics: existing.hasBiometrics || imported.hasBiometrics || false,
+    });
+  });
+
+  // Existing dependents that this import didn't mention at all (e.g. added manually from
+  // the Insured Members screen, or from a previous file covering a different subset) are
+  // preserved unchanged — an import is additive/enriching, never destructive.
+  existingDeps.forEach((existing) => {
+    if (!mergedByExistingId.has(existing)) {
+      mergedByExistingId.set(existing, existing);
+    }
+  });
+
+  return Array.from(mergedByExistingId.values());
+}
+
 export interface MultiOrgImportResult extends ImportResult<Member> {
   organizationsFound: string[];
   newOrganizationsDetected: string[];
@@ -407,6 +467,11 @@ export async function parseActivaMultiOrgExcel(
           const spouseNameHeader = staffHeaders.find(
             (h) => matchHeaderAlias(h, MEMBER_COLUMN_MAPPINGS.spouseName) && h !== spouseDobHeader
           );
+          // === AMÉLIORATION AJOUTÉE : la colonne "Biometrics" du principal (présente sur le
+          // modèle réel du client, ex. Samaritain Purse - Staff) n'était lue nulle part —
+          // seule celle de la feuille "Deps" (pour les ayants droit) l'était. Le statut
+          // biométrique du principal en dépendait donc uniquement des dépendants.
+          const staffBiometricsHeader = staffHeaders.find((h) => /biometric/i.test(h));
 
           if (!cardNoHeader || !nameHeader) {
             errors.push(`Sheet "${staffSheetName}": missing "Card No." / "Primary Insured Name" column, sheet skipped.`);
@@ -478,6 +543,8 @@ export async function parseActivaMultiOrgExcel(
             const phone = contactHeader ? String(row[contactHeader] || '').trim() : '';
             const spouseNameVal = spouseNameHeader ? String(row[spouseNameHeader] || '').trim() : '';
             const spouseDobVal = spouseDobHeader ? excelCellToISODate(row[spouseDobHeader]) : '';
+            const staffBiometricsRaw = staffBiometricsHeader ? String(row[staffBiometricsHeader] || '').trim().toLowerCase() : '';
+            const principalHasBiometrics = staffBiometricsRaw === 'yes' || staffBiometricsRaw === 'true' || staffBiometricsRaw === '1';
 
             const depRows = depsByPrincipalCard.get(cardNoVal.toLowerCase()) || [];
             const matchedDepRows = new Set<DepsSheetEntry>();
@@ -526,20 +593,37 @@ export async function parseActivaMultiOrgExcel(
               if (!matchedDepRows.has(d)) orphanDependents++;
             });
 
+            // === AMÉLIORATION AJOUTÉE : fusion non destructive au lieu d'un remplacement pur
+            // et simple — voir mergeDependentsForImport ci-dessus. `children` (libellé texte
+            // hérité) est régénéré à partir du jeu FUSIONNÉ afin de rester cohérent avec
+            // `dependents`, plutôt que de refléter uniquement ce que ce fichier contient.
+            const mergedDependents = mergeDependentsForImport(existingMember?.dependents || [], dependents);
+            const mergedChildrenLegacy = mergedDependents
+              .filter((d) => d.relationship === 'child')
+              .map((d) => {
+                const age = d.birthDate ? calcAgeFromISODate(d.birthDate) : undefined;
+                return age !== undefined ? `${d.fullName} (${age} yrs)` : d.fullName;
+              });
+
             const memberObj: Member = {
               id: existingMember ? existingMember.id : `mem-imp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               cardNo: cardNoVal,
-              principalName: principalVal,
-              spouseName: spouseNameVal || existingMember?.spouseName,
-              children: childrenLegacy.length > 0 ? childrenLegacy : existingMember?.children || [],
-              dependents: dependents.length > 0 ? dependents : existingMember?.dependents || [],
-              birthDate: birthDate || existingMember?.birthDate || '1985-01-01',
+              // === AMÉLIORATION AJOUTÉE : "seules les informations manquantes sont mises à
+              // jour" — si le membre existe déjà, sa valeur actuelle est conservée en
+              // priorité ; la valeur importée ne sert qu'à compléter un champ VIDE. Un
+              // renommage/changement légitime (ex. mariage) doit donc passer par une
+              // modification manuelle dans l'application plutôt qu'un simple ré-import.
+              principalName: existingMember?.principalName || principalVal,
+              spouseName: existingMember?.spouseName || spouseNameVal || undefined,
+              children: mergedChildrenLegacy.length > 0 ? mergedChildrenLegacy : existingMember?.children || [],
+              dependents: mergedDependents,
+              birthDate: existingMember?.birthDate || birthDate || '1985-01-01',
               relationship: existingMember?.relationship || 'Primary',
-              organization,
+              organization: existingMember?.organization || organization,
               status: existingMember?.status || 'Active',
               hasPhoto: existingMember?.hasPhoto || false,
-              hasBiometrics: existingMember?.hasBiometrics || dependents.some((d) => d.hasBiometrics),
-              phone: phone || existingMember?.phone,
+              hasBiometrics: existingMember?.hasBiometrics || principalHasBiometrics || mergedDependents.some((d) => d.hasBiometrics),
+              phone: existingMember?.phone || phone || undefined,
               outpatientBalanceUSD: existingMember?.outpatientBalanceUSD ?? 1000,
               outpatientCeilingUSD: existingMember?.outpatientCeilingUSD ?? 1000,
               inpatientBalanceUSD: existingMember?.inpatientBalanceUSD ?? 10000,
@@ -628,6 +712,10 @@ export function generateMultiOrgTemplateExcel() {
     ['   - Spouse Name / Spouse Date of Birth: spouse (optional)'],
     ['   - Child 1 Name / Child 1 Date of Birth, Child 2 Name / Child 2 Date of Birth, ... :'],
     ['     one child per column pair. Add as many "Child N" pairs as needed.'],
+    ['   - Organization (optional): informational only — the organization is always taken'],
+    ['     from the sheet name, not from this column.'],
+    ['   - Biometrics (optional): "Yes" if the PRINCIPAL\'s fingerprints have already been'],
+    ['     captured.'],
     [''],
     ['3. Sheet "... - Deps" (1 row = 1 dependent, spouse OR child) — gives each'],
     ['   dependent their OWN card number, used to identify/reimburse them:'],
@@ -644,17 +732,29 @@ export function generateMultiOrgTemplateExcel() {
     ['   will still be imported from the "Staff" sheet, but WITHOUT their own card number'],
     ['   (to be completed later from the Insured Members screen).'],
     [''],
-    ['5. Re-importing this file after editing it updates existing records (by card'],
-    ['   number) instead of duplicating them — so you can also use it for updates.'],
+    ['5. Re-importing this file after editing it updates existing records (matched by'],
+    ['   card number) instead of duplicating them. Only MISSING information is filled in:'],
+    ['   a field already set on an existing record (name, date of birth, phone,'],
+    ['   organization...) is never overwritten by the import — edit it directly from the'],
+    ['   Insured Members screen instead. Dependents are merged the same way: a dependent'],
+    ['   already on file is enriched (missing card number/date of birth filled in) rather'],
+    ['   than replaced, and a dependent added manually in the app that this file doesn\'t'],
+    ['   mention is kept, never removed by the import.'],
   ];
   const wsInstructions = XLSX.utils.aoa_to_sheet(instructions);
   wsInstructions['!cols'] = [{ wch: 100 }];
   XLSX.utils.book_append_sheet(wb, wsInstructions, 'INSTRUCTIONS');
 
+  // === AMÉLIORATION AJOUTÉE : colonnes "Organization" et "Biometrics" ajoutées à la feuille
+  // Staff pour correspondre exactement au modèle réel utilisé par le client (ex.
+  // "Samaritain Purse - Staff"), qui les inclut. "Organization" reste purement informative
+  // ici (l'organisation est toujours déterminée par le nom de la feuille) ; "Biometrics"
+  // ("Yes"/vide) est désormais bien lue par le parseur pour le statut du PRINCIPAL — voir
+  // staffBiometricsHeader dans parseActivaMultiOrgExcel.
   const staffData = [
-    ['Card No.', 'Primary Insured Name', 'Date of Birth', 'Contact', 'Spouse Name', 'Spouse Date of Birth', 'Child 1 Name', 'Child 1 Date of Birth', 'Child 2 Name', 'Child 2 Date of Birth'],
-    ['EXG-00001-0001', 'Samuel DOE', '1985-05-14', '+231 88 000 1122', 'Mary DOE', '1987-02-20', 'James DOE', '2015-08-31', 'Linda DOE', '2018-12-11'],
-    ['EXG-00002-0002', 'Grace KOLLIE', '1990-11-20', '+231 77 000 3344', '', '', 'Peter KOLLIE', '2020-04-04', '', ''],
+    ['Card No.', 'Primary Insured Name', 'Date of Birth', 'Contact', 'Spouse Name', 'Spouse Date of Birth', 'Child 1 Name', 'Child 1 Date of Birth', 'Child 2 Name', 'Child 2 Date of Birth', 'Organization', 'Biometrics'],
+    ['EXG-00001-0001', 'Samuel DOE', '1985-05-14', '+231 88 000 1122', 'Mary DOE', '1987-02-20', 'James DOE', '2015-08-31', 'Linda DOE', '2018-12-11', 'Example Org', 'Yes'],
+    ['EXG-00002-0002', 'Grace KOLLIE', '1990-11-20', '+231 77 000 3344', '', '', 'Peter KOLLIE', '2020-04-04', '', '', 'Example Org', ''],
   ];
   const wsStaff = XLSX.utils.aoa_to_sheet(staffData);
   XLSX.utils.book_append_sheet(wb, wsStaff, 'Example Org - Staff');

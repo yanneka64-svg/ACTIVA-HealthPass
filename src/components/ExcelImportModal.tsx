@@ -40,21 +40,55 @@ export function ExcelImportModal<T>({
 
   if (!isOpen) return null;
 
-  const handleFile = async (file: File) => {
-    if (!file) return;
-    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+  // === AMÉLIORATION AJOUTÉE : accepter les 2 fichiers "Staff" / "Deps" séparément ===
+  // Le modèle réel du client (voir les fichiers joints) livre le Staff et le Deps de
+  // chaque organisation dans DEUX classeurs Excel distincts, alors que
+  // parseActivaMultiOrgExcel() attend UN classeur contenant les deux feuilles. Avant ce
+  // correctif, l'utilisateur aurait dû fusionner les fichiers lui-même avant import — pas
+  // réaliste pour un utilisateur non technique. Ici, quand plusieurs fichiers sont
+  // sélectionnés/déposés d'un coup pour l'import "members-multi-org", leurs feuilles sont
+  // fusionnées en un seul classeur en mémoire avant d'être transmises à onImport(),
+  // exactement comme si l'utilisateur avait lui-même combiné les feuilles. Un fichier
+  // unique (déjà combiné, ou pour les imports members/organizations/providers) continue de
+  // fonctionner exactement comme avant.
+  async function mergeWorkbooksIntoSingleFile(files: File[]): Promise<File> {
+    const wb = XLSX.utils.book_new();
+    for (const file of files) {
+      const buffer = await file.arrayBuffer();
+      const fileWb = XLSX.read(buffer, { type: 'array', cellDates: true });
+      fileWb.SheetNames.forEach((sheetName) => {
+        // Sheet names must stay unique within the combined workbook; in the (unlikely)
+        // case of a clash between files, suffix with the source filename.
+        const uniqueName = wb.SheetNames.includes(sheetName)
+          ? `${sheetName} (${file.name})`.slice(0, 31)
+          : sheetName;
+        XLSX.utils.book_append_sheet(wb, fileWb.Sheets[sheetName], uniqueName);
+      });
+    }
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new File([out], 'combined-import.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  }
+
+  const handleFiles = async (fileList: File[]) => {
+    const files = fileList.filter(Boolean);
+    if (files.length === 0) return;
+    const invalid = files.find((f) => !f.name.endsWith('.xlsx') && !f.name.endsWith('.xls'));
+    if (invalid) {
       alert('Please select an Excel file (.xlsx or .xls)');
       return;
     }
 
-    setSelectedFileName(file.name);
+    setSelectedFileName(files.map((f) => f.name).join(' + '));
     setLoading(true);
     setResult(null);
 
     try {
       // Small simulated delay for processing animation
       await new Promise(r => setTimeout(r, 600));
-      const res = await onImport(file);
+      const fileToImport = files.length > 1 ? await mergeWorkbooksIntoSingleFile(files) : files[0];
+      const res = await onImport(fileToImport);
       setResult(res);
       if (res.success && res.parsedItems.length > 0) {
         onSuccess(res.parsedItems);
@@ -78,7 +112,7 @@ export function ExcelImportModal<T>({
     e.preventDefault();
     setDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFile(e.dataTransfer.files[0]);
+      handleFiles(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -157,14 +191,14 @@ export function ExcelImportModal<T>({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
       <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="bg-[#0a2e6b] px-6 py-4.5 text-white flex items-center justify-between">
+        <div className="bg-[var(--brand-900)] px-6 py-4.5 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-emerald-300">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
               <h3 className="font-bold text-lg leading-tight">{title}</h3>
-              <p className="text-xs text-blue-100 mt-0.5">{t.excel.columnToleranceNote}</p>
+              <p className="text-xs text-[var(--brand-100)] mt-0.5">{t.excel.columnToleranceNote}</p>
             </div>
           </div>
           <button
@@ -190,32 +224,35 @@ export function ExcelImportModal<T>({
               className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 ${
                 dragOver
                   ? 'border-[#00A859] bg-emerald-50/50'
-                  : 'border-slate-300 hover:border-[#0a2e6b] hover:bg-blue-50/30'
+                  : 'border-slate-300 hover:border-[var(--brand-900)] hover:bg-[var(--brand-50)]/30'
               }`}
             >
               <input
                 ref={fileInputRef}
                 type="file"
                 accept=".xlsx,.xls"
+                multiple={targetType === 'members-multi-org'}
                 className="hidden"
                 onChange={(e) => {
                   if (e.target.files && e.target.files.length > 0) {
-                    handleFile(e.target.files[0]);
+                    handleFiles(Array.from(e.target.files));
                   }
                 }}
               />
-              <div className="w-14 h-14 rounded-2xl bg-blue-100/70 text-[#0a2e6b] flex items-center justify-center shadow-xs">
-                <UploadCloud className="w-8 h-8 text-[#0a2e6b]" />
+              <div className="w-14 h-14 rounded-2xl bg-[var(--brand-100)]/70 text-[var(--brand-900)] flex items-center justify-center shadow-xs">
+                <UploadCloud className="w-8 h-8 text-[var(--brand-900)]" />
               </div>
               <div>
                 <p className="font-semibold text-slate-800 text-sm">{t.excel.importHint}</p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {'Accepted formats: .xlsx, .xls'}
+                  {targetType === 'members-multi-org'
+                    ? 'Accepted formats: .xlsx, .xls — select (or drag) BOTH the "Staff" and "Deps" files together if they are separate.'
+                    : 'Accepted formats: .xlsx, .xls'}
                 </p>
               </div>
               <button
                 type="button"
-                className="mt-2 px-4 py-2 bg-[#0a2e6b] hover:bg-[#092d66] text-white rounded-lg text-xs font-semibold shadow-xs transition"
+                className="mt-2 px-4 py-2 bg-[var(--brand-900)] hover:bg-[#092d66] text-white rounded-lg text-xs font-semibold shadow-xs transition"
               >
                 {'Browse Files'}
               </button>
@@ -288,8 +325,8 @@ export function ExcelImportModal<T>({
                   <span className="block text-2xl font-black text-emerald-600">{result.created}</span>
                   <span className="text-[11px] font-medium text-slate-600">{t.excel.createdCount}</span>
                 </div>
-                <div className="bg-white rounded-lg p-3 text-center border border-blue-100 shadow-xs">
-                  <span className="block text-2xl font-black text-[#0a2e6b]">{result.updated}</span>
+                <div className="bg-white rounded-lg p-3 text-center border border-[var(--brand-100)] shadow-xs">
+                  <span className="block text-2xl font-black text-[var(--brand-900)]">{result.updated}</span>
                   <span className="text-[11px] font-medium text-slate-600">{t.excel.updatedCount}</span>
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center border border-slate-100 shadow-xs">
@@ -334,7 +371,7 @@ export function ExcelImportModal<T>({
             <button
               type="button"
               onClick={downloadSampleTemplate}
-              className="inline-flex items-center gap-1.5 text-xs text-[#0a2e6b] hover:underline font-semibold"
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--brand-900)] hover:underline font-semibold"
             >
               <Download className="w-4 h-4" />
               {t.excel.downloadTemplate}
