@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Search, User, CreditCard, Shield, Clock, HeartPulse, Activity, AlertTriangle, Fingerprint, Users, FileCheck, ScanFace, Stethoscope } from 'lucide-react';
+import { Search, User, CreditCard, Shield, Clock, HeartPulse, Activity, AlertTriangle, Fingerprint, Users, FileCheck, ScanFace, Stethoscope, Table2, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { Member, Claim, Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
@@ -18,6 +18,24 @@ interface AgentIdentificationViewProps {
 // Maximum number of matching candidates shown while typing (kept small and scrollable —
 // this is a live lookup helper, not a full directory export).
 const MAX_SEARCH_RESULTS = 8;
+const DIRECTORY_PAGE_SIZE = 10;
+
+// === AMÉLIORATION AJOUTÉE : prédicat de correspondance factorisé — utilisé à la fois par
+// la liste déroulante de suggestions (searchResults, plafonnée) et par le tableau
+// "Insured Members Directory" ci-dessous (non plafonné), pour rester cohérents.
+function memberMatchesQuery(m: Member, q: string): boolean {
+  if (!q) return true;
+  const cardNo = (m.cardNo || '').toLowerCase().trim();
+  const principalName = (m.principalName || '').toLowerCase().trim();
+  const spouseName = (m.spouseName || '').toLowerCase().trim();
+  return (
+    (!!cardNo && cardNo.includes(q)) ||
+    (!!principalName && principalName.includes(q)) ||
+    (!!spouseName && spouseName.includes(q)) ||
+    (m.dependents || []).some((d) => (d.fullName || '').toLowerCase().includes(q) || (d.cardNo || '').toLowerCase().trim() === q) ||
+    (m.children || []).some((c) => (c || '').toLowerCase().includes(q))
+  );
+}
 
 export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = ({ members, claims, lang, onGenerateMedicalForm }) => {
   const t = useTranslation(lang);
@@ -31,6 +49,8 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   // Tracks whether the results dropdown should render — closed right after picking a
   // result so it doesn't linger open showing that same single match underneath the field.
   const [isResultsDropdownOpen, setIsResultsDropdownOpen] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : page courante du tableau "Insured Members Directory" ci-dessous.
+  const [directoryPage, setDirectoryPage] = useState(1);
 
   // === AMÉLIORATION AJOUTÉE : la recherche affiche désormais la LISTE de tous les assurés
   // correspondants (importés via Excel ou issus d'un enrôlement validé — les deux
@@ -39,20 +59,26 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   const searchResults = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return [];
-    const matches = members.filter((m) => {
-      const cardNo = (m.cardNo || '').toLowerCase().trim();
-      const principalName = (m.principalName || '').toLowerCase().trim();
-      const spouseName = (m.spouseName || '').toLowerCase().trim();
-      return (
-        (!!cardNo && cardNo.includes(q)) ||
-        (!!principalName && principalName.includes(q)) ||
-        (!!spouseName && spouseName.includes(q)) ||
-        (m.dependents || []).some((d) => (d.fullName || '').toLowerCase().includes(q) || (d.cardNo || '').toLowerCase().trim() === q) ||
-        (m.children || []).some((c) => (c || '').toLowerCase().includes(q))
-      );
-    });
-    return matches.slice(0, MAX_SEARCH_RESULTS);
+    return members.filter((m) => memberMatchesQuery(m, q)).slice(0, MAX_SEARCH_RESULTS);
   }, [members, searchQuery]);
+
+  // === AMÉLIORATION AJOUTÉE : tableau des assurés TOUJOURS visible (importés via Excel ou
+  // issus d'un enrôlement validé — même source `members`, sans filtrage), pas seulement une
+  // liste de suggestions qui disparaît. Répond directement à "la liste des assurés...doit
+  // apparaître côté agent". Trié par date d'enregistrement la plus récente pour que les
+  // imports/enrôlements qui viennent d'arriver soient immédiatement visibles en haut.
+  const directoryMembers = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    const filtered = q ? members.filter((m) => memberMatchesQuery(m, q)) : members;
+    return [...filtered].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }, [members, searchQuery]);
+
+  const directoryTotalPages = Math.max(1, Math.ceil(directoryMembers.length / DIRECTORY_PAGE_SIZE));
+  const directoryPageClamped = Math.min(directoryPage, directoryTotalPages);
+  const directoryPageRows = directoryMembers.slice(
+    (directoryPageClamped - 1) * DIRECTORY_PAGE_SIZE,
+    directoryPageClamped * DIRECTORY_PAGE_SIZE
+  );
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +146,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 setSearchQuery(e.target.value);
                 setBiometricMatchMessage(null);
                 setIsResultsDropdownOpen(true);
+                setDirectoryPage(1);
               }}
               onFocus={() => setIsResultsDropdownOpen(true)}
               onBlur={() => setTimeout(() => setIsResultsDropdownOpen(false), 150)}
@@ -173,6 +200,102 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             <AlertTriangle className="w-5 h-5" />
             <span className="text-sm font-semibold">No insured member found matching this search criteria.</span>
           </div>
+        )}
+      </div>
+
+      {/* === AMÉLIORATION AJOUTÉE : tableau des assurés TOUJOURS visible (import Excel ou
+          enrôlement validé — même source de données `members`), avec pagination, pour que
+          l'agent puisse parcourir la liste directement sans devoir connaître un nom ou un
+          n° de carte à l'avance. Se filtre automatiquement avec la recherche ci-dessus. */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <Table2 className="w-4 h-4 text-[var(--brand-900)]" />
+            <span>Insured Members Directory</span>
+          </h3>
+          <span className="text-xs font-semibold text-slate-500">
+            {directoryMembers.length} member{directoryMembers.length === 1 ? '' : 's'}
+            {searchQuery.trim() ? ' matching' : ' total'}
+          </span>
+        </div>
+
+        {directoryMembers.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs italic">
+            {members.length === 0
+              ? 'No insured member has been imported or enrolled yet.'
+              : 'No insured member matches this search.'}
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/50 text-[10.5px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    <th className="py-2.5 px-4">Card No.</th>
+                    <th className="py-2.5 px-4">Principal Name</th>
+                    <th className="py-2.5 px-4">Organization</th>
+                    <th className="py-2.5 px-4 text-center">Dependents</th>
+                    <th className="py-2.5 px-4 text-center">Biometrics</th>
+                    <th className="py-2.5 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {directoryPageRows.map((m) => {
+                    const depCount = (m.spouseName ? 1 : 0) + (m.children?.length || 0);
+                    return (
+                      <tr key={m.id} className={`hover:bg-[var(--brand-50)]/50 transition ${selectedMember?.id === m.id ? 'bg-[var(--brand-50)]' : ''}`}>
+                        <td className="py-2.5 px-4 font-mono font-bold text-[var(--brand-900)] whitespace-nowrap">{m.cardNo}</td>
+                        <td className="py-2.5 px-4 font-semibold text-slate-800">{m.principalName}</td>
+                        <td className="py-2.5 px-4 text-slate-600 truncate max-w-[200px]">{m.organization}</td>
+                        <td className="py-2.5 px-4 text-center text-slate-600">{depCount}</td>
+                        <td className="py-2.5 px-4 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${m.hasBiometrics ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {m.hasBiometrics ? 'Captured' : 'Missing'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectResult(m)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-[10.5px] font-bold transition cursor-pointer"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>Identify</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {directoryTotalPages > 1 && (
+              <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-500">
+                  Page {directoryPageClamped} of {directoryTotalPages}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={directoryPageClamped <= 1}
+                    onClick={() => setDirectoryPage((p) => Math.max(1, p - 1))}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={directoryPageClamped >= directoryTotalPages}
+                    onClick={() => setDirectoryPage((p) => Math.min(directoryTotalPages, p + 1))}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
