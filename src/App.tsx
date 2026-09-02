@@ -1042,6 +1042,7 @@ export default function App() {
               invoices={invoices}
               organizations={organizations}
               providers={providers}
+              userRole={userRole || undefined}
             />
           )}
 

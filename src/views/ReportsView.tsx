@@ -16,6 +16,7 @@ import { Language, Claim, Organization, Provider, InvoiceItem } from '../types';
 import { useTranslation } from '../i18n/translations';
 import { exportReportsToExcel, exportReportsToPDF } from '../utils/excelUtils';
 import { useCurrency } from '../services/currency';
+import { getRoleTheme } from '../theme/roleTheme';
 
 interface ReportsViewProps {
   lang: Language;
@@ -23,6 +24,7 @@ interface ReportsViewProps {
   invoices: InvoiceItem[];
   organizations: Organization[];
   providers: Provider[];
+  userRole?: string;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
@@ -31,9 +33,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   invoices,
   organizations,
   providers,
+  userRole = 'Admin',
 }) => {
   const t = useTranslation(lang);
   const { formatAmount } = useCurrency();
+  // === AMÉLIORATION AJOUTÉE : couleurs alignées sur le rôle connecté (gris Admin / teal
+  // Supervisor) au lieu du bleu marine Agent affiché en dur auparavant.
+  const roleTheme = getRoleTheme(userRole);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
@@ -195,7 +201,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="flex items-center gap-2.5 flex-wrap xl:flex-nowrap justify-start xl:justify-end">
           {/* Integrated Date Pickers (From / To Calendar) */}
           <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">
-            <Calendar className="w-3.5 h-3.5 text-[#0a2e6b]" />
+            <Calendar className={`w-3.5 h-3.5 ${roleTheme.palette.primaryText}`} />
             <span className="text-xs font-bold text-slate-500">From:</span>
             <input
               id="report-start-date"
@@ -261,7 +267,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               {t.reports.totalBilled}
             </span>
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0a2e6b] flex items-center justify-center">
+            <div className={`w-10 h-10 rounded-xl bg-slate-100 ${roleTheme.palette.primaryText} flex items-center justify-center`}>
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
@@ -338,7 +344,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#0a2e6b] flex items-center justify-center">
+              <div className={`w-8 h-8 rounded-lg bg-slate-100 ${roleTheme.palette.primaryText} flex items-center justify-center`}>
                 <Stethoscope className="w-4 h-4" />
               </div>
               <h3 className="font-extrabold text-sm text-slate-900">
@@ -368,7 +374,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       className="h-full rounded-full transition-all duration-500"
                       style={{
                         width: `${widthPct}%`,
-                        backgroundColor: idx % 2 === 0 ? '#0a2e6b' : '#00A859',
+                        backgroundColor: idx % 2 === 0 ? roleTheme.palette.sidebarBg : '#00A859',
                       }}
                     ></div>
                   </div>
@@ -419,7 +425,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       className="h-full rounded-full transition-all duration-500"
                       style={{
                         width: `${widthPct}%`,
-                        backgroundColor: idx % 2 === 0 ? '#00A859' : '#0a2e6b',
+                        backgroundColor: idx % 2 === 0 ? '#00A859' : roleTheme.palette.sidebarBg,
                       }}
                     ></div>
                   </div>

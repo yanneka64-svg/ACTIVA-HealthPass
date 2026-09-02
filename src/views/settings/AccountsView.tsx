@@ -711,7 +711,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>+ New Account</span>
+            <span>New Account</span>
           </button>
         </div>
       </div>

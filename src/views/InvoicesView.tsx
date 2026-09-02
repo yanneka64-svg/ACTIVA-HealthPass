@@ -49,19 +49,21 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
   const canDeleteInvoice = isAdmin || isSupervisor;
 
+  // === AMÉLIORATION AJOUTÉE : gris de la barre latérale Admin (auparavant bg-slate-900,
+  // un noir quasi-pur perçu comme "noir" plutôt que gris par l'utilisateur) ===
   const primaryBtnClass = isAdmin
-    ? 'bg-slate-900 hover:bg-slate-800 text-white'
+    ? 'bg-slate-700 hover:bg-slate-800 text-white'
     : isSupervisor
     ? 'bg-[#0F766E] hover:bg-[#115E59] text-white'
     : 'bg-[#0A347B] hover:bg-[#072659] text-white';
 
   const activeTabClass = isAdmin
-    ? 'bg-slate-900 text-white shadow-xs'
+    ? 'bg-slate-700 text-white shadow-xs'
     : isSupervisor
     ? 'bg-[#0F766E] text-white shadow-xs'
     : 'bg-[#0A347B] text-white shadow-xs';
 
-  const primaryTextClass = isAdmin ? 'text-slate-900' : isSupervisor ? 'text-[#0F766E]' : 'text-[#0A347B]';
+  const primaryTextClass = isAdmin ? 'text-slate-700' : isSupervisor ? 'text-[#0F766E]' : 'text-[#0A347B]';
 
   const handleDeleteConfirm = async () => {
     if (!invoiceToDelete || !onDeleteInvoice) return;
