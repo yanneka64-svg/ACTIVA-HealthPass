@@ -6,6 +6,9 @@ interface ExportDropdownProps {
   onExportExcel?: () => void;
   onExportCSV?: () => void;
   onExportPDF?: () => void;
+  // === AMÉLIORATION AJOUTÉE : option d'export JSON, utilisée par LogsView pour fusionner
+  // les boutons "CSV" et "JSON" en un seul bouton Export ===
+  onExportJSON?: () => void;
   lang?: Language;
   label?: string;
   className?: string;
@@ -20,6 +23,7 @@ export const ExportDropdown: React.FC<ExportDropdownProps> = ({
   onExportExcel,
   onExportCSV,
   onExportPDF,
+  onExportJSON,
   lang = 'en',
   label,
   className = '',
@@ -40,7 +44,7 @@ export const ExportDropdown: React.FC<ExportDropdownProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleExport = (type: 'excel' | 'csv' | 'pdf') => {
+  const handleExport = (type: 'excel' | 'csv' | 'pdf' | 'json') => {
     setIsOpen(false);
     if (type === 'excel' && onExportExcel) {
       onExportExcel();
@@ -48,6 +52,8 @@ export const ExportDropdown: React.FC<ExportDropdownProps> = ({
       onExportCSV();
     } else if (type === 'pdf' && onExportPDF) {
       onExportPDF();
+    } else if (type === 'json' && onExportJSON) {
+      onExportJSON();
     }
   };
 
@@ -117,6 +123,22 @@ export const ExportDropdown: React.FC<ExportDropdownProps> = ({
               <div>
                 <span className="block font-bold">Export to PDF</span>
                 <span className="text-[10px] text-slate-400 block">Printable report (.pdf)</span>
+              </div>
+            </button>
+          )}
+
+          {onExportJSON && (
+            <button
+              type="button"
+              onClick={() => handleExport('json')}
+              className="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-800 flex items-center gap-2.5 transition cursor-pointer"
+            >
+              <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+                <FileText className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="block font-bold">Export to JSON</span>
+                <span className="text-[10px] text-slate-400 block">Structured data (.json)</span>
               </div>
             </button>
           )}
