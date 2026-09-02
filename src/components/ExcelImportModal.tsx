@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { UploadCloud, FileSpreadsheet, AlertTriangle, CheckCircle2, X, RefreshCw, Download, FileText, Users, UserCheck } from 'lucide-react';
 import { Language } from '../types';
 import { useTranslation } from '../i18n/translations';
-import { ImportResult, generateMemberTemplateExcel, generateDependentsTemplateExcel, downloadBlob } from '../utils/excelUtils';
+import { ImportResult, generateMemberTemplateExcel, downloadBlob } from '../utils/excelUtils';
 import * as XLSX from 'xlsx';
 
 interface ExcelImportModalProps<T> {
@@ -290,16 +290,7 @@ export function ExcelImportModal<T>({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Template Assurés Principaux (Capture 2)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={generateDependentsTemplateExcel}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Template Dépendants / Ayants Droit (Capture 3)</span>
+                  <span>Template Assurés Principaux</span>
                 </button>
               </div>
             ) : (
