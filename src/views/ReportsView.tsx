@@ -84,7 +84,25 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       .reduce((sum, c) => sum + c.amount, 0);
   }, [filteredClaims]);
 
-  const avgProcessingTime = '1.8 day(s)';
+  // === AMÉLIORATION AJOUTÉE : temps de traitement moyen calculé à partir des vraies dates
+  // de soumission/décision des sinistres, au lieu d'une valeur fixe "1.8 day(s)" jamais
+  // recalculée. Affiche "—" tant qu'aucune décision avec les deux dates n'est disponible,
+  // plutôt que d'inventer un chiffre.
+  const avgProcessingTime = useMemo(() => {
+    const durationsMs: number[] = [];
+    filteredClaims.forEach((c) => {
+      if (c.status === 'pending' || !c.submissionDate || !c.decisionDate) return;
+      const submitted = new Date(c.submissionDate).getTime();
+      const decided = new Date(c.decisionDate).getTime();
+      if (!isNaN(submitted) && !isNaN(decided) && decided >= submitted) {
+        durationsMs.push(decided - submitted);
+      }
+    });
+    if (durationsMs.length === 0) return '—';
+    const avgMs = durationsMs.reduce((sum, d) => sum + d, 0) / durationsMs.length;
+    const avgDays = avgMs / (1000 * 60 * 60 * 24);
+    return `${avgDays.toFixed(1)} day(s)`;
+  }, [filteredClaims]);
   const totalDecisions = filteredClaims.filter((c) => c.status !== 'pending').length || 1;
   const rejectedCount = filteredClaims.filter((c) => c.status === 'rejected').length;
   const rejectionRate = Math.round((rejectedCount / totalDecisions) * 100) + ' %';

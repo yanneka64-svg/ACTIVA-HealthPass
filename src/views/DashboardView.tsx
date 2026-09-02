@@ -92,26 +92,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Global / Team Stats calculations
   const activeMembersCount = members.filter((m) => m.status === 'Actif' || m.status === 'Active').length;
+
+  // === AMÉLIORATION AJOUTÉE : remplace le badge de croissance fictif "+4.2%" (constante en
+  // dur, jamais recalculée) par un vrai décompte des membres réellement créés ce mois-ci.
+  const now = new Date();
+  const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const newMembersThisMonth = members.filter((m) => m.createdAt && m.createdAt.startsWith(currentMonthPrefix)).length;
   const processedClaims = claims.filter((c) => c.status !== 'pending');
   const processedClaimsCount = processedClaims.length;
   const pendingClaims = claims.filter((c) => c.status === 'pending');
   const pendingClaimsCount = pendingClaims.length;
 
   const approvedClaimsCount = claims.filter((c) => c.status === 'approved').length;
+  // === AMÉLIORATION AJOUTÉE : ne plus afficher un taux d'approbation fictif (94%) quand il
+  // n'y a encore aucune décision réelle — 0% reflète honnêtement l'absence de données.
   const approvalRate =
-    processedClaimsCount > 0 ? Math.round((approvedClaimsCount / processedClaimsCount) * 100) : 94;
+    processedClaimsCount > 0 ? Math.round((approvedClaimsCount / processedClaimsCount) * 100) : 0;
 
   const pendingEnrollments = enrollments.filter((e) => e.status === 'pending');
 
-  // Distribution by Organization for Donut Chart
+  // === AMÉLIORATION AJOUTÉE : distribution par Organisation basée uniquement sur les
+  // sinistres réels. Auparavant, une organisation sans sinistre affichait un montant/nombre
+  // ALÉATOIRE (Math.random()) au lieu de 0 — trompeur pour un tableau de bord de production.
   const orgClaimTotals = organizations.map((org) => {
     const orgClaims = claims.filter((c) => c.organization.toLowerCase() === org.name.toLowerCase());
     const totalAmount = orgClaims.reduce((sum, c) => sum + c.amount, 0);
-    const count = orgClaims.length;
     return {
       name: org.name,
-      amount: totalAmount > 0 ? totalAmount : 1500 + Math.floor(Math.random() * 3000),
-      count: count > 0 ? count : 1 + Math.floor(Math.random() * 4),
+      amount: totalAmount,
+      count: orgClaims.length,
     };
   });
 
@@ -125,15 +134,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     '#8b5cf6', // Purple
   ];
 
-  // Top 5 Providers by Amount/Volume for Bar Chart
+  // === AMÉLIORATION AJOUTÉE : Top 5 Prestataires basé uniquement sur les sinistres réels
+  // (même correctif que ci-dessus : plus de montant/nombre aléatoire pour un prestataire
+  // sans sinistre).
   const providerStats = providers.map((prv) => {
     const pClaims = claims.filter((c) => c.provider.toLowerCase() === prv.name.toLowerCase());
     const total = pClaims.reduce((sum, c) => sum + c.amount, 0);
     return {
       name: prv.name,
       type: prv.type,
-      amount: total > 0 ? total : 2000 + Math.floor(Math.random() * 4000),
-      count: pClaims.length > 0 ? pClaims.length : 2 + Math.floor(Math.random() * 5),
+      amount: total,
+      count: pClaims.length,
     };
   });
 
@@ -469,12 +480,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="text-2xl font-bold text-slate-800">
               {activeMembersCount.toLocaleString()}
             </div>
-            <div className="text-xs text-emerald-600 font-bold flex items-center gap-0.5">
-              <span>+4.2%</span>
+            <div className={`text-xs font-bold flex items-center gap-0.5 ${newMembersThisMonth > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
+              <span>+{newMembersThisMonth} this month</span>
             </div>
           </div>
           <p className="text-[10px] text-slate-400 mt-2 font-medium">
-            {members.length} active beneficiaries
+            {activeMembersCount} active beneficiaries out of {members.length} enrolled
           </p>
         </div>
 
@@ -488,7 +499,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {processedClaimsCount.toLocaleString()}
             </div>
             <div className="text-xs text-slate-400 font-medium">
-              Month total
+              All-time total
             </div>
           </div>
           <p className="text-[10px] text-slate-400 mt-2 font-medium">

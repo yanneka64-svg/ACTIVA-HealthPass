@@ -56,8 +56,13 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
 
-  // View Members Modal on double click
+  // View Members Modal — opened on a single click on an organization row
   const [viewMembersOrg, setViewMembersOrg] = useState<Organization | null>(null);
+
+  // === AMÉLIORATION AJOUTÉE : drill-down Organisation → Assuré Principal → Dépendants ===
+  // Cliquer sur un assuré principal dans la liste ci-dessus ouvre cette modale listant tous
+  // ses ayants droit (dépendants).
+  const [viewMemberDependents, setViewMemberDependents] = useState<any | null>(null);
 
   // Suspend/Reactivate confirmation modal
   const [confirmOrgAction, setConfirmOrgAction] = useState<{ org: Organization; action: 'suspend' | 'reactivate' } | null>(null);
@@ -123,6 +128,44 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       (m) => m.organization?.toLowerCase().trim() === viewMembersOrg.name.toLowerCase().trim()
     );
   }, [viewMembersOrg, members]);
+
+  // === AMÉLIORATION AJOUTÉE : liste des dépendants d'un assuré principal, avec repli sur
+  // les anciens champs spouseName/children pour les membres importés avant l'introduction de
+  // la structure `dependents[]` détaillée (même logique de repli que exportMembersToExcel).
+  // Closing the org-members modal also closes any nested dependents modal stacked on top of
+  // it, so reopening a different organization never shows a stale dependents view.
+  const closeViewMembersOrg = () => {
+    setViewMembersOrg(null);
+    setViewMemberDependents(null);
+  };
+
+  const memberDependentsList = useMemo(() => {
+    if (!viewMemberDependents) return [];
+    const m = viewMemberDependents;
+    if (m.dependents && m.dependents.length > 0) {
+      return m.dependents;
+    }
+    const fallback: any[] = [];
+    if (m.spouseName) {
+      fallback.push({
+        fullName: m.spouseName,
+        relationship: 'spouse',
+        birthDate: undefined,
+        gender: undefined,
+        hasBiometrics: undefined,
+      });
+    }
+    (m.children || []).forEach((childName: string) => {
+      fallback.push({
+        fullName: childName,
+        relationship: 'child',
+        birthDate: undefined,
+        gender: undefined,
+        hasBiometrics: undefined,
+      });
+    });
+    return fallback;
+  }, [viewMemberDependents]);
 
   const filteredOrgs = useMemo(() => {
     return organizations.filter((org) => {
@@ -294,9 +337,9 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                   return (
                     <tr
                       key={org.id}
-                      onDoubleClick={() => setViewMembersOrg(org)}
+                      onClick={() => setViewMembersOrg(org)}
                       className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
-                      title="Double-click to view enrolled members for this organization"
+                      title="Click to view enrolled principal members for this organization"
                     >
                       <td className="py-3.5 px-4 font-bold text-[#102A43]">
                         <div className="flex items-center gap-2">
@@ -625,7 +668,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 </div>
               </div>
               <button
-                onClick={() => setViewMembersOrg(null)}
+                onClick={closeViewMembersOrg}
                 className="p-2 rounded-xl hover:bg-white/15 text-white cursor-pointer transition"
               >
                 <X className="w-5 h-5" />
@@ -666,7 +709,12 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                       {orgMembersList.map((m) => {
                         const totalDeps = (m.dependents?.length || 0) + (m.children?.length || 0) + (m.spouseName ? 1 : 0);
                         return (
-                          <tr key={m.id || m.cardNo} className="hover:bg-slate-50 transition">
+                          <tr
+                            key={m.id || m.cardNo}
+                            onClick={() => setViewMemberDependents(m)}
+                            className="hover:bg-blue-50/40 transition cursor-pointer"
+                            title="Click to view this member's dependents"
+                          >
                             <td className="py-3 px-4 font-mono font-bold text-blue-700">{m.cardNo}</td>
                             <td className="py-3 px-4 font-bold text-slate-800">{m.principalName}</td>
                             <td className="py-3 px-4 text-slate-600">{m.birthDate || '—'}</td>
@@ -700,8 +748,99 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
               <button
                 type="button"
-                onClick={() => setViewMembersOrg(null)}
+                onClick={closeViewMembersOrg}
                 className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === AMÉLIORATION AJOUTÉE : MODALE DÉPENDANTS D'UN ASSURÉ PRINCIPAL === */}
+      {/* Empilée au-dessus de la modale "Enrolled Beneficiaries" (z-index supérieur) puisque
+          celle-ci reste ouverte en arrière-plan — cohérent avec le parcours de drill-down
+          Organisation → Assuré Principal → Dépendants demandé. */}
+      {viewMemberDependents && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
+            <div className="bg-[#0F766E] p-6 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base">{viewMemberDependents.principalName}</h3>
+                  <p className="text-xs text-emerald-100 font-mono">
+                    Card #: {viewMemberDependents.cardNo} • {viewMemberDependents.organization}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewMemberDependents(null)}
+                className="p-2 rounded-xl hover:bg-white/15 text-white cursor-pointer transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#0F766E]" />
+                <span className="font-extrabold text-sm text-slate-800">
+                  Dependents ({memberDependentsList.length})
+                </span>
+              </div>
+
+              {memberDependentsList.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                  <p className="text-xs font-semibold">No dependents registered for this principal member.</p>
+                </div>
+              ) : (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-bold uppercase text-[10.5px] border-b border-slate-200">
+                        <th className="py-3 px-4">Full Name</th>
+                        <th className="py-3 px-4">Relationship</th>
+                        <th className="py-3 px-4">Birth Date</th>
+                        <th className="py-3 px-4">Gender</th>
+                        <th className="py-3 px-4 text-center">Biometrics</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {memberDependentsList.map((dep: any, idx: number) => (
+                        <tr key={dep.id || `${dep.fullName}-${idx}`} className="hover:bg-slate-50 transition">
+                          <td className="py-3 px-4 font-bold text-slate-800">{dep.fullName}</td>
+                          <td className="py-3 px-4 text-slate-600 capitalize">{dep.relationship || '—'}</td>
+                          <td className="py-3 px-4 text-slate-600">{dep.birthDate || '—'}</td>
+                          <td className="py-3 px-4 text-slate-600">{dep.gender || '—'}</td>
+                          <td className="py-3 px-4 text-center">
+                            {dep.hasBiometrics ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200">
+                                Captured
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-bold text-[11px] border border-slate-200">
+                                —
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewMemberDependents(null)}
+                className="px-5 py-2 rounded-xl bg-[#0F766E] hover:bg-[#115E59] text-white text-xs font-bold transition cursor-pointer"
               >
                 Close
               </button>
