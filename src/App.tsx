@@ -49,7 +49,8 @@ import { AgentIdentificationView } from './views/agent/AgentIdentificationView';
 import { AgentMedicalFormView } from './views/agent/AgentMedicalFormView';
 import { AgentClaimsView } from './views/agent/AgentClaimsView';
 import { AgentEnrollmentsView } from './views/agent/AgentEnrollmentsView';
-import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon } from 'lucide-react';
+import { InactivityWarningModal } from './components/InactivityWarningModal';
+import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon, Users, FileCheck } from 'lucide-react';
 
 export type AuthStateStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'inactive' | 'invalid_role';
 
@@ -61,8 +62,15 @@ export default function App() {
   const [forcedFirstLogin, setForcedFirstLogin] = useState(false);
   const [forcedPasswordExpiry, setForcedPasswordExpiry] = useState(false);
 
-  // Navigation Section
+  // Inactivity Auto-Logout (15 mins = 900s timeout, warning at 120s remaining)
+  const INACTIVITY_TIMEOUT_SECONDS = 900;
+  const WARNING_BEFORE_SECONDS = 120;
+  const [inactivityRemainingSeconds, setInactivityRemainingSeconds] = useState(INACTIVITY_TIMEOUT_SECONDS);
+  const [showInactivityModal, setShowInactivityModal] = useState(false);
+
+  // Navigation Section & Preselected Member
   const [currentSection, setCurrentSection] = useState<NavSection>('dashboard');
+  const [selectedMemberForMedicalForm, setSelectedMemberForMedicalForm] = useState<Member | null>(null);
 
   const handleSelectSection = (sec: NavSection) => {
     setCurrentSection(sec);
@@ -322,9 +330,56 @@ export default function App() {
       setCurrentUser(null);
       setUserRole(null);
       setCurrentSection('dashboard');
+      setShowInactivityModal(false);
+      setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
       setAuthStatus('unauthenticated');
     }
   };
+
+  // Inactivity Auto-Logout Effect (15m inactivity threshold, warning at 2m left)
+  useEffect(() => {
+    if (authStatus !== 'authenticated') {
+      setShowInactivityModal(false);
+      return;
+    }
+
+    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll', 'click'];
+    let throttleTimer: NodeJS.Timeout | null = null;
+
+    const handleUserActivity = () => {
+      if (!throttleTimer) {
+        throttleTimer = setTimeout(() => {
+          if (!showInactivityModal) {
+            setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
+          }
+          throttleTimer = null;
+        }, 1000);
+      }
+    };
+
+    events.forEach((ev) => window.addEventListener(ev, handleUserActivity, { passive: true }));
+
+    const interval = setInterval(() => {
+      setInactivityRemainingSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setShowInactivityModal(false);
+          handleLogout();
+          return 0;
+        }
+        if (prev - 1 <= WARNING_BEFORE_SECONDS) {
+          setShowInactivityModal(true);
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, handleUserActivity));
+      clearInterval(interval);
+      if (throttleTimer) clearTimeout(throttleTimer);
+    };
+  }, [authStatus, showInactivityModal]);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isReloadingDemo, setIsReloadingDemo] = useState<boolean>(false);
@@ -809,7 +864,15 @@ export default function App() {
           )}
 
           {effectiveSection === 'identification' && (
-            <AgentIdentificationView members={members} claims={claims} lang={lang} />
+            <AgentIdentificationView
+              members={members}
+              claims={claims}
+              lang={lang}
+              onGenerateMedicalForm={(member) => {
+                setSelectedMemberForMedicalForm(member);
+                handleSelectSection('medical_form');
+              }}
+            />
           )}
 
           {effectiveSection === 'medical_form' && (
@@ -820,6 +883,7 @@ export default function App() {
               medicalForms={medicalForms}
               userRole={activeRole}
               lang={lang}
+              preselectedMember={selectedMemberForMedicalForm}
               onCreateMedicalForm={(form) => FirestoreService.addMedicalForm(form)}
               onUpdateMedicalForm={(form) => FirestoreService.updateMedicalForm(form)}
             />
@@ -927,67 +991,180 @@ export default function App() {
           {effectiveSection === 'logs' && <LogsView lang={lang} logs={logs} />}
         </main>
 
-        {/* Mobile & Tablet Miniature Bottom Navigation Bar */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0B3B82] border-t border-white/10 z-30 flex items-center justify-around px-2 shadow-lg backdrop-blur-md">
-          <button
-            onClick={() => handleSelectSection('dashboard')}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
-              effectiveSection === 'dashboard' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
-            }`}
-          >
-            <LayoutDashboard className={`w-5 h-5 ${effectiveSection === 'dashboard' ? 'text-[#10B981]' : ''}`} />
-            <span className="text-[10px] mt-0.5">Overview</span>
-          </button>
+        {/* Mobile & Tablet Miniature Bottom Navigation Bar - Role & Theme Harmonized */}
+        <nav
+          className={`lg:hidden fixed bottom-0 left-0 right-0 h-16 border-t border-white/10 z-30 flex items-center justify-around px-2 shadow-2xl backdrop-blur-md ${
+            activeRole === 'Supervisor'
+              ? 'bg-[#047857]'
+              : activeRole === 'Agent'
+              ? 'bg-[#0A347B]'
+              : 'bg-slate-900'
+          }`}
+        >
+          {activeRole === 'Agent' ? (
+            <>
+              <button
+                onClick={() => handleSelectSection('identification')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+                  effectiveSection === 'identification' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <Users className={`w-5 h-5 ${effectiveSection === 'identification' ? 'text-emerald-400' : ''}`} />
+                <span className="text-[10px] mt-0.5">Identification</span>
+              </button>
 
-          <button
-            onClick={() => handleSelectSection('claims')}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition relative ${
-              effectiveSection === 'claims' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
-            }`}
-          >
-            <Receipt className={`w-5 h-5 ${effectiveSection === 'claims' ? 'text-[#10B981]' : ''}`} />
-            <span className="text-[10px] mt-0.5">Claims</span>
-            {pendingClaimsCount > 0 && (
-              <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                {pendingClaimsCount}
-              </span>
-            )}
-          </button>
+              <button
+                onClick={() => handleSelectSection('medical_form')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+                  effectiveSection === 'medical_form' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <FileCheck className={`w-5 h-5 ${effectiveSection === 'medical_form' ? 'text-emerald-400' : ''}`} />
+                <span className="text-[10px] mt-0.5">Fiche Médicale</span>
+              </button>
 
-          <button
-            onClick={() => handleSelectSection('invoices')}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
-              effectiveSection === 'invoices' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
-            }`}
-          >
-            <FileText className={`w-5 h-5 ${effectiveSection === 'invoices' ? 'text-[#10B981]' : ''}`} />
-            <span className="text-[10px] mt-0.5">Invoices</span>
-          </button>
+              <button
+                onClick={() => handleSelectSection('claims')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+                  effectiveSection === 'claims' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <Receipt className={`w-5 h-5 ${effectiveSection === 'claims' ? 'text-emerald-400' : ''}`} />
+                <span className="text-[10px] mt-0.5">Prestations</span>
+              </button>
 
-          <button
-            onClick={() => handleSelectSection('enrollments')}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition relative ${
-              effectiveSection === 'enrollments' ? 'text-white font-bold' : 'text-white/70 hover:text-white'
-            }`}
-          >
-            <UserCheck className={`w-5 h-5 ${effectiveSection === 'enrollments' ? 'text-[#10B981]' : ''}`} />
-            <span className="text-[10px] mt-0.5">Enroll</span>
-            {pendingEnrollmentsCount > 0 && (
-              <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                {pendingEnrollmentsCount}
-              </span>
-            )}
-          </button>
+              <button
+                onClick={() => handleSelectSection('enrollments')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+                  effectiveSection === 'enrollments' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <UserCheck className={`w-5 h-5 ${effectiveSection === 'enrollments' ? 'text-emerald-400' : ''}`} />
+                <span className="text-[10px] mt-0.5">Enrôlement</span>
+              </button>
+            </>
+          ) : activeRole === 'Supervisor' ? (
+            <>
+              <button
+                onClick={() => handleSelectSection('dashboard')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+                  effectiveSection === 'dashboard' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <LayoutDashboard className={`w-5 h-5 ${effectiveSection === 'dashboard' ? 'text-emerald-300' : ''}`} />
+                <span className="text-[10px] mt-0.5">Dashboard</span>
+              </button>
+
+              <button
+                onClick={() => handleSelectSection('medical_form')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+                  effectiveSection === 'medical_form' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <FileCheck className={`w-5 h-5 ${effectiveSection === 'medical_form' ? 'text-emerald-300' : ''}`} />
+                <span className="text-[10px] mt-0.5">Fiches Méd.</span>
+              </button>
+
+              <button
+                onClick={() => handleSelectSection('claims_validation')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition relative ${
+                  effectiveSection === 'claims_validation' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <Receipt className={`w-5 h-5 ${effectiveSection === 'claims_validation' ? 'text-emerald-300' : ''}`} />
+                <span className="text-[10px] mt-0.5">Val. Claims</span>
+                {pendingClaimsCount > 0 && (
+                  <span className="absolute top-1 right-2 w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                    {pendingClaimsCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => handleSelectSection('enrollments_validation')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition relative ${
+                  effectiveSection === 'enrollments_validation' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <UserCheck className={`w-5 h-5 ${effectiveSection === 'enrollments_validation' ? 'text-emerald-300' : ''}`} />
+                <span className="text-[10px] mt-0.5">Val. Enrôl.</span>
+                {pendingEnrollmentsCount > 0 && (
+                  <span className="absolute top-1 right-2 w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                    {pendingEnrollmentsCount}
+                  </span>
+                )}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => handleSelectSection('dashboard')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+                  effectiveSection === 'dashboard' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <LayoutDashboard className={`w-5 h-5 ${effectiveSection === 'dashboard' ? 'text-emerald-400' : ''}`} />
+                <span className="text-[10px] mt-0.5">Dashboard</span>
+              </button>
+
+              <button
+                onClick={() => handleSelectSection('claims')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition relative ${
+                  effectiveSection === 'claims' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <Receipt className={`w-5 h-5 ${effectiveSection === 'claims' ? 'text-emerald-400' : ''}`} />
+                <span className="text-[10px] mt-0.5">Prestations</span>
+                {pendingClaimsCount > 0 && (
+                  <span className="absolute top-1 right-2 w-4 h-4 bg-emerald-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                    {pendingClaimsCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => handleSelectSection('receipts')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+                  effectiveSection === 'receipts' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <FileText className={`w-5 h-5 ${effectiveSection === 'receipts' ? 'text-emerald-400' : ''}`} />
+                <span className="text-[10px] mt-0.5">Factures</span>
+              </button>
+
+              <button
+                onClick={() => handleSelectSection('members')}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition ${
+                  effectiveSection === 'members' ? 'text-white font-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <Users className={`w-5 h-5 ${effectiveSection === 'members' ? 'text-emerald-400' : ''}`} />
+                <span className="text-[10px] mt-0.5">Assurés</span>
+              </button>
+            </>
+          )}
 
           <button
             onClick={() => setSidebarOpen(true)}
-            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-white/70 hover:text-white transition"
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-white/70 hover:text-white transition cursor-pointer"
           >
             <MenuIcon className="w-5 h-5" />
             <span className="text-[10px] mt-0.5">Menu</span>
           </button>
         </nav>
       </div>
+
+      {/* Inactivity Warning Modal */}
+      <InactivityWarningModal
+        isOpen={showInactivityModal}
+        remainingSeconds={inactivityRemainingSeconds}
+        onStayConnected={() => {
+          setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
+          setShowInactivityModal(false);
+        }}
+        onLogout={handleLogout}
+        lang={lang}
+      />
 
       {/* Global Change Password Modal from Topbar or Security Enforcement */}
       <ChangePasswordModal

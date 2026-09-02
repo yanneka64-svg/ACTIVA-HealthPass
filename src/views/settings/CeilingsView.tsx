@@ -494,19 +494,19 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. TOP POLICY AGE LIMITS & REAL-TIME ELIGIBILITY CONTROLS BANNER */}
-      <div className="bg-gradient-to-r from-blue-900 via-[#0A3D8A] to-[#124B9E] rounded-3xl p-6 text-white shadow-xl border border-blue-800/60 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-[#111827] via-[#1F2937] to-[#0F172A] rounded-3xl p-6 text-white shadow-xl border border-gray-800 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-blue-200">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-gray-300">
               <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
               <span>Policy Age Limits & Real-Time Eligibility Verification</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
               Coverage Ceilings & Age Thresholds
             </h2>
-            <p className="text-xs text-blue-100/90 leading-relaxed font-medium">
+            <p className="text-xs text-gray-300 leading-relaxed font-medium">
               Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
             </p>
           </div>
@@ -514,48 +514,48 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
           {/* Dynamic Age Limits Display Pills */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-200 block">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
                 Primary Insured
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgePrinc}</span>
-                <span className="text-[10px] font-bold text-blue-200">years</span>
+                <span className="text-[10px] font-bold text-gray-300">years</span>
               </div>
             </div>
 
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-200 block">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
                 Spouse
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgeSpouse}</span>
-                <span className="text-[10px] font-bold text-blue-200">years</span>
+                <span className="text-[10px] font-bold text-gray-300">years</span>
               </div>
             </div>
 
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[140px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-200 block">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
                 Child / Dependant
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgeChild}</span>
-                <span className="text-[10px] font-bold text-emerald-300">({activeAgeStudent}y student)</span>
+                <span className="text-[10px] font-bold text-emerald-400">({activeAgeStudent}y student)</span>
               </div>
             </div>
 
             <button
               id="configure-age-limits-btn"
               onClick={() => openAgeLimitsModal()}
-              className="px-4 py-3 rounded-2xl bg-white text-[#0A347B] hover:bg-blue-50 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
+              className="px-4 py-3 rounded-2xl bg-white text-[#111827] hover:bg-gray-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
             >
-              <Settings className="w-4 h-4 text-[#0A347B]" />
+              <Settings className="w-4 h-4 text-[#111827]" />
               <span>Configure Age Limits</span>
             </button>
 
             <button
               id="configure-benefit-limit-btn"
               onClick={openNewBenefitLimitWizard}
-              className="px-4 py-3 rounded-2xl bg-[#DC2626] hover:bg-[#B91C1C] text-white font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
+              className="px-4 py-3 rounded-2xl bg-[#111827] hover:bg-black text-white border border-gray-700 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4 text-white" />
               <span>Configure Benefit Limit</span>
@@ -577,7 +577,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 setCurrentPage(1);
               }}
               placeholder="Search benefit name or organization..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A347B] focus:bg-white transition"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           </div>
@@ -589,7 +589,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               setSelectedBenefitFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0A347B]"
+            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#111827]"
           >
             <option value="ALL">All Benefit Types</option>
             {availableBenefits.map((b) => (
@@ -856,7 +856,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   onClick={() => setCurrentPage(p)}
                   className={`w-7 h-7 rounded-lg text-xs font-bold transition cursor-pointer ${
                     currentPage === p
-                      ? 'bg-[#0A347B] text-white'
+                      ? 'bg-[#111827] text-white'
                       : 'border border-slate-200 text-slate-700 hover:bg-white'
                   }`}
                 >
@@ -1051,7 +1051,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 <div
                   className={`flex items-center gap-1.5 ${
                     wizardStep === 1
-                      ? 'text-[#0A347B]'
+                      ? 'text-[#111827] font-bold'
                       : wizardStep > 1
                       ? 'text-emerald-700'
                       : 'text-slate-400'
@@ -1060,7 +1060,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                       wizardStep === 1
-                        ? 'bg-[#0A347B] text-white'
+                        ? 'bg-[#111827] text-white'
                         : wizardStep > 1
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-slate-200 text-slate-600'
@@ -1076,7 +1076,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 <div
                   className={`flex items-center gap-1.5 ${
                     wizardStep === 2
-                      ? 'text-[#0A347B]'
+                      ? 'text-[#111827] font-bold'
                       : wizardStep > 2
                       ? 'text-emerald-700'
                       : 'text-slate-400'
@@ -1085,7 +1085,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                       wizardStep === 2
-                        ? 'bg-[#0A347B] text-white'
+                        ? 'bg-[#111827] text-white'
                         : wizardStep > 2
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-slate-200 text-slate-600'
@@ -1100,13 +1100,13 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 {/* Step 3 */}
                 <div
                   className={`flex items-center gap-1.5 ${
-                    wizardStep === 3 ? 'text-[#0A347B]' : 'text-slate-400'
+                    wizardStep === 3 ? 'text-[#111827] font-bold' : 'text-slate-400'
                   }`}
                 >
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                       wizardStep === 3
-                        ? 'bg-[#0A347B] text-white'
+                        ? 'bg-[#111827] text-white'
                         : 'bg-slate-200 text-slate-600'
                     }`}
                   >
@@ -1241,7 +1241,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                             onClick={() => toggleBenefitSelection(benefit)}
                             className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                               isSelected
-                                ? 'bg-[#0A347B] text-white shadow-2xs'
+                                ? 'bg-[#111827] text-white shadow-2xs'
                                 : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
                             }`}
                           >
@@ -1521,7 +1521,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setWizardStep((s) => (s + 1) as 1 | 2 | 3)}
-                    className="px-4 py-2 rounded-xl bg-[#0A347B] hover:bg-[#072559] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className="px-4 py-2 rounded-xl bg-[#111827] hover:bg-[#1F2937] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <span>{wizardStep === 1 ? 'Next: Benefits & Limits' : 'Next: Review & Save'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />

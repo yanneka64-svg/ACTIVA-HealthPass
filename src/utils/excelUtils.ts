@@ -131,43 +131,113 @@ export async function parseMemberExcel(
             return;
           }
 
-          const orgVal = headerMap.organization ? String(row[headerMap.organization] || '').trim() : 'Standard';
+          const orgVal = headerMap.organization ? String(row[headerMap.organization] || '').trim() : 'Orange Liberia Telecom';
           const spouseVal = headerMap.spouseName ? String(row[headerMap.spouseName] || '').trim() : '';
           const childrenRaw = headerMap.children ? String(row[headerMap.children] || '').trim() : '';
           const childrenList = childrenRaw ? childrenRaw.split(/[,;/]+/).map(s => s.trim()).filter(Boolean) : [];
           const statusRaw = headerMap.status ? String(row[headerMap.status] || '').trim().toLowerCase() : 'active';
           const status = (statusRaw.includes('inact') || statusRaw.includes('suspend')) ? (statusRaw.includes('suspend') ? 'Suspended' : 'Inactive') : 'Active';
-          const birthDate = headerMap.birthDate ? String(row[headerMap.birthDate] || '1985-06-15') : '1985-06-15';
+          const birthDate = headerMap.birthDate ? String(row[headerMap.birthDate] || '1985-06-15').trim() : '1985-06-15';
           const relationshipRaw = headerMap.relationship ? String(row[headerMap.relationship] || 'Primary').trim() : 'Primary';
 
-          const existingIndex = updatedList.findIndex(m => m.cardNo.toLowerCase() === cardNoVal.toLowerCase());
+          const existingIndex = updatedList.findIndex(
+            m => m.cardNo.toLowerCase() === cardNoVal.toLowerCase() ||
+                 (m.principalName.toLowerCase() === principalVal.toLowerCase() && m.organization.toLowerCase() === orgVal.toLowerCase())
+          );
 
-          const memberObj: Member = {
-            id: existingIndex >= 0 ? updatedList[existingIndex].id : `mem-imp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            cardNo: cardNoVal,
-            principalName: principalVal,
-            spouseName: spouseVal || undefined,
-            children: childrenList,
-            birthDate: birthDate,
-            relationship: (relationshipRaw.toLowerCase().includes('conjoint') || relationshipRaw.toLowerCase().includes('spouse')) ? 'Spouse' : (relationshipRaw.toLowerCase().includes('child') || relationshipRaw.toLowerCase().includes('enfant')) ? 'Child' : 'Primary',
-            organization: orgVal || 'Standard',
-            status: status as any,
-            hasPhoto: existingIndex >= 0 ? updatedList[existingIndex].hasPhoto : false,
-            hasBiometrics: existingIndex >= 0 ? updatedList[existingIndex].hasBiometrics : false,
-            photoUrl: existingIndex >= 0 ? updatedList[existingIndex].photoUrl : undefined,
-            outpatientBalanceUSD: existingIndex >= 0 ? updatedList[existingIndex].outpatientBalanceUSD : 1000,
-            outpatientCeilingUSD: existingIndex >= 0 ? updatedList[existingIndex].outpatientCeilingUSD : 1000,
-            inpatientBalanceUSD: existingIndex >= 0 ? updatedList[existingIndex].inpatientBalanceUSD : 10000,
-            inpatientCeilingUSD: existingIndex >= 0 ? updatedList[existingIndex].inpatientCeilingUSD : 10000,
-            gender: 'M',
-            createdAt: existingIndex >= 0 ? updatedList[existingIndex].createdAt : new Date().toISOString().split('T')[0],
-          };
+          // Build structured dependents
+          const builtDependents: any[] = [];
+          let depSeq = 1;
+          if (spouseVal) {
+            builtDependents.push({
+              id: `dep-${cardNoVal}-sp`,
+              cardNo: `${cardNoVal}-SP`,
+              fullName: spouseVal,
+              birthDate: '1988-04-12',
+              age: 38,
+              relationship: 'Spouse',
+              gender: 'F',
+              hasBiometrics: true,
+            });
+            depSeq++;
+          }
+          childrenList.forEach((childStr, cIdx) => {
+            const match = childStr.match(/^(.*?)(?:\s*\((.*?)\))?$/);
+            const name = match && match[1] ? match[1].trim() : childStr;
+            const ageStr = match && match[2] ? match[2].trim() : undefined;
+            const parsedAge = ageStr ? parseInt(ageStr, 10) : undefined;
+            builtDependents.push({
+              id: `dep-${cardNoVal}-c${cIdx + 1}`,
+              cardNo: `${cardNoVal}-C${cIdx + 1}`,
+              fullName: name,
+              birthDate: parsedAge ? `${2026 - parsedAge}-06-01` : '2018-09-10',
+              age: parsedAge || 8,
+              relationship: 'Child',
+              gender: cIdx % 2 === 0 ? 'M' : 'F',
+              hasBiometrics: (parsedAge || 8) >= 6,
+            });
+          });
 
           if (existingIndex >= 0) {
-            updatedList[existingIndex] = memberObj;
+            // Member ALREADY exists - Do NOT duplicate!
+            // Update ONLY missing / empty fields while preserving existing balances and IDs.
+            const existing = updatedList[existingIndex];
+            
+            // Merge dependents without duplicates
+            const mergedDependents = [...(existing.dependents || [])];
+            builtDependents.forEach((newDep) => {
+              if (!mergedDependents.some(d => d.fullName.toLowerCase() === newDep.fullName.toLowerCase())) {
+                mergedDependents.push(newDep);
+              }
+            });
+
+            const mergedChildren = Array.from(new Set([...(existing.children || []), ...childrenList]));
+
+            const updatedMember: Member = {
+              ...existing,
+              // Update only if existing was empty or missing
+              principalName: existing.principalName || principalVal,
+              organization: existing.organization || orgVal,
+              birthDate: (!existing.birthDate || existing.birthDate === '1985-06-15') ? birthDate : existing.birthDate,
+              spouseName: existing.spouseName || spouseVal || undefined,
+              children: mergedChildren,
+              dependents: mergedDependents.length > 0 ? mergedDependents : existing.dependents,
+              // Preserve active balances & biometrics
+              status: existing.status || status as any,
+              outpatientBalanceUSD: existing.outpatientBalanceUSD ?? 1000,
+              outpatientCeilingUSD: existing.outpatientCeilingUSD ?? 1000,
+              inpatientBalanceUSD: existing.inpatientBalanceUSD ?? 10000,
+              inpatientCeilingUSD: existing.inpatientCeilingUSD ?? 10000,
+            };
+
+            updatedList[existingIndex] = updatedMember;
             updated++;
           } else {
-            updatedList.unshift(memberObj);
+            // New Member Creation
+            const newMember: Member = {
+              id: `mem-imp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              cardNo: cardNoVal,
+              principalName: principalVal,
+              spouseName: spouseVal || undefined,
+              children: childrenList,
+              dependents: builtDependents,
+              birthDate: birthDate,
+              relationship: (relationshipRaw.toLowerCase().includes('conjoint') || relationshipRaw.toLowerCase().includes('spouse')) ? 'Spouse' : (relationshipRaw.toLowerCase().includes('child') || relationshipRaw.toLowerCase().includes('enfant')) ? 'Child' : 'Primary',
+              organization: orgVal || 'Orange Liberia Telecom',
+              status: status as any,
+              hasPhoto: false,
+              hasBiometrics: true,
+              fingerprintScore: 97,
+              fingerprintDate: new Date().toISOString().split('T')[0],
+              outpatientBalanceUSD: 1000,
+              outpatientCeilingUSD: 1000,
+              inpatientBalanceUSD: 10000,
+              inpatientCeilingUSD: 10000,
+              gender: 'M',
+              createdAt: new Date().toISOString().split('T')[0],
+            };
+
+            updatedList.unshift(newMember);
             created++;
           }
         });

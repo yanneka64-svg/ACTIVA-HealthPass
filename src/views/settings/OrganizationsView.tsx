@@ -250,7 +250,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
 
           <button
             onClick={openCreateModal}
-            className="px-4 py-2 rounded-xl bg-[#0B3B82] hover:bg-[#123F88] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-[#111827] hover:bg-[#1F2937] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>+ New Organization</span>
@@ -412,12 +412,12 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-[#0B3B82] p-6 text-white flex items-center justify-between">
+            <div className="bg-[#111827] p-6 text-white flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-base">
                   {editingOrg ? 'Edit Organization Policy' : 'Register New Organization'}
                 </h3>
-                <p className="text-xs text-blue-100">Collective Group Insurance Policy & Coverage</p>
+                <p className="text-xs text-gray-300">Collective Group Insurance Policy & Coverage</p>
               </div>
               <button
                 onClick={() => setModalOpen(false)}
@@ -451,7 +451,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     type="text"
                     value={formPolicy}
                     onChange={(e) => setFormPolicy(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-[#2563EB]"
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-[#111827]"
                     required
                   />
                 </div>
@@ -501,7 +501,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                       onClick={() => setFormRate(rate.toString())}
                       className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
                         parseInt(formRate, 10) === rate
-                          ? 'bg-[#0B3B82] text-white shadow-xs'
+                          ? 'bg-[#111827] text-white shadow-xs'
                           : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                       }`}
                     >
@@ -519,7 +519,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     step="5"
                     value={parseInt(formRate, 10) || 80}
                     onChange={(e) => setFormRate(e.target.value)}
-                    className="flex-1 accent-[#0B3B82] cursor-pointer"
+                    className="flex-1 accent-[#111827] cursor-pointer"
                   />
                   <div className="flex items-center gap-1 w-20">
                     <input
@@ -584,7 +584,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#0B3B82] hover:bg-[#123F88] text-white text-xs font-bold shadow-sm cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-[#111827] hover:bg-[#1F2937] text-white text-xs font-bold shadow-sm cursor-pointer"
                 >
                   {editingOrg ? 'Update Organization' : 'Save Organization'}
                 </button>
@@ -612,7 +612,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       {viewMembersOrg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
-            <div className="bg-[#0B3B82] p-6 text-white flex items-center justify-between">
+            <div className="bg-[#111827] p-6 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center">
                   <Building className="w-5 h-5 text-white" />

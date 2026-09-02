@@ -611,7 +611,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
             <button
               id="create-member-btn"
               onClick={openCreateModal}
-            className="px-4 py-2 rounded-xl bg-[#0B3B82] hover:bg-[#123F88] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-[#111827] hover:bg-[#1F2937] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>New Member</span>
@@ -818,7 +818,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
             <button className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 text-xs cursor-pointer">
               ‹
             </button>
-            <button className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#0B3B82] text-white text-xs font-bold">
+            <button className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#111827] text-white text-xs font-bold">
               1
             </button>
             <button className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 text-xs cursor-pointer">
@@ -974,7 +974,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                         </div>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div className="flex items-center gap-3.5">
-                            <div className="w-12 h-12 rounded-2xl bg-[#0B3B82] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
+                            <div className="w-12 h-12 rounded-2xl bg-[#111827] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
                               {selectedMemberForView.principalName.charAt(0)}
                             </div>
                             <div>
@@ -1265,7 +1265,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
             {/* Modal Header */}
-            <div className="bg-[#0a2e6b] px-6 sm:px-8 py-5 text-white flex items-center justify-between">
+            <div className="bg-[#111827] px-6 sm:px-8 py-5 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div>
                   <h3 className="font-extrabold text-base sm:text-lg">
@@ -1588,7 +1588,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-extrabold shadow-md shadow-[#0a2e6b]/20 transition flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-[#111827] hover:bg-[#1F2937] text-white text-xs font-extrabold shadow-md shadow-gray-900/20 transition flex items-center gap-2 cursor-pointer"
                 >
                   <UserCheck className="w-4 h-4" />
                   <span>{editingMember ? 'Update Member' : 'Submit Enrollment'}</span>

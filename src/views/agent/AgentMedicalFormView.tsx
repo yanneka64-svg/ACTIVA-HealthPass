@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   FileCheck,
   Download,
@@ -24,7 +24,11 @@ import {
   Activity,
   BedDouble,
   UserCheck,
-  PenTool
+  PenTool,
+  X,
+  MapPin,
+  ChevronDown,
+  Phone
 } from 'lucide-react';
 import { Member, Provider, Organization, MedicalForm, UserProfile, Language } from '../../types';
 import { generateMedicalFormPDF } from '../../utils/pdfMedicalForm';
@@ -37,6 +41,7 @@ interface AgentMedicalFormViewProps {
   medicalForms?: MedicalForm[];
   userRole?: UserProfile;
   lang?: Language;
+  preselectedMember?: Member | null;
   onCreateMedicalForm?: (form: Partial<MedicalForm>) => void;
   onUpdateMedicalForm?: (form: MedicalForm) => void;
 }
@@ -64,15 +69,77 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   medicalForms = [],
   userRole = 'Agent',
   lang = 'en',
+  preselectedMember,
   onCreateMedicalForm,
   onUpdateMedicalForm,
 }) => {
   const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
   
-  // Selection States
-  const [selectedMemberCard, setSelectedMemberCard] = useState<string>('');
-  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
-  
+  // Smart Autocomplete State for Member
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const memberSearchRef = useRef<HTMLDivElement>(null);
+
+  // Smart Autocomplete State for Provider
+  const [providerSearchQuery, setProviderSearchQuery] = useState('');
+  const [isProviderDropdownOpen, setIsProviderDropdownOpen] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
+  const providerSearchRef = useRef<HTMLDivElement>(null);
+
+  // Preselection from Agent Identification View
+  useEffect(() => {
+    if (preselectedMember) {
+      setSelectedMember(preselectedMember);
+      setMemberSearchQuery(`${preselectedMember.principalName} (${preselectedMember.cardNo})`);
+      setActiveTab('create');
+    }
+  }, [preselectedMember]);
+
+  // Click outside listeners to close smart suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (memberSearchRef.current && !memberSearchRef.current.contains(event.target as Node)) {
+        setIsMemberDropdownOpen(false);
+      }
+      if (providerSearchRef.current && !providerSearchRef.current.contains(event.target as Node)) {
+        setIsProviderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtered members for smart input
+  const suggestedMembers = useMemo(() => {
+    if (!memberSearchQuery.trim()) return members.slice(0, 8);
+    const q = memberSearchQuery.toLowerCase().trim();
+    return members
+      .filter((m) => {
+        const name = m.principalName.toLowerCase();
+        const card = m.cardNo.toLowerCase();
+        const org = (m.organization || '').toLowerCase();
+        const spouse = (m.spouseName || '').toLowerCase();
+        const child = (m.children || []).some(c => c.toLowerCase().includes(q));
+        return name.includes(q) || card.includes(q) || org.includes(q) || spouse.includes(q) || child;
+      })
+      .slice(0, 10);
+  }, [members, memberSearchQuery]);
+
+  // Filtered providers for smart input
+  const suggestedProviders = useMemo(() => {
+    if (!providerSearchQuery.trim()) return providers.slice(0, 8);
+    const q = providerSearchQuery.toLowerCase().trim();
+    return providers
+      .filter((p) => {
+        const name = p.name.toLowerCase();
+        const type = (p.type || '').toLowerCase();
+        const loc = (p.location || '').toLowerCase();
+        return name.includes(q) || type.includes(q) || loc.includes(q);
+      })
+      .slice(0, 10);
+  }, [providers, providerSearchQuery]);
+
   // Practitioner (Generalist vs Specialist) and Treatment (Outpatient vs Inpatient)
   const [practitionerType, setPractitionerType] = useState<'Generalist' | 'Specialist'>('Generalist');
   const [doctorSpecialty, setDoctorSpecialty] = useState<string>('Cardiology');
@@ -94,16 +161,6 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   const [filterCoverage, setFilterCoverage] = useState<'all' | 'Outpatient' | 'Inpatient'>('all');
   const [filterPractitioner, setFilterPractitioner] = useState<'all' | 'Generalist' | 'Specialist'>('all');
 
-  // Selected Member Object
-  const selectedMember = useMemo(() => {
-    return members.find((m) => m.cardNo === selectedMemberCard) || null;
-  }, [members, selectedMemberCard]);
-
-  // Selected Provider Object
-  const selectedProvider = useMemo(() => {
-    return providers.find((p) => p.id === selectedProviderId || p.name === selectedProviderId) || null;
-  }, [providers, selectedProviderId]);
-
   // Effective specialty string
   const effectiveSpecialty = useMemo(() => {
     if (practitionerType === 'Generalist') return 'General Practice';
@@ -115,7 +172,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   const handleGenerateForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMember || !selectedProvider) {
-      alert('Please select both the insured member and the healthcare provider.');
+      alert('Veuillez sélectionner l’assuré et le prestataire de soins via la saisie intelligente.');
       return;
     }
 
@@ -185,7 +242,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
           text: shareText,
           url: window.location.href,
         });
-        setShareFeedback('Medical voucher shared successfully!');
+        setShareFeedback('Fiche médicale partagée avec succès !');
         setTimeout(() => setShareFeedback(null), 3000);
         return;
       } catch (err) {
@@ -193,17 +250,16 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       }
     }
 
-    // Fallback: Copy to clipboard
     try {
       await navigator.clipboard.writeText(shareText);
       setCopiedLink(true);
-      setShareFeedback('Voucher details copied to clipboard!');
+      setShareFeedback('Détails de la fiche copiés dans le presse-papiers !');
       setTimeout(() => {
         setCopiedLink(false);
         setShareFeedback(null);
       }, 3000);
     } catch (e) {
-      alert('Unable to copy automatically. Please use the PDF download option.');
+      alert('Veuillez utiliser le téléchargement PDF direct.');
     }
   };
 
@@ -246,22 +302,22 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             onClick={() => setActiveTab('create')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'create'
-                ? 'bg-[#0a2e6b] text-white shadow-xs'
+                ? 'bg-[#0A347B] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>New Medical Voucher</span>
+            <span>Nouvelle Fiche Médicale</span>
           </button>
           <button
             onClick={() => setActiveTab('history')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'history'
-                ? 'bg-[#0a2e6b] text-white shadow-xs'
+                ? 'bg-[#0A347B] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>History ({medicalForms.length})</span>
+            <span>Historique ({medicalForms.length})</span>
           </button>
         </div>
       </div>
@@ -273,99 +329,214 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
         </div>
       )}
 
-      {/* TAB 1: CREATION AND CONFIGURATION */}
+      {/* TAB 1: CREATION AND CONFIGURATION WITH SMART AUTOCOMPLETE */}
       {activeTab === 'create' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Form Column: Configuration */}
           <div className="lg:col-span-6 space-y-6">
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className="px-6 py-4 bg-[#0a2e6b] text-white flex items-center justify-between">
+              <div className="px-6 py-4 bg-[#0A347B] text-white flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
                     <FileText className="w-4 h-4 text-emerald-400" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm">Medical Voucher Configuration</h3>
-                    <p className="text-[11px] text-blue-100">Physician, coverage scope, diagnostic framework & signature</p>
+                    <h3 className="font-bold text-sm">Génération de Fiche Médicale (Prise en Charge)</h3>
+                    <p className="text-[11px] text-blue-100">Saisie intelligente de l'assuré, praticien et plafonds</p>
                   </div>
                 </div>
               </div>
 
               <form onSubmit={handleGenerateForm} className="p-6 space-y-5">
-                {/* 1. Member Selection */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    1. Select Insured Beneficiary <span className="text-rose-500">*</span>
+                {/* 1. SMART AUTOCOMPLETE FOR INSURED BENEFICIARY */}
+                <div className="space-y-1.5" ref={memberSearchRef}>
+                  <label className="block text-xs font-bold text-slate-700">
+                    1. Saisie Intelligente de l'Assuré Bénéficiaire <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={selectedMemberCard}
-                    onChange={(e) => setSelectedMemberCard(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
-                    required
-                  >
-                    <option value="">Select a member from directory...</option>
-                    {members.map((m) => (
-                      <option key={m.id} value={m.cardNo}>
-                        {m.principalName} — {m.cardNo} ({m.organization})
-                      </option>
-                    ))}
-                  </select>
+                  
+                  {selectedMember ? (
+                    <div className="p-3.5 bg-blue-50/80 border-2 border-[#0A347B]/40 rounded-xl space-y-2 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-[#0A347B] text-white flex items-center justify-center font-bold text-xs">
+                            {selectedMember.principalName.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-xs text-slate-900">{selectedMember.principalName}</div>
+                            <div className="text-[10.5px] font-mono font-bold text-[#0A347B]">
+                              N° {selectedMember.cardNo} • {selectedMember.organization}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMember(null);
+                            setMemberSearchQuery('');
+                          }}
+                          className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-600 text-[11px] font-bold transition cursor-pointer"
+                        >
+                          Changer
+                        </button>
+                      </div>
 
-                  {/* Auto-filled details */}
-                  {selectedMember && (
-                    <div className="mt-2 p-3 bg-blue-50/70 border border-blue-200 rounded-xl grid grid-cols-2 gap-2 text-xs animate-in fade-in">
-                      <div>
-                        <span className="text-slate-400 text-[10px] block font-semibold">Member Name</span>
-                        <span className="font-bold text-slate-800">{selectedMember.principalName}</span>
+                      <div className="pt-2 border-t border-blue-200/60 flex items-center justify-between text-xs">
+                        <span className="text-slate-500 text-[11px]">Solde Ambulatoire Disponible:</span>
+                        <span className="font-bold text-[#00A859] font-mono">
+                          ${selectedMember.outpatientBalanceUSD ?? 600} USD
+                        </span>
                       </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] block font-semibold">Health Card No</span>
-                        <span className="font-bold text-[#0a2e6b] font-mono">{selectedMember.cardNo}</span>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          value={memberSearchQuery}
+                          onFocus={() => setIsMemberDropdownOpen(true)}
+                          onChange={(e) => {
+                            setMemberSearchQuery(e.target.value);
+                            setIsMemberDropdownOpen(true);
+                          }}
+                          placeholder="Tapez le nom, n° carte ou entreprise pour rechercher..."
+                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-[#0A347B] focus:outline-none transition"
+                        />
                       </div>
-                      <div className="col-span-2 pt-1 border-t border-blue-100 flex items-center justify-between">
-                        <div>
-                          <span className="text-slate-400 text-[10px] block font-semibold">Organization / Employer</span>
-                          <span className="font-bold text-slate-800">{selectedMember.organization}</span>
+
+                      {/* Smart Autocomplete Floating List */}
+                      {isMemberDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-slate-100">
+                          {suggestedMembers.length === 0 ? (
+                            <div className="p-4 text-center text-xs text-slate-400 italic">
+                              Aucun assuré trouvé avec « {memberSearchQuery} ».
+                            </div>
+                          ) : (
+                            suggestedMembers.map((m) => (
+                              <div
+                                key={m.id}
+                                onClick={() => {
+                                  setSelectedMember(m);
+                                  setIsMemberDropdownOpen(false);
+                                  setMemberSearchQuery('');
+                                }}
+                                className="p-3 hover:bg-blue-50/70 transition cursor-pointer flex items-center justify-between text-xs"
+                              >
+                                <div>
+                                  <div className="font-bold text-slate-800">{m.principalName}</div>
+                                  <div className="text-[10.5px] font-mono text-[#0A347B]">
+                                    {m.cardNo} • {m.organization}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    ${m.outpatientBalanceUSD ?? 600} USD
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          )}
                         </div>
-                        <div className="text-right">
-                          <span className="text-slate-400 text-[10px] block font-semibold">Outpatient Balance</span>
-                          <span className="font-bold text-[#00A859]">${selectedMember.outpatientBalanceUSD ?? 600} USD</span>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
 
-                {/* 2. Provider Selection */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    2. Accredited Healthcare Facility / Provider <span className="text-rose-500">*</span>
+                {/* 2. SMART AUTOCOMPLETE FOR HEALTHCARE PROVIDER */}
+                <div className="space-y-1.5" ref={providerSearchRef}>
+                  <label className="block text-xs font-bold text-slate-700">
+                    2. Saisie Intelligente du Prestataire de Soins <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={selectedProviderId}
-                    onChange={(e) => setSelectedProviderId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
-                    required
-                  >
-                    <option value="">Select hospital, clinic or medical center...</option>
-                    {providers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.type} - {p.location})
-                      </option>
-                    ))}
-                  </select>
+
+                  {selectedProvider ? (
+                    <div className="p-3.5 bg-emerald-50/80 border-2 border-[#00A859]/40 rounded-xl space-y-1.5 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-[#00A859] text-white flex items-center justify-center font-bold text-xs">
+                            <Building className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-xs text-slate-900">{selectedProvider.name}</div>
+                            <div className="text-[10.5px] text-slate-500">
+                              {selectedProvider.type} • {selectedProvider.location}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProvider(null);
+                            setProviderSearchQuery('');
+                          }}
+                          className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-600 text-[11px] font-bold transition cursor-pointer"
+                        >
+                          Changer
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="relative">
+                        <Building className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          value={providerSearchQuery}
+                          onFocus={() => setIsProviderDropdownOpen(true)}
+                          onChange={(e) => {
+                            setProviderSearchQuery(e.target.value);
+                            setIsProviderDropdownOpen(true);
+                          }}
+                          placeholder="Tapez le nom de l'hôpital, clinique ou centre médical..."
+                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-[#0A347B] focus:outline-none transition"
+                        />
+                      </div>
+
+                      {/* Smart Autocomplete Floating List */}
+                      {isProviderDropdownOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-slate-100">
+                          {suggestedProviders.length === 0 ? (
+                            <div className="p-4 text-center text-xs text-slate-400 italic">
+                              Aucun prestataire trouvé avec « {providerSearchQuery} ».
+                            </div>
+                          ) : (
+                            suggestedProviders.map((p) => (
+                              <div
+                                key={p.id}
+                                onClick={() => {
+                                  setSelectedProvider(p);
+                                  setIsProviderDropdownOpen(false);
+                                  setProviderSearchQuery('');
+                                }}
+                                className="p-3 hover:bg-emerald-50/70 transition cursor-pointer flex items-center justify-between text-xs"
+                              >
+                                <div>
+                                  <div className="font-bold text-slate-800">{p.name}</div>
+                                  <div className="text-[10.5px] text-slate-500">
+                                    {p.type} • {p.location}
+                                  </div>
+                                </div>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-[#00A859] border border-emerald-200">
+                                  Agréé ACTIVA
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* 3. CONSULTATION TYPE: GENERALIST OR SPECIALIST */}
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <Stethoscope className="w-4 h-4 text-[#0a2e6b]" />
-                      <span>3. Medical Consultation Type</span>
+                      <Stethoscope className="w-4 h-4 text-[#0A347B]" />
+                      <span>3. Type de Consultation Médicale</span>
                       <span className="text-rose-500">*</span>
                     </label>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-[#0a2e6b]">
-                      ACTIVA Policy
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-[#0A347B]">
+                      Convention ACTIVA
                     </span>
                   </div>
 
@@ -375,18 +546,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       onClick={() => setPractitionerType('Generalist')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         practitionerType === 'Generalist'
-                          ? 'bg-blue-50/90 border-[#0a2e6b] ring-2 ring-[#0a2e6b]/20 shadow-xs'
+                          ? 'bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs'
                           : 'bg-white border-slate-200 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-[#0a2e6b]">🩺 Generalist</span>
+                        <span className="text-xs font-black text-[#0A347B]">🩺 Généraliste</span>
                         {practitionerType === 'Generalist' && (
-                          <CheckCircle2 className="w-4 h-4 text-[#0a2e6b]" />
+                          <CheckCircle2 className="w-4 h-4 text-[#0A347B]" />
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        General practice, standard examination, and primary routing
+                        Médecine générale, examen standard & orientation
                       </p>
                     </button>
 
@@ -395,18 +566,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       onClick={() => setPractitionerType('Specialist')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         practitionerType === 'Specialist'
-                          ? 'bg-purple-50/90 border-purple-600 ring-2 ring-purple-600/20 shadow-xs'
+                          ? 'bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs'
                           : 'bg-white border-slate-200 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-purple-800">👨‍⚕️ Specialist</span>
+                        <span className="text-xs font-black text-[#0A347B]">👨‍⚕️ Spécialiste</span>
                         {practitionerType === 'Specialist' && (
-                          <CheckCircle2 className="w-4 h-4 text-purple-600" />
+                          <CheckCircle2 className="w-4 h-4 text-[#0A347B]" />
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Specialized doctor (Cardiology, Pediatrics, Ophthalmology, etc.)
+                        Médecin spécialiste (Cardiologie, Pédiatrie, Gynécologie...)
                       </p>
                     </button>
                   </div>
@@ -414,13 +585,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* Specialty dropdown if Specialist is selected */}
                   {practitionerType === 'Specialist' && (
                     <div className="pt-2 border-t border-slate-200/80 space-y-2 animate-in fade-in">
-                      <label className="block text-[11px] font-bold text-purple-900">
-                        Specify Medical Specialty:
+                      <label className="block text-[11px] font-bold text-[#0A347B]">
+                        Spécialité Médicale :
                       </label>
                       <select
                         value={doctorSpecialty}
                         onChange={(e) => setDoctorSpecialty(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-purple-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-purple-600"
+                        className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0A347B]"
                       >
                         {COMMON_SPECIALTIES.map((spec) => (
                           <option key={spec} value={spec}>
@@ -434,8 +605,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           type="text"
                           value={customSpecialty}
                           onChange={(e) => setCustomSpecialty(e.target.value)}
-                          placeholder="Enter exact medical specialty..."
-                          className="w-full px-3 py-1.5 bg-white border border-purple-300 rounded-lg text-xs"
+                          placeholder="Saisissez la spécialité exacte..."
+                          className="w-full px-3 py-1.5 bg-white border border-blue-300 rounded-lg text-xs"
                           required
                         />
                       )}
@@ -448,11 +619,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <Activity className="w-4 h-4 text-[#00A859]" />
-                      <span>4. Treatment Scope / Modality</span>
+                      <span>4. Régime de Soins & Prise en Charge</span>
                       <span className="text-rose-500">*</span>
                     </label>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                      Balance Limit
+                      Vérification Solde
                     </span>
                   </div>
 
@@ -462,19 +633,19 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       onClick={() => setCoverageType('Outpatient')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         coverageType === 'Outpatient'
-                          ? 'bg-blue-50/90 border-[#0a2e6b] ring-2 ring-[#0a2e6b]/20 shadow-xs'
+                          ? 'bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs'
                           : 'bg-white border-slate-200 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-[#0a2e6b]">🏥 Outpatient Care</span>
+                        <span className="text-xs font-black text-[#0A347B]">🏥 Ambulatoire</span>
                         {coverageType === 'Outpatient' && (
-                          <CheckCircle2 className="w-4 h-4 text-[#0a2e6b]" />
+                          <CheckCircle2 className="w-4 h-4 text-[#0A347B]" />
                         )}
                       </div>
                       <div className="mt-2 text-xs">
-                        <span className="text-[10px] text-slate-400 block">Available Balance:</span>
-                        <span className="text-sm font-black text-[#0a2e6b]">
+                        <span className="text-[10px] text-slate-400 block">Solde Disponible:</span>
+                        <span className="text-sm font-black text-[#0A347B]">
                           ${selectedMember?.outpatientBalanceUSD ?? 600} USD
                         </span>
                       </div>
@@ -490,13 +661,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-[#00A859]">🛏️ Inpatient Admission</span>
+                        <span className="text-xs font-black text-[#00A859]">🛏️ Hospitalisation</span>
                         {coverageType === 'Inpatient' && (
                           <CheckCircle2 className="w-4 h-4 text-[#00A859]" />
                         )}
                       </div>
                       <div className="mt-2 text-xs">
-                        <span className="text-[10px] text-slate-400 block">Available Balance:</span>
+                        <span className="text-[10px] text-slate-400 block">Solde Disponible:</span>
                         <span className="text-sm font-black text-[#00A859]">
                           ${selectedMember?.inpatientBalanceUSD ?? 8500} USD
                         </span>
@@ -509,56 +680,53 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div className="p-4 bg-blue-50/40 rounded-xl border border-blue-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-[#0a2e6b]" />
-                      <span className="text-xs font-bold text-[#0a2e6b]">5. Physician Diagnosis & Prescriptions Framework</span>
+                      <FileText className="w-4 h-4 text-[#0A347B]" />
+                      <span className="text-xs font-bold text-[#0A347B]">5. Cadre Prescriptions & Diagnostic Médecin</span>
                     </div>
-                    <span className="text-[10px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-                      Pre-filled or handwritten by physician
-                    </span>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Attending Physician Name</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Nom du Médecin Traitant</label>
                     <input
                       type="text"
                       value={doctorName}
                       onChange={(e) => setDoctorName(e.target.value)}
-                      placeholder={practitionerType === 'Generalist' ? 'e.g. Dr. Arthur Miller, General Practice' : `e.g. Dr. Arthur Miller, ${effectiveSpecialty}`}
+                      placeholder={practitionerType === 'Generalist' ? 'ex. Dr. Arthur Miller, Médecine Générale' : `ex. Dr. Arthur Miller, ${effectiveSpecialty}`}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
-                      Medical Diagnosis / Chief Complaint
+                      Diagnostic Présumé / Motif de Consultation
                     </label>
                     <input
                       type="text"
                       value={presumedDiagnosis}
                       onChange={(e) => setPresumedDiagnosis(e.target.value)}
-                      placeholder="e.g. Health checkup, acute infectious syndrome, cardiology follow-up..."
+                      placeholder="ex. Bilan de santé, syndrome fébrile, consultation cardiologique..."
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Prescribed Lab & Imaging Exams</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Examens & Analyses Prescrits</label>
                     <input
                       type="text"
                       value={requestedExams}
                       onChange={(e) => setRequestedExams(e.target.value)}
-                      placeholder="e.g. CBC, Lipid Profile, Chest X-Ray, Abdominal Ultrasound..."
+                      placeholder="ex. NFS, Bilan lipidique, Radiographie thoracique, Échographie..."
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Prescription & Medical Orders</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Ordonnance & Prescriptions Médicamenteuses</label>
                     <textarea
                       rows={2}
                       value={treatmentOrder}
                       onChange={(e) => setTreatmentOrder(e.target.value)}
-                      placeholder="e.g. 1. Dosage, frequency and treatment duration..."
+                      placeholder="ex. 1. Posologie, posologies journalières et durée du traitement..."
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 resize-none"
                     />
                   </div>
@@ -574,7 +742,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   }`}
                 >
                   <FileCheck className="w-4 h-4" />
-                  <span>Generate Medical Voucher</span>
+                  <span>Générer le Bon de Prise en Charge</span>
                 </button>
               </form>
             </div>
@@ -588,7 +756,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-100">
                   <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Medical Voucher Ready</span>
+                    <span>Fiche Médicale Prête</span>
                   </span>
                   
                   <div className="flex items-center gap-2">
@@ -597,21 +765,21 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      <span>Print</span>
+                      <span>Imprimer</span>
                     </button>
                     <button
                       onClick={() => handleShare(generatedForm)}
-                      className="px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-[#0a2e6b] rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                      className="px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-[#0A347B] rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Share</span>
+                      <span>Partager</span>
                     </button>
                     <button
                       onClick={() => handleDownloadPDF(generatedForm)}
-                      className="px-3.5 py-1.5 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                      className="px-3.5 py-1.5 bg-[#0A347B] hover:bg-[#08285e] text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>Download PDF</span>
+                      <span>PDF</span>
                     </button>
                   </div>
                 </div>
@@ -619,14 +787,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 {/* Simulated Paper */}
                 <div className="bg-white p-5 rounded-xl border-2 border-slate-200 shadow-lg font-sans text-xs space-y-3.5 relative">
                   {/* Header Bar */}
-                  <div className="bg-[#0a2e6b] text-white p-3.5 rounded-lg flex items-center justify-between border-b-4 border-[#00A859]">
+                  <div className="bg-[#0A347B] text-white p-3.5 rounded-lg flex items-center justify-between border-b-4 border-[#00A859]">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-md bg-white/10 flex items-center justify-center text-emerald-400">
                         <Activity className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="font-black text-sm tracking-wide">ACTIVA HealthPass</div>
-                        <div className="text-[9.5px] text-blue-100">HEALTHCARE AUTHORIZATION & PRESCRIPTION</div>
+                        <div className="text-[9.5px] text-blue-100 uppercase">Fiche Médicale de Prise en Charge</div>
                       </div>
                     </div>
                     <div className="text-right font-mono text-[9.5px]">
@@ -637,26 +805,26 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
                   {/* 1. Insured Details & Treatment Modality */}
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
-                    <div className="text-[10px] font-bold text-[#0a2e6b] uppercase tracking-wide">
-                      1. Beneficiary & Treatment Modality
+                    <div className="text-[10px] font-bold text-[#0A347B] uppercase tracking-wide">
+                      1. Assuré Bénéficiaire & Régime de Soins
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Insured Member</span>
+                        <span className="text-slate-400 text-[10px] block">Assuré Principal</span>
                         <strong className="text-slate-800">{generatedForm.memberName}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Health Card No</span>
-                        <strong className="text-[#0a2e6b] font-mono">{generatedForm.memberCardNo}</strong>
+                        <span className="text-slate-400 text-[10px] block">N° de Carte Santé</span>
+                        <strong className="text-[#0A347B] font-mono">{generatedForm.memberCardNo}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Employer / Sponsor</span>
+                        <span className="text-slate-400 text-[10px] block">Employeur / Sponsor</span>
                         <strong>{generatedForm.organization}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Treatment Scope</span>
-                        <strong className={generatedForm.coverageType === 'Outpatient' ? 'text-[#0a2e6b]' : 'text-[#00A859]'}>
-                          {generatedForm.coverageType === 'Outpatient' ? '🏥 Outpatient Care' : '🛏️ Inpatient Admission'}
+                        <span className="text-slate-400 text-[10px] block">Régime de Soins</span>
+                        <strong className={generatedForm.coverageType === 'Outpatient' ? 'text-[#0A347B]' : 'text-[#00A859]'}>
+                          {generatedForm.coverageType === 'Outpatient' ? '🏥 Ambulatoire' : '🛏️ Hospitalisation'}
                         </strong>
                       </div>
                     </div>
@@ -664,41 +832,41 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
                   {/* 2. Provider Details & Practitioner Type */}
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
-                    <div className="text-[10px] font-bold text-[#0a2e6b] uppercase tracking-wide">
-                      2. Healthcare Provider & Consultation Scope
+                    <div className="text-[10px] font-bold text-[#0A347B] uppercase tracking-wide">
+                      2. Prestataire de Soins & Praticien
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Facility / Hospital</span>
+                        <span className="text-slate-400 text-[10px] block">Établissement / Hôpital</span>
                         <strong className="text-slate-800">{generatedForm.providerName}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Consultation Type</span>
-                        <strong className={generatedForm.practitionerType === 'Specialist' ? 'text-purple-700' : 'text-[#0a2e6b]'}>
+                        <span className="text-slate-400 text-[10px] block">Type de Praticien</span>
+                        <strong className={generatedForm.practitionerType === 'Specialist' ? 'text-purple-700' : 'text-[#0A347B]'}>
                           {generatedForm.practitionerType === 'Specialist'
-                            ? `👨‍⚕️ Specialist (${generatedForm.doctorSpecialty || 'Specialized Medicine'})`
-                            : '🩺 General Practitioner'}
+                            ? `👨‍⚕️ Spécialiste (${generatedForm.doctorSpecialty || 'Médical'})`
+                            : '🩺 Médecin Généraliste'}
                         </strong>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-slate-400 text-[10px] block">Attending Physician</span>
+                        <span className="text-slate-400 text-[10px] block">Médecin Traitant</span>
                         <strong>{generatedForm.doctorName || 'Dr. _______________________'}</strong>
                       </div>
                     </div>
                   </div>
 
                   {/* 3. DIAGNOSTIC & PRESCRIPTIONS FRAMEWORK */}
-                  <div className="bg-white p-3.5 rounded-lg border-2 border-[#0a2e6b]/20 space-y-2">
+                  <div className="bg-white p-3.5 rounded-lg border-2 border-[#0A347B]/20 space-y-2">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-1">
-                      <div className="text-[10px] font-bold text-[#0a2e6b] uppercase tracking-wide flex items-center gap-1.5">
-                        <PenTool className="w-3 h-3 text-[#0a2e6b]" />
-                        <span>3. Physician Framework — Diagnosis & Medical Orders</span>
+                      <div className="text-[10px] font-bold text-[#0A347B] uppercase tracking-wide flex items-center gap-1.5">
+                        <PenTool className="w-3 h-3 text-[#0A347B]" />
+                        <span>3. Cadre Réservé au Médecin Traitant</span>
                       </div>
                     </div>
 
                     <div className="text-[10px] space-y-2">
                       <div className="p-2 bg-slate-50 rounded border border-slate-200">
-                        <span className="font-bold text-slate-700 block mb-0.5">Medical Diagnosis / Chief Complaint:</span>
+                        <span className="font-bold text-slate-700 block mb-0.5">Diagnostic / Motif :</span>
                         <div className="text-slate-800 font-medium">
                           {generatedForm.doctorPrescription?.presumedDiagnosis || (
                             <span className="text-slate-400 italic">____________________________________________________________________</span>
@@ -707,7 +875,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       </div>
 
                       <div className="p-2 bg-slate-50 rounded border border-slate-200">
-                        <span className="font-bold text-slate-700 block mb-0.5">Diagnostic & Lab Examinations:</span>
+                        <span className="font-bold text-slate-700 block mb-0.5">Examens de Laboratoire / Imagerie :</span>
                         <div className="text-slate-800 font-medium">
                           {generatedForm.doctorPrescription?.requestedExams || (
                             <span className="text-slate-400 italic">____________________________________________________________________</span>
@@ -716,7 +884,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       </div>
 
                       <div className="p-2 bg-slate-50 rounded border border-slate-200">
-                        <span className="font-bold text-slate-700 block mb-0.5">Prescribed Treatment & Medications:</span>
+                        <span className="font-bold text-slate-700 block mb-0.5">Traitements & Prescriptions :</span>
                         <div className="text-slate-800 font-medium">
                           {generatedForm.doctorPrescription?.treatmentOrder || (
                             <span className="text-slate-400 italic">1. _________________________________________________________________</span>
@@ -726,20 +894,20 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     </div>
                   </div>
 
-                  {/* 4. SIGNATURES (INSURED & DOCTOR WITH STAMP) */}
+                  {/* 4. SIGNATURES */}
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg text-center h-24 flex flex-col justify-between">
-                      <span className="text-[9.5px] font-bold text-slate-700">Patient / Insured Signature</span>
-                      <div className="text-[8px] text-slate-400 italic">Confirmed & Approved</div>
+                      <span className="text-[9.5px] font-bold text-slate-700">Signature du Patient / Assuré</span>
+                      <div className="text-[8px] text-slate-400 italic">Lu et approuvé</div>
                       <div className="text-[8px] text-slate-500 font-mono">Date: ____/____/2026</div>
                     </div>
 
-                    <div className="p-3 bg-blue-50/50 border-2 border-dashed border-[#0a2e6b]/40 rounded-lg text-center h-24 flex flex-col justify-between">
-                      <div className="flex items-center justify-center gap-1 text-[9.5px] font-bold text-[#0a2e6b]">
-                        <PenTool className="w-3 h-3 text-[#0a2e6b]" />
-                        <span>Physician Signature & Official Stamp</span>
+                    <div className="p-3 bg-blue-50/50 border-2 border-dashed border-[#0A347B]/40 rounded-lg text-center h-24 flex flex-col justify-between">
+                      <div className="flex items-center justify-center gap-1 text-[9.5px] font-bold text-[#0A347B]">
+                        <PenTool className="w-3 h-3 text-[#0A347B]" />
+                        <span>Cachet & Signature du Médecin</span>
                       </div>
-                      <div className="text-[8px] text-slate-400 italic">Provider stamp required</div>
+                      <div className="text-[8px] text-slate-400 italic">Cachet de la structure requis</div>
                       <div className="text-[8px] text-slate-500 font-mono">Date: ____/____/2026</div>
                     </div>
                   </div>
@@ -747,21 +915,21 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* Barcode & Security */}
                   <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <QrCode className="w-7 h-7 text-[#0a2e6b]" />
+                      <QrCode className="w-7 h-7 text-[#0A347B]" />
                       <div>
                         <div className="text-[9.5px] font-mono font-bold text-slate-800">{generatedForm.securityNumber}</div>
-                        <div className="text-[8px] text-slate-400">ACTIVA Unique Security Identifier</div>
+                        <div className="text-[8px] text-slate-400">Identifiant de Sécurité ACTIVA</div>
                       </div>
                     </div>
                     <div className="text-[8.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      VALID 48H
+                      VALIDE 48H
                     </div>
                   </div>
 
                   {/* Mandatory Instruction */}
                   <div className="p-2 bg-rose-50 border border-rose-300 rounded-lg text-center">
                     <p className="text-[9px] font-extrabold text-rose-700 leading-tight">
-                      « This document must be returned to the medical agent following practitioner sign-off. »
+                      « Ce document doit être obligatoirement retourné à l'agent médical après visa du médecin traitant. »
                     </p>
                   </div>
                 </div>
@@ -771,9 +939,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div className="w-14 h-14 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-center mb-3">
                   <FileText className="w-7 h-7 text-slate-400" />
                 </div>
-                <h4 className="font-bold text-sm text-slate-700 mb-1">Document Live Preview</h4>
+                <h4 className="font-bold text-sm text-slate-700 mb-1">Aperçu en Direct</h4>
                 <p className="text-xs text-slate-400 max-w-xs">
-                  Select an insured member, accredited provider, consultation type (Generalist / Specialist), and treatment modality (Outpatient / Inpatient).
+                  Saisissez l'assuré et l'établissement de soins via la saisie intelligente pour générer instantanément le bon de prise en charge.
                 </p>
               </div>
             )}
@@ -786,43 +954,40 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4 p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
             <div>
-              <h3 className="font-bold text-sm text-slate-900">Issued Medical Vouchers ({filteredForms.length})</h3>
-              <p className="text-xs text-slate-500">Complete audit trail by practitioner type (Generalist / Specialist) and treatment modality</p>
+              <h3 className="font-bold text-sm text-slate-900">Bons de Prise en Charge Émis ({filteredForms.length})</h3>
+              <p className="text-xs text-slate-500">Traçabilité complète par praticien et régime de soins</p>
             </div>
 
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Coverage filter */}
               <select
                 value={filterCoverage}
                 onChange={(e) => setFilterCoverage(e.target.value as any)}
                 className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
               >
-                <option value="all">All Care Types (Outpatient/Inpatient)</option>
-                <option value="Outpatient">Outpatient</option>
-                <option value="Inpatient">Inpatient</option>
+                <option value="all">Tous Régimes (Ambulatoire / Hospitalisation)</option>
+                <option value="Outpatient">Ambulatoire</option>
+                <option value="Inpatient">Hospitalisation</option>
               </select>
 
-              {/* Practitioner filter */}
               <select
                 value={filterPractitioner}
                 onChange={(e) => setFilterPractitioner(e.target.value as any)}
                 className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
               >
-                <option value="all">All Practitioners</option>
-                <option value="Generalist">Generalist</option>
-                <option value="Specialist">Specialist</option>
+                <option value="all">Tous Praticiens</option>
+                <option value="Generalist">Généraliste</option>
+                <option value="Specialist">Spécialiste</option>
               </select>
 
-              {/* Search input */}
               <div className="relative w-full sm:w-60">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  placeholder="Search member, card, security #..."
-                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-[#0a2e6b]"
+                  placeholder="Rechercher assuré, carte, réf..."
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-[#0A347B]"
                 />
               </div>
             </div>
@@ -832,21 +997,21 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">Security No</th>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Insured & Card</th>
-                  <th className="py-3 px-4">Facility</th>
-                  <th className="py-3 px-4">Consultation</th>
-                  <th className="py-3 px-4">Treatment</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="py-3 px-4">N° SÉCURITÉ</th>
+                  <th className="py-3 px-4">DATE</th>
+                  <th className="py-3 px-4">ASSURÉ & CARTE</th>
+                  <th className="py-3 px-4">ÉTABLISSEMENT</th>
+                  <th className="py-3 px-4">CONSULTATION</th>
+                  <th className="py-3 px-4">RÉGIME</th>
+                  <th className="py-3 px-4 text-center">STATUT</th>
+                  <th className="py-3 px-4 text-right">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredForms.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-8 text-center text-slate-400 text-xs font-medium">
-                      No medical vouchers matching the specified criteria.
+                      Aucune fiche médicale émise ne correspond à ces critères.
                     </td>
                   </tr>
                 ) : (
@@ -854,7 +1019,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     const isSpec = form.practitionerType === 'Specialist' || form.practitionerType === 'Spécialiste';
                     return (
                       <tr key={form.id} className="hover:bg-slate-50 transition">
-                        <td className="py-3.5 px-4 font-mono font-bold text-[#0a2e6b] whitespace-nowrap">
+                        <td className="py-3.5 px-4 font-mono font-bold text-[#0A347B] whitespace-nowrap">
                           {form.securityNumber}
                         </td>
                         <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
@@ -872,21 +1037,21 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                             className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                               isSpec
                                 ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                : 'bg-blue-50 text-[#0a2e6b] border border-blue-200'
+                                : 'bg-blue-50 text-[#0A347B] border border-blue-200'
                             }`}
                           >
-                            {isSpec ? `Specialist (${form.doctorSpecialty || 'Medical'})` : 'Generalist'}
+                            {isSpec ? `Spécialiste (${form.doctorSpecialty || 'Médical'})` : 'Généraliste'}
                           </span>
                         </td>
                         <td className="py-3.5 px-4">
                           <span
                             className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                               form.coverageType === 'Outpatient'
-                                ? 'bg-blue-50 text-[#0a2e6b]'
+                                ? 'bg-blue-50 text-[#0A347B]'
                                 : 'bg-emerald-50 text-[#00A859]'
                             }`}
                           >
-                            {form.coverageType === 'Outpatient' ? 'Outpatient' : 'Inpatient'}
+                            {form.coverageType === 'Outpatient' ? 'Ambulatoire' : 'Hospitalisation'}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">
@@ -896,43 +1061,43 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : form.status === 'pending_return'
                                 ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : 'bg-blue-50 text-[#0a2e6b] border border-blue-200'
+                                : 'bg-blue-50 text-[#0A347B] border border-blue-200'
                             }`}
                           >
                             {form.status === 'completed'
-                              ? 'Completed / Closed'
+                              ? 'Clôturé'
                               : form.status === 'pending_return'
-                              ? 'Awaiting Physician Return'
-                              : 'Issued / Active'}
+                              ? 'Attente Retour Signé'
+                              : 'Émis / Actif'}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => setPreviewModalForm(form)}
-                              className="p-1.5 text-slate-500 hover:text-[#0a2e6b] hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                              title="Preview"
+                              className="p-1.5 text-slate-500 hover:text-[#0A347B] hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                              title="Aperçu"
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDownloadPDF(form)}
-                              className="p-1.5 text-slate-500 hover:text-[#0a2e6b] hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                              title="Download PDF"
+                              className="p-1.5 text-slate-500 hover:text-[#0A347B] hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                              title="Télécharger PDF"
                             >
                               <Download className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handlePrint(form)}
-                              className="p-1.5 text-slate-500 hover:text-[#0a2e6b] hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                              title="Print"
+                              className="p-1.5 text-slate-500 hover:text-[#0A347B] hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                              title="Imprimer"
                             >
                               <Printer className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleShare(form)}
-                              className="p-1.5 text-slate-500 hover:text-[#0a2e6b] hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                              title="Share"
+                              className="p-1.5 text-slate-500 hover:text-[#0A347B] hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                              title="Partager"
                             >
                               <Share2 className="w-4 h-4" />
                             </button>
@@ -948,18 +1113,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
         </div>
       )}
 
-      {/* Detailed Modal Preview with Diagnostic & Signature Areas */}
+      {/* Detailed Modal Preview */}
       {previewModalForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden my-8 animate-in zoom-in-95">
-            <div className="bg-[#0a2e6b] p-4 text-white flex items-center justify-between">
+            <div className="bg-[#0A347B] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-emerald-400">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm">Medical Voucher — {previewModalForm.securityNumber}</h3>
-                  <p className="text-[10px] text-blue-100">Beneficiary: {previewModalForm.memberName}</p>
+                  <h3 className="font-bold text-sm">Fiche Médicale — {previewModalForm.securityNumber}</h3>
+                  <p className="text-[10px] text-blue-100">Bénéficiaire : {previewModalForm.memberName}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -968,7 +1133,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Print</span>
+                  <span>Imprimer</span>
                 </button>
                 <button
                   onClick={() => handleDownloadPDF(previewModalForm)}
@@ -989,36 +1154,36 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             <div className="p-6 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Insured Member</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold">Assuré Bénéficiaire</span>
                   <span className="font-bold text-slate-800 text-sm">{previewModalForm.memberName}</span>
-                  <span className="font-mono text-xs text-[#0a2e6b] block">{previewModalForm.memberCardNo}</span>
+                  <span className="font-mono text-xs text-[#0A347B] block">{previewModalForm.memberCardNo}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Company / Employer</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold">Entreprise / Sponsor</span>
                   <span className="font-bold text-slate-800">{previewModalForm.organization}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Provider / Hospital</span>
-                  <span className="font-bold text-[#0a2e6b]">{previewModalForm.providerName}</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold">Prestataire / Établissement</span>
+                  <span className="font-bold text-[#0A347B]">{previewModalForm.providerName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Consultation Scope</span>
-                  <span className={`font-bold ${previewModalForm.practitionerType === 'Specialist' ? 'text-purple-700' : 'text-[#0a2e6b]'}`}>
+                  <span className="text-slate-400 text-[10px] block font-semibold">Type de Consultation</span>
+                  <span className={`font-bold ${previewModalForm.practitionerType === 'Specialist' ? 'text-purple-700' : 'text-[#0A347B]'}`}>
                     {previewModalForm.practitionerType === 'Specialist'
-                      ? `👨‍⚕️ Specialist (${previewModalForm.doctorSpecialty || 'Medical'})`
-                      : '🩺 General Practitioner'}
+                      ? `👨‍⚕️ Spécialiste (${previewModalForm.doctorSpecialty || 'Médical'})`
+                      : '🩺 Médecin Généraliste'}
                   </span>
                 </div>
                 <div className="col-span-2 pt-2 border-t border-slate-200 flex items-center justify-between">
                   <div>
-                    <span className="text-slate-400 text-[10px] block font-semibold">Treatment Modality</span>
+                    <span className="text-slate-400 text-[10px] block font-semibold">Régime de Soins</span>
                     <span className="font-bold text-[#00A859]">
-                      {previewModalForm.coverageType === 'Outpatient' ? '🏥 Outpatient Care' : '🛏️ Inpatient Admission'}
+                      {previewModalForm.coverageType === 'Outpatient' ? '🏥 Ambulatoire' : '🛏️ Hospitalisation'}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-slate-400 text-[10px] block font-semibold">Available Limit</span>
-                    <span className="font-bold text-[#0a2e6b]">
+                    <span className="text-slate-400 text-[10px] block font-semibold">Solde Disponible</span>
+                    <span className="font-bold text-[#0A347B]">
                       ${previewModalForm.coverageType === 'Outpatient' ? previewModalForm.outpatientBalanceUSD : previewModalForm.inpatientBalanceUSD} USD
                     </span>
                   </div>
@@ -1027,22 +1192,22 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
               {/* Diagnostic & Prescriptions Section Preview */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="font-bold text-xs text-[#0a2e6b] flex items-center gap-1.5">
-                  <PenTool className="w-3.5 h-3.5 text-[#0a2e6b]" />
-                  <span>Physician Diagnostic & Prescription Framework</span>
+                <div className="font-bold text-xs text-[#0A347B] flex items-center gap-1.5">
+                  <PenTool className="w-3.5 h-3.5 text-[#0A347B]" />
+                  <span>Cadre Prescriptions & Diagnostic Médecin</span>
                 </div>
                 <div className="text-slate-700 space-y-1.5">
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Medical Diagnosis / Chief Complaint:</span>
-                    <span className="font-semibold">{previewModalForm.doctorPrescription?.presumedDiagnosis || 'To be completed by physician'}</span>
+                    <span className="text-slate-400 text-[10px] block">Diagnostic Présumé :</span>
+                    <span className="font-semibold">{previewModalForm.doctorPrescription?.presumedDiagnosis || 'À compléter par le médecin'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Prescribed Examinations:</span>
-                    <span className="font-semibold">{previewModalForm.doctorPrescription?.requestedExams || 'To be completed by physician'}</span>
+                    <span className="text-slate-400 text-[10px] block">Examens & Analyses :</span>
+                    <span className="font-semibold">{previewModalForm.doctorPrescription?.requestedExams || 'À compléter par le médecin'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Prescription Orders & Medications:</span>
-                    <span className="font-semibold">{previewModalForm.doctorPrescription?.treatmentOrder || 'To be completed by physician'}</span>
+                    <span className="text-slate-400 text-[10px] block">Traitements & Médicaments :</span>
+                    <span className="font-semibold">{previewModalForm.doctorPrescription?.treatmentOrder || 'À compléter par le médecin'}</span>
                   </div>
                 </div>
               </div>
@@ -1050,13 +1215,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               {/* Status Update Control */}
               <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-[#0a2e6b] block">Document Status:</span>
+                  <span className="font-bold text-[#0A347B] block">Statut du Document :</span>
                   <span className="text-[11px] text-slate-600">
                     {previewModalForm.status === 'completed'
-                      ? 'Completed & signed by physician'
+                      ? 'Clôturé et visé par le médecin'
                       : previewModalForm.status === 'pending_return'
-                      ? 'Awaiting physical return of signed voucher'
-                      : 'Issued - Under consultation'}
+                      ? 'En attente de retour physique signé'
+                      : 'Émis - En cours de consultation'}
                   </span>
                 </div>
                 <div className="flex gap-1.5">
@@ -1067,7 +1232,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     }}
                     className="px-2.5 py-1 bg-white border border-amber-200 text-amber-700 rounded-lg text-xs font-bold hover:bg-amber-50 cursor-pointer"
                   >
-                    Awaiting Return
+                    Attente Retour
                   </button>
                   <button
                     onClick={() => {
@@ -1076,7 +1241,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     }}
                     className="px-2.5 py-1 bg-[#00A859] text-white rounded-lg text-xs font-bold hover:bg-[#008f4c] cursor-pointer"
                   >
-                    Close Voucher
+                    Clôturer la Fiche
                   </button>
                 </div>
               </div>
@@ -1084,7 +1249,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               {/* Obligatory Notice */}
               <div className="p-3 bg-rose-50 border-2 border-rose-400 rounded-xl text-center">
                 <p className="text-xs font-extrabold text-rose-700">
-                  « This document must be returned to the medical agent following practitioner sign-off. »
+                  « Ce document doit être obligatoirement retourné à l'agent médical après visa du médecin traitant. »
                 </p>
               </div>
             </div>

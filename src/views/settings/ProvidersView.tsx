@@ -181,7 +181,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
 
           <button
             onClick={openCreateModal}
-            className="px-3.5 py-2 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-[#111827] hover:bg-[#1F2937] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>New Provider</span>
@@ -288,12 +288,12 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-[#0a2e6b] p-6 text-white flex items-center justify-between">
+            <div className="bg-[#111827] p-6 text-white flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-base">
                   {editingProvider ? 'Edit Healthcare Provider' : t.providers.createBtn}
                 </h3>
-                <p className="text-xs text-blue-100">
+                <p className="text-xs text-gray-300">
                   Healthcare facility accreditation & contract
                 </p>
               </div>
@@ -404,7 +404,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] text-white text-xs font-bold shadow-md shadow-[#0a2e6b]/20 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-[#111827] hover:bg-[#1F2937] text-white text-xs font-bold shadow-md shadow-gray-900/20 cursor-pointer"
                 >
                   {t.save}
                 </button>

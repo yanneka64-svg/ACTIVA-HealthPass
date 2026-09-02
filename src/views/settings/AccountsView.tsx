@@ -708,7 +708,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
           <button
             type="button"
             onClick={handleOpenCreate}
-            className="px-3.5 py-2 rounded-xl bg-[#0a2e6b] hover:bg-[#0b357a] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            className="px-3.5 py-2 rounded-xl bg-[#111827] hover:bg-[#1F2937] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <UserPlus className="w-3.5 h-3.5" />
             <span>+ New Account</span>
@@ -1008,7 +1008,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <button
                 type="button"
                 onClick={() => setCredentialDialog((prev) => ({ ...prev, isOpen: false }))}
-                className="py-2.5 px-8 bg-[#0a2540] hover:bg-[#071d33] text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+                className="py-2.5 px-8 bg-[#111827] hover:bg-[#1F2937] text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
               >
                 Done
               </button>
@@ -1097,7 +1097,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <div className="bg-sky-50/40 border border-sky-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-2.5">
-                    <ShieldCheck className="w-5 h-5 text-[#0a2540] shrink-0 mt-0.5" />
+                    <ShieldCheck className="w-5 h-5 text-[#111827] shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
                         Attribution des Habilitations ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} actives)
@@ -1147,7 +1147,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       onClick={() => setActivePermCategory(cat.id)}
                       className={`px-3.5 py-1.5 rounded-full text-xs transition whitespace-nowrap cursor-pointer ${
                         activePermCategory === cat.id
-                          ? 'bg-[#0a2540] text-white font-bold shadow-2xs'
+                          ? 'bg-[#111827] text-white font-bold shadow-2xs'
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium'
                       }`}
                     >
@@ -1328,7 +1328,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-[#0a2540] hover:bg-[#071d33] disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-[#111827] hover:bg-[#1F2937] disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>Enregistrer les Modifications</span>
@@ -1420,7 +1420,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <div className="bg-sky-50/40 border border-sky-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-2.5">
-                    <ShieldCheck className="w-5 h-5 text-[#0a2540] shrink-0 mt-0.5" />
+                    <ShieldCheck className="w-5 h-5 text-[#111827] shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
                         Attribution des Habilitations ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} actives)
@@ -1470,7 +1470,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       onClick={() => setActivePermCategory(cat.id)}
                       className={`px-3.5 py-1.5 rounded-full text-xs transition whitespace-nowrap cursor-pointer ${
                         activePermCategory === cat.id
-                          ? 'bg-[#0a2540] text-white font-bold shadow-2xs'
+                          ? 'bg-[#111827] text-white font-bold shadow-2xs'
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium'
                       }`}
                     >
@@ -1704,7 +1704,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-[#0a2540] hover:bg-[#071d33] disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-[#111827] hover:bg-[#1F2937] disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>Créer le Compte & Attribuer</span>
@@ -1720,14 +1720,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="bg-[#0a2e6b] p-5 text-white flex items-center justify-between">
+            <div className="bg-[#111827] p-5 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
                   <ShieldCheck className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base">Role Entitlements & Permissions Matrix</h3>
-                  <p className="text-xs text-blue-100">
+                  <p className="text-xs text-gray-300">
                     Rights reference by profile (Agent, Supervisor, Admin) and Segregation of Duties (SoD) rules
                   </p>
                 </div>
@@ -1757,7 +1757,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   onClick={() => setActiveMatrixTab(tab.id)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
                     activeMatrixTab === tab.id
-                      ? 'bg-[#0a2e6b] text-white shadow-xs'
+                      ? 'bg-[#111827] text-white shadow-xs'
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                   }`}
                 >
@@ -1854,7 +1854,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <button
                 type="button"
                 onClick={() => setMatrixModalOpen(false)}
-                className="px-4 py-2 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                className="px-4 py-2 bg-[#111827] hover:bg-[#1F2937] text-white rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 Close Matrix
               </button>
