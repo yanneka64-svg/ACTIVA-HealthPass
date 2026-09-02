@@ -22,6 +22,7 @@ import { Language, Claim, Enrollment, Member, Organization, Provider, NavSection
 import { useTranslation } from '../i18n/translations';
 import { useCurrency, CurrencyMode } from '../services/currency';
 import { canApproveRecord } from '../services/permissions';
+import { dedupeMembersByCardNo } from '../utils/memberUtils';
 
 interface DashboardViewProps {
   lang?: Language;
@@ -90,14 +91,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     myClaims.filter((c) => c.status === 'rejected' || c.status === 'returned').length +
     myEnrollments.filter((e) => e.status === 'rejected' || e.status === 'returned').length;
 
+  // === AMÉLIORATION AJOUTÉE : dédoublonnage par numéro de carte avant tout comptage ===
+  // Plusieurs tentatives d'import (avant les correctifs sur l'import silencieux) ont pu
+  // laisser des doublons dans Firestore (même assuré, plusieurs documents). On ne modifie
+  // rien en base : les totaux affichés ici comptent chaque numéro de carte une seule fois.
+  const uniqueMembers = React.useMemo(() => dedupeMembersByCardNo(members), [members]);
+
   // Global / Team Stats calculations
-  const activeMembersCount = members.filter((m) => m.status === 'Actif' || m.status === 'Active').length;
+  const activeMembersCount = uniqueMembers.filter((m) => m.status === 'Actif' || m.status === 'Active').length;
 
   // === AMÉLIORATION AJOUTÉE : remplace le badge de croissance fictif "+4.2%" (constante en
   // dur, jamais recalculée) par un vrai décompte des membres réellement créés ce mois-ci.
   const now = new Date();
   const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const newMembersThisMonth = members.filter((m) => m.createdAt && m.createdAt.startsWith(currentMonthPrefix)).length;
+  const newMembersThisMonth = uniqueMembers.filter((m) => m.createdAt && m.createdAt.startsWith(currentMonthPrefix)).length;
   const processedClaims = claims.filter((c) => c.status !== 'pending');
   const processedClaimsCount = processedClaims.length;
   const pendingClaims = claims.filter((c) => c.status === 'pending');
@@ -485,7 +492,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
           <p className="text-[10px] text-slate-400 mt-2 font-medium">
-            {activeMembersCount} active beneficiaries out of {members.length} enrolled
+            {activeMembersCount} active beneficiaries out of {uniqueMembers.length} enrolled
           </p>
         </div>
 

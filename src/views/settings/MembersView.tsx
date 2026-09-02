@@ -35,6 +35,7 @@ import { Member, Language, Organization, RelationshipType, MemberStatus, Depende
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { exportMembersToCSV, exportMembersToExcel, parseMemberExcel } from '../../utils/excelUtils';
+import { dedupeMembersByCardNo } from '../../utils/memberUtils';
 import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
 import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
@@ -249,9 +250,17 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   const [newChildInput, setNewChildInput] = useState('');
 
   const filteredMembers = useMemo(() => {
-    return members.filter((m) => {
+    // === AMÉLIORATION AJOUTÉE : dédoublonnage par numéro de carte avant filtrage/affichage
+    // — voir dedupeMembersByCardNo pour le contexte (données Firestore inchangées).
+    const uniqueMembers = dedupeMembersByCardNo(members);
+    return uniqueMembers.filter((m) => {
       // In Admin/Supervisor members table, only show primary insured members (dependents are viewed in details modal)
-      const isPrincipal = !m.relationship || m.relationship === 'Principal' || m.relationship === '';
+      // NOTE: the `=== ''` branch here was always dead code (an empty string is already
+      // falsy and covered by `!m.relationship`; RelationshipType's members are all non-empty
+      // literals so that comparison could never be true) — removed only because it started
+      // tripping a real TS2367 compile error once this array went through
+      // dedupeMembersByCardNo() first; behavior is unchanged.
+      const isPrincipal = !m.relationship || m.relationship === 'Principal';
       if (!isPrincipal) return false;
 
       const matchSearch =

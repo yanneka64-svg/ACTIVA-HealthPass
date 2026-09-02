@@ -24,6 +24,7 @@ import {
   exportOrganizationsToExcel,
   parseOrganizationExcel,
 } from '../../utils/excelUtils';
+import { dedupeMembersByCardNo } from '../../utils/memberUtils';
 
 interface OrganizationsViewProps {
   lang: Language;
@@ -124,9 +125,12 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
 
   const orgMembersList = useMemo(() => {
     if (!viewMembersOrg) return [];
-    return members.filter(
+    const matching = members.filter(
       (m) => m.organization?.toLowerCase().trim() === viewMembersOrg.name.toLowerCase().trim()
     );
+    // === AMÉLIORATION AJOUTÉE : ne pas lister le même assuré (même numéro de carte) en
+    // double — voir dedupeMembersByCardNo pour le contexte.
+    return dedupeMembersByCardNo(matching);
   }, [viewMembersOrg, members]);
 
   // === AMÉLIORATION AJOUTÉE : liste des dépendants d'un assuré principal, avec repli sur
