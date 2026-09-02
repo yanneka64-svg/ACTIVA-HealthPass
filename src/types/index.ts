@@ -102,6 +102,12 @@ export interface Member {
   phone?: string;
   email?: string;
   createdAt: string;
+  // === AMÉLIORATION AJOUTÉE : le fichier Excel réel des assurés principaux (Staff) du
+  // client porte une colonne "N° of Dependant" — un simple décompte déclaré des personnes
+  // à charge, distinct du détail des ayants droit (importé séparément via le template
+  // Dépendants). Champ optionnel pour ne perdre aucune information du fichier importé et
+  // permettre plus tard une réconciliation "déclaré" vs "réellement enregistré".
+  declaredDependentsCount?: number;
 }
 
 export type ClaimStatus = 'pending' | 'approved' | 'rejected' | 'returned';

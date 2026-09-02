@@ -52,6 +52,11 @@ const MEMBER_COLUMN_MAPPINGS = {
   child4Name: ['child 4 name', 'child 4', 'enfant 4', 'nom enfant 4', 'child4'],
   child4Dob: ['child 4 date of birth', 'child 4 dob', 'child4 dob', 'dob child 4', 'date de naissance enfant 4'],
   childrenLegacy: ['children', 'dependents', 'child', 'kids', 'enfants', 'enfant', 'ayants droit'],
+  // === AMÉLIORATION AJOUTÉE : le fichier "Staff" réel du client (voir demande utilisateur)
+  // utilise une colonne "N° of Dependant" — un simple décompte, pas le détail des ayants
+  // droit (celui-ci arrive via le fichier Dépendants séparé). On la reconnaît spécifiquement
+  // ici pour ne pas la confondre avec `childrenLegacy` (liste de noms séparés par virgules).
+  dependentsCount: ['n of dependant', 'no of dependant', 'nbr of dependant', 'number of dependant', 'number of dependants', 'nb dependant', 'nb dependants', 'nombre de dependants', 'nombre dependants', 'dependant count', 'dependent count', 'nb ayants droit', 'nombre ayants droit'],
   organization: ['organization', 'company', 'employer', 'policy holder', 'organisation', 'entreprise', 'societe', 'police'],
   biometrics: ['biometrics', 'biometrie', 'fingerprint', 'empreinte', 'afis', 'biometric status'],
   relationship: ['relationship', 'family status', 'role', 'lien', 'lien de parente', 'statut familial', 'qualite'],
@@ -227,6 +232,15 @@ export async function parseMemberExcel(
           const statusRaw = headerMap.status ? String(row[headerMap.status] || '').trim().toLowerCase() : 'active';
           const status = (statusRaw.includes('inact') || statusRaw.includes('suspend')) ? (statusRaw.includes('suspend') ? 'Suspendu' : 'Inactif') : 'Actif';
           
+          // === AMÉLIORATION AJOUTÉE : lecture de "N° of Dependant" (décompte déclaré) ===
+          const dependentsCountRaw = headerMap.dependentsCount ? row[headerMap.dependentsCount] : undefined;
+          const dependentsCountParsed = dependentsCountRaw !== undefined && dependentsCountRaw !== ''
+            ? Number(dependentsCountRaw)
+            : undefined;
+          const declaredDependentsCountVal = (dependentsCountParsed !== undefined && !isNaN(dependentsCountParsed))
+            ? dependentsCountParsed
+            : undefined;
+
           const biometricsRaw = headerMap.biometrics ? String(row[headerMap.biometrics] || '').trim().toLowerCase() : '';
           const hasBiometrics = biometricsRaw ? !biometricsRaw.includes('no') && !biometricsRaw.includes('non') && !biometricsRaw.includes('false') : true;
 
@@ -335,6 +349,7 @@ export async function parseMemberExcel(
               dependents: mergedDependents,
               status: existing.status || (status as any),
               hasBiometrics: hasBiometrics ?? existing.hasBiometrics,
+              declaredDependentsCount: declaredDependentsCountVal ?? existing.declaredDependentsCount,
               fingerprintScore: existing.fingerprintScore || 96,
               outpatientBalanceUSD: existing.outpatientBalanceUSD ?? 1000,
               outpatientCeilingUSD: existing.outpatientCeilingUSD ?? 1000,
@@ -359,6 +374,7 @@ export async function parseMemberExcel(
               status: status as any,
               hasPhoto: false,
               hasBiometrics: hasBiometrics,
+              declaredDependentsCount: declaredDependentsCountVal,
               fingerprintScore: 97,
               fingerprintDate: new Date().toISOString().split('T')[0],
               outpatientBalanceUSD: 1000,
@@ -562,75 +578,56 @@ function parseDedicatedDependentsRows(
 }
 
 // Generate Primary Insured Template (Capture 2 Model)
+// === AMÉLIORATION AJOUTÉE : template aligné sur le fichier réel du client ===
+// Auparavant ce template proposait des colonnes "Spouse Name/DOB" et "Child 1-4 Name/DOB"
+// qui n'existent pas dans les fichiers Excel réellement utilisés en production (ex :
+// "Samaritain Purse - Staff.xlsx"). Le fichier réel du client a la structure suivante :
+// Card No. | Primary Insured Name | Date of Birth | N° of Dependant | Organization |
+// Biometrics | Statut — avec le détail des ayants droit importé séparément via le template
+// Dépendants (bouton "Template Dépendants"). Le template ci-dessous reproduit exactement
+// cette structure ; parseMemberExcel() (plus haut dans ce fichier) sait déjà lire chacune de
+// ces colonnes (cardNo, principalName, birthDate, dependentsCount, organization, biometrics,
+// status), donc un fichier rempli à partir de ce template s'intègre correctement dans
+// l'application. Les anciennes colonnes Spouse/Child restent reconnues par le parseur si un
+// ancien fichier les contient encore (rétrocompatibilité), seul le template téléchargeable
+// change.
 export function generateMemberTemplateExcel() {
   const wsData = [
     [
       'Card No.',
       'Primary Insured Name',
       'Date of Birth',
-      'Spouse Name',
-      'Spouse Date of Birth',
-      'Child 1 Name',
-      'Child 1 Date of Birth',
-      'Child 2 Name',
-      'Child 2 Date of Birth',
-      'Child 3 Name',
-      'Child 3 Date of Birth',
-      'Child 4 Name',
-      'Child 4 Date of Birth',
+      'N° of Dependant',
       'Organization',
       'Biometrics',
+      'Statut',
     ],
     [
-      'ACT-2026-10350',
+      'AMID-00001-0001',
       'Samuel DOE',
-      '1985-05-14',
-      'Mary DOE',
-      '1988-09-22',
-      'Lucas DOE',
-      '2014-03-10',
-      'Emma DOE',
-      '2017-08-19',
-      'Noah DOE',
-      '2021-01-05',
-      '',
-      '',
+      '14/05/1985',
+      2,
       'Orange Liberia Telecom',
-      'Yes',
+      '',
+      '',
     ],
     [
-      'ACT-2026-10351',
+      'AMID-00002-0002',
       'Grace KOLLIE',
-      '1992-11-20',
-      'Joseph KOLLIE',
-      '1990-04-15',
-      'Nathan KOLLIE',
-      '2019-06-12',
-      'Chloe KOLLIE',
-      '2022-10-30',
-      '',
-      '',
-      '',
-      '',
+      '20/11/1992',
+      1,
       'Ecobank Liberia Head Office',
-      'Yes',
+      '',
+      '',
     ],
     [
-      'ACT-2026-10352',
+      'AMID-00003-0003',
       'Alexander FREEMAN',
-      '1980-07-03',
-      'Beatrice FREEMAN',
-      '1983-12-08',
-      'David FREEMAN',
-      '2012-11-25',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
+      '03/07/1980',
+      0,
       'TotalEnergies Liberia Ltd',
-      'Yes',
+      '',
+      '',
     ],
   ];
 
