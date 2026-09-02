@@ -181,7 +181,10 @@ interface MembersViewProps {
   onAddMember: (member: Partial<Member>) => void;
   onUpdateMember: (member: Member) => void;
   onDeleteMember: (id: string) => void;
-  onImportMembers: (imported: Partial<Member>[]) => void;
+  // === AMÉLIORATION AJOUTÉE : accepte désormais aussi une version asynchrone qui peut lever
+  // une erreur (ex: échec d'écriture Firestore), afin que l'échec réel de persistance remonte
+  // jusqu'au modal d'import au lieu d'être ignoré.
+  onImportMembers: (imported: Partial<Member>[]) => void | Promise<void>;
   onSuspendMember?: (member: Member) => void;
   onReactivateMember?: (member: Member) => void;
 }
@@ -1625,8 +1628,12 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         title={t.members.importExcel}
         targetType="members"
         onImport={(file) => parseMemberExcel(file, members)}
-        onSuccess={(importedList) => {
-          onImportMembers(importedList);
+        onSuccess={async (importedList) => {
+          // === AMÉLIORATION AJOUTÉE : on attend désormais la persistance réelle avant de
+          // fermer le modal. Si onImportMembers échoue (ex: écritures Firestore en échec),
+          // l'erreur remonte au modal (qui affichera un message d'erreur au lieu d'un faux
+          // succès) et le modal reste ouvert pour permettre à l'utilisateur de réessayer.
+          await onImportMembers(importedList);
           setImportModalOpen(false);
         }}
       />

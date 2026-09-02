@@ -13,7 +13,10 @@ interface ExcelImportModalProps<T> {
   userRole?: string;
   targetType: 'members' | 'organizations' | 'providers';
   onImport: (file: File) => Promise<ImportResult<T>>;
-  onSuccess: (items: T[]) => void;
+  // === AMÉLIORATION AJOUTÉE : onSuccess peut désormais être asynchrone (et peut échouer),
+  // afin que les erreurs de persistance réelles (ex: écriture Firestore) remontent jusqu'à
+  // ce modal au lieu d'être silencieusement ignorées derrière un résumé "succès" trompeur.
+  onSuccess: (items: T[]) => void | Promise<void>;
 }
 
 export function ExcelImportModal<T>({
@@ -56,9 +59,28 @@ export function ExcelImportModal<T>({
     try {
       await new Promise(r => setTimeout(r, 500));
       const res = await onImport(file);
-      setResult(res);
       if (res.success && res.parsedItems.length > 0) {
-        onSuccess(res.parsedItems);
+        // === AMÉLIORATION AJOUTÉE : on attend désormais réellement la persistance
+        // (onSuccess peut être async et peut lever une erreur si l'écriture échoue en base).
+        // Le résumé "succès" n'est affiché que si la persistance a effectivement réussi,
+        // ce qui évite le cas observé en production où l'import annonçait un succès
+        // (ex: "1 created, 148 updated") alors que la plupart des enregistrements
+        // n'avaient en réalité jamais été sauvegardés.
+        try {
+          await onSuccess(res.parsedItems);
+          setResult(res);
+        } catch (persistErr: any) {
+          setResult({
+            ...res,
+            success: false,
+            errors: [
+              persistErr?.message ||
+                'Les données ont été lues mais leur enregistrement a échoué. Veuillez réessayer.',
+            ],
+          });
+        }
+      } else {
+        setResult(res);
       }
     } catch (err: any) {
       setResult({

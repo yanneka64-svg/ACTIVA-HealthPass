@@ -262,10 +262,24 @@ export const FirestoreService = {
     }
   },
   updateMember: async (data: Member) => {
+    const { id, ...rest } = data;
     try {
-      const { id, ...rest } = data;
       return await updateDoc(doc(db, 'members', id), rest);
     } catch (err) {
+      // FIX: updateDoc() throws (code 'not-found') if the target document doesn't
+      // actually exist server-side — which happens whenever `data.id` came from a LOCAL
+      // id that was never confirmed as a real Firestore document (e.g. an earlier import
+      // whose write loop was interrupted, or Firestore's offline-cache briefly reporting
+      // a not-yet-synced record). Before this fix, that single throw aborted the ENTIRE
+      // sequential import loop in App.tsx's handleImportMembers — every record queued
+      // after the failing one was silently never written, while the UI still reported a
+      // "success" summary (computed from parsing alone, before any write happened). Self-
+      // healing to addDoc() here (create the record instead of failing) — combined with
+      // Promise.allSettled in handleImportMembers so one failure can no longer take down
+      // the rest — closes that data-loss path.
+      if ((err as any)?.code === 'not-found') {
+        return await addDoc(collection(db, 'members'), rest);
+      }
       handleFirestoreError(err, OperationType.UPDATE, `members/${data.id}`);
       throw err;
     }

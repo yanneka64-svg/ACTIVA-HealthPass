@@ -564,8 +564,18 @@ export default function App() {
     FirestoreService.deleteMember(id);
   };
 
+  // FIX: this used sequential `for` loops with a bare `await` per Firestore write and no
+  // per-item error handling — if ANY single write threw (e.g. updateMember() on a record
+  // whose id didn't correspond to a real server-side document — see the self-healing fix
+  // in FirestoreService.updateMember), the exception propagated out of the loop and every
+  // record queued AFTER the failing one was silently never written, while the toast below
+  // still reported success (its message only reflects `imported.length`, computed from
+  // parsing alone — before any write happens). Reported: importing a 149-row file showed
+  // "1 created, 148 updated" but the Insured Members Directory only ever showed 1 record
+  // afterward. Both loops now use Promise.allSettled so one failing write can never take
+  // down the rest, and the toast reports what ACTUALLY got saved, not just what was parsed.
   const handleImportMembers = async (imported: Partial<Member>[]) => {
-    // 1. Automatically update organization list if any organization in imported list doesn't exist
+    // 1. Automatically create any organization referenced by the import that doesn't exist yet
     const currentOrgNames = new Set(organizations.map((o) => (o.name || '').toLowerCase().trim()));
     const newOrgsToCreate: string[] = [];
 
@@ -579,39 +589,74 @@ export default function App() {
       }
     });
 
-    for (const newOrgName of newOrgsToCreate) {
-      const newOrg: Organization = {
-        id: `org-auto-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        name: newOrgName,
-        policyNumber: `POL-${newOrgName.substring(0, 3).toUpperCase()}-2026`,
-        declaredMembers: 10,
-        coverageRate: 80,
-        status: 'Actif',
-        effectiveDate: '2026-01-01',
-        expirationDate: '2026-12-31',
-        contactPhone: '+231 770 00 11 22',
-        contactEmail: `contact@${newOrgName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
-      };
-      await FirestoreService.addOrganization(newOrg);
+    const orgResults = await Promise.allSettled(
+      newOrgsToCreate.map((newOrgName) => {
+        const newOrg: Organization = {
+          id: `org-auto-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          name: newOrgName,
+          policyNumber: `POL-${newOrgName.substring(0, 3).toUpperCase()}-2026`,
+          declaredMembers: 10,
+          coverageRate: 80,
+          status: 'Actif',
+          effectiveDate: '2026-01-01',
+          expirationDate: '2026-12-31',
+          contactPhone: '+231 770 00 11 22',
+          contactEmail: `contact@${newOrgName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+        };
+        return FirestoreService.addOrganization(newOrg);
+      })
+    );
+    const orgFailures = orgResults.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+
+    // 2. Add or update members in Firestore — every record attempted independently
+    const memberResults = await Promise.allSettled(
+      imported.map((i) => {
+        if (i.id && members.some((m) => m.id === i.id)) {
+          return FirestoreService.updateMember(i as Member);
+        }
+        return FirestoreService.addMember(i);
+      })
+    );
+    const memberFailures = memberResults.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+    const memberSuccessCount = memberResults.length - memberFailures.length;
+
+    if (memberFailures.length > 0) {
+      console.error(
+        `handleImportMembers: ${memberFailures.length} of ${imported.length} member record(s) failed to save.`,
+        memberFailures.map((f) => f.reason)
+      );
+    }
+    if (orgFailures.length > 0) {
+      console.error(
+        `handleImportMembers: ${orgFailures.length} of ${newOrgsToCreate.length} auto-created organization(s) failed to save.`,
+        orgFailures.map((f) => f.reason)
+      );
     }
 
-    // 2. Add or update members in Firestore
-    for (const i of imported) {
-      if (i.id && members.some((m) => m.id === i.id)) {
-        await FirestoreService.updateMember(i as Member);
-      } else {
-        await FirestoreService.addMember(i);
-      }
-    }
-
-    if (newOrgsToCreate.length > 0) {
+    if (memberFailures.length > 0 || orgFailures.length > 0) {
+      setToastMessage(
+        `Saved ${memberSuccessCount} of ${imported.length} insured records.` +
+          (memberFailures.length > 0 ? ` ⚠️ ${memberFailures.length} record(s) FAILED to save — check your connection and try importing again.` : '') +
+          (newOrgsToCreate.length > 0 ? ` ${newOrgsToCreate.length - orgFailures.length}/${newOrgsToCreate.length} new organization(s) added.` : '')
+      );
+      setTimeout(() => setToastMessage(null), 8000);
+    } else if (newOrgsToCreate.length > 0) {
       setToastMessage(
         `Imported ${imported.length} insured records. ${newOrgsToCreate.length} new organization(s) automatically added.`
       );
+      setTimeout(() => setToastMessage(null), 4000);
     } else {
       setToastMessage(`Imported ${imported.length} insured records successfully.`);
+      setTimeout(() => setToastMessage(null), 4000);
     }
-    setTimeout(() => setToastMessage(null), 4000);
+
+    // Surface real persistence failures to ExcelImportModal so it stops reporting a false
+    // "success" summary based only on parsing — see the matching fix in that component.
+    if (memberFailures.length > 0) {
+      const firstReason = memberFailures[0]?.reason;
+      const firstMsg = firstReason instanceof Error ? firstReason.message : String(firstReason);
+      throw new Error(`${memberFailures.length} of ${imported.length} insured record(s) failed to save (${firstMsg}). ${memberSuccessCount} were saved successfully — you can safely re-import the same file, already-saved records will just be updated, not duplicated.`);
+    }
   };
 
   // ORGANIZATIONS HANDLERS WITH CASCADING MEMBER SUSPENSION
