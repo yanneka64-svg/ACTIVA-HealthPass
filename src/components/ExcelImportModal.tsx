@@ -1,16 +1,16 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileSpreadsheet, AlertTriangle, CheckCircle2, X, RefreshCw, Download } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, AlertTriangle, CheckCircle2, X, RefreshCw, Download, FileText, Users, UserCheck } from 'lucide-react';
 import { Language } from '../types';
 import { useTranslation } from '../i18n/translations';
-import { ImportResult } from '../utils/excelUtils';
+import { ImportResult, generateMemberTemplateExcel, generateDependentsTemplateExcel, downloadBlob } from '../utils/excelUtils';
 import * as XLSX from 'xlsx';
-import { downloadBlob } from '../utils/excelUtils';
 
 interface ExcelImportModalProps<T> {
   isOpen: boolean;
   onClose: () => void;
   lang: Language;
   title: string;
+  userRole?: string;
   targetType: 'members' | 'organizations' | 'providers';
   onImport: (file: File) => Promise<ImportResult<T>>;
   onSuccess: (items: T[]) => void;
@@ -21,6 +21,7 @@ export function ExcelImportModal<T>({
   onClose,
   lang,
   title,
+  userRole = 'Admin',
   targetType,
   onImport,
   onSuccess,
@@ -34,6 +35,13 @@ export function ExcelImportModal<T>({
 
   if (!isOpen) return null;
 
+  const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
+  const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
+
+  const headerBgClass = isAdmin ? 'bg-[#111827]' : isSupervisor ? 'bg-[#0F766E]' : 'bg-[#0A347B]';
+  const primaryBtnClass = isAdmin ? 'bg-slate-900 hover:bg-slate-800' : isSupervisor ? 'bg-[#0F766E] hover:bg-[#115E59]' : 'bg-[#0A347B] hover:bg-[#072659]';
+  const primaryTextClass = isAdmin ? 'text-slate-900' : isSupervisor ? 'text-[#0F766E]' : 'text-[#0A347B]';
+
   const handleFile = async (file: File) => {
     if (!file) return;
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
@@ -46,8 +54,7 @@ export function ExcelImportModal<T>({
     setResult(null);
 
     try {
-      // Small simulated delay for processing animation
-      await new Promise(r => setTimeout(r, 600));
+      await new Promise(r => setTimeout(r, 500));
       const res = await onImport(file);
       setResult(res);
       if (res.success && res.parsedItems.length > 0) {
@@ -77,35 +84,16 @@ export function ExcelImportModal<T>({
   };
 
   const downloadSampleTemplate = () => {
+    if (targetType === 'members') {
+      generateMemberTemplateExcel();
+      return;
+    }
+
     const wb = XLSX.utils.book_new();
     let templateData: any[] = [];
     let sheetName = 'Template';
 
-    if (targetType === 'members') {
-      sheetName = 'Members';
-      templateData = [
-        {
-          'Card No.': 'ACT-2026-9050',
-          'Primary Insured': 'Samuel DOE',
-          'Spouse': 'Mary DOE',
-          'Children': 'Lucas DOE, Emma DOE',
-          'Organization': 'Orange Liberia Telecom',
-          'Relationship': 'Primary',
-          'Date of Birth': '1988-03-15',
-          'Status': 'Active',
-        },
-        {
-          'Card No.': 'ACT-2026-9051',
-          'Primary Insured': 'Grace KOLLIE',
-          'Spouse': '',
-          'Children': 'Nathan KOLLIE',
-          'Organization': 'Ecobank Liberia Head Office',
-          'Relationship': 'Primary',
-          'Date of Birth': '1992-11-20',
-          'Status': 'Active',
-        },
-      ];
-    } else if (targetType === 'organizations') {
+    if (targetType === 'organizations') {
       sheetName = 'Organizations';
       templateData = [
         {
@@ -142,22 +130,22 @@ export function ExcelImportModal<T>({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
       <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="bg-[#0a2e6b] px-6 py-4.5 text-white flex items-center justify-between">
+        <div className={`${headerBgClass} px-6 py-4.5 text-white flex items-center justify-between transition-colors`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-emerald-300">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
               <h3 className="font-bold text-lg leading-tight">{title}</h3>
-              <p className="text-xs text-blue-100 mt-0.5">{t.excel.columnToleranceNote}</p>
+              <p className="text-xs text-slate-200 mt-0.5">{t.excel.columnToleranceNote}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-white/15 transition-colors text-white"
+            className="p-1.5 rounded-lg hover:bg-white/15 transition-colors text-white cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -178,7 +166,7 @@ export function ExcelImportModal<T>({
               className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 ${
                 dragOver
                   ? 'border-[#00A859] bg-emerald-50/50'
-                  : 'border-slate-300 hover:border-[#0a2e6b] hover:bg-blue-50/30'
+                  : 'border-slate-300 hover:border-slate-500 hover:bg-slate-50/60'
               }`}
             >
               <input
@@ -192,8 +180,8 @@ export function ExcelImportModal<T>({
                   }
                 }}
               />
-              <div className="w-14 h-14 rounded-2xl bg-blue-100/70 text-[#0a2e6b] flex items-center justify-center shadow-xs">
-                <UploadCloud className="w-8 h-8 text-[#0a2e6b]" />
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-800 flex items-center justify-center shadow-xs">
+                <UploadCloud className="w-8 h-8 text-slate-700" />
               </div>
               <div>
                 <p className="font-semibold text-slate-800 text-sm">{t.excel.importHint}</p>
@@ -203,7 +191,7 @@ export function ExcelImportModal<T>({
               </div>
               <button
                 type="button"
-                className="mt-2 px-4 py-2 bg-[#0a2e6b] hover:bg-[#092d66] text-white rounded-lg text-xs font-semibold shadow-xs transition"
+                className={`mt-2 px-4 py-2 ${primaryBtnClass} text-white rounded-lg text-xs font-semibold shadow-xs transition`}
               >
                 {'Browse Files'}
               </button>
@@ -276,8 +264,8 @@ export function ExcelImportModal<T>({
                   <span className="block text-2xl font-black text-emerald-600">{result.created}</span>
                   <span className="text-[11px] font-medium text-slate-600">{t.excel.createdCount}</span>
                 </div>
-                <div className="bg-white rounded-lg p-3 text-center border border-blue-100 shadow-xs">
-                  <span className="block text-2xl font-black text-[#0a2e6b]">{result.updated}</span>
+                <div className="bg-white rounded-lg p-3 text-center border border-slate-200 shadow-xs">
+                  <span className={`block text-2xl font-black ${primaryTextClass}`}>{result.updated}</span>
                   <span className="text-[11px] font-medium text-slate-600">{t.excel.updatedCount}</span>
                 </div>
                 <div className="bg-white rounded-lg p-3 text-center border border-slate-100 shadow-xs">
@@ -288,28 +276,56 @@ export function ExcelImportModal<T>({
             </div>
           )}
 
-          {/* Download sample button */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={downloadSampleTemplate}
-              className="inline-flex items-center gap-1.5 text-xs text-[#0a2e6b] hover:underline font-semibold"
-            >
-              <Download className="w-4 h-4" />
+          {/* Template Download Section */}
+          <div className="pt-3 border-t border-slate-100 space-y-2">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               {t.excel.downloadTemplate}
-            </button>
+            </p>
 
-            {result && (
+            {targetType === 'members' ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={generateMemberTemplateExcel}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Template Assurés Principaux (Capture 2)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={generateDependentsTemplateExcel}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Template Dépendants / Ayants Droit (Capture 3)</span>
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={() => {
-                  setResult(null);
-                  setSelectedFileName('');
-                }}
-                className="text-xs text-slate-500 hover:text-slate-800"
+                onClick={downloadSampleTemplate}
+                className={`inline-flex items-center gap-1.5 text-xs ${primaryTextClass} hover:underline font-semibold cursor-pointer`}
               >
-                {'Upload another file'}
+                <Download className="w-4 h-4" />
+                {t.excel.downloadTemplate}
               </button>
+            )}
+
+            {result && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResult(null);
+                    setSelectedFileName('');
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                >
+                  {'Upload another file'}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -319,7 +335,7 @@ export function ExcelImportModal<T>({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold shadow-xs transition"
+            className={`px-5 py-2 rounded-xl ${primaryBtnClass} text-white text-xs font-semibold shadow-xs transition cursor-pointer`}
           >
             {result ? t.excel.closeModal : t.cancel}
           </button>

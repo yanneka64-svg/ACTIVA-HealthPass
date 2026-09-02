@@ -37,6 +37,30 @@ interface AgentIdentificationViewProps {
   onGenerateMedicalForm?: (member: Member) => void;
 }
 
+export interface InsuredBeneficiary {
+  id: string;
+  cardNo: string;
+  fullName: string;
+  isPrincipal: boolean;
+  relationship: string;
+  birthDate?: string;
+  gender?: 'M' | 'F' | string;
+  organization: string;
+  status: string;
+  hasPhoto?: boolean;
+  photoUrl?: string;
+  hasBiometrics?: boolean;
+  fingerprintScore?: number;
+  principalCardNo: string;
+  principalName: string;
+  dependentsCount: number;
+  parentMember: Member;
+  outpatientBalanceUSD?: number;
+  inpatientBalanceUSD?: number;
+  outpatientCeilingUSD?: number;
+  inpatientCeilingUSD?: number;
+}
+
 export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = ({
   members,
   claims,
@@ -46,31 +70,94 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   const t = useTranslation(lang);
   const { formatAmount } = useCurrency();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'Actif' | 'Enrolled' | 'WithBiometrics'>('all');
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'principals' | 'dependents' | 'WithBiometrics'>('all');
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState<InsuredBeneficiary | null>(null);
   const [isFingerprintModalOpen, setIsFingerprintModalOpen] = useState(false);
   const [biometricMatchMessage, setBiometricMatchMessage] = useState<string | null>(null);
 
-  // Filtered members list for agent quick selection
-  const filteredMembersList = useMemo(() => {
-    return members.filter((m) => {
-      if (filterStatus === 'Actif' && m.status !== 'Actif' && m.status !== 'Active') return false;
-      if (filterStatus === 'Enrolled' && (!m.createdAt || !m.createdAt.includes('2026'))) return false;
-      if (filterStatus === 'WithBiometrics' && !m.hasBiometrics && !m.fingerprintScore) return false;
+  // Flatten members + all dependents into a comprehensive list of insured beneficiaries
+  const allBeneficiaries = useMemo(() => {
+    const list: InsuredBeneficiary[] = [];
+
+    members.forEach((m) => {
+      const deps = getMemberDependents(m);
+
+      // 1. Principal Insured
+      list.push({
+        id: `princ-${m.id}`,
+        cardNo: m.cardNo,
+        fullName: m.principalName,
+        isPrincipal: true,
+        relationship: 'Principal',
+        birthDate: m.birthDate,
+        gender: m.gender || 'M',
+        organization: m.organization || 'Orange Liberia Telecom',
+        status: m.status || 'Actif',
+        hasPhoto: m.hasPhoto || !!m.photoUrl,
+        photoUrl: m.photoUrl,
+        hasBiometrics: m.hasBiometrics || !!m.fingerprintScore,
+        fingerprintScore: m.fingerprintScore || (m.hasBiometrics ? 96 : undefined),
+        principalCardNo: m.cardNo,
+        principalName: m.principalName,
+        dependentsCount: deps.length,
+        parentMember: m,
+        outpatientBalanceUSD: m.outpatientBalanceUSD ?? 500,
+        inpatientBalanceUSD: m.inpatientBalanceUSD ?? 5000,
+        outpatientCeilingUSD: m.outpatientCeilingUSD ?? 500,
+        inpatientCeilingUSD: m.inpatientCeilingUSD ?? 5000,
+      });
+
+      // 2. Dependents
+      deps.forEach((d, idx) => {
+        const depCardNo = d.cardNo || `${m.cardNo}-D${idx + 1}`;
+        list.push({
+          id: `dep-${m.id}-${d.id || idx}`,
+          cardNo: depCardNo,
+          fullName: d.fullName,
+          isPrincipal: false,
+          relationship: d.relationship || 'Ayant Droit',
+          birthDate: d.birthDate,
+          gender: d.gender || (d.relationship === 'spouse' ? (m.gender === 'M' ? 'F' : 'M') : 'M'),
+          organization: m.organization || 'Orange Liberia Telecom',
+          status: m.status || 'Actif',
+          hasPhoto: !!(d as any).photoUrl || (m.hasPhoto && idx === 0),
+          photoUrl: (d as any).photoUrl,
+          hasBiometrics: false,
+          principalCardNo: m.cardNo,
+          principalName: m.principalName,
+          dependentsCount: 0,
+          parentMember: m,
+          outpatientBalanceUSD: m.outpatientBalanceUSD ?? 500,
+          inpatientBalanceUSD: m.inpatientBalanceUSD ?? 5000,
+          outpatientCeilingUSD: m.outpatientCeilingUSD ?? 500,
+          inpatientCeilingUSD: m.inpatientCeilingUSD ?? 5000,
+        });
+      });
+    });
+
+    return list;
+  }, [members]);
+
+  // Filtered beneficiaries list for agent quick selection
+  const filteredBeneficiaries = useMemo(() => {
+    return allBeneficiaries.filter((b) => {
+      if (filterType === 'principals' && !b.isPrincipal) return false;
+      if (filterType === 'dependents' && b.isPrincipal) return false;
+      if (filterType === 'WithBiometrics' && !b.hasBiometrics && !b.fingerprintScore) return false;
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const matchesName = m.principalName.toLowerCase().includes(q);
-        const matchesCard = m.cardNo.toLowerCase().includes(q);
-        const matchesOrg = (m.organization || '').toLowerCase().includes(q);
-        const matchesSpouse = (m.spouseName || '').toLowerCase().includes(q);
-        const matchesChild = (m.children || []).some(c => c.toLowerCase().includes(q));
-        const matchesDep = (m.dependents || []).some(d => d.fullName.toLowerCase().includes(q) || (d.cardNo && d.cardNo.toLowerCase().includes(q)));
-        return matchesName || matchesCard || matchesOrg || matchesSpouse || matchesChild || matchesDep;
+        const matchesName = b.fullName.toLowerCase().includes(q);
+        const matchesCard = b.cardNo.toLowerCase().includes(q);
+        const matchesPrincipalCard = b.principalCardNo.toLowerCase().includes(q);
+        const matchesPrincipalName = b.principalName.toLowerCase().includes(q);
+        const matchesOrg = b.organization.toLowerCase().includes(q);
+        const matchesRel = b.relationship.toLowerCase().includes(q);
+        return matchesName || matchesCard || matchesPrincipalCard || matchesPrincipalName || matchesOrg || matchesRel;
       }
       return true;
     });
-  }, [members, searchQuery, filterStatus]);
+  }, [allBeneficiaries, searchQuery, filterType]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,14 +165,15 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     const q = searchQuery.toLowerCase().trim();
     if (!q) return;
 
-    const found = members.find(
-      (m) =>
-        m.cardNo.toLowerCase() === q ||
-        m.principalName.toLowerCase().includes(q) ||
-        (m.organization && m.organization.toLowerCase().includes(q))
+    const found = allBeneficiaries.find(
+      (b) =>
+        b.cardNo.toLowerCase() === q ||
+        b.fullName.toLowerCase().includes(q) ||
+        b.principalCardNo.toLowerCase() === q ||
+        b.principalName.toLowerCase().includes(q)
     );
     if (found) {
-      setSelectedMember(found);
+      setSelectedBeneficiary(found);
     }
   };
 
@@ -95,12 +183,12 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
 
   const handleFingerprintCaptured = (data: { score: number; template: string; finger: string }) => {
     // Biometric AFIS Match
-    if (members.length > 0) {
-      const matched = members.find(m => m.hasBiometrics || m.fingerprintScore) || members[0];
-      setSelectedMember(matched);
+    if (allBeneficiaries.length > 0) {
+      const matched = allBeneficiaries.find((b) => b.hasBiometrics || b.fingerprintScore) || allBeneficiaries[0];
+      setSelectedBeneficiary(matched);
       setSearchQuery(matched.cardNo);
       setBiometricMatchMessage(
-        `Biometric AFIS 1:N Match Verified (${data.score}% confidence) for ${matched.principalName} (Card #${matched.cardNo}) via ${data.finger.replace('_', ' ')}.`
+        `Biometric AFIS 1:N Match Verified (${data.score}% confidence) for ${matched.fullName} (Card #${matched.cardNo}) via ${data.finger.replace('_', ' ')}.`
       );
     }
   };
@@ -110,25 +198,30 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     try {
       const diff = Date.now() - new Date(birthDate).getTime();
       const age = Math.abs(new Date(diff).getUTCFullYear() - 1970);
-      return isNaN(age) ? '—' : `${age} yrs`;
+      return isNaN(age) ? '—' : `${age} ans`;
     } catch {
       return '—';
     }
   };
 
-  // Dependents for selected member
+  // Dependents of the parent policy
   const dependentsList = useMemo(() => {
-    if (!selectedMember) return [];
-    return getMemberDependents(selectedMember);
-  }, [selectedMember]);
+    if (!selectedBeneficiary) return [];
+    return getMemberDependents(selectedBeneficiary.parentMember);
+  }, [selectedBeneficiary]);
 
-  // Claims for selected member
+  // Claims for selected beneficiary or their policy
   const memberClaims = useMemo(() => {
-    if (!selectedMember) return [];
+    if (!selectedBeneficiary) return [];
     return claims
-      .filter((c) => c.memberCardNo.toLowerCase() === selectedMember.cardNo.toLowerCase())
+      .filter(
+        (c) =>
+          c.memberCardNo.toLowerCase() === selectedBeneficiary.cardNo.toLowerCase() ||
+          c.memberCardNo.toLowerCase() === selectedBeneficiary.principalCardNo.toLowerCase() ||
+          (c.memberName && c.memberName.toLowerCase().includes(selectedBeneficiary.fullName.toLowerCase()))
+      )
       .sort((a, b) => new Date(b.serviceDate).getTime() - new Date(a.serviceDate).getTime());
-  }, [selectedMember, claims]);
+  }, [selectedBeneficiary, claims]);
 
   const last5Claims = memberClaims.slice(0, 5);
 
@@ -204,7 +297,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
       </div>
 
       {/* 2. IDENTIFIED MEMBER PROFILE & COVERAGE MODALITIES */}
-      {selectedMember && (
+      {selectedBeneficiary && (
         <div className="bg-white rounded-2xl border-2 border-[#0A347B]/30 shadow-md p-6 space-y-6 animate-in slide-in-from-top-4 duration-300">
           {/* Header Action Bar with Direct Generate Medical Voucher Button */}
           <div className="bg-gradient-to-r from-[#0A347B] to-[#002B66] text-white rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
@@ -213,14 +306,22 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 <ShieldCheck className="w-7 h-7" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-base tracking-tight">{selectedMember.principalName}</h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-extrabold text-base tracking-tight">{selectedBeneficiary.fullName}</h3>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                    IDENTIFIED & VERIFIED
+                    IDENTIFIÉ & VÉRIFIÉ
                   </span>
+                  {!selectedBeneficiary.isPrincipal && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-200 border border-amber-400/30">
+                      DÉPENDANT ({selectedBeneficiary.relationship})
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs text-blue-200 font-mono">
-                  Card #{selectedMember.cardNo} • {selectedMember.organization}
+                <p className="text-xs text-blue-200 font-mono mt-0.5">
+                  Carte #{selectedBeneficiary.cardNo} • {selectedBeneficiary.organization}
+                  {!selectedBeneficiary.isPrincipal && (
+                    <span> • Rattaché à : {selectedBeneficiary.principalName} (#{selectedBeneficiary.principalCardNo})</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -229,7 +330,21 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
               <button
                 type="button"
-                onClick={() => onGenerateMedicalForm && onGenerateMedicalForm(selectedMember)}
+                onClick={() => {
+                  if (onGenerateMedicalForm) {
+                    const memberPayload: Member = {
+                      ...selectedBeneficiary.parentMember,
+                      cardNo: selectedBeneficiary.cardNo,
+                      principalName: selectedBeneficiary.fullName,
+                      relationship: selectedBeneficiary.relationship as any,
+                      birthDate: selectedBeneficiary.birthDate || selectedBeneficiary.parentMember.birthDate,
+                      gender: (selectedBeneficiary.gender as any) || selectedBeneficiary.parentMember.gender,
+                      outpatientBalanceUSD: selectedBeneficiary.outpatientBalanceUSD,
+                      inpatientBalanceUSD: selectedBeneficiary.inpatientBalanceUSD,
+                    };
+                    onGenerateMedicalForm(memberPayload);
+                  }
+                }}
                 className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white active:scale-98"
               >
                 <FileCheck className="w-4 h-4" />
@@ -237,8 +352,8 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedMember(null)}
-                className="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition"
+                onClick={() => setSelectedBeneficiary(null)}
+                className="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition cursor-pointer"
               >
                 Fermer
               </button>
@@ -252,9 +367,9 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
               <div className="bg-slate-50/80 rounded-xl p-5 border border-slate-200 space-y-4">
                 <div className="flex items-center gap-4 pb-4 border-b border-slate-200">
                   <div className="w-16 h-16 rounded-2xl bg-blue-100/60 border border-blue-200 flex items-center justify-center overflow-hidden shrink-0">
-                    {selectedMember.photoUrl ? (
+                    {selectedBeneficiary.photoUrl ? (
                       <img
-                        src={selectedMember.photoUrl}
+                        src={selectedBeneficiary.photoUrl}
                         alt="Profile"
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
@@ -264,14 +379,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     )}
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-sm text-slate-900">{selectedMember.principalName}</h4>
-                    <span className="font-mono text-xs font-bold text-[#0A347B] block">{selectedMember.cardNo}</span>
+                    <h4 className="font-extrabold text-sm text-slate-900">{selectedBeneficiary.fullName}</h4>
+                    <span className="font-mono text-xs font-bold text-[#0A347B] block">{selectedBeneficiary.cardNo}</span>
                     <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
-                      <span>{calculateAge(selectedMember.birthDate)}</span>
+                      <span>{calculateAge(selectedBeneficiary.birthDate)}</span>
                       <span>•</span>
-                      <span>{selectedMember.gender === 'F' ? 'Female' : 'Male'}</span>
+                      <span>{selectedBeneficiary.gender === 'F' ? 'Femme' : 'Homme'}</span>
                       <span>•</span>
-                      <span className="font-semibold text-emerald-700">{selectedMember.status}</span>
+                      <span className="font-semibold text-emerald-700">{selectedBeneficiary.status}</span>
                     </div>
                   </div>
                 </div>
@@ -279,19 +394,27 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 <div className="space-y-2.5 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500 font-semibold">Date de Naissance :</span>
-                    <span className="font-bold text-slate-800">{selectedMember.birthDate || '—'}</span>
+                    <span className="font-bold text-slate-800">{selectedBeneficiary.birthDate || '—'}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500 font-semibold">Entreprise / Sponsor :</span>
-                    <span className="font-bold text-[#0A347B] truncate max-w-[170px]">{selectedMember.organization}</span>
+                    <span className="font-bold text-[#0A347B] truncate max-w-[170px]">{selectedBeneficiary.organization}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 font-semibold">Qualité / Lien :</span>
-                    <span className="font-bold text-slate-800">{selectedMember.relationship || 'Principal'}</span>
+                    <span className="text-slate-500 font-semibold">Qualité / Statut :</span>
+                    <span className={`font-bold ${selectedBeneficiary.isPrincipal ? 'text-[#0A347B]' : 'text-amber-700'}`}>
+                      {selectedBeneficiary.isPrincipal ? 'Assuré Principal (Titulaire)' : `Dépendant (${selectedBeneficiary.relationship})`}
+                    </span>
                   </div>
+                  {!selectedBeneficiary.isPrincipal && (
+                    <div className="flex items-center justify-between bg-amber-50 p-2 rounded-lg border border-amber-200">
+                      <span className="text-amber-800 font-semibold">Assuré Titulaire :</span>
+                      <span className="font-bold text-amber-900">{selectedBeneficiary.principalName}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500 font-semibold">Téléphone / Contact :</span>
-                    <span className="font-bold text-slate-800">{selectedMember.phone || '+231 77 000 1122'}</span>
+                    <span className="font-bold text-slate-800">{selectedBeneficiary.parentMember.phone || '+231 77 000 1122'}</span>
                   </div>
                 </div>
               </div>
@@ -304,21 +427,25 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     <span>Enrôlement Biométrique</span>
                   </h4>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
-                    AFIS Match: {selectedMember.fingerprintScore ?? 96}%
+                    {selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore
+                      ? `AFIS Match: ${selectedBeneficiary.fingerprintScore ?? 96}%`
+                      : 'Rattaché Police Principale'}
                   </span>
                 </div>
                 <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-1.5">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Capteur Optique :</span>
-                    <span className="font-bold text-slate-800">{selectedMember.fingerprintSensor || 'FAP-20 USB Optical Scanner'}</span>
+                    <span className="font-bold text-slate-800">{selectedBeneficiary.parentMember.fingerprintSensor || 'FAP-20 USB Optical Scanner'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Date d'Enrôlement :</span>
-                    <span className="font-bold text-slate-800 font-mono">{selectedMember.fingerprintDate || selectedMember.createdAt || '2026-01-15'}</span>
+                    <span className="font-bold text-slate-800 font-mono">{selectedBeneficiary.parentMember.fingerprintDate || selectedBeneficiary.parentMember.createdAt || '2026-01-15'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Gabarit AFIS :</span>
-                    <span className="font-bold text-emerald-700 font-mono">ENROLLED_VERIFIED</span>
+                    <span className="font-bold text-emerald-700 font-mono">
+                      {selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore ? 'ENROLLED_VERIFIED' : 'POLICY_VERIFIED'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -328,7 +455,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <HeartPulse className="w-4 h-4 text-rose-500" />
-                    <span>Dépendants Rattachés ({dependentsList.length})</span>
+                    <span>Dépendants de la Police ({dependentsList.length})</span>
                   </h4>
                   <span className="text-[10px] font-bold text-slate-400">Total: {dependentsList.length}</span>
                 </div>
@@ -342,12 +469,16 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     {dependentsList.map((dep, idx) => (
                       <div
                         key={dep.id || idx}
-                        className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between text-xs"
+                        className={`p-2.5 rounded-lg border flex items-center justify-between text-xs transition ${
+                          selectedBeneficiary.fullName.toLowerCase() === dep.fullName.toLowerCase()
+                            ? 'bg-emerald-50 border-emerald-300 font-bold'
+                            : 'bg-white border-slate-200'
+                        }`}
                       >
                         <div>
                           <div className="font-bold text-slate-800">{dep.fullName}</div>
                           <div className="text-[10px] text-slate-400 font-mono">
-                            {dep.cardNo} • {dep.age ? `${dep.age} ans` : dep.birthDate}
+                            {dep.cardNo || `${selectedBeneficiary.principalCardNo}-D${idx + 1}`} • {dep.age ? `${dep.age} ans` : dep.birthDate}
                           </div>
                         </div>
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-[#0A347B] border border-blue-100">
@@ -375,10 +506,10 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     </div>
                     <div className="flex justify-between items-baseline">
                       <span className="text-2xl font-black text-[#0A347B]">
-                        {formatAmount(selectedMember.outpatientBalanceUSD ?? 600)}
+                        {formatAmount(selectedBeneficiary.outpatientBalanceUSD ?? 500)}
                       </span>
                       <span className="text-xs text-slate-500 font-bold">
-                        / {formatAmount(selectedMember.outpatientCeilingUSD ?? 1000)}
+                        / {formatAmount(selectedBeneficiary.outpatientCeilingUSD ?? 500)}
                       </span>
                     </div>
                     <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
@@ -388,8 +519,8 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           width: `${Math.min(
                             100,
                             Math.round(
-                              ((selectedMember.outpatientBalanceUSD ?? 600) /
-                                (selectedMember.outpatientCeilingUSD ?? 1000)) *
+                              ((selectedBeneficiary.outpatientBalanceUSD ?? 500) /
+                                (selectedBeneficiary.outpatientCeilingUSD ?? 500)) *
                                 100
                             )
                           )}%`,
@@ -408,10 +539,10 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     </div>
                     <div className="flex justify-between items-baseline">
                       <span className="text-2xl font-black text-[#00A859]">
-                        {formatAmount(selectedMember.inpatientBalanceUSD ?? 8500)}
+                        {formatAmount(selectedBeneficiary.inpatientBalanceUSD ?? 5000)}
                       </span>
                       <span className="text-xs text-slate-500 font-bold">
-                        / {formatAmount(selectedMember.inpatientCeilingUSD ?? 10000)}
+                        / {formatAmount(selectedBeneficiary.inpatientCeilingUSD ?? 5000)}
                       </span>
                     </div>
                     <div className="w-full bg-emerald-200 rounded-full h-2 overflow-hidden">
@@ -421,8 +552,8 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           width: `${Math.min(
                             100,
                             Math.round(
-                              ((selectedMember.inpatientBalanceUSD ?? 8500) /
-                                (selectedMember.inpatientCeilingUSD ?? 10000)) *
+                              ((selectedBeneficiary.inpatientBalanceUSD ?? 5000) /
+                                (selectedBeneficiary.inpatientCeilingUSD ?? 5000)) *
                                 100
                             )
                           )}%`,
@@ -508,41 +639,49 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         </div>
       )}
 
-      {/* 3. LIST OF INSURED MEMBERS (IMPORTED, ENROLLED & VALIDATED) */}
+      {/* 3. LIST OF ALL INSURED BENEFICIARIES (PRINCIPALS + DEPENDENTS) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
               <Users className="w-4 h-4 text-[#0A347B]" />
-              <span>Répertoire des Assurés Importés & Enrôlés ({filteredMembersList.length})</span>
+              <span>Répertoire Complet des Assurés & Dépendants ({filteredBeneficiaries.length})</span>
             </h3>
             <p className="text-xs text-slate-500">
-              Sélectionnez un assuré pour consulter ses détails de couverture, biométrie et générer une fiche
+              Tous les assurés (principaux et ayants droit) sont consultables et identifiables directement.
             </p>
           </div>
 
           {/* Filter tabs */}
-          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs flex-wrap">
             <button
-              onClick={() => setFilterStatus('all')}
+              onClick={() => setFilterType('all')}
               className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                filterStatus === 'all' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                filterType === 'all' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Tous ({members.length})
+              Tous ({allBeneficiaries.length})
             </button>
             <button
-              onClick={() => setFilterStatus('Actif')}
+              onClick={() => setFilterType('principals')}
               className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                filterStatus === 'Actif' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                filterType === 'principals' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Actifs
+              Assurés Principaux ({allBeneficiaries.filter((b) => b.isPrincipal).length})
             </button>
             <button
-              onClick={() => setFilterStatus('WithBiometrics')}
+              onClick={() => setFilterType('dependents')}
               className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                filterStatus === 'WithBiometrics' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                filterType === 'dependents' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Dépendants ({allBeneficiaries.filter((b) => !b.isPrincipal).length})
+            </button>
+            <button
+              onClick={() => setFilterType('WithBiometrics')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                filterType === 'WithBiometrics' ? 'bg-[#0A347B] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Biométrie OK
@@ -550,7 +689,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
           </div>
         </div>
 
-        {filteredMembersList.length === 0 ? (
+        {filteredBeneficiaries.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs font-medium bg-slate-50 rounded-xl border border-slate-100">
             Aucun assuré ne correspond à votre recherche.
           </div>
@@ -560,62 +699,78 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/70 text-[10.5px] font-extrabold text-slate-500 uppercase tracking-wider">
                   <th className="py-3 px-4">N° CARTE</th>
-                  <th className="py-3 px-4">ASSURÉ PRINCIPAL</th>
+                  <th className="py-3 px-4">NOM DE L'ASSURÉ</th>
+                  <th className="py-3 px-4">QUALITÉ / POLICE</th>
                   <th className="py-3 px-4">ORGANISATION</th>
-                  <th className="py-3 px-4 text-center">DÉPENDANTS</th>
                   <th className="py-3 px-4 text-center">BIOMÉTRIE</th>
                   <th className="py-3 px-4 text-center">STATUT</th>
                   <th className="py-3 px-4 text-right">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredMembersList.map((m) => {
-                  const depsCount = (m.dependents?.length || 0) + (m.children?.length || 0) + (m.spouseName ? 1 : 0);
-                  const isSelected = selectedMember?.id === m.id;
+                {filteredBeneficiaries.map((b) => {
+                  const isSelected = selectedBeneficiary?.id === b.id;
                   return (
                     <tr
-                      key={m.id}
+                      key={b.id}
                       className={`hover:bg-blue-50/40 transition cursor-pointer ${
                         isSelected ? 'bg-blue-50/80 font-semibold' : ''
                       }`}
-                      onClick={() => setSelectedMember(m)}
+                      onClick={() => setSelectedBeneficiary(b)}
                     >
                       <td className="py-3 px-4 font-mono font-bold text-[#0A347B] whitespace-nowrap">
-                        {m.cardNo}
+                        {b.cardNo}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-800">{m.principalName}</div>
+                        <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <span>{b.fullName}</span>
+                          {!b.isPrincipal && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              {b.relationship}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-slate-400">
-                          {calculateAge(m.birthDate)} • {m.gender === 'F' ? 'F' : 'M'}
+                          {calculateAge(b.birthDate)} • {b.gender === 'F' ? 'Femme' : 'Homme'}
                         </div>
                       </td>
-                      <td className="py-3 px-4 font-medium text-slate-700">
-                        {m.organization}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-slate-100 text-slate-700">
-                          {depsCount}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {m.hasBiometrics || m.fingerprintScore ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <Fingerprint className="w-3 h-3" />
-                            <span>{m.fingerprintScore ?? 96}%</span>
+                      <td className="py-3 px-4">
+                        {b.isPrincipal ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                            <span>Titulaire Principal</span>
+                            <span className="text-[10px] text-slate-400">({b.dependentsCount} dép.)</span>
                           </span>
                         ) : (
-                          <span className="text-[10px] text-slate-400">Non enrôlé</span>
+                          <div className="text-[11px] text-slate-600">
+                            <span>Rattaché à : </span>
+                            <span className="font-bold text-[#0A347B]">{b.principalName}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-medium text-slate-700">
+                        {b.organization}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {b.hasBiometrics || b.fingerprintScore ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <Fingerprint className="w-3 h-3" />
+                            <span>{b.fingerprintScore ?? 96}%</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">
+                            {b.isPrincipal ? 'Non enrôlé' : 'Police OK'}
+                          </span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <span
                           className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            m.status === 'Actif' || m.status === 'Active'
+                            b.status === 'Actif' || b.status === 'Active'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : 'bg-rose-50 text-rose-700 border border-rose-200'
                           }`}
                         >
-                          {m.status}
+                          {b.status}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -623,7 +778,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedMember(m);
+                            setSelectedBeneficiary(b);
                           }}
                           className="px-3 py-1.5 rounded-lg bg-[#0A347B] hover:bg-[#08285e] text-white text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer"
                         >

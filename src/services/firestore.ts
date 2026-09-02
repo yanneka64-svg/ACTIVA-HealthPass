@@ -360,6 +360,33 @@ export const FirestoreService = {
     }
   },
 
+  // Invoices
+  addInvoice: async (data: Partial<InvoiceItem>) => {
+    try {
+      return await addDoc(collection(db, 'invoices'), data);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'invoices');
+      throw err;
+    }
+  },
+  updateInvoice: async (data: InvoiceItem) => {
+    try {
+      const { id, ...rest } = data;
+      return await updateDoc(doc(db, 'invoices', id), rest);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `invoices/${data.id}`);
+      throw err;
+    }
+  },
+  deleteInvoice: async (id: string) => {
+    try {
+      return await deleteDoc(doc(db, 'invoices', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `invoices/${id}`);
+      throw err;
+    }
+  },
+
   // Enrollments
   addEnrollment: async (data: Partial<Enrollment>) => {
     try {

@@ -13,6 +13,8 @@ import {
   X,
   Eye,
   FileSpreadsheet,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { InvoiceItem, Language } from '../types';
 import { useTranslation } from '../i18n/translations';
@@ -22,9 +24,16 @@ import { printBordereauSlip, downloadBordereauPDF } from '../utils/printUtils';
 interface InvoicesViewProps {
   lang: Language;
   invoices: InvoiceItem[];
+  userRole?: string;
+  onDeleteInvoice?: (id: string) => Promise<void> | void;
 }
 
-export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) => {
+export const InvoicesView: React.FC<InvoicesViewProps> = ({
+  lang,
+  invoices,
+  userRole = 'Admin',
+  onDeleteInvoice,
+}) => {
   const t = useTranslation(lang);
   const { formatAmount } = useCurrency();
   const [viewMode, setViewMode] = useState<'full' | 'patient' | 'family'>('full');
@@ -33,6 +42,42 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
   const [orgFilter, setOrgFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [viewSlipInvoice, setViewSlipInvoice] = useState<InvoiceItem | null>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<InvoiceItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
+  const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
+  const canDeleteInvoice = isAdmin || isSupervisor;
+
+  const primaryBtnClass = isAdmin
+    ? 'bg-slate-900 hover:bg-slate-800 text-white'
+    : isSupervisor
+    ? 'bg-[#0F766E] hover:bg-[#115E59] text-white'
+    : 'bg-[#0A347B] hover:bg-[#072659] text-white';
+
+  const activeTabClass = isAdmin
+    ? 'bg-slate-900 text-white shadow-xs'
+    : isSupervisor
+    ? 'bg-[#0F766E] text-white shadow-xs'
+    : 'bg-[#0A347B] text-white shadow-xs';
+
+  const primaryTextClass = isAdmin ? 'text-slate-900' : isSupervisor ? 'text-[#0F766E]' : 'text-[#0A347B]';
+
+  const handleDeleteConfirm = async () => {
+    if (!invoiceToDelete || !onDeleteInvoice) return;
+    try {
+      setIsDeleting(true);
+      await onDeleteInvoice(invoiceToDelete.id);
+      if (viewSlipInvoice?.id === invoiceToDelete.id) {
+        setViewSlipInvoice(null);
+      }
+      setInvoiceToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete invoice', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Derive unique orgs and categories for filters
   const uniqueOrgs = useMemo(() => {
@@ -186,7 +231,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             onClick={() => setViewMode('full')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'full'
-                ? 'bg-[#0A347B] text-white shadow-xs'
+                ? activeTabClass
                 : 'text-[#778FAF] hover:text-[#0D2B63]'
             }`}
           >
@@ -197,7 +242,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             onClick={() => setViewMode('patient')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'patient'
-                ? 'bg-[#0A347B] text-white shadow-xs'
+                ? activeTabClass
                 : 'text-[#778FAF] hover:text-[#0D2B63]'
             }`}
           >
@@ -208,7 +253,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             onClick={() => setViewMode('family')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'family'
-                ? 'bg-[#0A347B] text-white shadow-xs'
+                ? activeTabClass
                 : 'text-[#778FAF] hover:text-[#0D2B63]'
             }`}
           >
@@ -226,7 +271,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search invoice"
-              className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-1 focus:ring-[#0A34A3] focus:bg-white transition"
+              className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-slate-800 focus:ring-1 focus:ring-slate-800 focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-[#778FAF] absolute left-3 top-2.5" />
             {searchTerm && (
@@ -240,7 +285,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
           <select
             value={orgFilter}
             onChange={(e) => setOrgFilter(e.target.value)}
-            className="px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[#0D2B63] focus:outline-none focus:border-[#0A34A3] cursor-pointer whitespace-nowrap"
+            className="px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[#0D2B63] focus:outline-none focus:border-slate-800 cursor-pointer whitespace-nowrap"
           >
             <option value="ALL">All Organizations</option>
             {uniqueOrgs.map((org) => (
@@ -268,7 +313,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                   <th className="py-3.5 px-4 text-right text-[#00A878]">COVERED ($)</th>
                   <th className="py-3.5 px-4 text-right">COPAY ($)</th>
                   <th className="py-3.5 px-5 text-center">STATUS</th>
-                  <th className="py-3.5 px-5 text-center">DOCUMENTS</th>
+                  <th className="py-3.5 px-5 text-center">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8EDF2] text-xs">
@@ -287,7 +332,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                       <tr key={inv.id} className="hover:bg-[#F8FAFC]/80 transition">
                         {/* INVOICE REF */}
                         <td className="py-4 px-5 align-top">
-                          <div className="font-bold text-[#0A347B] font-mono text-xs">{inv.reference}</div>
+                          <div className="font-bold text-slate-900 font-mono text-xs">{inv.reference}</div>
                           <div className="text-[11px] text-[#778FAF] mt-0.5">
                             Claim: <span className="font-mono">{inv.claimId || `SIN-${inv.id.substring(0, 8)}`}</span>
                           </div>
@@ -302,7 +347,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                             <User className="w-3.5 h-3.5 text-[#778FAF] shrink-0" />
                             <span className="font-bold text-[#0D2B63]">{inv.patientName}</span>
                           </div>
-                          <div className="text-[11px] font-mono text-[#0A34A3] font-semibold mt-0.5">
+                          <div className="text-[11px] font-mono text-slate-700 font-semibold mt-0.5">
                             {inv.patientPolicyNumber || 'ACT-2025-0089'}
                           </div>
                           <div className="text-[11px] text-[#778FAF] mt-0.5 truncate max-w-[180px]">
@@ -363,15 +408,28 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                           )}
                         </td>
 
-                        {/* DOCUMENTS ACTION */}
+                        {/* ACTIONS */}
                         <td className="py-4 px-5 text-center align-top">
-                          <button
-                            onClick={() => setViewSlipInvoice(inv)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#F8FAFC] border border-[#E8EDF2] hover:border-[#0A34A3] text-[#0D2B63] rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-[#0A34A3]" />
-                            <span>Invoice</span>
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setViewSlipInvoice(inv)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
+                              title="View invoice slip"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-slate-700" />
+                              <span>Slip</span>
+                            </button>
+
+                            {canDeleteInvoice && (
+                              <button
+                                onClick={() => setInvoiceToDelete(inv)}
+                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer"
+                                title="Supprimer la facture (Admin)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -393,13 +451,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {viewMode === 'patient' ? (
-                      <User className="w-4 h-4 text-[#0A347B]" />
+                      <User className="w-4 h-4 text-slate-800" />
                     ) : (
-                      <Users className="w-4 h-4 text-[#0A347B]" />
+                      <Users className="w-4 h-4 text-slate-800" />
                     )}
                     <h3 className="font-bold text-sm text-[#0D2B63]">{g.name}</h3>
                   </div>
-                  <span className="px-2 py-0.5 bg-[#EAF2FF] text-[#0A347B] rounded-full text-[10px] font-bold">
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-800 rounded-full text-[10px] font-bold">
                     {g.count} Invoices
                   </span>
                 </div>
@@ -412,7 +470,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                       key={item.id}
                       className="flex items-center justify-between text-xs py-1 border-b border-slate-50 last:border-0"
                     >
-                      <span className="font-mono text-[#0A347B] font-semibold">{item.reference}</span>
+                      <span className="font-mono text-slate-800 font-semibold">{item.reference}</span>
                       <span className="font-bold text-[#0D2B63]">{formatAmount(item.amount)}</span>
                     </div>
                   ))}
@@ -431,7 +489,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                   onClick={() => {
                     setViewSlipInvoice(g.items[0]);
                   }}
-                  className="px-3 py-1.5 bg-[#F8FAFC] hover:bg-[#EAF2FF] border border-[#E8EDF2] text-[#0A347B] text-xs font-bold rounded-lg transition"
+                  className="px-3 py-1.5 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-slate-800 text-xs font-bold rounded-lg transition cursor-pointer"
                 >
                   View Details
                 </button>
@@ -447,7 +505,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-[#E8EDF2] max-h-[90vh] overflow-y-auto space-y-6">
             <div className="flex items-center justify-between border-b border-[#E8EDF2] pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-[#EAF2FF] rounded-xl text-[#0A347B]">
+                <div className="p-2.5 bg-slate-100 rounded-xl text-slate-800">
                   <Receipt className="w-5 h-5" />
                 </div>
                 <div>
@@ -459,7 +517,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
               </div>
               <button
                 onClick={() => setViewSlipInvoice(null)}
-                className="p-1.5 text-[#778FAF] hover:text-[#0D2B63] hover:bg-[#F8FAFC] rounded-lg transition"
+                className="p-1.5 text-[#778FAF] hover:text-[#0D2B63] hover:bg-[#F8FAFC] rounded-lg transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -470,7 +528,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
               <div>
                 <p className="text-[#778FAF] font-medium">Patient</p>
                 <p className="font-bold text-[#0D2B63] mt-0.5">{viewSlipInvoice.patientName}</p>
-                <p className="font-mono text-[10px] text-[#0A34A3]">
+                <p className="font-mono text-[10px] text-slate-700">
                   {viewSlipInvoice.patientPolicyNumber || 'ACT-2025-0089'}
                 </p>
               </div>
@@ -531,20 +589,87 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
+              <div>
+                {canDeleteInvoice && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvoiceToDelete(viewSlipInvoice);
+                    }}
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Delete Invoice</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-2.5">
+                <button
+                  onClick={() => printBordereauSlip(viewSlipInvoice, lang)}
+                  className="px-4 py-2 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-[#0D2B63] rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Printer className="w-4 h-4 text-slate-700" />
+                  <span>Print Slip</span>
+                </button>
+                <button
+                  onClick={() => downloadBordereauPDF(viewSlipInvoice, lang)}
+                  className={`px-4 py-2 ${primaryBtnClass} rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer`}
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download PDF Voucher</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. DELETE CONFIRMATION MODAL */}
+      {invoiceToDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-bold text-slate-900">
+                Supprimer la Facture #{invoiceToDelete.reference} ?
+              </h3>
+              <p className="text-xs text-slate-500">
+                Êtes-vous sûr de vouloir supprimer définitivement cette facture de {formatAmount(invoiceToDelete.amount)} émise pour {invoiceToDelete.patientName} ({invoiceToDelete.provider}) ?
+              </p>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-800">
+              ⚠️ Cette action est irréversible et retirera le montant du bordereau comptable.
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2">
               <button
-                onClick={() => printBordereauSlip(viewSlipInvoice, lang)}
-                className="px-4 py-2 bg-[#F8FAFC] hover:bg-[#EAF2FF] border border-[#E8EDF2] text-[#0D2B63] rounded-xl text-xs font-bold flex items-center gap-2 transition"
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setInvoiceToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
               >
-                <Printer className="w-4 h-4 text-[#0A347B]" />
-                <span>Print Slip</span>
+                Annuler
               </button>
               <button
-                onClick={() => downloadBordereauPDF(viewSlipInvoice, lang)}
-                className="px-4 py-2 bg-[#0A347B] hover:bg-[#072659] text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs"
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
-                <Download className="w-4 h-4" />
-                <span>Download PDF Voucher</span>
+                {isDeleting ? (
+                  <span>Suppression...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirmer la suppression</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

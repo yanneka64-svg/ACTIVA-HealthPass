@@ -555,8 +555,54 @@ export default function App() {
     FirestoreService.deleteMember(id);
   };
 
-  const handleImportMembers = (imported: Partial<Member>[]) => {
-    imported.forEach((i) => FirestoreService.addMember(i));
+  const handleImportMembers = async (imported: Partial<Member>[]) => {
+    // 1. Automatically update organization list if any organization in imported list doesn't exist
+    const currentOrgNames = new Set(organizations.map((o) => (o.name || '').toLowerCase().trim()));
+    const newOrgsToCreate: string[] = [];
+
+    imported.forEach((item) => {
+      if (item.organization && item.organization.trim()) {
+        const orgTrimmed = item.organization.trim();
+        if (!currentOrgNames.has(orgTrimmed.toLowerCase())) {
+          currentOrgNames.add(orgTrimmed.toLowerCase());
+          newOrgsToCreate.push(orgTrimmed);
+        }
+      }
+    });
+
+    for (const newOrgName of newOrgsToCreate) {
+      const newOrg: Organization = {
+        id: `org-auto-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        name: newOrgName,
+        policyNumber: `POL-${newOrgName.substring(0, 3).toUpperCase()}-2026`,
+        declaredMembers: 10,
+        coverageRate: 80,
+        status: 'Actif',
+        effectiveDate: '2026-01-01',
+        expirationDate: '2026-12-31',
+        contactPhone: '+231 770 00 11 22',
+        contactEmail: `contact@${newOrgName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+      };
+      await FirestoreService.addOrganization(newOrg);
+    }
+
+    // 2. Add or update members in Firestore
+    for (const i of imported) {
+      if (i.id && members.some((m) => m.id === i.id)) {
+        await FirestoreService.updateMember(i as Member);
+      } else {
+        await FirestoreService.addMember(i);
+      }
+    }
+
+    if (newOrgsToCreate.length > 0) {
+      setToastMessage(
+        `Imported ${imported.length} insured records. ${newOrgsToCreate.length} new organization(s) automatically added.`
+      );
+    } else {
+      setToastMessage(`Imported ${imported.length} insured records successfully.`);
+    }
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   // ORGANIZATIONS HANDLERS WITH CASCADING MEMBER SUSPENSION
