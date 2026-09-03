@@ -14,8 +14,10 @@ import {
   Shield,
   Calendar,
   Percent,
+  ChevronDown,
+  ShieldAlert,
 } from 'lucide-react';
-import { Organization, Language, OrgStatus, HealthPolicy, PolicyPayment } from '../../types';
+import { Organization, Language, OrgStatus, HealthPolicy, PolicyPayment, SuspensionReason } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { ExportDropdown } from '../../components/ExportDropdown';
@@ -99,6 +101,27 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
   const [formContactPhone, setFormContactPhone] = useState('+237 600 000 000');
   const [formContactEmail, setFormContactEmail] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring —
+  // section repliable directement dans CE formulaire (création ET modification d'organisation),
+  // sur demande explicite, plutôt que de forcer un aller-retour par le bouton "Policy" séparé
+  // (qui reste disponible pour la gestion détaillée des paiements — voir plus bas). Optionnelle :
+  // repliée par défaut à la création, ouverte automatiquement en édition si une police existe déjà.
+  const [policySectionOpen, setPolicySectionOpen] = useState(false);
+  const [policyExistedBeforeEdit, setPolicyExistedBeforeEdit] = useState(false);
+  const [formPolicyType, setFormPolicyType] = useState('Group Health Policy');
+  const [formAnnualPremium, setFormAnnualPremium] = useState('');
+  const [formPolicyCurrency, setFormPolicyCurrency] = useState('USD');
+  const [formPaymentFrequency, setFormPaymentFrequency] = useState<HealthPolicy['paymentFrequency']>('Quarterly');
+  const [formInstallmentAmount, setFormInstallmentAmount] = useState('');
+  const [formNextPaymentDueDate, setFormNextPaymentDueDate] = useState('');
+  const [formLastPaymentDate, setFormLastPaymentDate] = useState('');
+  const [formLastPaymentAmount, setFormLastPaymentAmount] = useState('');
+  const [formOutstandingAmount, setFormOutstandingAmount] = useState('0');
+  const [formGracePeriodDays, setFormGracePeriodDays] = useState('15');
+  const [formExpiringSoonWarningDays, setFormExpiringSoonWarningDays] = useState('30');
+  const [formManuallySuspended, setFormManuallySuspended] = useState(false);
+  const [formSuspensionReason, setFormSuspensionReason] = useState<SuspensionReason>('Non-payment');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -201,6 +224,24 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
     });
   }, [organizations, searchTerm, statusFilter]);
 
+  // === AMÉLIORATION AJOUTÉE : réinitialisation/pré-remplissage des champs de la section
+  // "Health Insurance Policy Configuration" repliable, à l'ouverture du formulaire.
+  const resetPolicyFormFields = () => {
+    setFormPolicyType('Group Health Policy');
+    setFormAnnualPremium('');
+    setFormPolicyCurrency('USD');
+    setFormPaymentFrequency('Quarterly');
+    setFormInstallmentAmount('');
+    setFormNextPaymentDueDate('');
+    setFormLastPaymentDate('');
+    setFormLastPaymentAmount('');
+    setFormOutstandingAmount('0');
+    setFormGracePeriodDays('15');
+    setFormExpiringSoonWarningDays('30');
+    setFormManuallySuspended(false);
+    setFormSuspensionReason('Non-payment');
+  };
+
   const openCreateModal = () => {
     setEditingOrg(null);
     setFormName('');
@@ -212,6 +253,9 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
     setFormStatus('Actif');
     setFormContactPhone('+231 770 11 22 33');
     setFormContactEmail('contact@organization.com');
+    resetPolicyFormFields();
+    setPolicySectionOpen(false);
+    setPolicyExistedBeforeEdit(false);
     setModalOpen(true);
   };
 
@@ -226,6 +270,31 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
     setFormStatus(org.status);
     setFormContactPhone(org.contactPhone || '+231 770 11 22 33');
     setFormContactEmail(org.contactEmail || '');
+
+    // === AMÉLIORATION AJOUTÉE : pré-remplissage de la police existante (si configurée) —
+    // section ouverte automatiquement pour qu'elle soit visible immédiatement en édition.
+    const existingPolicy = getPolicyForOrg(org);
+    if (existingPolicy) {
+      setFormPolicyType(existingPolicy.policyType || 'Group Health Policy');
+      setFormAnnualPremium(String(existingPolicy.annualPremium ?? ''));
+      setFormPolicyCurrency(existingPolicy.currency || 'USD');
+      setFormPaymentFrequency(existingPolicy.paymentFrequency || 'Quarterly');
+      setFormInstallmentAmount(String(existingPolicy.installmentAmount ?? ''));
+      setFormNextPaymentDueDate(existingPolicy.nextPaymentDueDate || '');
+      setFormLastPaymentDate(existingPolicy.lastPaymentDate || '');
+      setFormLastPaymentAmount(existingPolicy.lastPaymentAmount != null ? String(existingPolicy.lastPaymentAmount) : '');
+      setFormOutstandingAmount(String(existingPolicy.outstandingAmount ?? 0));
+      setFormGracePeriodDays(String(existingPolicy.gracePeriodDays ?? 15));
+      setFormExpiringSoonWarningDays(String(existingPolicy.expiringSoonWarningDays ?? 30));
+      setFormManuallySuspended(!!existingPolicy.manuallySuspended);
+      setFormSuspensionReason(existingPolicy.suspensionReason || 'Non-payment');
+      setPolicySectionOpen(true);
+      setPolicyExistedBeforeEdit(true);
+    } else {
+      resetPolicyFormFields();
+      setPolicySectionOpen(false);
+      setPolicyExistedBeforeEdit(false);
+    }
     setModalOpen(true);
   };
 
@@ -261,6 +330,47 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       });
       showToast(`Organization ${formName} registered successfully with ${formRate}% coverage.`);
     }
+
+    // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring —
+    // la police est enregistrée avec l'organisation UNIQUEMENT si l'admin a ouvert/rempli la
+    // section (ou si une police existait déjà pour cette organisation, afin de rester
+    // synchronisée avec le n°/dates de police modifiés dans ce même formulaire) — jamais créée
+    // silencieusement à $0 pour une organisation où personne n'a touché à cette section.
+    if (onSaveHealthPolicy && (policySectionOpen || policyExistedBeforeEdit)) {
+      const policyDraft: HealthPolicy = {
+        id: formName,
+        organizationId: formName,
+        policyNumber: formPolicy,
+        policyType: formPolicyType,
+        effectiveDate: formEffective,
+        expirationDate: formExpiration,
+        status: 'Active',
+        suspensionReason: formManuallySuspended ? formSuspensionReason : undefined,
+        manuallySuspended: formManuallySuspended,
+        annualPremium: parseFloat(formAnnualPremium) || 0,
+        currency: formPolicyCurrency,
+        paymentFrequency: formPaymentFrequency,
+        installmentAmount: parseFloat(formInstallmentAmount) || 0,
+        nextPaymentDueDate: formNextPaymentDueDate || undefined,
+        lastPaymentDate: formLastPaymentDate || undefined,
+        lastPaymentAmount: formLastPaymentAmount ? parseFloat(formLastPaymentAmount) : undefined,
+        gracePeriodDays: parseInt(formGracePeriodDays, 10) || 15,
+        expiringSoonWarningDays: parseInt(formExpiringSoonWarningDays, 10) || 30,
+        outstandingAmount: parseFloat(formOutstandingAmount) || 0,
+        coverageBlocked: false,
+        updatedAt: new Date().toISOString(),
+      };
+      // Recalcule le statut/blocage réels via le même moteur centralisé (jamais une valeur
+      // devinée) avant d'écrire — cohérent avec HealthPolicyConfigModal.handleSave.
+      const computed = getPolicyCoverageStatus(policyDraft);
+      onSaveHealthPolicy(formName, {
+        ...policyDraft,
+        status: computed.status,
+        coverageBlocked: computed.coverageBlocked,
+        suspensionReason: computed.suspensionReason || policyDraft.suspensionReason,
+      });
+    }
+
     setModalOpen(false);
   };
 
@@ -653,6 +763,107 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                   />
                 </div>
+              </div>
+
+              {/* === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium
+                  Monitoring — section repliable directement dans ce formulaire de création /
+                  modification d'organisation, comme demandé, plutôt que uniquement via le
+                  bouton "Policy" séparé du tableau (conservé pour la gestion détaillée des
+                  paiements). Optionnelle : rien n'est enregistré si elle reste fermée. === */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setPolicySectionOpen((prev) => !prev)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 flex items-center justify-between transition cursor-pointer"
+                >
+                  <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-[#0A347B]" />
+                    <span>Health Insurance Policy Configuration (Optional)</span>
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${policySectionOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {policySectionOpen && (
+                  <div className="p-3.5 space-y-3 bg-white">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Policy Type</label>
+                        <input value={formPolicyType} onChange={(e) => setFormPolicyType(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Payment Frequency</label>
+                        <select value={formPaymentFrequency} onChange={(e) => setFormPaymentFrequency(e.target.value as HealthPolicy['paymentFrequency'])} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                          <option value="Annual">Annual</option>
+                          <option value="Semi-Annual">Semi-Annual</option>
+                          <option value="Quarterly">Quarterly</option>
+                          <option value="Monthly">Monthly</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Annual Premium</label>
+                        <input type="number" value={formAnnualPremium} onChange={(e) => setFormAnnualPremium(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Currency</label>
+                        <select value={formPolicyCurrency} onChange={(e) => setFormPolicyCurrency(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                          <option value="USD">USD ($)</option>
+                          <option value="LRD">LRD (L$)</option>
+                          <option value="XAF">XAF</option>
+                          <option value="XOF">XOF</option>
+                          <option value="GHS">GHS</option>
+                          <option value="GNF">GNF</option>
+                          <option value="SLE">SLE</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Installment Amount</label>
+                        <input type="number" value={formInstallmentAmount} onChange={(e) => setFormInstallmentAmount(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Next Payment Due Date</label>
+                        <input type="date" value={formNextPaymentDueDate} onChange={(e) => setFormNextPaymentDueDate(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Last Payment Date</label>
+                        <input type="date" value={formLastPaymentDate} onChange={(e) => setFormLastPaymentDate(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Last Payment Amount</label>
+                        <input type="number" value={formLastPaymentAmount} onChange={(e) => setFormLastPaymentAmount(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Outstanding Amount</label>
+                        <input type="number" value={formOutstandingAmount} onChange={(e) => setFormOutstandingAmount(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-rose-700" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Grace Period (days)</label>
+                        <input type="number" value={formGracePeriodDays} onChange={(e) => setFormGracePeriodDays(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Expiring Soon Warning (days)</label>
+                        <input type="number" value={formExpiringSoonWarningDays} onChange={(e) => setFormExpiringSoonWarningDays(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={formManuallySuspended} onChange={(e) => setFormManuallySuspended(e.target.checked)} className="w-4 h-4 accent-amber-600" />
+                        <span className="text-xs font-extrabold text-amber-900">Manually suspend this policy (Administrative / Other)</span>
+                      </label>
+                      {formManuallySuspended && (
+                        <select value={formSuspensionReason} onChange={(e) => setFormSuspensionReason(e.target.value as SuspensionReason)} className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-xs font-bold">
+                          <option value="Non-payment">Non-payment</option>
+                          <option value="Administrative">Administrative</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      )}
+                    </div>
+
+                    <p className="text-[10.5px] text-slate-400 leading-relaxed">
+                      For payment history and the Q1–Q4 schedule, use the "Policy" button on this organization's row after saving.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex justify-end gap-3">
