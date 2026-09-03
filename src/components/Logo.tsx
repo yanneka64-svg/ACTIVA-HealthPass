@@ -11,54 +11,27 @@ interface LogoProps {
   transparent?: boolean;
 }
 
+// === AMÉLIORATION AJOUTÉE : remplace l'ancienne icône dessinée à la main (cœur + croix +
+// feuille) par le logo officiel fourni par l'utilisateur — un cœur composé d'un lobe bleu
+// plein (gauche) et d'un lobe bleu en contour (droite), une croix médicale verte au centre,
+// et un léger paraphe vert en dessous. Le fichier /activa-heart-icon.png est le cœur seul,
+// recadré depuis le logo fourni SANS le cadre bleu qui l'entourait (qui ne fait pas partie
+// du logo). Ratio largeur/hauteur natif ≈ 1.297 (384×296px), conservé via object-contain.
+export const ACTIVA_HEART_ICON_ASPECT = 384 / 296;
+
 /**
- * Isolated Medical Heart + Green Cross + Leaf Icon
+ * Isolated Medical Heart + Green Cross Icon (official ACTIVA HealthPass emblem)
  */
 export const LogoIcon: React.FC<{ className?: string; size?: number | string }> = ({
   className = 'w-8 h-8',
 }) => {
   return (
-    <svg
-      viewBox="0 0 74 74"
-      className={`${className} flex-shrink-0 block`}
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="ACTIVA HealthPass Emblem"
-    >
-      <g transform="translate(3, 4)">
-        {/* Left Navy Heart Lobe */}
-        <path
-          d="M 35,21 
-             C 30,9 18,4 9,13 
-             C 0,22 1,38 13,50 
-             C 20,57 29,63 35,66 
-             L 35,21 Z"
-          fill="#0a2e6b"
-        />
-
-        {/* Green Medical Cross (+) */}
-        <rect x="28" y="23" width="13" height="26" rx="2.5" fill="#00A651" />
-        <rect x="21" y="30" width="27" height="12" rx="2.5" fill="#00A651" />
-
-        {/* Right Green Leaf Curves */}
-        <path
-          d="M 35,66 
-             C 43,62 52,56 58,49 
-             C 68,37 69,21 60,12 
-             C 51,4 40,9 35,21 
-             C 43,27 48,37 48,49 
-             C 48,57 43,63 35,66 Z"
-          fill="#00833E"
-        />
-        <path
-          d="M 35,66 
-             C 44,61 54,53 60,40 
-             C 66,27 64,16 58,12 
-             C 68,20 68,37 58,49 
-             C 49,59 40,64 35,66 Z"
-          fill="#00A651"
-        />
-      </g>
-    </svg>
+    <img
+      src="/activa-heart-icon.png"
+      alt="ACTIVA HealthPass Emblem"
+      className={`${className} flex-shrink-0 block object-contain select-none`}
+      draggable={false}
+    />
   );
 };
 
@@ -243,46 +216,20 @@ export const Logo: React.FC<LogoProps> = ({
             </style>
           </defs>
 
-          {/* HEALTHCARE EMBLEM (Cleanly scaled at 0.78) */}
-          <g id="activa-health-icon" transform="translate(2, 0) scale(0.78)">
-            {/* 1. Left Half: Deep Navy Blue Heart Lobe */}
-            <path
-              d="M 35,21 
-                 C 30,9 18,4 9,13 
-                 C 0,22 1,38 13,50 
-                 C 20,57 29,63 35,66 
-                 L 35,21 Z"
-              fill="#0a2e6b"
-            />
-
-            {/* 2. Green Healthcare Medical Cross (+) */}
-            <g id="healthcare-cross">
-              <rect x="28" y="23" width="13" height="26" rx="2.5" fill="#00A651" />
-              <rect x="21" y="30" width="27" height="12" rx="2.5" fill="#00A651" />
-            </g>
-
-            {/* 3. Right Half: Dual Green Leaf & Protective Swoosh */}
-            <path
-              d="M 35,66 
-                 C 43,62 52,56 58,49 
-                 C 68,37 69,21 60,12 
-                 C 51,4 40,9 35,21 
-                 C 43,27 48,37 48,49 
-                 C 48,57 43,63 35,66 Z"
-              fill="#00833E"
-            />
-            <path
-              d="M 35,66 
-                 C 44,61 54,53 60,40 
-                 C 66,27 64,16 58,12 
-                 C 68,20 68,37 58,49 
-                 C 49,59 40,64 35,66 Z"
-              fill="#00A651"
-            />
-          </g>
+          {/* === AMÉLIORATION AJOUTÉE : emblème officiel (image raster recadrée sans le cadre
+              bleu du logo fourni) au lieu des anciennes formes dessinées à la main ===
+              HEALTHCARE EMBLEM */}
+          <image
+            href="/activa-heart-icon.png"
+            x="0"
+            y="3.3"
+            width="64"
+            height="49.3"
+            preserveAspectRatio="xMidYMid meet"
+          />
 
           {/* RIGHT TYPOGRAPHY - Centered and completely within bounds */}
-          <g id="activa-brand-text" transform="translate(64, 0)">
+          <g id="activa-brand-text" transform="translate(70, 0)">
             <text x="0" y="30">
               <tspan className="logo-activa-bold">ACTIVA</tspan>
               <tspan dx="5" className="logo-healthpass-title">HealthPass</tspan>
