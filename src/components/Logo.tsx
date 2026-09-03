@@ -15,9 +15,10 @@ interface LogoProps {
 // feuille) par le logo officiel fourni par l'utilisateur — un cœur composé d'un lobe bleu
 // plein (gauche) et d'un lobe bleu en contour (droite), une croix médicale verte au centre,
 // et un léger paraphe vert en dessous. Le fichier /activa-heart-icon.png est le cœur seul,
-// recadré depuis le logo fourni SANS le cadre bleu qui l'entourait (qui ne fait pas partie
-// du logo). Ratio largeur/hauteur natif ≈ 1.297 (384×296px), conservé via object-contain.
-export const ACTIVA_HEART_ICON_ASPECT = 384 / 296;
+// recadré depuis la version haute résolution du logo fourni (sans arrière-plan ni cadre
+// autour, qui ne font pas partie du logo). Ratio largeur/hauteur natif ≈ 1.24 (427×344px),
+// conservé via object-contain.
+export const ACTIVA_HEART_ICON_ASPECT = 427 / 344;
 
 /**
  * Isolated Medical Heart + Green Cross Icon (official ACTIVA HealthPass emblem)
