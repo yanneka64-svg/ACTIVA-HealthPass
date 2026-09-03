@@ -9,6 +9,7 @@ import {
   Calendar,
   Clock,
   History,
+  ListFilter,
 } from 'lucide-react';
 import { LoginLog, Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
@@ -23,20 +24,41 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
   const t = useTranslation(lang);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  // === AMÉLIORATION AJOUTÉE : sur demande explicite — par défaut, n'afficher que la
+  // DERNIÈRE connexion de chaque utilisateur plutôt que tout l'historique (145+ lignes
+  // difficiles à parcourir). Affichage uniquement : AUCUNE donnée n'est supprimée en base
+  // (la collection auditLogs reste immuable et complète — voir firestore.rules), l'historique
+  // complet reste consultable en un clic via ce bouton, et reste exportable en CSV/JSON.
+  const [showFullHistory, setShowFullHistory] = useState(false);
+
+  const latestLoginPerUser = useMemo(() => {
+    const byUser = new Map<string, LoginLog>();
+    for (const log of logs) {
+      const existing = byUser.get(log.userEmail);
+      if (!existing || log.timestamp > existing.timestamp) {
+        byUser.set(log.userEmail, log);
+      }
+    }
+    return Array.from(byUser.values());
+  }, [logs]);
+
+  const baseLogs = showFullHistory ? logs : latestLoginPerUser;
 
   const filteredLogs = useMemo(() => {
-    return logs.filter((log) => {
-      const matchSearch =
-        log.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.ipAddress.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.userAgent.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (log.location && log.location.toLowerCase().includes(searchTerm.toLowerCase()));
+    return baseLogs
+      .filter((log) => {
+        const matchSearch =
+          log.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          log.ipAddress.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          log.userAgent.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (log.location && log.location.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      const matchStatus = statusFilter === 'ALL' || log.status === statusFilter;
+        const matchStatus = statusFilter === 'ALL' || log.status === statusFilter;
 
-      return matchSearch && matchStatus;
-    });
-  }, [logs, searchTerm, statusFilter]);
+        return matchSearch && matchStatus;
+      })
+      .sort((a, b) => (b.timestamp > a.timestamp ? 1 : -1));
+  }, [baseLogs, searchTerm, statusFilter]);
 
   const handleDownloadCSV = () => {
     const headers = ['ID', 'Timestamp', 'User_Email', 'Profile', 'IP_Address', 'Browser_Device', 'Status', 'Location'];
@@ -101,6 +123,20 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
             <option value="failed">{t.logs.failed}</option>
           </select>
 
+          {/* === AMÉLIORATION AJOUTÉE : bascule "dernière connexion par utilisateur" (par
+              défaut) / "historique complet" — affichage uniquement, rien n'est supprimé en
+              base. Répond au besoin d'un tableau lisible sans renoncer à l'immuabilité du
+              journal d'audit. */}
+          <button
+            type="button"
+            onClick={() => setShowFullHistory((v) => !v)}
+            className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] cursor-pointer flex items-center gap-1.5 whitespace-nowrap transition"
+            title={showFullHistory ? 'Show only the latest login per user' : 'Show every recorded login attempt'}
+          >
+            <ListFilter className="w-3.5 h-3.5" />
+            <span>{showFullHistory ? 'Latest per user only' : 'Show full history'}</span>
+          </button>
+
           {/* === AMÉLIORATION AJOUTÉE : "CSV" et "JSON" fusionnés en un seul bouton "Export" (menu déroulant) === */}
           <ExportDropdown
             lang={lang}
@@ -113,14 +149,21 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
 
       {/* Logs Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between">
+        <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3">
             <History className="w-4 h-4 text-[var(--brand-900)]" />
-            <h3 className="font-extrabold text-sm text-slate-900">{t.logs.title}</h3>
+            <h3 className="font-extrabold text-sm text-slate-900">
+              {showFullHistory ? t.logs.title : `${t.logs.title} — Latest login per user`}
+            </h3>
             <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-black">
               {filteredLogs.length}
             </span>
           </div>
+          {!showFullHistory && (
+            <span className="text-[11px] text-slate-400 font-medium">
+              {logs.length} total entries kept in the immutable audit trail
+            </span>
+          )}
         </div>
 
         {filteredLogs.length === 0 ? (
