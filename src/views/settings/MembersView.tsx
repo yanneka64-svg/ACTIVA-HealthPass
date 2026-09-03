@@ -1365,7 +1365,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       numéro déjà attribué est définitif (section 15 de la demande). === */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Health Card No {editingMember ? '(cannot be changed)' : '(optional — leave blank to auto-generate)'}
+                      Health Card No {editingMember ? '(cannot be changed)' : '(leave blank to auto-generate)'}
                     </label>
                     <input
                       type="text"
