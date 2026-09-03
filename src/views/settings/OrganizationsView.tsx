@@ -15,10 +15,12 @@ import {
   Calendar,
   Percent,
 } from 'lucide-react';
-import { Organization, Language, OrgStatus } from '../../types';
+import { Organization, Language, OrgStatus, HealthPolicy, PolicyPayment } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { ExportDropdown } from '../../components/ExportDropdown';
+import { HealthPolicyConfigModal } from '../../components/HealthPolicyConfigModal';
+import { getPolicyCoverageStatus } from '../../services/policyEngine';
 import {
   exportOrganizationsToCSV,
   exportOrganizationsToExcel,
@@ -37,6 +39,14 @@ interface OrganizationsViewProps {
   onSuspendOrganization?: (org: Organization) => void;
   onReactivateOrganization?: (org: Organization) => void;
   onSelectMember?: (member: any) => void;
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring —
+  // props optionnelles pour ne rien casser dans les usages existants du composant qui ne les
+  // fourniraient pas encore.
+  healthPolicies?: HealthPolicy[];
+  policyPayments?: PolicyPayment[];
+  onSaveHealthPolicy?: (organizationName: string, data: Partial<HealthPolicy>) => void;
+  onAddPolicyPayment?: (data: Partial<PolicyPayment>) => void;
+  onDeletePolicyPayment?: (id: string) => void;
 }
 
 export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
@@ -49,6 +59,11 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
   onImportOrganizations,
   onSuspendOrganization,
   onReactivateOrganization,
+  healthPolicies = [],
+  policyPayments = [],
+  onSaveHealthPolicy,
+  onAddPolicyPayment,
+  onDeletePolicyPayment,
 }) => {
   const t = useTranslation(lang);
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,6 +82,11 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
 
   // Suspend/Reactivate confirmation modal
   const [confirmOrgAction, setConfirmOrgAction] = useState<{ org: Organization; action: 'suspend' | 'reactivate' } | null>(null);
+
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
+  const [policyConfigOrg, setPolicyConfigOrg] = useState<Organization | null>(null);
+  const getPolicyForOrg = (org: Organization) => healthPolicies.find((p) => p.organizationId === org.name) || null;
+  const getPaymentsForOrg = (org: Organization) => policyPayments.filter((p) => p.policyId === org.name);
 
   // Form states
   const [formName, setFormName] = useState('');
@@ -408,6 +428,18 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                       </td>
                       <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* === AMÉLIORATION AJOUTÉE : accès à la configuration détaillée de
+                              la police d'assurance santé (prime, échéancier, paiements) —
+                              volontairement une section séparée (modale), jamais une colonne
+                              ajoutée à ce tableau. === */}
+                          <button
+                            onClick={() => setPolicyConfigOrg(org)}
+                            className="px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer bg-blue-50 text-[#0A347B] hover:bg-blue-100 border border-blue-200"
+                            title="Configure health insurance policy & premium"
+                          >
+                            <Shield className="w-3.5 h-3.5" />
+                            <span>Policy</span>
+                          </button>
                           <button
                             onClick={() => handleToggleSuspend(org)}
                             className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
@@ -853,6 +885,28 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* === AMÉLIORATION AJOUTÉE : HEALTH INSURANCE POLICY CONFIGURATION MODAL === */}
+      {policyConfigOrg && (
+        <HealthPolicyConfigModal
+          organization={policyConfigOrg}
+          policy={getPolicyForOrg(policyConfigOrg)}
+          payments={getPaymentsForOrg(policyConfigOrg)}
+          coveredPrincipals={dedupeMembersByCardNo(members.filter((m) => m.organization?.toLowerCase().trim() === policyConfigOrg.name.toLowerCase().trim())).length}
+          coveredDependents={dedupeMembersByCardNo(members.filter((m) => m.organization?.toLowerCase().trim() === policyConfigOrg.name.toLowerCase().trim())).reduce(
+            (sum, m) => sum + ((m.dependents?.length || 0) + (m.children?.length || 0) + (m.spouseName ? 1 : 0)),
+            0
+          )}
+          onClose={() => setPolicyConfigOrg(null)}
+          onSave={(data) => {
+            if (onSaveHealthPolicy) onSaveHealthPolicy(policyConfigOrg.name, data);
+            showToast(`Health policy configuration saved for ${policyConfigOrg.name}.`);
+            setPolicyConfigOrg(null);
+          }}
+          onAddPayment={(data) => onAddPolicyPayment && onAddPolicyPayment(data)}
+          onDeletePayment={(id) => onDeletePolicyPayment && onDeletePolicyPayment(id)}
+        />
       )}
 
       {/* SUSPEND / REACTIVATE CONFIRMATION MODAL */}

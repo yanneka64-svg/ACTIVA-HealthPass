@@ -33,12 +33,42 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    match /claims/{claimId} {
+    // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
+    // `healthPolicies/{organizationName}` (une police par organisation, id = nom exact de
+    // l'organisation) porte le champ `coverageBlocked`, recalculé côté client par le même
+    // moteur que src/services/policyEngine.ts à chaque changement pertinent. `policyBlocksCoverage`
+    // relit ce champ pour un nom d'organisation donné, sans jamais faire confiance à un champ
+    // équivalent envoyé par le client dans la requête elle-même.
+    function policyBlocksCoverage(orgName) {
+      return orgName is string && orgName.size() > 0 &&
+        exists(/databases/$(database)/documents/healthPolicies/$(orgName)) &&
+        get(/databases/$(database)/documents/healthPolicies/$(orgName)).data.coverageBlocked == true;
+    }
+
+    match /healthPolicies/{organizationName} {
       allow read, write: if isSignedIn();
     }
 
-    match /medicalForms/{formId} {
+    match /policyPayments/{paymentId} {
       allow read, write: if isSignedIn();
+    }
+
+    match /claims/{claimId} {
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn();
+      // === AMÉLIORATION AJOUTÉE : la restriction d'accès aux soins (member/organisation dont
+      // la police est Expired/Suspended) est appliquée ici aussi, pas seulement dans
+      // l'interface Agent — un utilisateur ne peut pas la contourner en appelant directement
+      // un autre point d'entrée applicatif. `resource == null` (création) est le seul cas
+      // vérifié : une réclamation déjà existante reste modifiable (ex: décision du
+      // superviseur) même si la police a été suspendue après coup.
+      allow create: if isSignedIn() && !policyBlocksCoverage(request.resource.data.organization);
+    }
+
+    match /medicalForms/{formId} {
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn();
+      allow create: if isSignedIn() && !policyBlocksCoverage(request.resource.data.organization);
     }
 
     match /enrollments/{enrollmentId} {

@@ -26,11 +26,16 @@ import {
   PlusCircle,
   Receipt,
 } from 'lucide-react';
-import { Member, Claim, Language, Organization } from '../../types';
+import { Member, Claim, Language, Organization, HealthPolicy } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import { formatRelationship, getMemberDependents } from '../settings/MembersView';
+// === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring — la
+// vérification de couverture est intégrée directement dans le parcours d'identification
+// existant, en réutilisant le même moteur centralisé que partout ailleurs (Claims, Reports,
+// Organizations, règles Firestore).
+import { getPolicyCoverageStatus } from '../../services/policyEngine';
 
 interface AgentIdentificationViewProps {
   members: Member[];
@@ -39,6 +44,7 @@ interface AgentIdentificationViewProps {
   // === AMÉLIORATION AJOUTÉE : organisations transmises pour retrouver le n° de police
   // (Policy Number) affiché sur la fiche assuré, comme demandé dans la maquette.
   organizations?: Organization[];
+  healthPolicies?: HealthPolicy[];
   onGenerateMedicalForm?: (member: Member) => void;
   // === AMÉLIORATION AJOUTÉE : callbacks pour les boutons "New Enrollment" (bandeau du
   // haut) et "New Claim" (fiche assuré) — navigation directe vers les autres onglets Agent.
@@ -75,6 +81,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   claims,
   lang,
   organizations = [],
+  healthPolicies = [],
   onGenerateMedicalForm,
   onNewEnrollment,
   onNewClaim,
@@ -85,6 +92,9 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   const [selectedBeneficiary, setSelectedBeneficiary] = useState<InsuredBeneficiary | null>(null);
   const [isFingerprintModalOpen, setIsFingerprintModalOpen] = useState(false);
   const [biometricMatchMessage, setBiometricMatchMessage] = useState<string | null>(null);
+  // === AMÉLIORATION AJOUTÉE : alerte bloquante affichée AVANT de laisser l'agent poursuivre
+  // vers un flux de soin (Medical Form / New Claim) quand la police est Expired/Suspended.
+  const [blockedActionAlert, setBlockedActionAlert] = useState<'medical_form' | 'new_claim' | null>(null);
 
   // Flatten members + all dependents into a comprehensive list of insured beneficiaries
   const allBeneficiaries = useMemo(() => {
@@ -229,6 +239,30 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     const org = organizations.find((o) => o.name === selectedBeneficiary.organization);
     return org?.policyNumber || null;
   }, [selectedBeneficiary, organizations]);
+
+  // === AMÉLIORATION AJOUTÉE : statut de couverture calculé pour l'assuré sélectionné, via le
+  // même moteur centralisé que le reste de l'application (jamais un statut recalculé
+  // localement à part) — null tant qu'aucune police n'a été configurée pour l'organisation
+  // (aucun blocage par défaut, module opt-in, cf. policyEngine.hasHealthcareAccess).
+  const selectedPolicy = useMemo(() => {
+    if (!selectedBeneficiary) return null;
+    return healthPolicies.find((p) => p.organizationId === selectedBeneficiary.organization) || null;
+  }, [selectedBeneficiary, healthPolicies]);
+
+  const policyCoverage = useMemo(() => {
+    if (!selectedPolicy) return null;
+    return getPolicyCoverageStatus(selectedPolicy);
+  }, [selectedPolicy]);
+
+  // Guards the "Generate Medical Form" / "New Claim" actions: if the policy currently blocks
+  // coverage, a blocking alert is shown instead of proceeding straight to the workflow.
+  const guardHealthcareAction = (action: 'medical_form' | 'new_claim', proceed: () => void) => {
+    if (policyCoverage?.coverageBlocked) {
+      setBlockedActionAlert(action);
+      return;
+    }
+    proceed();
+  };
 
   // Claims for selected beneficiary or their policy
   const memberClaims = useMemo(() => {
@@ -509,7 +543,9 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           outpatientBalanceUSD: selectedBeneficiary.outpatientBalanceUSD,
                           inpatientBalanceUSD: selectedBeneficiary.inpatientBalanceUSD,
                         };
-                        onGenerateMedicalForm(memberPayload);
+                        // === AMÉLIORATION AJOUTÉE : vérification de la couverture avant de
+                        // poursuivre vers le flux de soin, cf. policyCoverage plus haut.
+                        guardHealthcareAction('medical_form', () => onGenerateMedicalForm(memberPayload));
                       }}
                       className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white whitespace-nowrap"
                     >
@@ -526,7 +562,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           cardNo: selectedBeneficiary.cardNo,
                           principalName: selectedBeneficiary.fullName,
                         };
-                        onNewClaim(memberPayload);
+                        guardHealthcareAction('new_claim', () => onNewClaim(memberPayload));
                       }}
                       className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#0A347B] hover:bg-[#08285e] text-white whitespace-nowrap"
                     >
@@ -537,6 +573,82 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 </div>
               </div>
             </div>
+
+            {/* === AMÉLIORATION AJOUTÉE : bandeau de statut de couverture, calculé
+                immédiatement après identification via le moteur centralisé de police
+                d'assurance santé. N'apparaît que si une police a été configurée pour
+                l'organisation de l'assuré (module opt-in, aucun impact sur les organisations
+                n'ayant pas encore de police renseignée). === */}
+            {policyCoverage && selectedPolicy && (
+              <div
+                className={`rounded-2xl border p-5 space-y-2 ${
+                  policyCoverage.status === 'Active'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : policyCoverage.status === 'Expiring Soon'
+                    ? 'bg-amber-50 border-amber-200'
+                    : policyCoverage.status === 'Expired'
+                    ? 'bg-red-50 border-red-300'
+                    : 'bg-rose-50 border-rose-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <h4
+                    className={`text-xs font-black uppercase tracking-wide flex items-center gap-1.5 ${
+                      policyCoverage.status === 'Active'
+                        ? 'text-emerald-800'
+                        : policyCoverage.status === 'Expiring Soon'
+                        ? 'text-amber-800'
+                        : 'text-rose-800'
+                    }`}
+                  >
+                    {policyCoverage.coverageBlocked ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                    <span>
+                      {policyCoverage.status === 'Active' && 'Member Verified — Access to Healthcare'}
+                      {policyCoverage.status === 'Expiring Soon' && 'Member Verified — Policy Expiring Soon'}
+                      {policyCoverage.status === 'Expired' && 'Healthcare Access Blocked'}
+                      {policyCoverage.status === 'Suspended' && 'Healthcare Access Suspended'}
+                      {policyCoverage.status === 'Pending Renewal' && 'Policy Pending Renewal'}
+                    </span>
+                  </h4>
+                  <span className="text-[10px] font-mono font-bold text-slate-500">Policy: {selectedPolicy.policyNumber}</span>
+                </div>
+
+                {policyCoverage.status === 'Active' && (
+                  <p className="text-xs text-emerald-800 font-medium">
+                    Policy Status: <strong>ACTIVE</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong>
+                    {selectedPolicy.nextPaymentDueDate && (
+                      <>
+                        {' '}&bull; Next Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong>
+                      </>
+                    )}
+                  </p>
+                )}
+                {policyCoverage.status === 'Expiring Soon' && (
+                  <p className="text-xs text-amber-800 font-medium">
+                    Policy Status: <strong>EXPIRING SOON</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong> ({policyCoverage.daysUntilExpiration} day(s) left)
+                  </p>
+                )}
+                {policyCoverage.status === 'Expired' && (
+                  <p className="text-xs text-rose-800 font-medium leading-relaxed">
+                    Status: <strong>EXPIRED</strong> &bull; Expired on: <strong>{selectedPolicy.expirationDate}</strong>
+                    <br />
+                    This insured member and all covered dependents are not eligible for healthcare services under this policy.
+                  </p>
+                )}
+                {policyCoverage.status === 'Suspended' && (
+                  <p className="text-xs text-rose-800 font-medium leading-relaxed">
+                    Status: <strong>SUSPENDED</strong> &bull; Reason: <strong>{(policyCoverage.suspensionReason || 'ADMINISTRATIVE').toUpperCase()}</strong>
+                    {selectedPolicy.nextPaymentDueDate && (
+                      <>
+                        <br />Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong> &bull; Amount Due: <strong>{selectedPolicy.currency} {(selectedPolicy.outstandingAmount ?? 0).toLocaleString()}</strong>
+                      </>
+                    )}
+                    <br />
+                    Healthcare services are currently unavailable for the principal insured and all covered dependents.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Coverage Balances & Ceiling Limits */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
@@ -870,6 +982,68 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         title="Biometric Insured Identification"
         subtitle="AFIS 1:N Biometric Fingerprint Matcher"
       />
+
+      {/* === AMÉLIORATION AJOUTÉE : alerte bloquante affichée avant de laisser l'agent
+          poursuivre vers "Generate Medical Form" / "New Claim" quand la police est
+          Expired/Suspended — copie alignée sur la maquette fournie. === */}
+      {blockedActionAlert && selectedBeneficiary && selectedPolicy && policyCoverage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95">
+            <div className="p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-rose-800 uppercase tracking-wide">
+                    {policyCoverage.status === 'Expired' ? 'Healthcare Access Blocked' : 'Healthcare Access Suspended'}
+                  </h3>
+                  <p className="text-xs font-bold text-slate-700 mt-1">{selectedBeneficiary.fullName}</p>
+                  <p className="text-[11px] font-mono text-slate-500">Policy: {selectedPolicy.policyNumber}</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-medium leading-relaxed">
+                {policyCoverage.status === 'Expired' ? (
+                  <>
+                    Status: <strong>EXPIRED</strong> &bull; Expired on: <strong>{selectedPolicy.expirationDate}</strong>
+                    <br /><br />
+                    This insured member and all covered dependents are not eligible for healthcare services under this policy.
+                  </>
+                ) : (
+                  <>
+                    Status: <strong>SUSPENDED</strong> &bull; Reason: <strong>{(policyCoverage.suspensionReason || 'ADMINISTRATIVE').toUpperCase()}</strong>
+                    {selectedPolicy.nextPaymentDueDate && (
+                      <>
+                        <br />Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong> &bull; Amount Due: <strong>{selectedPolicy.currency} {(selectedPolicy.outstandingAmount ?? 0).toLocaleString()}</strong>
+                      </>
+                    )}
+                    <br /><br />
+                    Healthcare services are currently unavailable for the principal insured and all covered dependents.
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setBlockedActionAlert(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white cursor-pointer"
+              >
+                View Policy
+              </button>
+              <button
+                type="button"
+                onClick={() => setBlockedActionAlert(null)}
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

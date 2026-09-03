@@ -15,6 +15,8 @@ import {
   LoginLog,
   MedicalForm,
   AppNotification,
+  HealthPolicy,
+  PolicyPayment,
 } from './types';
 import { FirestoreService } from './services/firestore';
 import { WorkflowService } from './services/workflowService';
@@ -309,6 +311,9 @@ export default function App() {
   const [logs, setLogs] = useState<LoginLog[]>([]);
   const [medicalForms, setMedicalForms] = useState<MedicalForm[]>(() => (demoData.forms || []) as MedicalForm[]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
+  const [healthPolicies, setHealthPolicies] = useState<HealthPolicy[]>([]);
+  const [policyPayments, setPolicyPayments] = useState<PolicyPayment[]>([]);
 
   useEffect(() => {
     localStorage.setItem('activa_lang', 'en');
@@ -325,6 +330,8 @@ export default function App() {
       const unsubCeilings = FirestoreService.subscribeToCeilings(setCeilings);
       const unsubMedicalForms = FirestoreService.subscribeToMedicalForms(setMedicalForms);
       const unsubNotifications = FirestoreService.subscribeToNotifications(setNotifications);
+      const unsubHealthPolicies = FirestoreService.subscribeToHealthPolicies(setHealthPolicies);
+      const unsubPolicyPayments = FirestoreService.subscribeToPolicyPayments(setPolicyPayments);
 
       let unsubLogs: (() => void) | undefined;
       if (userRole === 'Admin') {
@@ -341,10 +348,28 @@ export default function App() {
         unsubCeilings();
         unsubMedicalForms();
         unsubNotifications();
+        unsubHealthPolicies();
+        unsubPolicyPayments();
         if (unsubLogs) unsubLogs();
       };
     }
   }, [authStatus, userRole]);
+
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring —
+  // recalcul automatique du statut de chaque police (expiration, dépassement du délai de
+  // grâce, réactivation) à chaque changement des données ET sur un intervalle périodique
+  // (aucune Cloud Function planifiée disponible dans ce projet pour détecter les transitions
+  // basées uniquement sur la date, sans écriture déclenchante). Voir
+  // WorkflowService.syncPolicyStatuses pour la logique — idempotente, ne réécrit/ne notifie
+  // que les polices dont le statut calculé diverge réellement du dernier statut persisté.
+  useEffect(() => {
+    if (authStatus !== 'authenticated' || healthPolicies.length === 0) return;
+    WorkflowService.syncPolicyStatuses(healthPolicies, members);
+    const interval = setInterval(() => {
+      WorkflowService.syncPolicyStatuses(healthPolicies, members);
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [authStatus, healthPolicies, members]);
 
   const handleLoginSuccess = (user: any) => {
     // onAuthStateChanged will handle atomic role resolution
@@ -812,6 +837,17 @@ export default function App() {
     imported.forEach((i) => FirestoreService.addOrganization(i));
   };
 
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
+  const handleSaveHealthPolicy = (organizationName: string, data: Partial<HealthPolicy>) => {
+    FirestoreService.upsertHealthPolicy(organizationName, data);
+  };
+  const handleAddPolicyPayment = (data: Partial<PolicyPayment>) => {
+    FirestoreService.addPolicyPayment(data);
+  };
+  const handleDeletePolicyPayment = (id: string) => {
+    FirestoreService.deletePolicyPayment(id);
+  };
+
   // PROVIDERS HANDLERS
   const handleAddProvider = (prv: Partial<Provider>) => {
     FirestoreService.addProvider(prv);
@@ -1052,6 +1088,7 @@ export default function App() {
               claims={claims}
               lang={lang}
               organizations={organizations}
+              healthPolicies={healthPolicies}
               onGenerateMedicalForm={(member) => {
                 setSelectedMemberForMedicalForm(member);
                 handleSelectSection('medical_form');
@@ -1127,6 +1164,9 @@ export default function App() {
               organizations={organizations}
               providers={providers}
               userRole={userRole || undefined}
+              healthPolicies={healthPolicies}
+              policyPayments={policyPayments}
+              members={members}
             />
           )}
 
@@ -1156,6 +1196,11 @@ export default function App() {
               onImportOrganizations={handleImportOrgs}
               onSuspendOrganization={handleSuspendOrg}
               onReactivateOrganization={handleReactivateOrg}
+              healthPolicies={healthPolicies}
+              policyPayments={policyPayments}
+              onSaveHealthPolicy={handleSaveHealthPolicy}
+              onAddPolicyPayment={handleAddPolicyPayment}
+              onDeletePolicyPayment={handleDeletePolicyPayment}
             />
           )}
 

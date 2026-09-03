@@ -14,6 +14,7 @@ import {
   ExternalLink,
   RefreshCw,
   UserCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { Language, NavSection, AppNotification } from '../types';
 import { useTranslation } from '../i18n/translations';
@@ -319,6 +320,8 @@ export const Topbar: React.FC<TopbarProps> = ({
                             ? 'bg-emerald-100 text-emerald-700'
                             : notif.type === 'invoice'
                             ? 'bg-blue-100 text-blue-700'
+                            : notif.type === 'policy'
+                            ? 'bg-rose-100 text-rose-700'
                             : 'bg-purple-100 text-purple-700'
                         }`}
                       >
@@ -326,6 +329,9 @@ export const Topbar: React.FC<TopbarProps> = ({
                         {notif.type === 'enrollment' && <UserPlus className="w-4 h-4" />}
                         {notif.type === 'invoice' && <Receipt className="w-4 h-4" />}
                         {notif.type === 'system' && <ShieldCheck className="w-4 h-4" />}
+                        {/* === AMÉLIORATION AJOUTÉE : icône dédiée pour les notifications de
+                            police d'assurance santé (expiration, suspension, réactivation) === */}
+                        {notif.type === 'policy' && <ShieldAlert className="w-4 h-4" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1 mb-0.5">

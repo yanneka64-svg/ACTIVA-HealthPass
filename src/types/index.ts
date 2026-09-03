@@ -268,6 +268,83 @@ export interface Organization {
   globalCeiling?: number;
 }
 
+// === AMÉLIORATION AJOUTÉE : module de gestion des polices d'assurance santé et suivi des
+// primes (Health Insurance Policy Management & Premium Monitoring), intégré sans toucher au
+// modèle Organization existant ni à sa table principale — voir src/services/policyEngine.ts
+// pour le moteur de statut automatique et src/components/HealthPolicyConfigModal.tsx pour la
+// configuration détaillée par organisation.
+export type HealthPolicyStatus = 'Active' | 'Expiring Soon' | 'Expired' | 'Suspended' | 'Pending Renewal';
+export type SuspensionReason = 'Non-payment' | 'Administrative' | 'Other';
+export type PolicyPaymentFrequency = 'Annual' | 'Semi-Annual' | 'Quarterly' | 'Monthly';
+export type PolicyPaymentStatus = 'Paid' | 'Partially Paid' | 'Overdue' | 'Pending';
+
+export interface HealthPolicy {
+  id: string;
+  // NOTE : par construction (voir upsertHealthPolicy dans firestore.ts), `id` est
+  // l'organisation exacte (Organization.name) — une police par organisation — ce qui permet
+  // aux règles de sécurité Firestore de retrouver la police d'une réclamation/fiche médicale
+  // par un simple get() sur /healthPolicies/{organization}, sans jointure côté serveur.
+  organizationId: string;
+  policyNumber: string;
+  policyType?: string;
+  effectiveDate: string;
+  expirationDate: string;
+
+  // Statut stocké : reflète le dernier calcul du moteur (getPolicyCoverageStatus), recalculé
+  // et persisté à chaque chargement/écriture pertinente — jamais la seule source de vérité
+  // affichée (l'UI recalcule toujours en direct à partir des dates/paiements réels).
+  status: HealthPolicyStatus;
+  suspensionReason?: SuspensionReason;
+  manuallySuspended?: boolean;
+
+  annualPremium: number;
+  currency: string;
+
+  paymentFrequency: PolicyPaymentFrequency;
+  installmentAmount: number;
+
+  nextPaymentDueDate?: string;
+  lastPaymentDate?: string;
+  lastPaymentAmount?: number;
+
+  // Seuils configurables (jamais codés en dur dans le moteur) — voir
+  // policyEngine.ts DEFAULT_GRACE_PERIOD_DAYS / DEFAULT_EXPIRING_SOON_WARNING_DAYS pour les
+  // valeurs par défaut appliquées quand ces champs sont absents.
+  gracePeriodDays?: number;
+  expiringSoonWarningDays?: number;
+
+  outstandingAmount?: number;
+  coverageBlocked: boolean;
+
+  suspensionDate?: string;
+  reactivationDate?: string;
+
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export interface PolicyPayment {
+  id: string;
+  policyId: string;
+  paymentDate: string;
+  dueDate: string;
+  amountDue: number;
+  amountPaid: number;
+  currency: string;
+
+  status: PolicyPaymentStatus;
+
+  paymentReference?: string;
+  paymentMethod?: string;
+
+  // Trimestre couvert par ce paiement (1-4), utilisé pour l'échéancier "Q1 Paid / Q2 Paid /
+  // Q3 Overdue / Q4 Pending" des polices à fréquence trimestrielle.
+  quarter?: 1 | 2 | 3 | 4;
+
+  recordedBy?: string;
+  createdAt: string;
+}
+
 export type ProviderType =
   | 'Hospital'
   | 'Hôpital'
@@ -400,7 +477,7 @@ export interface AppNotification {
   time?: string;
   timestamp: string;
   unread: boolean;
-  type: 'claim' | 'enrollment' | 'invoice' | 'system';
+  type: 'claim' | 'enrollment' | 'invoice' | 'system' | 'policy';
   targetSection?: NavSection;
   entityId?: string;
 }

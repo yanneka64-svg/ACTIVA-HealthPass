@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Member, Organization, Provider, Claim, InvoiceItem, DependentItem, DependentRelationship } from '../types';
+import { Member, Organization, Provider, Claim, InvoiceItem, DependentItem, DependentRelationship, HealthPolicy, PolicyPayment } from '../types';
 
 // Normalization helper: remove accents, lowercase, trim, remove symbols
 export function normalizeHeader(header: string): string {
@@ -1612,4 +1612,121 @@ export function generateExecutiveReportPDF(metrics: {
   doc.text('ACTIVA Insurance — Official Management & Compliance Audit Trail', pageWidth / 2, finalY + 15, { align: 'center' });
 
   doc.save(`ACTIVA_Executive_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+// ================= HEALTH POLICY & PREMIUM MONITORING EXPORTS =================
+// === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
+export function exportPoliciesToExcel(policies: (HealthPolicy & { organizationName?: string })[], lang?: any) {
+  const data = policies.map((p) => ({
+    'Organization': p.organizationId,
+    'Policy Number': p.policyNumber,
+    'Policy Type': p.policyType || '',
+    'Effective Date': p.effectiveDate,
+    'Expiration Date': p.expirationDate,
+    'Policy Status': p.status,
+    'Annual Premium': p.annualPremium,
+    'Currency': p.currency,
+    'Payment Frequency': p.paymentFrequency,
+    'Next Payment Due': p.nextPaymentDueDate || '',
+    'Outstanding Amount': p.outstandingAmount ?? 0,
+    'Coverage Blocked': p.coverageBlocked ? 'YES' : 'NO',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Policies & Premiums');
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Policies_Premiums_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+export function exportPolicyDetailToPDF(
+  policy: HealthPolicy,
+  payments: PolicyPayment[],
+  coveredPrincipals: number,
+  coveredDependents: number
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(10, 46, 107);
+  doc.rect(0, 0, pageWidth, 28, 'F');
+  doc.setFillColor(0, 168, 89);
+  doc.rect(0, 28, pageWidth, 3, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('ACTIVA HEALTHCARE ASSURANCE', 15, 12);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('HEALTH INSURANCE POLICY DETAIL', 15, 19);
+  doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 15, 24);
+
+  let y = 40;
+  doc.setTextColor(10, 46, 107);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('POLICY DETAILS', 15, y);
+  y += 7;
+
+  autoTable(doc, {
+    startY: y,
+    body: [
+      ['Organization', policy.organizationId],
+      ['Policy Number', policy.policyNumber],
+      ['Policy Status', policy.status],
+      ['Coverage Period', `${policy.effectiveDate} → ${policy.expirationDate}`],
+      ['Annual Premium', `${policy.currency} ${policy.annualPremium.toLocaleString()}`],
+      ['Payment Frequency', policy.paymentFrequency],
+      ['Installment Amount', `${policy.currency} ${policy.installmentAmount.toLocaleString()}`],
+      ['Outstanding Amount', `${policy.currency} ${(policy.outstandingAmount ?? 0).toLocaleString()}`],
+    ],
+    theme: 'plain',
+    bodyStyles: { fontSize: 9 },
+    columnStyles: { 0: { fontStyle: 'bold', textColor: [100, 116, 139] } },
+  });
+
+  let nextY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : y + 60;
+
+  doc.setTextColor(10, 46, 107);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('PAYMENT HISTORY', 15, nextY);
+
+  const paymentRows = payments.map((p) => [
+    p.quarter ? `Q${p.quarter}` : p.paymentDate,
+    p.paymentDate,
+    p.dueDate,
+    `${p.currency} ${p.amountPaid.toLocaleString()}`,
+    p.status,
+  ]);
+
+  autoTable(doc, {
+    startY: nextY + 4,
+    head: [['Period', 'Payment Date', 'Due Date', 'Amount Paid', 'Status']],
+    body: paymentRows.length > 0 ? paymentRows : [['—', '—', '—', '—', 'No payments recorded']],
+    headStyles: { fillColor: [13, 63, 143], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    bodyStyles: { fontSize: 8 },
+  });
+
+  nextY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 12 : nextY + 60;
+
+  doc.setTextColor(10, 46, 107);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('COVERED POPULATION', 15, nextY);
+
+  autoTable(doc, {
+    startY: nextY + 4,
+    body: [
+      ['Principal Insured', String(coveredPrincipals)],
+      ['Dependents', String(coveredDependents)],
+      ['Total Covered', String(coveredPrincipals + coveredDependents)],
+    ],
+    theme: 'plain',
+    bodyStyles: { fontSize: 9 },
+    columnStyles: { 0: { fontStyle: 'bold', textColor: [100, 116, 139] } },
+  });
+
+  doc.save(`ACTIVA_Policy_${policy.policyNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
 }
