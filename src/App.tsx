@@ -74,6 +74,9 @@ export default function App() {
   // Navigation Section & Preselected Member
   const [currentSection, setCurrentSection] = useState<NavSection>('dashboard');
   const [selectedMemberForMedicalForm, setSelectedMemberForMedicalForm] = useState<Member | null>(null);
+  // === AMÉLIORATION AJOUTÉE : assuré présélectionné lors du clic sur "New Claim" depuis la
+  // fiche d'identification de l'agent, pour préremplir le formulaire de réclamation.
+  const [selectedMemberForClaim, setSelectedMemberForClaim] = useState<Member | null>(null);
 
   const handleSelectSection = (sec: NavSection) => {
     setCurrentSection(sec);
@@ -935,13 +938,14 @@ export default function App() {
 
           {effectiveSection === 'claims' && (
             activeRole === 'Agent' ? (
-              <AgentClaimsView 
+              <AgentClaimsView
                 claims={claims}
                 members={members}
                 providers={providers}
                 organizations={organizations}
                 ceilings={ceilings}
                 lang={lang}
+                preselectedMember={selectedMemberForClaim}
                 onCreateClaim={handleCreateClaim}
               />
             ) : (
@@ -1003,9 +1007,15 @@ export default function App() {
               members={members}
               claims={claims}
               lang={lang}
+              organizations={organizations}
               onGenerateMedicalForm={(member) => {
                 setSelectedMemberForMedicalForm(member);
                 handleSelectSection('medical_form');
+              }}
+              onNewEnrollment={() => handleSelectSection('enrollments')}
+              onNewClaim={(member) => {
+                setSelectedMemberForClaim(member);
+                handleSelectSection('claims');
               }}
             />
           )}
