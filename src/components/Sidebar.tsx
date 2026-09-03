@@ -189,12 +189,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className={`absolute -bottom-16 -left-16 w-56 h-56 ${theme.palette.accentGlow} rounded-full blur-3xl pointer-events-none`} />
 
       {/* Clean subtle ACTIVA vector background curves without dots */}
+      {/* === AMÉLIORATION AJOUTÉE : couleur du motif désormais tirée de theme.palette.motifStroke
+          (or/ambre pour Admin, turquoise pour Superviseur, blanc inchangé pour Agent) au lieu
+          d'un blanc fixe pour les 3 rôles — le tracé SVG et les niveaux d'opacité restent
+          strictement identiques, seule la teinte varie selon l'interface active. === */}
       <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
         <svg className="absolute bottom-0 left-0 w-full h-84" viewBox="0 0 250 320" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
-          <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-          <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
-          <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
+          <path d="M-40 320 C 30 240, 110 220, 270 250" stroke={`rgba(${theme.palette.motifStroke}, 0.55)`} strokeWidth="1.8" />
+          <path d="M-40 280 C 50 210, 130 190, 270 220" stroke={`rgba(${theme.palette.motifStroke}, 0.45)`} strokeWidth="1.5" />
+          <path d="M-40 240 C 70 180, 150 160, 270 190" stroke={`rgba(${theme.palette.motifStroke}, 0.38)`} strokeWidth="1.3" />
+          <path d="M-40 200 C 90 150, 170 130, 270 160" stroke={`rgba(${theme.palette.motifStroke}, 0.30)`} strokeWidth="1.2" />
         </svg>
       </div>
 

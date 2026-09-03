@@ -27,6 +27,11 @@ export interface RoleThemeConfig {
     accentBadge: string;
     accentRing: string;
     accentGlow: string;
+    // === AMÉLIORATION AJOUTÉE : couleur (triplet RGB, utilisé dans des rgba()) du motif de
+    // courbes décoratif de la sidebar — distincte par rôle, pour qu'on distingue visuellement
+    // l'interface active en naviguant d'un rôle à l'autre, même si le dégradé de fond reste
+    // dans une tonalité bleu/marine proche. Le motif lui-même (tracé SVG) est inchangé.
+    motifStroke: string;
   };
 }
 
@@ -55,6 +60,8 @@ export const ADMIN_THEME: RoleThemeConfig = {
     accentBadge: 'bg-slate-700 text-white',
     accentRing: 'focus:ring-slate-500',
     accentGlow: 'bg-slate-400/20',
+    // Admin — teinte or/ambre (identité "exécutif"), distincte du bleu Agent et du vert Superviseur.
+    motifStroke: '245, 197, 66',
   },
 };
 
@@ -83,6 +90,8 @@ export const SUPERVISOR_THEME: RoleThemeConfig = {
     accentBadge: 'bg-[#0F766E] text-white',
     accentRing: 'focus:ring-[#0F766E]',
     accentGlow: 'bg-teal-400/20',
+    // Superviseur — teinte turquoise/menthe, cohérente avec activeIndicator (#2DD4BF).
+    motifStroke: '45, 212, 191',
   },
 };
 
@@ -111,6 +120,9 @@ export const AGENT_THEME: RoleThemeConfig = {
     accentBadge: 'bg-[#0A347B] text-white',
     accentRing: 'focus:ring-[#0A347B]',
     accentGlow: 'bg-blue-400/20',
+    // Agent — blanc, identique à l'existant (comportement inchangé, sert de référence à la
+    // page de connexion qui reprend ce même motif).
+    motifStroke: '255, 255, 255',
   },
 };
 
