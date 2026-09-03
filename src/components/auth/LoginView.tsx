@@ -185,129 +185,164 @@ export const LoginView: React.FC<LoginViewProps> = ({
     }
   };
 
+  // === AMÉLIORATION AJOUTÉE : page de connexion refaite en écran divisé (split-screen),
+  // sur demande explicite. Le panneau gauche reprend EXACTEMENT le dégradé bleu et le motif
+  // de courbes décoratif de la sidebar de l'interface Agent (voir src/theme/roleTheme.ts —
+  // AGENT_THEME.palette.sidebarGradient — et src/components/Sidebar.tsx pour le motif SVG).
+  // Le logo est désormais uniquement sur la partie blanche, agrandi et centré au-dessus de
+  // "Welcome Back!" pour être mieux mis en valeur. Le comportement du formulaire (validation,
+  // authentification Firebase, messages d'erreur) est strictement inchangé — seule la mise en
+  // page a été retravaillée. Sur mobile (le panneau bleu est masqué en dessous de lg), une
+  // barre compacte reprend les mêmes informations (portail sécurisé, langue, copyright) pour
+  // ne rien perdre de ce qui existait avant.
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between p-4 sm:p-6 lg:p-8 font-sans antialiased select-none">
-      {/* Top Header Bar */}
-      <header className="w-full flex items-center justify-between py-2 px-2 sm:px-4">
-        {/* Left: ACTIVA Cloud Secure Portal */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs">
+    <div className="min-h-screen w-full flex font-sans antialiased select-none">
+      {/* Mobile-only top bar — repris du header existant, visible uniquement quand le panneau
+          bleu (masqué en dessous de lg) n'est pas affiché. */}
+      <div className="lg:hidden fixed top-0 inset-x-0 z-20 flex items-center justify-between gap-2 px-4 py-3 bg-white border-b border-[#E8EDF2]">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
           <Shield className="w-3.5 h-3.5 text-[#0A347B]" />
-          <span>ACTIVA Cloud Secure Portal</span>
+          <span>ACTIVA Secure Portal</span>
         </div>
-
-        {/* Right: English (Default) */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
           <Globe className="w-3.5 h-3.5 text-[#0A34A3]" />
-          <span>English (Default)</span>
-        </div>
-      </header>
-
-      {/* Centered Login Card Container */}
-      {/* === AMÉLIORATION AJOUTÉE : panneau de connexion réduit (largeur, en-tête et
-          espacements resserrés) sur demande explicite — aucune fonctionnalité du formulaire
-          n'est modifiée, seules les tailles/marges sont réduites. === */}
-      <div className="my-auto flex flex-col items-center justify-center">
-        <div className="w-full max-w-[400px] bg-white rounded-[22px] shadow-xl shadow-slate-300/30 border border-[#E8EDF2] overflow-hidden flex flex-col transition-all duration-300">
-
-          {/* CARD NAVY HEADER (#0A347B) */}
-          <div className="bg-[#0A347B] pt-6 pb-5 px-6 text-white text-center flex flex-col items-center">
-            {/* Logo container with white background and moderate rounded corners */}
-            <div className="mb-3 bg-white rounded-xl px-3.5 py-1.5 shadow-sm border border-slate-200/90 flex items-center justify-center">
-              <Logo size="sm" showTagline={true} transparent={true} />
-            </div>
-
-            {/* Header Title & Subtitle */}
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white leading-tight">
-              Production Portal Login
-            </h1>
-            <p className="text-xs text-[#EAF2FF] font-medium mt-1 opacity-90 leading-snug">
-              Health Insurance & Claims Management Platform
-            </p>
-          </div>
-
-          {/* LOGIN FORM */}
-          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 bg-white">
-            {/* Error Alert Box */}
-            {error && (
-              <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 text-[#DC4C4C] shrink-0 mt-0.5" />
-                <div className="flex-1 leading-relaxed">{error}</div>
-              </div>
-            )}
-
-            {/* === AMÉLIORATION AJOUTÉE : libellé simplifié en "Username" et exemple d'adresse
-                e-mail retiré du placeholder (champ vide) — le champ accepte toujours email OU
-                nom d'utilisateur exactement comme avant, seul l'affichage change. === */}
-            <div>
-              <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
-                Username
-              </label>
-              <div className="relative">
-                <input
-                  id="login-username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder=""
-                  className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
-                  autoComplete="username"
-                  required
-                />
-                <User className="w-4 h-4 text-[#778FAF] absolute left-3.5 top-3.5 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Password */}
-            {/* === AMÉLIORATION AJOUTÉE : l'icône de cadenas ("illustration") a été retirée de
-                l'intérieur du champ mot de passe, sur demande explicite — le champ conserve
-                exactement le même comportement, seul le padding gauche est réajusté (pl-10 ->
-                pl-4) puisqu'il n'y a plus d'icône à laisser de la place. === */}
-            <div>
-              <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="login-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-4 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
-                  autoComplete="current-password"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Sign In Button */}
-            <div className="pt-1">
-              <button
-                id="login-submit-button"
-                type="submit"
-                disabled={isLoggingIn}
-                className="w-full py-3 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>{isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </form>
-
-          {/* CARD FOOTER */}
-          <div className="px-6 py-3 bg-[#F8FAFC] border-t border-[#E8EDF2] text-center text-xs text-[#778FAF] font-medium">
-            <span>© 2026 ACTIVA Insurance Group. All rights reserved.</span>
-          </div>
-        </div>
-
-        {/* Version underneath on background */}
-        <div className="mt-2.5 text-center text-xs font-mono font-bold text-[#0D2B63]">
-          v2.4.0
+          <span>EN</span>
         </div>
       </div>
 
-      {/* Bottom spacer for balance */}
-      <div className="h-6"></div>
+      {/* LEFT PANEL — dégradé bleu + motif de courbes, identiques à la sidebar Agent */}
+      <div className="hidden lg:flex lg:w-[46%] xl:w-[44%] bg-gradient-to-b from-[#072659] via-[#0A347B] to-[#0D2B63] relative overflow-hidden flex-col justify-between p-10 xl:p-14">
+        {/* Halo lumineux — identique à Sidebar.tsx (accentGlow Agent: bg-blue-400/20) */}
+        <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Motif de courbes — copié tel quel de Sidebar.tsx */}
+        <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
+          <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
+            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
+            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
+            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
+          </svg>
+        </div>
+
+        <div className="relative z-10 flex items-center gap-1.5 self-start px-3 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-xs font-semibold text-white">
+          <Shield className="w-3.5 h-3.5" />
+          <span>ACTIVA Cloud Secure Portal</span>
+        </div>
+
+        <div className="relative z-10">
+          <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight">
+            Hello,<br />ACTIVA HealthPass!
+          </h1>
+          <p className="mt-5 text-sm xl:text-[15px] text-[#EAF2FF]/90 font-medium leading-relaxed max-w-sm">
+            Manage enrollments, claims and coverage in one secure place. Fast, reliable, and built for your team.
+          </p>
+        </div>
+
+        <div className="relative z-10 text-xs text-white/60 font-medium">
+          © 2026 ACTIVA Insurance Group. All rights reserved.
+        </div>
+      </div>
+
+      {/* RIGHT PANEL — blanc, logo + formulaire */}
+      <div className="flex-1 bg-white relative flex flex-col">
+        {/* Language badge, desktop only (position reprise de l'ancien header) */}
+        <div className="hidden lg:flex absolute top-6 right-6 xl:top-10 xl:right-10 items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs">
+          <Globe className="w-3.5 h-3.5 text-[#0A34A3]" />
+          <span>English (Default)</span>
+        </div>
+
+        <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-10 xl:p-16 pt-20 lg:pt-10">
+          <div className="w-full max-w-[400px]">
+            {/* Logo agrandi et centré, mieux mis en valeur qu'avant. === AMÉLIORATION
+                AJOUTÉE : espace réduit entre le logo et "Welcome Back!" (mb-8 -> mb-5), sur
+                demande explicite. === */}
+            <div className="flex justify-center mb-5">
+              <Logo size="2xl" showTagline={true} transparent={true} />
+            </div>
+
+            <h2 className="text-2xl sm:text-[28px] font-black text-[#0D2B63] tracking-tight text-center">
+              Welcome Back!
+            </h2>
+            <p className="mt-1.5 text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
+              Sign in to access your ACTIVA HealthPass account.
+            </p>
+
+            <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+              {/* Error Alert Box */}
+              {error && (
+                <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-[#DC4C4C] shrink-0 mt-0.5" />
+                  <div className="flex-1 leading-relaxed">{error}</div>
+                </div>
+              )}
+
+              {/* === AMÉLIORATION AJOUTÉE : libellé simplifié en "Username" et exemple d'adresse
+                  e-mail retiré du placeholder (champ vide) — le champ accepte toujours email OU
+                  nom d'utilisateur exactement comme avant, seul l'affichage change. === */}
+              <div>
+                <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
+                  Username
+                </label>
+                <div className="relative">
+                  <input
+                    id="login-username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder=""
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                    autoComplete="username"
+                    required
+                  />
+                  <User className="w-4 h-4 text-[#778FAF] absolute left-3.5 top-3.5 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Password */}
+              {/* === AMÉLIORATION AJOUTÉE : l'icône de cadenas ("illustration") a été retirée de
+                  l'intérieur du champ mot de passe, sur demande explicite — le champ conserve
+                  exactement le même comportement, seul le padding gauche est réajusté (pl-10 ->
+                  pl-4) puisqu'il n'y a plus d'icône à laisser de la place. === */}
+              <div>
+                <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="login-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder=""
+                    className="w-full pl-4 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Sign In Button */}
+              <div className="pt-1">
+                <button
+                  id="login-submit-button"
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="w-full py-3 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span>{isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* Mobile-only footer copyright — repris de l'ancien pied de carte */}
+        <div className="lg:hidden text-center text-xs text-[#778FAF] font-medium py-4 border-t border-[#E8EDF2]">
+          © 2026 ACTIVA Insurance Group. All rights reserved.
+        </div>
+      </div>
     </div>
   );
 };
