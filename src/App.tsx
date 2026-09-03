@@ -375,6 +375,17 @@ export default function App() {
     }
   };
 
+  // === AMÉLIORATION AJOUTÉE (correction de bug) : l'ancienne version de cet effet dépendait
+  // de `showInactivityModal` — chaque fois que ce state changeait (précisément à l'ouverture
+  // de l'avertissement), l'effet se nettoyait et se relançait, détruisant/recréant
+  // `setInterval` et les écouteurs d'événements. Combiné à un décompte basé sur des
+  // incréments d'état plutôt que sur une horloge réelle, ce cycle laissait le minuteur dans
+  // un état incohérent et la déconnexion automatique ne se déclenchait plus de façon fiable.
+  // Réécrit ci-dessous avec un horodatage de dernière activité (ref, indépendant du cycle de
+  // rendu React) comparé à Date.now() à chaque tick : le décompte reste exact quel que soit
+  // le nombre de re-rendus, et l'effet ne dépend plus que de `authStatus`.
+  const inactivityLastActivityRef = useRef<number>(Date.now());
+
   // Inactivity Auto-Logout Effect (5m inactivity threshold, warning at 1m left)
   useEffect(() => {
     if (authStatus !== 'authenticated') {
@@ -382,43 +393,34 @@ export default function App() {
       return;
     }
 
-    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll', 'click'];
-    let throttleTimer: NodeJS.Timeout | null = null;
+    inactivityLastActivityRef.current = Date.now();
+    setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
 
+    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll', 'wheel', 'click'];
     const handleUserActivity = () => {
-      if (!throttleTimer) {
-        throttleTimer = setTimeout(() => {
-          if (!showInactivityModal) {
-            setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
-          }
-          throttleTimer = null;
-        }, 1000);
-      }
+      inactivityLastActivityRef.current = Date.now();
     };
-
     events.forEach((ev) => window.addEventListener(ev, handleUserActivity, { passive: true }));
 
+    let loggedOut = false;
     const interval = setInterval(() => {
-      setInactivityRemainingSeconds((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setShowInactivityModal(false);
-          handleLogout();
-          return 0;
-        }
-        if (prev - 1 <= WARNING_BEFORE_SECONDS) {
-          setShowInactivityModal(true);
-        }
-        return prev - 1;
-      });
+      if (loggedOut) return;
+      const elapsedSeconds = Math.floor((Date.now() - inactivityLastActivityRef.current) / 1000);
+      const remaining = Math.max(0, INACTIVITY_TIMEOUT_SECONDS - elapsedSeconds);
+      setInactivityRemainingSeconds(remaining);
+      setShowInactivityModal(remaining > 0 && remaining <= WARNING_BEFORE_SECONDS);
+      if (remaining <= 0) {
+        loggedOut = true;
+        setShowInactivityModal(false);
+        handleLogout();
+      }
     }, 1000);
 
     return () => {
       events.forEach((ev) => window.removeEventListener(ev, handleUserActivity));
       clearInterval(interval);
-      if (throttleTimer) clearTimeout(throttleTimer);
     };
-  }, [authStatus, showInactivityModal]);
+  }, [authStatus]);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isReloadingDemo, setIsReloadingDemo] = useState<boolean>(false);
@@ -1353,6 +1355,7 @@ export default function App() {
         isOpen={showInactivityModal}
         remainingSeconds={inactivityRemainingSeconds}
         onStayConnected={() => {
+          inactivityLastActivityRef.current = Date.now();
           setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
           setShowInactivityModal(false);
         }}
