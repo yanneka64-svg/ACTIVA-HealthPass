@@ -215,8 +215,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
         {/* Halo lumineux — identique à Sidebar.tsx (accentGlow Agent: bg-blue-400/20) */}
         <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Motif de courbes — copié tel quel de Sidebar.tsx */}
-        <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
+        {/* Motif de courbes — copié tel quel de Sidebar.tsx. === AMÉLIORATION AJOUTÉE :
+            dérive lente et continue (login-motif-drift), sur demande explicite. === */}
+        <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0 login-motif-drift">
           <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
             <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
@@ -225,21 +226,24 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </svg>
         </div>
 
-        <div className="relative z-10 flex items-center gap-1.5 self-start px-3 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-xs font-semibold text-white">
+        {/* === AMÉLIORATION AJOUTÉE : entrée en fondu/glissement, en cascade, du badge, du
+            titre, du texte et du copyright — sur demande explicite ("je veux que ces données
+            soient animées"). Contenu, couleurs et mise en page strictement inchangés. === */}
+        <div className="relative z-10 flex items-center gap-1.5 self-start px-3 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-xs font-semibold text-white login-anim-fade-up login-anim-delay-1">
           <Shield className="w-3.5 h-3.5" />
           <span>ACTIVA Cloud Secure Portal</span>
         </div>
 
         <div className="relative z-10">
-          <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight">
+          <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight login-anim-fade-up login-anim-delay-2">
             Hello,<br />ACTIVA HealthPass!
           </h1>
-          <p className="mt-5 text-sm xl:text-[15px] text-[#EAF2FF]/90 font-medium leading-relaxed max-w-sm">
+          <p className="mt-5 text-sm xl:text-[15px] text-[#EAF2FF]/90 font-medium leading-relaxed max-w-sm login-anim-fade-up login-anim-delay-3">
             Manage enrollments, claims and coverage in one secure place. Fast, reliable, and built for your team.
           </p>
         </div>
 
-        <div className="relative z-10 text-xs text-white/60 font-medium">
+        <div className="relative z-10 text-xs text-white/60 font-medium login-anim-fade-up login-anim-delay-4">
           © 2026 ACTIVA Insurance Group. All rights reserved.
         </div>
       </div>

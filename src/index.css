@@ -75,3 +75,55 @@
   }
 }
 
+/* === AMÉLIORATION AJOUTÉE : animation du panneau bleu de la page de connexion (badge,
+   titre "Hello, ACTIVA HealthPass!", texte et copyright entrent en fondu/glissement à
+   l'affichage ; le motif de courbes décoratif dérive lentement en continu) — sur demande
+   explicite. Comportement du formulaire, mise en page et couleurs strictement inchangés,
+   seule une animation d'entrée/ambiance est ajoutée. Respecte prefers-reduced-motion. */
+@keyframes login-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-motif-drift {
+  0%, 100% {
+    transform: translateX(0) translateY(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateX(8px) translateY(-6px);
+    opacity: 0.65;
+  }
+}
+
+.login-anim-fade-up {
+  opacity: 0;
+  animation: login-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.login-anim-delay-1 { animation-delay: 0.1s; }
+.login-anim-delay-2 { animation-delay: 0.25s; }
+.login-anim-delay-3 { animation-delay: 0.4s; }
+.login-anim-delay-4 { animation-delay: 0.55s; }
+
+.login-motif-drift {
+  animation: login-motif-drift 12s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-anim-fade-up {
+    opacity: 1;
+    animation: none;
+    transform: none;
+  }
+  .login-motif-drift {
+    animation: none;
+  }
+}
+
