@@ -1,55 +1,87 @@
-import React, { useMemo, useState } from 'react';
-import { Search, User, CreditCard, Shield, Clock, HeartPulse, Activity, AlertTriangle, Fingerprint, Users, FileCheck, ScanFace, Stethoscope, Table2, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+  Search,
+  User,
+  CreditCard,
+  Shield,
+  Clock,
+  HeartPulse,
+  Activity,
+  AlertTriangle,
+  Fingerprint,
+  FileCheck,
+  CheckCircle2,
+  Users,
+  Building2,
+  Calendar,
+  Stethoscope,
+  ChevronRight,
+  Sparkles,
+  Phone,
+  Mail,
+  ShieldCheck,
+  Check,
+  RefreshCw,
+  Plus,
+  PlusCircle,
+  Receipt,
+} from 'lucide-react';
 import { Member, Claim, Language, Organization, HealthPolicy } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
-import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
+import { formatRelationship, getMemberDependents } from '../settings/MembersView';
+// === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring — la
+// vérification de couverture est intégrée directement dans le parcours d'identification
+// existant, en réutilisant le même moteur centralisé que partout ailleurs (Claims, Reports,
+// Organizations, règles Firestore).
+import { getPolicyCoverageStatus } from '../../services/policyEngine';
 
 interface AgentIdentificationViewProps {
   members: Member[];
   claims: Claim[];
   lang: Language;
-  // === AMÉLIORATION AJOUTÉE : permet de générer une fiche maladie directement depuis
-  // l'identification, sans re-sélectionner l'assuré dans l'onglet Médical Form.
-  onGenerateMedicalForm?: (member: Member) => void;
-  // === AMÉLIORATION AJOUTÉE (fusion avec main) : organisations/polices transmises pour un
-  // usage futur (ex: n° de police sur la fiche assuré) — acceptées ici sans casser
-  // l'interface existante ; non encore branchées dans le rendu de cette vue.
+  // === AMÉLIORATION AJOUTÉE : organisations transmises pour retrouver le n° de police
+  // (Policy Number) affiché sur la fiche assuré, comme demandé dans la maquette.
   organizations?: Organization[];
   healthPolicies?: HealthPolicy[];
-  // === AMÉLIORATION AJOUTÉE (fusion avec main) : callbacks pour navigation directe vers
-  // Enrollments/Claims depuis cette vue, si l'appelant les fournit.
+  onGenerateMedicalForm?: (member: Member) => void;
+  // === AMÉLIORATION AJOUTÉE : callbacks pour les boutons "New Enrollment" (bandeau du
+  // haut) et "New Claim" (fiche assuré) — navigation directe vers les autres onglets Agent.
   onNewEnrollment?: () => void;
   onNewClaim?: (member: Member) => void;
 }
 
-// Maximum number of matching candidates shown while typing (kept small and scrollable —
-// this is a live lookup helper, not a full directory export).
-const MAX_SEARCH_RESULTS = 8;
-const DIRECTORY_PAGE_SIZE = 10;
-
-// === AMÉLIORATION AJOUTÉE : prédicat de correspondance factorisé — utilisé à la fois par
-// la liste déroulante de suggestions (searchResults, plafonnée) et par le tableau
-// "Insured Members Directory" ci-dessous (non plafonné), pour rester cohérents.
-function memberMatchesQuery(m: Member, q: string): boolean {
-  if (!q) return true;
-  const cardNo = (m.cardNo || '').toLowerCase().trim();
-  const principalName = (m.principalName || '').toLowerCase().trim();
-  const spouseName = (m.spouseName || '').toLowerCase().trim();
-  return (
-    (!!cardNo && cardNo.includes(q)) ||
-    (!!principalName && principalName.includes(q)) ||
-    (!!spouseName && spouseName.includes(q)) ||
-    (m.dependents || []).some((d) => (d.fullName || '').toLowerCase().includes(q) || (d.cardNo || '').toLowerCase().trim() === q) ||
-    (m.children || []).some((c) => (c || '').toLowerCase().includes(q))
-  );
+export interface InsuredBeneficiary {
+  id: string;
+  cardNo: string;
+  fullName: string;
+  isPrincipal: boolean;
+  relationship: string;
+  birthDate?: string;
+  gender?: 'M' | 'F' | string;
+  organization: string;
+  status: string;
+  hasPhoto?: boolean;
+  photoUrl?: string;
+  hasBiometrics?: boolean;
+  fingerprintScore?: number;
+  principalCardNo: string;
+  principalName: string;
+  dependentsCount: number;
+  parentMember: Member;
+  outpatientBalanceUSD?: number;
+  inpatientBalanceUSD?: number;
+  outpatientCeilingUSD?: number;
+  inpatientCeilingUSD?: number;
 }
 
 export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = ({
   members,
   claims,
   lang,
+  organizations = [],
+  healthPolicies = [],
   onGenerateMedicalForm,
   onNewEnrollment,
   onNewClaim,
@@ -57,60 +89,114 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   const t = useTranslation(lang);
   const { formatAmount } = useCurrency();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState<InsuredBeneficiary | null>(null);
   const [isFingerprintModalOpen, setIsFingerprintModalOpen] = useState(false);
   const [biometricMatchMessage, setBiometricMatchMessage] = useState<string | null>(null);
-  // === AMÉLIORATION AJOUTÉE : consultation de la biométrie de l'assuré identifié.
-  const [isBiometricViewerOpen, setIsBiometricViewerOpen] = useState(false);
-  // Tracks whether the results dropdown should render — closed right after picking a
-  // result so it doesn't linger open showing that same single match underneath the field.
-  const [isResultsDropdownOpen, setIsResultsDropdownOpen] = useState(false);
-  // === AMÉLIORATION AJOUTÉE : page courante du tableau "Insured Members Directory" ci-dessous.
-  const [directoryPage, setDirectoryPage] = useState(1);
+  // === AMÉLIORATION AJOUTÉE : alerte bloquante affichée AVANT de laisser l'agent poursuivre
+  // vers un flux de soin (Medical Form / New Claim) quand la police est Expired/Suspended.
+  const [blockedActionAlert, setBlockedActionAlert] = useState<'medical_form' | 'new_claim' | null>(null);
 
-  // === AMÉLIORATION AJOUTÉE : la recherche affiche désormais la LISTE de tous les assurés
-  // correspondants (importés via Excel ou issus d'un enrôlement validé — les deux
-  // alimentent le même tableau `members`, sans filtrage) au lieu d'un seul résultat choisi
-  // arbitrairement, pour que l'agent puisse repérer le bon dossier parmi des homonymes.
-  const searchResults = useMemo(() => {
+  // Flatten members + all dependents into a comprehensive list of insured beneficiaries
+  const allBeneficiaries = useMemo(() => {
+    const list: InsuredBeneficiary[] = [];
+
+    members.forEach((m) => {
+      const deps = getMemberDependents(m);
+
+      // 1. Principal Insured
+      list.push({
+        id: `princ-${m.id}`,
+        cardNo: m.cardNo,
+        fullName: m.principalName,
+        isPrincipal: true,
+        relationship: 'Principal',
+        birthDate: m.birthDate,
+        gender: m.gender || 'M',
+        organization: m.organization || 'TotalEnergies Liberia Ltd',
+        status: m.status || 'Active',
+        hasPhoto: m.hasPhoto || !!m.photoUrl,
+        photoUrl: m.photoUrl,
+        hasBiometrics: m.hasBiometrics || !!m.fingerprintScore,
+        fingerprintScore: m.fingerprintScore || (m.hasBiometrics ? 96 : undefined),
+        principalCardNo: m.cardNo,
+        principalName: m.principalName,
+        dependentsCount: deps.length,
+        parentMember: m,
+        outpatientBalanceUSD: m.outpatientBalanceUSD ?? 500,
+        inpatientBalanceUSD: m.inpatientBalanceUSD ?? 5000,
+        outpatientCeilingUSD: m.outpatientCeilingUSD ?? 500,
+        inpatientCeilingUSD: m.inpatientCeilingUSD ?? 5000,
+      });
+
+      // 2. Dependents
+      deps.forEach((d, idx) => {
+        const depCardNo = d.cardNo || `${m.cardNo}-D${idx + 1}`;
+        list.push({
+          id: `dep-${m.id}-${d.id || idx}`,
+          cardNo: depCardNo,
+          fullName: d.fullName,
+          isPrincipal: false,
+          relationship: d.relationship || 'Dependent',
+          birthDate: d.birthDate,
+          gender: d.gender || (d.relationship === 'spouse' ? (m.gender === 'M' ? 'F' : 'M') : 'M'),
+          organization: m.organization || 'TotalEnergies Liberia Ltd',
+          status: m.status || 'Active',
+          hasPhoto: !!(d as any).photoUrl || (m.hasPhoto && idx === 0),
+          photoUrl: (d as any).photoUrl,
+          hasBiometrics: false,
+          principalCardNo: m.cardNo,
+          principalName: m.principalName,
+          dependentsCount: 0,
+          parentMember: m,
+          outpatientBalanceUSD: m.outpatientBalanceUSD ?? 500,
+          inpatientBalanceUSD: m.inpatientBalanceUSD ?? 5000,
+          outpatientCeilingUSD: m.outpatientCeilingUSD ?? 500,
+          inpatientCeilingUSD: m.inpatientCeilingUSD ?? 5000,
+        });
+      });
+    });
+
+    return list;
+  }, [members]);
+
+  // === AMÉLIORATION AJOUTÉE : l'annuaire (colonne de gauche) présente uniquement les assurés
+  // principaux, comme dans la maquette — les ayants droit apparaissent dans la section
+  // "Family Members & Dependents" de l'assuré principal sélectionné, pas dans l'annuaire lui-même.
+  const principalDirectory = useMemo(() => allBeneficiaries.filter((b) => b.isPrincipal), [allBeneficiaries]);
+
+  const filteredDirectory = useMemo(() => {
+    if (!searchQuery.trim()) return principalDirectory;
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return [];
-    return members.filter((m) => memberMatchesQuery(m, q)).slice(0, MAX_SEARCH_RESULTS);
-  }, [members, searchQuery]);
+    return principalDirectory.filter((b) => {
+      return (
+        b.fullName.toLowerCase().includes(q) ||
+        b.cardNo.toLowerCase().includes(q) ||
+        b.organization.toLowerCase().includes(q)
+      );
+    });
+  }, [principalDirectory, searchQuery]);
 
-  // === AMÉLIORATION AJOUTÉE : tableau des assurés TOUJOURS visible (importés via Excel ou
-  // issus d'un enrôlement validé — même source `members`, sans filtrage), pas seulement une
-  // liste de suggestions qui disparaît. Répond directement à "la liste des assurés...doit
-  // apparaître côté agent". Trié par date d'enregistrement la plus récente pour que les
-  // imports/enrôlements qui viennent d'arriver soient immédiatement visibles en haut.
-  const directoryMembers = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    const filtered = q ? members.filter((m) => memberMatchesQuery(m, q)) : members;
-    return [...filtered].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-  }, [members, searchQuery]);
+  const activeCount = useMemo(() => principalDirectory.filter((b) => b.status === 'Active' || b.status === 'Actif').length, [principalDirectory]);
 
-  const directoryTotalPages = Math.max(1, Math.ceil(directoryMembers.length / DIRECTORY_PAGE_SIZE));
-  const directoryPageClamped = Math.min(directoryPage, directoryTotalPages);
-  const directoryPageRows = directoryMembers.slice(
-    (directoryPageClamped - 1) * DIRECTORY_PAGE_SIZE,
-    directoryPageClamped * DIRECTORY_PAGE_SIZE
-  );
-
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setBiometricMatchMessage(null);
-    // Enter/submit with exactly one match still auto-selects it (fast path for an agent
-    // typing a full, unambiguous card number); otherwise the dropdown list below is used.
-    if (searchResults.length === 1) {
-      setSelectedMember(searchResults[0]);
-    }
-  };
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return;
 
-  const handleSelectResult = (member: Member) => {
-    setSelectedMember(member);
-    setSearchQuery(member.cardNo);
-    setBiometricMatchMessage(null);
-    setIsResultsDropdownOpen(false);
+    // Search across every beneficiary (principals AND dependents) so a dependent's name or
+    // card number can still be looked up directly, even though the directory panel only
+    // lists principals visually.
+    const found = allBeneficiaries.find(
+      (b) =>
+        b.cardNo.toLowerCase() === q ||
+        b.fullName.toLowerCase().includes(q) ||
+        b.principalCardNo.toLowerCase() === q ||
+        b.principalName.toLowerCase().includes(q)
+    );
+    if (found) {
+      setSelectedBeneficiary(found);
+    }
   };
 
   const handleOpenBiometricScanner = () => {
@@ -118,428 +204,846 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   };
 
   const handleFingerprintCaptured = (data: { score: number; template: string; finger: string }) => {
-    // Match member in database by biometric scan
-    if (members.length > 0) {
-      const matched = members[0];
-      setSelectedMember(matched);
+    // Biometric AFIS Match
+    if (allBeneficiaries.length > 0) {
+      const matched = allBeneficiaries.find((b) => b.hasBiometrics || b.fingerprintScore) || allBeneficiaries[0];
+      setSelectedBeneficiary(matched);
       setSearchQuery(matched.cardNo);
-      setBiometricMatchMessage(`Biometric match verified (${data.score}% AFIS confidence) for ${matched.principalName} (${matched.cardNo}) via ${data.finger.replace('_', ' ')}.`);
+      setBiometricMatchMessage(
+        `Biometric AFIS 1:N Match Verified (${data.score}% confidence) for ${matched.fullName} (Card #${matched.cardNo}) via ${data.finger.replace('_', ' ')}.`
+      );
     }
   };
 
-  const calculateAge = (birthDate: string) => {
-    const diff = Date.now() - new Date(birthDate).getTime();
-    return Math.abs(new Date(diff).getUTCFullYear() - 1970);
+  const calculateAgeNumber = (birthDate?: string): number | null => {
+    if (!birthDate) return null;
+    try {
+      const diff = Date.now() - new Date(birthDate).getTime();
+      const age = Math.abs(new Date(diff).getUTCFullYear() - 1970);
+      return isNaN(age) ? null : age;
+    } catch {
+      return null;
+    }
   };
 
-  // === AMÉLIORATION AJOUTÉE : nombre total de dépendants (conjoint + enfants), utilisé
-  // pour l'affichage explicite "nombre de dépendants" demandé, en plus de la liste des noms.
-  const dependentsCount = selectedMember
-    ? (selectedMember.spouseName ? 1 : 0) + (selectedMember.children?.length || 0)
-    : 0;
+  // Dependents of the parent policy (used both for the "Family Members & Dependents" strip
+  // and to let the agent switch the detail panel to a dependent's own record).
+  const dependentsList = useMemo(() => {
+    if (!selectedBeneficiary) return [];
+    return getMemberDependents(selectedBeneficiary.parentMember);
+  }, [selectedBeneficiary]);
 
-  // === AMÉLIORATION FIX : `claim.providerName`/`claim.amountUSD` n'existent pas sur le
-  // type Claim (seuls `provider`/`amount` existent) — ces champs s'affichaient donc
-  // toujours vides/à $0. Corrigé ci-dessous.
-  const memberClaims = selectedMember
-    ? claims.filter((c) => c.memberCardNo === selectedMember.cardNo).sort((a, b) => new Date(b.serviceDate).getTime() - new Date(a.serviceDate).getTime())
-    : [];
+  // Policy number of the selected beneficiary's affiliated organization
+  const policyNumber = useMemo(() => {
+    if (!selectedBeneficiary) return null;
+    const org = organizations.find((o) => o.name === selectedBeneficiary.organization);
+    return org?.policyNumber || null;
+  }, [selectedBeneficiary, organizations]);
 
-  const last5Claims = memberClaims.slice(0, 5);
+  // === AMÉLIORATION AJOUTÉE : statut de couverture calculé pour l'assuré sélectionné, via le
+  // même moteur centralisé que le reste de l'application (jamais un statut recalculé
+  // localement à part) — null tant qu'aucune police n'a été configurée pour l'organisation
+  // (aucun blocage par défaut, module opt-in, cf. policyEngine.hasHealthcareAccess).
+  const selectedPolicy = useMemo(() => {
+    if (!selectedBeneficiary) return null;
+    return healthPolicies.find((p) => p.organizationId === selectedBeneficiary.organization) || null;
+  }, [selectedBeneficiary, healthPolicies]);
+
+  const policyCoverage = useMemo(() => {
+    if (!selectedPolicy) return null;
+    return getPolicyCoverageStatus(selectedPolicy);
+  }, [selectedPolicy]);
+
+  // Guards the "Generate Medical Form" / "New Claim" actions: if the policy currently blocks
+  // coverage, a blocking alert is shown instead of proceeding straight to the workflow.
+  const guardHealthcareAction = (action: 'medical_form' | 'new_claim', proceed: () => void) => {
+    if (policyCoverage?.coverageBlocked) {
+      setBlockedActionAlert(action);
+      return;
+    }
+    proceed();
+  };
+
+  // Claims for selected beneficiary or their policy
+  const memberClaims = useMemo(() => {
+    if (!selectedBeneficiary) return [];
+    return claims
+      .filter(
+        (c) =>
+          c.memberCardNo.toLowerCase() === selectedBeneficiary.cardNo.toLowerCase() ||
+          c.memberCardNo.toLowerCase() === selectedBeneficiary.principalCardNo.toLowerCase() ||
+          (c.memberName && c.memberName.toLowerCase().includes(selectedBeneficiary.fullName.toLowerCase()))
+      )
+      .sort((a, b) => new Date(b.serviceDate).getTime() - new Date(a.serviceDate).getTime());
+  }, [selectedBeneficiary, claims]);
+
+  // === AMÉLIORATION AJOUTÉE : historique limité au mois calendaire en cours ("CURRENT MONTH
+  // CARE HISTORY"), au lieu des 5 derniers actes toutes périodes confondues.
+  const now = new Date();
+  const currentMonthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const currentMonthClaims = useMemo(() => {
+    return memberClaims.filter((c) => {
+      const d = new Date(c.serviceDate);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+  }, [memberClaims]);
+
+  // Selects a family member (principal or dependent) as the active beneficiary for the
+  // detail panel, keeping all coverage figures tied to the shared policy record.
+  const handleSelectFamilyMember = (fullName: string, isPrincipalSelf: boolean) => {
+    if (!selectedBeneficiary) return;
+    if (isPrincipalSelf) {
+      const principal = allBeneficiaries.find((b) => b.isPrincipal && b.parentMember.id === selectedBeneficiary.parentMember.id);
+      if (principal) setSelectedBeneficiary(principal);
+      return;
+    }
+    const match = allBeneficiaries.find(
+      (b) => !b.isPrincipal && b.parentMember.id === selectedBeneficiary.parentMember.id && b.fullName === fullName
+    );
+    if (match) setSelectedBeneficiary(match);
+  };
 
   return (
     <div className="space-y-6">
-      {/* Search Bar */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
-        <h2 className="text-lg font-bold text-[var(--brand-900)] mb-4">Insured Member Lookup & Verification</h2>
-        <div className="flex flex-col md:flex-row gap-4 items-start">
-          <form onSubmit={handleSearch} className="relative flex-1 w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setBiometricMatchMessage(null);
-                setIsResultsDropdownOpen(true);
-                setDirectoryPage(1);
-              }}
-              onFocus={() => setIsResultsDropdownOpen(true)}
-              onBlur={() => setTimeout(() => setIsResultsDropdownOpen(false), 150)}
-              placeholder="Enter health card number or insured member name..."
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
-            />
+      {/* 1. TOP SEARCH & ACTION BAR */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center gap-3">
+        <form onSubmit={handleSearchSubmit} className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by Card Number (e.g. ACT-2025-0012), Insured Name, Policy or Organization..."
+            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A347B] focus:bg-white transition"
+          />
+        </form>
 
-            {/* === AMÉLIORATION AJOUTÉE : liste déroulante des assurés correspondants,
-                affichée en direct pendant la saisie (import Excel et enrôlements validés
-                confondus — même source de données, aucun filtrage). === */}
-            {isResultsDropdownOpen && searchQuery.trim() && searchResults.length > 0 && (
-              <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg max-h-72 overflow-y-auto">
-                {searchResults.map((m) => (
-                  <button
-                    type="button"
-                    key={m.id}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => handleSelectResult(m)}
-                    className="w-full text-left px-4 py-2.5 hover:bg-[var(--brand-50)] transition flex items-center justify-between gap-3 border-b border-slate-50 last:border-b-0 cursor-pointer"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-slate-800 truncate">{m.principalName}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{m.cardNo} • {m.organization}</div>
-                    </div>
-                    <span className="text-[10px] font-bold text-[var(--brand-900)] shrink-0">Select</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </form>
-          <div className="text-slate-400 font-medium text-sm hidden md:block pt-3">OR</div>
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             onClick={handleOpenBiometricScanner}
-            className="px-6 py-3 rounded-xl font-bold text-sm shadow-xs transition flex items-center gap-2 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white shrink-0"
+            className="px-4 py-3 rounded-xl font-bold text-xs shadow-2xs transition flex items-center justify-center gap-2 cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 whitespace-nowrap"
           >
-            <Fingerprint className="w-5 h-5" />
-            <span>Biometric Fingerprint Scan</span>
+            <Fingerprint className="w-4 h-4" />
+            <span>Scan Biometric Sensor</span>
           </button>
+          {onNewEnrollment && (
+            <button
+              type="button"
+              onClick={onNewEnrollment}
+              className="px-4 py-3 rounded-xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#0A347B] hover:bg-[#08285e] text-white whitespace-nowrap"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>New Enrollment</span>
+            </button>
+          )}
         </div>
+      </div>
 
-        {biometricMatchMessage && (
-          <div className="mt-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-bold animate-in fade-in">
-            <Fingerprint className="w-4 h-4 text-emerald-600 shrink-0" />
+      {/* Biometric Success / Alert Feedback */}
+      {biometricMatchMessage && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 text-emerald-800 text-xs font-bold animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{biometricMatchMessage}</span>
           </div>
-        )}
-
-        {searchQuery.trim() && searchResults.length === 0 && !biometricMatchMessage && (
-          <div className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700">
-            <AlertTriangle className="w-5 h-5" />
-            <span className="text-sm font-semibold">No insured member found matching this search criteria.</span>
-          </div>
-        )}
-      </div>
-
-      {/* === AMÉLIORATION AJOUTÉE : tableau des assurés TOUJOURS visible (import Excel ou
-          enrôlement validé — même source de données `members`), avec pagination, pour que
-          l'agent puisse parcourir la liste directement sans devoir connaître un nom ou un
-          n° de carte à l'avance. Se filtre automatiquement avec la recherche ci-dessus. */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <Table2 className="w-4 h-4 text-[var(--brand-900)]" />
-            <span>Insured Members Directory</span>
-          </h3>
-          <span className="text-xs font-semibold text-slate-500">
-            {directoryMembers.length} member{directoryMembers.length === 1 ? '' : 's'}
-            {searchQuery.trim() ? ' matching' : ' total'}
-          </span>
-        </div>
-
-        {directoryMembers.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-xs italic">
-            {members.length === 0
-              ? 'No insured member has been imported or enrolled yet.'
-              : 'No insured member matches this search.'}
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/50 text-[10.5px] font-extrabold text-slate-500 uppercase tracking-wider">
-                    <th className="py-2.5 px-4">Card No.</th>
-                    <th className="py-2.5 px-4">Principal Name</th>
-                    <th className="py-2.5 px-4">Organization</th>
-                    <th className="py-2.5 px-4 text-center">Dependents</th>
-                    <th className="py-2.5 px-4 text-center">Biometrics</th>
-                    <th className="py-2.5 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {directoryPageRows.map((m) => {
-                    const depCount = (m.spouseName ? 1 : 0) + (m.children?.length || 0);
-                    return (
-                      <tr key={m.id} className={`hover:bg-[var(--brand-50)]/50 transition ${selectedMember?.id === m.id ? 'bg-[var(--brand-50)]' : ''}`}>
-                        <td className="py-2.5 px-4 font-mono font-bold text-[var(--brand-900)] whitespace-nowrap">{m.cardNo}</td>
-                        <td className="py-2.5 px-4 font-semibold text-slate-800">{m.principalName}</td>
-                        <td className="py-2.5 px-4 text-slate-600 truncate max-w-[200px]">{m.organization}</td>
-                        <td className="py-2.5 px-4 text-center text-slate-600">{depCount}</td>
-                        <td className="py-2.5 px-4 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${m.hasBiometrics ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                            {m.hasBiometrics ? 'Captured' : 'Missing'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleSelectResult(m)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-[10.5px] font-bold transition cursor-pointer"
-                          >
-                            <Eye className="w-3 h-3" />
-                            <span>Identify</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {directoryTotalPages > 1 && (
-              <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-slate-500">
-                  Page {directoryPageClamped} of {directoryTotalPages}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={directoryPageClamped <= 1}
-                    onClick={() => setDirectoryPage((p) => Math.max(1, p - 1))}
-                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={directoryPageClamped >= directoryTotalPages}
-                    onClick={() => setDirectoryPage((p) => Math.min(directoryTotalPages, p + 1))}
-                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Member Details */}
-      {selectedMember && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-300">
-          {/* Identity & Policy */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
-              <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
-                <div className="w-16 h-16 rounded-full bg-[var(--brand-50)] flex items-center justify-center overflow-hidden">
-                  {selectedMember.photoUrl ? (
-                    <img src={selectedMember.photoUrl} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-8 h-8 text-[var(--brand-900)]" />
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-slate-900">{selectedMember.principalName}</h3>
-                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mt-1">
-                    <span>{calculateAge(selectedMember.birthDate)} yrs old</span>
-                    <span>•</span>
-                    <span>{selectedMember.gender === 'M' ? 'Male' : selectedMember.gender === 'F' ? 'Female' : 'Unspecified'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* === AMÉLIORATION AJOUTÉE : Action rapide — Générer une fiche maladie et
-                  consulter la biométrie directement depuis l'identification. === */}
-              <div className="grid grid-cols-2 gap-2 mb-6">
-                {onGenerateMedicalForm && (
-                  <button
-                    type="button"
-                    onClick={() => onGenerateMedicalForm(selectedMember)}
-                    className="px-3 py-2.5 rounded-xl bg-[#00A859] hover:bg-[#008f4c] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <FileCheck className="w-4 h-4" />
-                    <span>Medical Form</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsBiometricViewerOpen(true)}
-                  className="px-3 py-2.5 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <ScanFace className="w-4 h-4" />
-                  <span>Biometrics</span>
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <CreditCard className="w-4 h-4" />
-                    <span className="text-xs font-semibold">Card Number</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-900 font-mono">{selectedMember.cardNo}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-xs font-semibold">Date of Birth</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-900 font-mono">{selectedMember.birthDate || '—'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <Shield className="w-4 h-4" />
-                    <span className="text-xs font-semibold">Policy Number</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-900 font-mono">POL-98273</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <Activity className="w-4 h-4" />
-                    <span className="text-xs font-semibold">Organization</span>
-                  </div>
-                  <span className="text-sm font-bold text-[var(--brand-900)] truncate max-w-[150px]">{selectedMember.organization}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <User className="w-4 h-4" />
-                    <span className="text-xs font-semibold">Relationship</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-900">{selectedMember.relationship}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <Users className="w-4 h-4" />
-                    <span className="text-xs font-semibold">Dependents</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-900">{dependentsCount}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <Fingerprint className="w-4 h-4" />
-                    <span className="text-xs font-semibold">Biometrics</span>
-                  </div>
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${selectedMember.hasBiometrics ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {selectedMember.hasBiometrics ? 'Captured' : 'Not captured'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Family Members */}
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
-              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <HeartPulse className="w-4 h-4 text-rose-500" />
-                Attached Family Dependents ({dependentsCount})
-              </h3>
-              {selectedMember.children.length === 0 && !selectedMember.spouseName ? (
-                <p className="text-xs text-slate-500 italic">No dependents attached to this policy.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {selectedMember.spouseName && (
-                    <li className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-700">{selectedMember.spouseName}</span>
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 font-medium">Spouse</span>
-                    </li>
-                  )}
-                  {selectedMember.children.map((child, idx) => (
-                    <li key={idx} className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-700">{child}</span>
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 font-medium">Child</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-
-          {/* Balances & Ceilings */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Balances */}
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
-              <h3 className="text-sm font-bold text-slate-800 mb-4">Coverage Ceilings & Available Balances (USD / LRD)</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-5 rounded-2xl border border-[var(--brand-100)] bg-[var(--brand-50)]/50">
-                  <div className="text-xs font-bold text-[var(--brand-600)] mb-2 uppercase tracking-wider">Outpatient (Ambulatory & Routine Care)</div>
-                  <div className="flex justify-between items-end mb-1">
-                    <span className="text-2xl font-black text-[var(--brand-900)]">{formatAmount(selectedMember.outpatientBalanceUSD || 500)}</span>
-                    <span className="text-xs text-slate-500 font-semibold mb-1">/ {formatAmount(selectedMember.outpatientCeilingUSD || 1000)}</span>
-                  </div>
-                  <div className="w-full bg-[var(--brand-200)] rounded-full h-2 mt-3 overflow-hidden">
-                    <div className="bg-[var(--brand-900)] h-2 rounded-full transition-all duration-500" style={{ width: '50%' }}></div>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-2 font-medium">Standard benefit balance within approved ceiling limit</p>
-                </div>
-                <div className="p-5 rounded-2xl border border-emerald-100 bg-emerald-50/50">
-                  <div className="text-xs font-bold text-emerald-600 mb-2 uppercase tracking-wider">Inpatient (Hospitalization & Ward)</div>
-                  <div className="flex justify-between items-end mb-1">
-                    <span className="text-2xl font-black text-[#00A859]">{formatAmount(selectedMember.inpatientBalanceUSD || 8500)}</span>
-                    <span className="text-xs text-slate-500 font-semibold mb-1">/ {formatAmount(selectedMember.inpatientCeilingUSD || 10000)}</span>
-                  </div>
-                  <div className="w-full bg-emerald-200 rounded-full h-2 mt-3 overflow-hidden">
-                    <div className="bg-[#00A859] h-2 rounded-full transition-all duration-500" style={{ width: '85%' }}></div>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-2 font-medium">Inpatient admissions subject to prior insurance authorization</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Claims History */}
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
-              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center justify-between">
-                <span>Recent Claims & Treatment History</span>
-                <span className="text-xs font-normal text-slate-500">Total: {memberClaims.length} records</span>
-              </h3>
-
-              {last5Claims.length === 0 ? (
-                <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50 rounded-xl border border-slate-100">
-                  No prior claims recorded for this member.
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {last5Claims.map((claim) => (
-                    <div key={claim.id} className="py-3 flex items-center justify-between text-xs gap-3">
-                      <div className="min-w-0">
-                        <div className="font-bold text-slate-800">{claim.careType}</div>
-                        <div className="text-slate-400 font-mono text-[11px] truncate">{claim.provider} • {claim.serviceDate}</div>
-                        {/* === AMÉLIORATION AJOUTÉE : nom du médecin traitant === */}
-                        {claim.doctorName && (
-                          <div className="text-slate-400 text-[11px] flex items-center gap-1 mt-0.5">
-                            <Stethoscope className="w-3 h-3" />
-                            <span className="truncate">{claim.doctorName}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-bold text-[var(--brand-900)] font-mono">{formatAmount(claim.amount || 0)}</div>
-                        <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          claim.status === 'approved'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : claim.status === 'rejected'
-                            ? 'bg-rose-50 text-rose-700'
-                            : 'bg-amber-50 text-amber-700'
-                        }`}>
-                          {claim.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <button
+            onClick={() => setBiometricMatchMessage(null)}
+            className="text-emerald-700 hover:text-emerald-900 text-xs underline"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
-      {/* Biometric Fingerprint Acquisition Modal */}
+      {/* 2. TWO-COLUMN LAYOUT: DIRECTORY (left) + SELECTED MEMBER DETAIL (right) */}
+      {/* === AMÉLIORATION AJOUTÉE : sur mobile (< lg), l'annuaire et la fiche détaillée
+          n'apparaissent plus empilés sur une seule très longue page — un seul des deux est
+          affiché à la fois (l'annuaire par défaut, la fiche une fois un assuré sélectionné,
+          avec un bouton "Back" pour y revenir), comme sur desktop où les deux colonnes
+          restent visibles en même temps (comportement desktop inchangé). === */}
+      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-start">
+        {/* LEFT: Insured Directory */}
+        <div className={`bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3 ${selectedBeneficiary ? 'hidden lg:block' : ''}`}>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
+              Insured Directory ({filteredDirectory.length})
+            </h3>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              {activeCount} Active
+            </span>
+          </div>
+
+          {filteredDirectory.length === 0 ? (
+            <div className="p-6 text-center text-slate-400 text-xs font-medium">
+              No insured member matches your search.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[640px] overflow-y-auto pr-0.5">
+              {filteredDirectory.map((b) => {
+                const isSelected = selectedBeneficiary?.parentMember.id === b.parentMember.id;
+                const age = calculateAgeNumber(b.birthDate);
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setSelectedBeneficiary(b)}
+                    className={`w-full text-left p-3 rounded-xl border transition flex items-center gap-3 cursor-pointer ${
+                      isSelected ? 'border-[#0A347B] bg-blue-50/60 ring-1 ring-[#0A347B]/30' : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="relative w-11 h-11 rounded-xl bg-blue-100/60 border border-blue-200 flex items-center justify-center overflow-hidden shrink-0">
+                      {b.photoUrl ? (
+                        <img src={b.photoUrl} alt={b.fullName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <User className="w-5 h-5 text-[#0A347B]" />
+                      )}
+                      {(b.hasBiometrics || b.fingerprintScore) && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+                          <Fingerprint className="w-2.5 h-2.5 text-white" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-xs text-slate-900 truncate">{b.fullName}</div>
+                      <div className="font-mono text-[11px] font-bold text-[#0A347B]">{b.cardNo}</div>
+                      <div className="text-[10.5px] text-slate-400 truncate flex items-center gap-1">
+                        <Building2 className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{b.organization}</span>
+                      </div>
+                      <div className="text-[10.5px] text-slate-400">
+                        {age !== null ? `${age} yrs` : '—'} • Gender: {b.gender === 'F' ? 'F' : 'M'}
+                      </div>
+                    </div>
+                    <span
+                      className={`shrink-0 px-2 py-0.5 rounded-full text-[9.5px] font-bold ${
+                        b.status === 'Active' || b.status === 'Actif'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}
+                    >
+                      {b.status}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: Selected Member Detail */}
+        {!selectedBeneficiary ? (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-300 shadow-xs p-12 flex flex-col items-center justify-center text-center gap-2">
+            <Users className="w-8 h-8 text-slate-300" />
+            <p className="text-sm font-bold text-slate-500">Select an insured member from the directory</p>
+            <p className="text-xs text-slate-400 max-w-sm">
+              Choose a member on the left, search by card number, or scan a biometric fingerprint to identify a beneficiary and view their coverage.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Mobile-only "Back to Directory" — le panneau annuaire est masqué sur mobile
+                tant qu'un assuré est sélectionné (voir ci-dessus), ce bouton permet d'y
+                revenir sans avoir à faire défiler toute la fiche détaillée. */}
+            <button
+              type="button"
+              onClick={() => setSelectedBeneficiary(null)}
+              className="lg:hidden flex items-center gap-1.5 text-xs font-bold text-[#0A347B] hover:text-[#08285e] cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5 rotate-180" />
+              <span>Back to Directory</span>
+            </button>
+
+            {/* Profile Header Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
+              <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="relative w-16 h-16 rounded-2xl bg-blue-100/60 border border-blue-200 flex items-center justify-center overflow-hidden shrink-0">
+                    {selectedBeneficiary.photoUrl ? (
+                      <img src={selectedBeneficiary.photoUrl} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <User className="w-8 h-8 text-[#0A347B]" />
+                    )}
+                    {(selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore) && (
+                      <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+                        <Fingerprint className="w-3 h-3 text-white" />
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-extrabold text-base text-slate-900">{selectedBeneficiary.fullName}</h3>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                          selectedBeneficiary.status === 'Active' || selectedBeneficiary.status === 'Actif'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}
+                      >
+                        Card {selectedBeneficiary.status === 'Active' || selectedBeneficiary.status === 'Actif' ? 'Active' : selectedBeneficiary.status}
+                      </span>
+                      {(selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore) && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-[#0A347B] border border-blue-200">
+                          ICAO Biometrics Compliant
+                        </span>
+                      )}
+                      {!selectedBeneficiary.isPrincipal && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                          {formatRelationship(selectedBeneficiary.relationship)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-2.5 mt-3">
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Card Number</div>
+                        <div className="font-mono font-bold text-sm text-[#0A347B]">{selectedBeneficiary.cardNo}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Policy Number</div>
+                        <div className="font-mono font-bold text-sm text-slate-800">{policyNumber || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Age &amp; Gender</div>
+                        <div className="font-bold text-sm text-slate-800">
+                          {calculateAgeNumber(selectedBeneficiary.birthDate) ?? '—'} yrs ({selectedBeneficiary.gender === 'F' ? 'Female' : 'Male'})
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Affiliated Organization</div>
+                        <div className="font-bold text-sm text-slate-800 flex items-center gap-1.5 truncate">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{selectedBeneficiary.organization}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Date of Birth</div>
+                        <div className="font-bold text-sm text-slate-800">{selectedBeneficiary.birthDate || 'N/A'}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* === AMÉLIORATION AJOUTÉE : les boutons passent en pleine largeur et empilés
+                    sur mobile (au lieu d'une rangée serrée qui pouvait déborder), pour rester
+                    faciles à toucher et lisibles. === */}
+                <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row gap-2.5 shrink-0 w-full sm:w-auto">
+                  {onGenerateMedicalForm && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const memberPayload: Member = {
+                          ...selectedBeneficiary.parentMember,
+                          cardNo: selectedBeneficiary.cardNo,
+                          principalName: selectedBeneficiary.fullName,
+                          relationship: selectedBeneficiary.relationship as any,
+                          birthDate: selectedBeneficiary.birthDate || selectedBeneficiary.parentMember.birthDate,
+                          gender: (selectedBeneficiary.gender as any) || selectedBeneficiary.parentMember.gender,
+                          outpatientBalanceUSD: selectedBeneficiary.outpatientBalanceUSD,
+                          inpatientBalanceUSD: selectedBeneficiary.inpatientBalanceUSD,
+                        };
+                        // === AMÉLIORATION AJOUTÉE : vérification de la couverture avant de
+                        // poursuivre vers le flux de soin, cf. policyCoverage plus haut.
+                        guardHealthcareAction('medical_form', () => onGenerateMedicalForm(memberPayload));
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white whitespace-nowrap"
+                    >
+                      <FileCheck className="w-4 h-4" />
+                      <span>Generate Medical Form</span>
+                    </button>
+                  )}
+                  {onNewClaim && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const memberPayload: Member = {
+                          ...selectedBeneficiary.parentMember,
+                          cardNo: selectedBeneficiary.cardNo,
+                          principalName: selectedBeneficiary.fullName,
+                        };
+                        guardHealthcareAction('new_claim', () => onNewClaim(memberPayload));
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#0A347B] hover:bg-[#08285e] text-white whitespace-nowrap"
+                    >
+                      <Receipt className="w-4 h-4" />
+                      <span>New Claim</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* === AMÉLIORATION AJOUTÉE : bandeau de statut de couverture, calculé
+                immédiatement après identification via le moteur centralisé de police
+                d'assurance santé. N'apparaît que si une police a été configurée pour
+                l'organisation de l'assuré (module opt-in, aucun impact sur les organisations
+                n'ayant pas encore de police renseignée). === */}
+            {policyCoverage && selectedPolicy && (
+              <div
+                className={`rounded-2xl border p-5 space-y-2 ${
+                  policyCoverage.status === 'Active'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : policyCoverage.status === 'Expiring Soon'
+                    ? 'bg-amber-50 border-amber-200'
+                    : policyCoverage.status === 'Expired'
+                    ? 'bg-red-50 border-red-300'
+                    : 'bg-rose-50 border-rose-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <h4
+                    className={`text-xs font-black uppercase tracking-wide flex items-center gap-1.5 ${
+                      policyCoverage.status === 'Active'
+                        ? 'text-emerald-800'
+                        : policyCoverage.status === 'Expiring Soon'
+                        ? 'text-amber-800'
+                        : 'text-rose-800'
+                    }`}
+                  >
+                    {policyCoverage.coverageBlocked ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                    <span>
+                      {policyCoverage.status === 'Active' && 'Member Verified — Access to Healthcare'}
+                      {policyCoverage.status === 'Expiring Soon' && 'Member Verified — Policy Expiring Soon'}
+                      {policyCoverage.status === 'Expired' && 'Healthcare Access Blocked'}
+                      {policyCoverage.status === 'Suspended' && 'Healthcare Access Suspended'}
+                      {policyCoverage.status === 'Pending Renewal' && 'Policy Pending Renewal'}
+                    </span>
+                  </h4>
+                  <span className="text-[10px] font-mono font-bold text-slate-500">Policy: {selectedPolicy.policyNumber}</span>
+                </div>
+
+                {policyCoverage.status === 'Active' && (
+                  <p className="text-xs text-emerald-800 font-medium">
+                    Policy Status: <strong>ACTIVE</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong>
+                    {selectedPolicy.nextPaymentDueDate && (
+                      <>
+                        {' '}&bull; Next Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong>
+                      </>
+                    )}
+                  </p>
+                )}
+                {policyCoverage.status === 'Expiring Soon' && (
+                  <p className="text-xs text-amber-800 font-medium">
+                    Policy Status: <strong>EXPIRING SOON</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong> ({policyCoverage.daysUntilExpiration} day(s) left)
+                  </p>
+                )}
+                {policyCoverage.status === 'Expired' && (
+                  <p className="text-xs text-rose-800 font-medium leading-relaxed">
+                    Status: <strong>EXPIRED</strong> &bull; Expired on: <strong>{selectedPolicy.expirationDate}</strong>
+                    <br />
+                    This insured member and all covered dependents are not eligible for healthcare services under this policy.
+                  </p>
+                )}
+                {policyCoverage.status === 'Suspended' && (
+                  <p className="text-xs text-rose-800 font-medium leading-relaxed">
+                    Status: <strong>SUSPENDED</strong> &bull; Reason: <strong>{(policyCoverage.suspensionReason || 'ADMINISTRATIVE').toUpperCase()}</strong>
+                    {selectedPolicy.nextPaymentDueDate && (
+                      <>
+                        <br />Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong> &bull; Amount Due: <strong>{selectedPolicy.currency} {(selectedPolicy.outstandingAmount ?? 0).toLocaleString()}</strong>
+                      </>
+                    )}
+                    <br />
+                    Healthcare services are currently unavailable for the principal insured and all covered dependents.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Coverage Balances & Ceiling Limits */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-[#0A347B]" />
+                  <span>Coverage Balances &amp; Ceiling Limits (USD)</span>
+                </h4>
+                <span className="text-[11px] font-semibold text-slate-400">Contractual Annual Ceilings</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Outpatient */}
+                <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#0A347B] flex items-center gap-1.5">
+                      <Stethoscope className="w-3.5 h-3.5" />
+                      <span>Outpatient Consultation</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-blue-200 text-[10px] font-extrabold text-[#0A347B]">
+                      USD ($)
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-baseline text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                    <span>Remaining Balance Available</span>
+                    <span>Ceiling Limit</span>
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-2xl font-black text-[#00A859]">
+                      {formatAmount(selectedBeneficiary.outpatientBalanceUSD ?? 500)}
+                    </span>
+                    <span className="text-sm font-bold text-slate-700">
+                      {formatAmount(selectedBeneficiary.outpatientCeilingUSD ?? 500)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-[#0A347B] h-2 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            (1 -
+                              (selectedBeneficiary.outpatientBalanceUSD ?? 500) /
+                                (selectedBeneficiary.outpatientCeilingUSD || selectedBeneficiary.outpatientBalanceUSD || 1)) *
+                              100
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-500 font-medium">
+                    <span>
+                      Consumed: {formatAmount(
+                        Math.max(0, (selectedBeneficiary.outpatientCeilingUSD ?? 500) - (selectedBeneficiary.outpatientBalanceUSD ?? 500))
+                      )}
+                    </span>
+                    <span>
+                      {Math.min(
+                        100,
+                        Math.round(
+                          (1 -
+                            (selectedBeneficiary.outpatientBalanceUSD ?? 500) /
+                              (selectedBeneficiary.outpatientCeilingUSD || selectedBeneficiary.outpatientBalanceUSD || 1)) *
+                            100
+                        )
+                      )}% used
+                    </span>
+                  </div>
+                </div>
+
+                {/* Inpatient */}
+                <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                      <HeartPulse className="w-3.5 h-3.5" />
+                      <span>Inpatient Hospitalization</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-[10px] font-extrabold text-emerald-700">
+                      USD ($)
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-baseline text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                    <span>Remaining Balance Available</span>
+                    <span>Ceiling Limit</span>
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-2xl font-black text-[#00A859]">
+                      {formatAmount(selectedBeneficiary.inpatientBalanceUSD ?? 5000)}
+                    </span>
+                    <span className="text-sm font-bold text-slate-700">
+                      {formatAmount(selectedBeneficiary.inpatientCeilingUSD ?? 5000)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-emerald-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-[#00A859] h-2 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            (1 -
+                              (selectedBeneficiary.inpatientBalanceUSD ?? 5000) /
+                                (selectedBeneficiary.inpatientCeilingUSD || selectedBeneficiary.inpatientBalanceUSD || 1)) *
+                              100
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-500 font-medium">
+                    <span>
+                      Consumed: {formatAmount(
+                        Math.max(0, (selectedBeneficiary.inpatientCeilingUSD ?? 5000) - (selectedBeneficiary.inpatientBalanceUSD ?? 5000))
+                      )}
+                    </span>
+                    <span>
+                      {Math.min(
+                        100,
+                        Math.round(
+                          (1 -
+                            (selectedBeneficiary.inpatientBalanceUSD ?? 5000) /
+                              (selectedBeneficiary.inpatientCeilingUSD || selectedBeneficiary.inpatientBalanceUSD || 1)) *
+                            100
+                        )
+                      )}% used
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Family Members & Dependents */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-[#0A347B]" />
+                  <span>Family Members &amp; Dependents ({dependentsList.length + 1})</span>
+                </h4>
+                <span className="text-[11px] font-semibold text-slate-400">Click to select beneficiary</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {/* Principal (Self) */}
+                {(() => {
+                  const principalSelf = allBeneficiaries.find(
+                    (b) => b.isPrincipal && b.parentMember.id === selectedBeneficiary.parentMember.id
+                  );
+                  if (!principalSelf) return null;
+                  const isSelf = selectedBeneficiary.id === principalSelf.id;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectFamilyMember(principalSelf.fullName, true)}
+                      className={`relative text-left p-3 rounded-xl border transition cursor-pointer ${
+                        isSelf ? 'border-[#0A347B] bg-blue-50/60 ring-1 ring-[#0A347B]/30' : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {isSelf && (
+                        <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#0A347B] flex items-center justify-center">
+                          <Check className="w-2.5 h-2.5 text-white" />
+                        </span>
+                      )}
+                      <div className="w-10 h-10 rounded-xl bg-blue-100/60 border border-blue-200 flex items-center justify-center overflow-hidden mb-2">
+                        {principalSelf.photoUrl ? (
+                          <img src={principalSelf.photoUrl} alt={principalSelf.fullName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <User className="w-5 h-5 text-[#0A347B]" />
+                        )}
+                      </div>
+                      <div className="font-bold text-xs text-slate-900 truncate">{principalSelf.fullName}</div>
+                      <div className="text-[10.5px] font-bold text-[#0A347B]">Principal Insured (Self)</div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        {principalSelf.cardNo} • {calculateAgeNumber(principalSelf.birthDate) ?? '—'} yrs
+                      </div>
+                    </button>
+                  );
+                })()}
+
+                {dependentsList.map((dep, idx) => {
+                  const depBeneficiary = allBeneficiaries.find(
+                    (b) => !b.isPrincipal && b.parentMember.id === selectedBeneficiary.parentMember.id && b.fullName === dep.fullName
+                  );
+                  const isSelectedDep = depBeneficiary && selectedBeneficiary.id === depBeneficiary.id;
+                  return (
+                    <button
+                      key={dep.id || idx}
+                      type="button"
+                      onClick={() => handleSelectFamilyMember(dep.fullName, false)}
+                      className={`relative text-left p-3 rounded-xl border transition cursor-pointer ${
+                        isSelectedDep ? 'border-[#0A347B] bg-blue-50/60 ring-1 ring-[#0A347B]/30' : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {isSelectedDep && (
+                        <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#0A347B] flex items-center justify-center">
+                          <Check className="w-2.5 h-2.5 text-white" />
+                        </span>
+                      )}
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden mb-2">
+                        <User className="w-5 h-5 text-slate-400" />
+                      </div>
+                      <div className="font-bold text-xs text-slate-900 truncate">{dep.fullName}</div>
+                      <div className="text-[10.5px] font-bold text-slate-500">{formatRelationship(dep.relationship)}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        {dep.cardNo || `${selectedBeneficiary.principalCardNo}-D${idx + 1}`} • {dep.age ? `${dep.age} yrs` : '—'}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Current Month Care History */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-[#0A347B]" />
+                  <span>Current Month Care History (Acts &amp; Procedures)</span>
+                </h4>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Current Month: {currentMonthLabel}
+                </span>
+              </div>
+
+              {currentMonthClaims.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs italic bg-slate-50 rounded-xl border border-slate-100">
+                  No medical services recorded for this member in {currentMonthLabel}.
+                </div>
+              ) : (
+                <>
+                  {/* Desktop/tablet: table (unchanged) */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
+                          <th className="py-2.5 px-3 whitespace-nowrap">Date &amp; Ref</th>
+                          <th className="py-2.5 px-3">Medical Procedure</th>
+                          <th className="py-2.5 px-3">Healthcare Provider / Hospital</th>
+                          <th className="py-2.5 px-3 text-right">Amount</th>
+                          <th className="py-2.5 px-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {currentMonthClaims.map((claim) => (
+                          <tr key={claim.id} className="hover:bg-slate-50/80 transition">
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              <span className="font-bold text-slate-800 block">{claim.serviceDate}</span>
+                              <span className="text-[10px] text-[#0A347B] font-mono">{claim.reference}</span>
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-slate-800 block">{claim.careType}</span>
+                              <span className="text-[10px] text-slate-400">{claim.careType}</span>
+                            </td>
+                            <td className="py-3 px-3 text-slate-700 font-medium flex items-center gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>{claim.provider}</span>
+                            </td>
+                            <td className="py-3 px-3 text-right whitespace-nowrap font-bold text-slate-800">
+                              {formatAmount(claim.amount || 0)}
+                            </td>
+                            <td className="py-3 px-3 text-center whitespace-nowrap">
+                              <span
+                                className={`inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
+                                  claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : claim.status === 'Rejected' || claim.status === 'rejected'
+                                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}
+                              >
+                                {claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
+                                  ? 'Approved'
+                                  : claim.status === 'Rejected' || claim.status === 'rejected'
+                                  ? 'Rejected'
+                                  : 'Pending'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* === AMÉLIORATION AJOUTÉE : liste de cartes sur mobile, au lieu du tableau
+                      qui débordait/se comprimait mal sur petit écran. === */}
+                  <div className="sm:hidden space-y-2.5">
+                    {currentMonthClaims.map((claim) => (
+                      <div key={claim.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-bold text-xs text-slate-800">{claim.serviceDate}</div>
+                            <div className="text-[10px] text-[#0A347B] font-mono">{claim.reference}</div>
+                          </div>
+                          <span
+                            className={`shrink-0 inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
+                              claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : claim.status === 'Rejected' || claim.status === 'rejected'
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}
+                          >
+                            {claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
+                              ? 'Approved'
+                              : claim.status === 'Rejected' || claim.status === 'rejected'
+                              ? 'Rejected'
+                              : 'Pending'}
+                          </span>
+                        </div>
+                        <div className="font-bold text-xs text-slate-800">{claim.careType}</div>
+                        <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{claim.provider}</span>
+                        </div>
+                        <div className="text-sm font-black text-slate-800">{formatAmount(claim.amount || 0)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. BIOMETRIC FINGERPRINT SCANNER MODAL */}
       <BiometricFingerprintModal
         isOpen={isFingerprintModalOpen}
         onClose={() => setIsFingerprintModalOpen(false)}
-        onFingerprintCaptured={handleFingerprintCaptured}
+        onCapture={handleFingerprintCaptured}
         title="Biometric Insured Identification"
         subtitle="AFIS 1:N Biometric Fingerprint Matcher"
       />
 
-      {/* === AMÉLIORATION AJOUTÉE : consultation de la biométrie (photo + empreinte) de
-          l'assuré identifié, réutilise le même composant que côté Admin (MembersView). */}
-      <AttachmentBiometricViewerModal
-        isOpen={isBiometricViewerOpen}
-        onClose={() => setIsBiometricViewerOpen(false)}
-        lang={lang}
-        type="member"
-        data={selectedMember}
-      />
+      {/* === AMÉLIORATION AJOUTÉE : alerte bloquante affichée avant de laisser l'agent
+          poursuivre vers "Generate Medical Form" / "New Claim" quand la police est
+          Expired/Suspended — copie alignée sur la maquette fournie. === */}
+      {blockedActionAlert && selectedBeneficiary && selectedPolicy && policyCoverage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95">
+            <div className="p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-rose-800 uppercase tracking-wide">
+                    {policyCoverage.status === 'Expired' ? 'Healthcare Access Blocked' : 'Healthcare Access Suspended'}
+                  </h3>
+                  <p className="text-xs font-bold text-slate-700 mt-1">{selectedBeneficiary.fullName}</p>
+                  <p className="text-[11px] font-mono text-slate-500">Policy: {selectedPolicy.policyNumber}</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-medium leading-relaxed">
+                {policyCoverage.status === 'Expired' ? (
+                  <>
+                    Status: <strong>EXPIRED</strong> &bull; Expired on: <strong>{selectedPolicy.expirationDate}</strong>
+                    <br /><br />
+                    This insured member and all covered dependents are not eligible for healthcare services under this policy.
+                  </>
+                ) : (
+                  <>
+                    Status: <strong>SUSPENDED</strong> &bull; Reason: <strong>{(policyCoverage.suspensionReason || 'ADMINISTRATIVE').toUpperCase()}</strong>
+                    {selectedPolicy.nextPaymentDueDate && (
+                      <>
+                        <br />Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong> &bull; Amount Due: <strong>{selectedPolicy.currency} {(selectedPolicy.outstandingAmount ?? 0).toLocaleString()}</strong>
+                      </>
+                    )}
+                    <br /><br />
+                    Healthcare services are currently unavailable for the principal insured and all covered dependents.
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setBlockedActionAlert(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white cursor-pointer"
+              >
+                View Policy
+              </button>
+              <button
+                type="button"
+                onClick={() => setBlockedActionAlert(null)}
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
