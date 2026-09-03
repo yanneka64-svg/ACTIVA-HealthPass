@@ -613,7 +613,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       list="members-card-list"
                       value={memberCardInput}
                       onChange={(e) => handleCardInputChange(e.target.value)}
-                      placeholder="e.g. ACT-2026-10023..."
+                      placeholder="e.g. AMID-260903-00023..."
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                       required
                     />

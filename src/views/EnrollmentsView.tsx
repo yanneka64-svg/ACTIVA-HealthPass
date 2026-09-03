@@ -30,6 +30,7 @@ import {
   canDeleteRecord,
 } from '../services/permissions';
 import { getRoleTheme } from '../theme/roleTheme';
+import { generateNextCardNumber } from '../services/cardNumberService';
 
 interface EnrollmentsViewProps {
   lang: Language;
@@ -197,14 +198,42 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
     }
   };
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
+  // explicite. Ce formulaire (Admin/Superviseur, distinct du formulaire Agent déjà corrigé)
+  // ne proposait même pas de champ de saisie pour "Card No." : `newEnrForm.cardNo` était donc
+  // TOUJOURS vide et retombait systématiquement sur un numéro aléatoire au format obsolète
+  // "ACT-2026-XXXX", contournant entièrement le système de numérotation centralisé. Corrigé
+  // pour générer un numéro AMID-YYMMDD-NNNNN unique et transactionnel, comme dans le
+  // formulaire d'enrôlement Agent.
+  const [isGeneratingEnrCard, setIsGeneratingEnrCard] = useState(false);
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const fullName = newEnrForm.fullName || 'New Beneficiary';
+    const organization = newEnrForm.organization || (organizations[0]?.name || 'Standard');
+
+    setIsGeneratingEnrCard(true);
+    let cardNo: string;
+    try {
+      cardNo = await generateNextCardNumber({
+        organization,
+        insuredName: fullName,
+        assignedBy: currentUser?.uid,
+        assignedByName: currentUser?.displayName || currentUser?.fullName || currentUser?.email,
+        method: 'ENROLLMENT',
+      });
+    } catch (err: any) {
+      alert(err?.message || 'Could not generate a card number. Please try again.');
+      setIsGeneratingEnrCard(false);
+      return;
+    }
+    setIsGeneratingEnrCard(false);
+
     onCreateEnrollment({
       reference: `ENR-2026-${Math.floor(100 + Math.random() * 900)}`,
-      fullName: newEnrForm.fullName || 'New Beneficiary',
-      cardNo: newEnrForm.cardNo || `ACT-2026-${Math.floor(9000 + Math.random() * 1000)}`,
+      fullName,
+      cardNo,
       birthDate: newEnrForm.birthDate,
-      organization: newEnrForm.organization || (organizations[0]?.name || 'Standard'),
+      organization,
       relationship: newEnrForm.relationship,
       submissionDate: new Date().toISOString().split('T')[0],
       hasPhoto: newEnrForm.hasPhoto,
@@ -957,9 +986,10 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className={`px-5 py-2.5 rounded-xl ${roleTheme.palette.primaryColor} text-white text-xs font-bold shadow-md`}
+                  disabled={isGeneratingEnrCard}
+                  className={`px-5 py-2.5 rounded-xl ${roleTheme.palette.primaryColor} text-white text-xs font-bold shadow-md disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
-                  {t.save}
+                  {isGeneratingEnrCard ? 'Assigning card number…' : t.save}
                 </button>
               </div>
             </form>

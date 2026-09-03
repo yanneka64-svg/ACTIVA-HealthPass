@@ -377,7 +377,13 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
 
   const openCreateModal = () => {
     setEditingMember(null);
-    setFormCardNo(`ACT-2026-${Math.floor(1000 + Math.random() * 9000)}`);
+    // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — le champ était
+    // auparavant pré-rempli avec une valeur aléatoire au format obsolète "ACT-2026-XXXX",
+    // masquant le fait que le champ pouvait rester vide pour déclencher la génération
+    // automatique (AMID-YYMMDD-NNNNN) et risquant, si laissé tel quel, d'enregistrer un
+    // numéro de carte invalide. Laissé vide par défaut, comme l'indique désormais le
+    // libellé "leave blank to auto-generate".
+    setFormCardNo('');
     setFormPrincipalName('');
     setFormBirthDate('');
     setFormGender('M');
@@ -1371,7 +1377,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       type="text"
                       value={formCardNo}
                       onChange={(e) => setFormCardNo(e.target.value)}
-                      placeholder={editingMember ? undefined : 'e.g. AMID-01130-0497 — leave blank to auto-assign'}
+                      placeholder={editingMember ? undefined : 'e.g. AMID-260903-00497 — leave blank to auto-assign'}
                       disabled={!!editingMember}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-70 disabled:cursor-not-allowed"
                     />
@@ -1501,7 +1507,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                         type="text"
                         value={mainInsuredCardNo}
                         onChange={(e) => setMainInsuredCardNo(e.target.value)}
-                        placeholder="e.g. ACT-2026-0001"
+                        placeholder="e.g. AMID-260903-00001"
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         required
                       />

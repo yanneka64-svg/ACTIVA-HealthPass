@@ -1,6 +1,7 @@
 import { Enrollment, Claim, Member, AppNotification, DependentItem, DependentRelationship, HealthPolicy } from '../types';
 import { FirestoreService } from './firestore';
 import { getPolicyCoverageStatus } from './policyEngine';
+import { generateNextCardNumber } from './cardNumberService';
 
 /**
  * Service to execute end-to-end multi-role workflows and keep Firestore records,
@@ -222,9 +223,23 @@ export const WorkflowService = {
           dependents: currentDeps,
         });
       } else {
+        // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
+        // explicite. Ce repli (déclenché quand l'ayant droit approuvé référence un assuré
+        // principal introuvable dans l'annuaire) générait auparavant un numéro aléatoire au
+        // format obsolète "ACT-PRI-XXXXX", contournant le système de numérotation
+        // centralisé. Génère désormais un numéro AMID-YYMMDD-NNNNN unique et transactionnel,
+        // uniquement dans ce cas de repli (si `mainInsuredCardNo` est déjà renseigné, il est
+        // conservé tel quel, sans y toucher).
+        const primaryCardNo =
+          enr.mainInsuredCardNo ||
+          (await generateNextCardNumber({
+            organization: enr.organization,
+            insuredName: enr.mainInsuredName || 'Principal Insured',
+            method: 'ENROLLMENT',
+          }));
         // Create primary holder entry and attach dependent
         await FirestoreService.addMember({
-          cardNo: enr.mainInsuredCardNo || `ACT-PRI-${Math.floor(10000 + Math.random() * 90000)}`,
+          cardNo: primaryCardNo,
           principalName: enr.mainInsuredName || 'Principal Insured',
           birthDate: '1985-01-01',
           gender: 'M',
