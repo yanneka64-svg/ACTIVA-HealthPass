@@ -59,8 +59,10 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — ce champ n'est
     // plus rempli par saisie manuelle, il est renseigné automatiquement dans handleSubmit
     // juste avant la création de l'enrôlement (voir cardNumberService.generateNextCardNumber).
+    // === AMÉLIORATION AJOUTÉE (v2) : la nouvelle structure AMID-YYMMDD-NNNNN n'a plus de
+    // "numéro physique" indépendant (le premier segment est désormais une date d'émission,
+    // toujours celle du jour) — le champ de saisie optionnelle correspondant a été retiré.
     cardNo: '',
-    printedCardNumberOverride: '',
     // === AMÉLIORATION AJOUTÉE : nom scindé en Last Name / First Name côté saisie (le nom
     // complet reste stocké en un seul champ "fullName" sur l'Enrollment, comme avant).
     lastName: '',
@@ -157,7 +159,6 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     let generatedCardNo: string;
     try {
       generatedCardNo = await generateNextCardNumber({
-        printedCardNumberOverride: form.printedCardNumberOverride || undefined,
         organization: form.organization,
         insuredName: fullName,
         assignedBy: currentUser?.uid,
@@ -205,7 +206,6 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
       setSubmitted(false);
       setForm({
         cardNo: '',
-        printedCardNumberOverride: '',
         lastName: '',
         firstName: '',
         birthDate: '1990-01-01',
@@ -422,12 +422,10 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 </div>
 
                 {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur
-                    demande explicite. Le numéro de carte (AMID-XXXXX-XXXX) n'est plus saisi
-                    manuellement : il est désormais généré automatiquement, de façon unique et
-                    transactionnelle (src/services/cardNumberService.ts), au moment de la
-                    soumission. L'agent peut, optionnellement, indiquer le numéro physique
-                    imprimé de la carte (segment XXXXX) — le numéro séquentiel de l'assuré
-                    (segment XXXX) reste lui toujours généré automatiquement. === */}
+                    demande explicite. Le numéro de carte (AMID-YYMMDD-NNNNN, YYMMDD = date
+                    d'émission du jour) n'est plus saisi manuellement : il est désormais généré
+                    automatiquement, de façon unique et transactionnelle
+                    (src/services/cardNumberService.ts), au moment de la soumission. === */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-bold text-slate-700">Health Card Number</label>
@@ -436,21 +434,8 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                   <div className="relative">
                     <CreditCard className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <div className="w-full pl-10 pr-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-500 font-mono">
-                      Generated automatically on submission (AMID-XXXXX-XXXX)
+                      Generated automatically on submission (AMID-YYMMDD-NNNNN)
                     </div>
-                  </div>
-                  <div className="mt-2">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                      Printed Card Number (optional) — leave blank to auto-assign
-                    </label>
-                    <input
-                      type="text"
-                      value={form.printedCardNumberOverride}
-                      onChange={(e) => setForm({ ...form, printedCardNumberOverride: e.target.value.replace(/[^0-9]/g, '').slice(0, 5) })}
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 font-mono focus:ring-2 focus:ring-[#0a2e6b]"
-                      placeholder="e.g. 01130 (physical card number, if already printed)"
-                      maxLength={5}
-                    />
                   </div>
                 </div>
 

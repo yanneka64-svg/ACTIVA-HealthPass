@@ -484,15 +484,23 @@ export interface AppNotification {
 
 // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
 // explicite. Voir src/services/cardNumberService.ts pour le moteur (génération
-// transactionnelle, migration, unicité). Deux compteurs indépendants (printed / insured),
-// un registre d'unicité (une entrée par numéro complet, jamais réutilisée) et une trace
-// d'audit par attribution.
+// transactionnelle, migration, unicité).
+//
+// === AMÉLIORATION AJOUTÉE (v2) : nouvelle structure de numéro AMID-YYMMDD-NNNNN — sur
+// demande explicite, remplace l'ancienne structure AMID-XXXXX-XXXX (deux séquences
+// indépendantes "printed"/"insured"). Le premier segment (6 chiffres) est désormais une
+// date d'émission (année, mois, jour) et non plus un compteur ; seul le second segment (5
+// chiffres, "assuredNumber") reste une séquence globale, unique et jamais réutilisée — un
+// registre d'unicité (une entrée par numéro complet) et une trace d'audit par attribution
+// (voir section 29 de la demande initiale) sont conservés à l'identique.
 export type CardAssignmentMethod = 'ENROLLMENT' | 'EXCEL_IMPORT' | 'MANUAL' | 'MIGRATION';
 
-// Document unique `counters/cardNumbers` — l'état courant des deux séquences indépendantes.
+// Document unique `counters/cardNumbers` — l'état courant de l'unique séquence restante
+// (assuredNumber, segment XXXXX). Le segment de date n'est plus un compteur : il est
+// recalculé à chaque émission à partir de la date d'émission de la carte concernée.
 export interface CardNumberCounters {
-  lastPrintedCardNumber: number; // ex: 1129 (segment XXXXX)
-  lastInsuredNumber: number; // ex: 496 (segment XXXX)
+  lastAssuredNumber: number; // ex: 496 (segment XXXXX)
+  formatVersion?: 'v2'; // présent une fois la migration vers AMID-YYMMDD-NNNNN effectuée
   updatedAt?: string;
 }
 
@@ -500,10 +508,10 @@ export interface CardNumberCounters {
 // document EST la contrainte d'unicité (deux assurés ne peuvent jamais créer le même id de
 // document). Sert aussi de trace d'audit ("Who / What / When / How", voir section 29).
 export interface CardNumberAssignment {
-  id: string; // = cardNumber, ex: "AMID-01129-0496"
+  id: string; // = cardNumber, ex: "AMID-260903-00496"
   cardNumber: string;
-  printedCardNumber: string; // "01129"
-  insuredNumber: string; // "0496"
+  issueDate: string; // "260903" (YYMMDD, segment XXXXXX)
+  assuredNumber: string; // "00496" (segment XXXXX)
   organization?: string | null;
   memberId?: string | null;
   insuredName?: string | null;

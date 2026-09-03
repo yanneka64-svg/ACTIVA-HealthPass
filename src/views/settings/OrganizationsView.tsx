@@ -24,6 +24,7 @@ import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { ExportDropdown } from '../../components/ExportDropdown';
 import { HealthPolicyConfigModal } from '../../components/HealthPolicyConfigModal';
 import { CardNumberManagementModal } from '../../components/CardNumberManagementModal';
+import { CardFormatMigrationSummary } from '../../services/cardNumberService';
 import { getPolicyCoverageStatus } from '../../services/policyEngine';
 import {
   exportOrganizationsToCSV,
@@ -53,6 +54,7 @@ interface OrganizationsViewProps {
   onDeletePolicyPayment?: (id: string) => void;
   // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System ===
   currentUser?: any;
+  onMigrateAllCards?: () => Promise<CardFormatMigrationSummary>;
 }
 
 export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
@@ -71,6 +73,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
   onAddPolicyPayment,
   onDeletePolicyPayment,
   currentUser,
+  onMigrateAllCards,
 }) => {
   const t = useTranslation(lang);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1165,6 +1168,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
           members={members}
           currentUser={currentUser}
           onClose={() => setCardNumberOrg(null)}
+          onMigrateAllCards={onMigrateAllCards}
         />
       )}
 

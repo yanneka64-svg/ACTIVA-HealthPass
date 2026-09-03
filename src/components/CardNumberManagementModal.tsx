@@ -4,23 +4,29 @@
 // convention que le bouton "Policy"), jamais une colonne ajoutée au tableau principal des
 // organisations, pour garder ce tableau propre.
 import React, { useState } from 'react';
-import { CreditCard, X, RefreshCw, History, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
+import { CreditCard, X, RefreshCw, History, CheckCircle2, AlertTriangle, ArrowRight, ShieldAlert } from 'lucide-react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Member, Organization, CardNumberAssignment, CardNumberCounters } from '../types';
-import { getCurrentCounters, migrateCardNumberCounters, isValidCardNumberFormat } from '../services/cardNumberService';
+import { getCurrentCounters, migrateCardNumberCounters, isValidCardNumberFormat, formatCardNumber, CardFormatMigrationSummary } from '../services/cardNumberService';
 
 interface CardNumberManagementModalProps {
   organization: Organization;
   members: Member[];
   currentUser?: any;
   onClose: () => void;
+  // === AMÉLIORATION AJOUTÉE (v2 — nouvelle structure AMID-YYMMDD-NNNNN) : migration
+  // ponctuelle de toutes les cartes déjà existantes. Optionnel — orchestré depuis App.tsx qui
+  // seul a accès à toutes les collections concernées (sinistres, factures, fiches médicales,
+  // inscriptions) en plus des assurés.
+  onMigrateAllCards?: () => Promise<CardFormatMigrationSummary>;
 }
 
 export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps> = ({
   organization,
   members,
   onClose,
+  onMigrateAllCards,
 }) => {
   const [counters, setCounters] = useState<CardNumberCounters | null>(null);
   const [loadingCounters, setLoadingCounters] = useState(true);
@@ -29,6 +35,15 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRows, setHistoryRows] = useState<CardNumberAssignment[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // === AMÉLIORATION AJOUTÉE (v2) : migration ponctuelle de format — action à part,
+  // volontairement séparée et bien plus mise en garde que "Validate" (irréversible, touche
+  // tous les assurés et leurs ayants droit, toutes organisations confondues).
+  const [migrateConfirmOpen, setMigrateConfirmOpen] = useState(false);
+  const [migrateConfirmInput, setMigrateConfirmInput] = useState('');
+  const [migrating, setMigrating] = useState(false);
+  const [migrationSummary, setMigrationSummary] = useState<CardFormatMigrationSummary | null>(null);
+  const [migrationError, setMigrationError] = useState<string | null>(null);
 
   React.useEffect(() => {
     getCurrentCounters()
@@ -47,17 +62,19 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
   const totalSuspended = orgMembers.filter((m) => isSuspended(m.status)).length;
   const totalInactive = orgMembers.filter((m) => isInactive(m.status)).length;
 
-  // Anomalies : format invalide, ou numéro partagé avec un autre assuré (n'importe où, pas
-  // seulement dans cette organisation — un doublon reste un doublon).
+  // Anomalies : format invalide (ancienne structure non encore migrée, ou saisie erronée), ou
+  // numéro partagé avec un autre assuré (n'importe où, pas seulement dans cette organisation —
+  // un doublon reste un doublon).
   const cardNoCounts = new Map<string, number>();
   members.forEach((m) => cardNoCounts.set(m.cardNo, (cardNoCounts.get(m.cardNo) || 0) + 1));
   const anomalyCount = orgMembers.filter(
     (m) => !isValidCardNumberFormat(m.cardNo) || (cardNoCounts.get(m.cardNo) || 0) > 1
   ).length;
+  const legacyFormatCount = members.filter((m) => m.cardNo && !isValidCardNumberFormat(m.cardNo)).length;
 
-  const nextPrinted = counters ? (counters.lastPrintedCardNumber || 0) + 1 : null;
-  const nextInsured = counters ? (counters.lastInsuredNumber || 0) + 1 : null;
+  const nextAssured = counters ? (counters.lastAssuredNumber || 0) + 1 : null;
   const pad = (n: number, w: number) => String(n).padStart(w, '0');
+  const alreadyMigratedToV2 = counters?.formatVersion === 'v2';
 
   const handleValidateSequence = async () => {
     setValidating(true);
@@ -65,9 +82,7 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
     try {
       const updated = await migrateCardNumberCounters(members);
       setCounters(updated);
-      setValidateMessage(
-        `Sequence validated. Last Printed Card Number: ${pad(updated.lastPrintedCardNumber, 5)} · Last Insured Sequential Number: ${pad(updated.lastInsuredNumber, 4)}.`
-      );
+      setValidateMessage(`Sequence validated. Last Assured Number: ${pad(updated.lastAssuredNumber, 5)}.`);
     } catch (err: any) {
       setValidateMessage(err?.message || 'Could not validate the card number sequence.');
     } finally {
@@ -88,6 +103,24 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
       setHistoryRows([]);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const handleConfirmMigration = async () => {
+    if (!onMigrateAllCards) return;
+    setMigrating(true);
+    setMigrationError(null);
+    try {
+      const summary = await onMigrateAllCards();
+      setMigrationSummary(summary);
+      setMigrateConfirmOpen(false);
+      setMigrateConfirmInput('');
+      const updated = await getCurrentCounters();
+      setCounters(updated);
+    } catch (err: any) {
+      setMigrationError(err?.message || 'The migration failed. No further changes were made — check the console for details before retrying.');
+    } finally {
+      setMigrating(false);
     }
   };
 
@@ -114,32 +147,20 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
           {/* Sequence state */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Last Printed Card Number</span>
+              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Last Assured Number</span>
               <span className="block text-xl font-black text-slate-800 font-mono mt-0.5">
-                {loadingCounters ? '…' : counters ? pad(counters.lastPrintedCardNumber, 5) : '00000'}
-              </span>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Last Insured Sequential Number</span>
-              <span className="block text-xl font-black text-slate-800 font-mono mt-0.5">
-                {loadingCounters ? '…' : counters ? pad(counters.lastInsuredNumber, 4) : '0000'}
+                {loadingCounters ? '…' : counters ? pad(counters.lastAssuredNumber, 5) : '00000'}
               </span>
             </div>
             <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-200">
-              <span className="block text-[10px] font-bold text-emerald-600 uppercase tracking-wide">Next Printed Card Number</span>
+              <span className="block text-[10px] font-bold text-emerald-600 uppercase tracking-wide">Next Card Number</span>
               <span className="block text-xl font-black text-emerald-700 font-mono mt-0.5">
-                {nextPrinted !== null ? pad(nextPrinted, 5) : '…'}
-              </span>
-            </div>
-            <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-200">
-              <span className="block text-[10px] font-bold text-emerald-600 uppercase tracking-wide">Next Insured Sequential Number</span>
-              <span className="block text-xl font-black text-emerald-700 font-mono mt-0.5">
-                {nextInsured !== null ? pad(nextInsured, 4) : '…'}
+                {nextAssured !== null ? formatCardNumber(new Date(), nextAssured) : '…'}
               </span>
             </div>
           </div>
           <p className="text-[10.5px] text-slate-400 leading-relaxed -mt-2">
-            One shared sequence powers every organization's card numbers — the counters above are global, not specific to {organization.name}.
+            Structure: AMID-YYMMDD-NNNNN — YYMMDD is the issue date, NNNNN is one shared sequence across every organization's principals and dependents.
           </p>
 
           {/* Org-scoped stats */}
@@ -164,7 +185,7 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
               </div>
               <div className="bg-white rounded-lg p-2.5 text-center border border-slate-100">
                 <span className="block text-lg font-black text-slate-700">
-                  {loadingCounters ? '…' : counters ? counters.lastInsuredNumber : 0}
+                  {loadingCounters ? '…' : counters ? counters.lastAssuredNumber : 0}
                 </span>
                 <span className="text-[10px] font-medium text-slate-500">Consumed (all orgs)</span>
               </div>
@@ -181,7 +202,7 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
               <div>
                 <p className="text-xs font-bold text-slate-700">Validate Card Number Sequence</p>
                 <p className="text-[10.5px] text-slate-500 mt-0.5">
-                  Re-scans every insured member, raises the counters to the true historical maximum, and backfills the uniqueness registry. Safe to run anytime.
+                  Re-scans every insured member, raises the counter to the true historical maximum, and backfills the uniqueness registry. Safe to run anytime.
                 </p>
               </div>
               <button
@@ -201,6 +222,105 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
               </p>
             )}
           </div>
+
+          {/* === AMÉLIORATION AJOUTÉE (v2) : migration ponctuelle vers AMID-YYMMDD-NNNNN — sur
+              demande explicite, avec les choix confirmés (renumérotation complète, date de
+              création de chaque assuré, répercussion sur sinistres/factures/fiches/inscriptions).
+              Action clairement séparée et mise en garde plus fortement que "Validate"
+              ci-dessus : irréversible, porte sur TOUS les assurés de TOUTES les organisations. === */}
+          {onMigrateAllCards && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-rose-900">
+                    Migrate ALL Cards to the New Format (AMID-YYMMDD-NNNNN)
+                  </p>
+                  <p className="text-[10.5px] text-rose-700 mt-0.5 leading-relaxed">
+                    Renumbers every insured member and dependent still on the old format, across{' '}
+                    <strong>every organization</strong> — not just {organization.name}. Every claim, invoice, medical
+                    form, and enrollment referencing an old number is updated to match. This cannot be undone.
+                    {legacyFormatCount > 0 ? ` ${legacyFormatCount} card(s) are still on the old format.` : ' No cards are on the old format anymore.'}
+                  </p>
+                </div>
+              </div>
+
+              {alreadyMigratedToV2 && legacyFormatCount === 0 ? (
+                <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                  All cards already use the new format.
+                </p>
+              ) : !migrateConfirmOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setMigrateConfirmOpen(true)}
+                  className="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition cursor-pointer"
+                >
+                  Migrate All Cards…
+                </button>
+              ) : (
+                <div className="space-y-2.5 bg-white border border-rose-200 rounded-lg p-3">
+                  <label className="block text-[11px] font-bold text-slate-600">
+                    Type <span className="text-rose-600">MIGRATE</span> to confirm this irreversible, application-wide change
+                  </label>
+                  <input
+                    type="text"
+                    value={migrateConfirmInput}
+                    onChange={(e) => setMigrateConfirmInput(e.target.value)}
+                    placeholder="MIGRATE"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMigrateConfirmOpen(false);
+                        setMigrateConfirmInput('');
+                      }}
+                      disabled={migrating}
+                      className="px-3.5 py-2 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmMigration}
+                      disabled={migrating || migrateConfirmInput.trim() !== 'MIGRATE'}
+                      className="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {migrating && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                      <span>{migrating ? 'Migrating…' : 'Confirm Migration'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {migrationError && (
+                <p className="text-[11px] font-semibold text-rose-700 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                  {migrationError}
+                </p>
+              )}
+
+              {migrationSummary && (
+                <div className="bg-white border border-emerald-200 rounded-lg p-3 space-y-1.5">
+                  <p className="text-[11px] font-bold text-emerald-700 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                    Migration complete.
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5 text-[10.5px] text-slate-600">
+                    <span>Members renumbered: <strong className="text-slate-800">{migrationSummary.migratedMembers}</strong></span>
+                    <span>Dependents renumbered: <strong className="text-slate-800">{migrationSummary.migratedDependents}</strong></span>
+                    <span>Claims updated: <strong className="text-slate-800">{migrationSummary.claimsUpdated}</strong></span>
+                    <span>Invoices updated: <strong className="text-slate-800">{migrationSummary.invoicesUpdated}</strong></span>
+                    <span>Medical forms updated: <strong className="text-slate-800">{migrationSummary.medicalFormsUpdated}</strong></span>
+                    <span>Enrollments updated: <strong className="text-slate-800">{migrationSummary.enrollmentsUpdated}</strong></span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Import existing numbers — sur demande explicite (section 20), sans dupliquer un
               second pipeline d'import : réutilise l'import Excel des Assurés existant (Admin

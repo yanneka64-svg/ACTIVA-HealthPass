@@ -20,7 +20,7 @@ import {
 } from './types';
 import { FirestoreService } from './services/firestore';
 import { WorkflowService } from './services/workflowService';
-import { migrateCardNumberCounters } from './services/cardNumberService';
+import { migrateCardNumberCounters, migrateAllCardsToNewCardNumberFormat } from './services/cardNumberService';
 import { seedInitialDemoDataIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
@@ -873,6 +873,30 @@ export default function App() {
     imported.forEach((i) => FirestoreService.addOrganization(i));
   };
 
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System (v2) — migration
+  // ponctuelle de toutes les cartes déjà existantes vers la structure AMID-YYMMDD-NNNNN, sur
+  // demande explicite. Orchestrée ici (et non dans cardNumberService.ts directement) car
+  // c'est le seul endroit disposant déjà en mémoire de toutes les collections impactées
+  // (membres, sinistres, factures, fiches médicales, inscriptions).
+  const handleMigrateAllCards = async () => {
+    const summary = await migrateAllCardsToNewCardNumberFormat(
+      members,
+      claims,
+      invoices,
+      medicalForms,
+      enrollments,
+      { uid: currentUser?.uid, name: currentUser?.fullName || currentUser?.displayName || currentUser?.email }
+    );
+    await WorkflowService.logAction(
+      'CARD_NUMBER_FORMAT_MIGRATED',
+      'system',
+      'card-number-format-v2',
+      `Card number format migration to AMID-YYMMDD-NNNNN completed: ${summary.migratedMembers} members and ${summary.migratedDependents} dependents renumbered; ${summary.claimsUpdated} claims, ${summary.invoicesUpdated} invoices, ${summary.medicalFormsUpdated} medical forms and ${summary.enrollmentsUpdated} enrollments updated to match.`,
+      currentUser
+    );
+    return summary;
+  };
+
   // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
   const handleSaveHealthPolicy = (organizationName: string, data: Partial<HealthPolicy>) => {
     FirestoreService.upsertHealthPolicy(organizationName, data);
@@ -1239,6 +1263,7 @@ export default function App() {
               onAddPolicyPayment={handleAddPolicyPayment}
               onDeletePolicyPayment={handleDeletePolicyPayment}
               currentUser={currentUser}
+              onMigrateAllCards={handleMigrateAllCards}
             />
           )}
 
