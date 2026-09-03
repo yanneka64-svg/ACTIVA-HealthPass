@@ -257,15 +257,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Status & Version Indicator */}
+      {/* === AMÉLIORATION AJOUTÉE : taille réduite (padding, point de statut, texte) et forme
+          arrondie retirée (rounded-full/rounded-lg -> rounded-none) sur les deux badges,
+          sur demande explicite — reste identique sur toutes les interfaces puisque Sidebar
+          est partagée entre Admin / Supervisor / Agent. === */}
       <div className="p-3 border-t border-white/10 bg-slate-900/20 relative z-10">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10">
-            <div className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse flex-shrink-0" />
-            <span className="text-xs font-semibold text-white tracking-wide truncate">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-none bg-white/10 border border-white/10">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse flex-shrink-0" />
+            <span className="text-[10.5px] font-semibold text-white tracking-wide truncate">
               {currentUser?.entity || 'ACTIVA Liberia'}
             </span>
           </div>
-          <span className="px-2.5 py-1 bg-white/10 border border-white/10 text-white/80 text-xs font-mono font-bold rounded-lg shrink-0">
+          <span className="px-2 py-0.5 bg-white/10 border border-white/10 text-white/80 text-[10.5px] font-mono font-bold rounded-none shrink-0">
             v2.4.0
           </span>
         </div>
