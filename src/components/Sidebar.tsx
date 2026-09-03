@@ -142,12 +142,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const isActive = currentSection === item.id;
     const Icon = item.icon;
 
+    // === AMÉLIORATION AJOUTÉE : forme arrondie retirée de la barre de navigation (menu
+    // latéral) sur demande — boutons de menu désormais à angles droits (rounded-xl
+    // supprimé), même chose pour le petit indicateur d'item actif (rounded-r-full retiré) ===
     return (
       <button
         key={item.id}
         id={`nav-item-${item.id}`}
         onClick={() => onSelectSection(item.id)}
-        className={`w-full relative flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[13px] transition-all duration-150 group text-left cursor-pointer ${
+        className={`w-full relative flex items-center justify-between px-3.5 py-2.5 text-[13px] transition-all duration-150 group text-left cursor-pointer ${
           isActive
             ? `${theme.palette.activeItemBg} ${theme.palette.activeItemText} shadow-xs`
             : `${theme.palette.inactiveText} ${theme.palette.inactiveHoverBg} font-medium`
@@ -155,7 +158,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Subtle active indicator bar on the left */}
         {isActive && (
-          <div className={`absolute left-0 top-2 bottom-2 w-1 rounded-r-full ${theme.palette.activeIndicator}`} />
+          <div className={`absolute left-0 top-2 bottom-2 w-1 ${theme.palette.activeIndicator}`} />
         )}
 
         <div className="flex items-center gap-3 min-w-0 pl-1">
@@ -186,12 +189,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className={`absolute -bottom-16 -left-16 w-56 h-56 ${theme.palette.accentGlow} rounded-full blur-3xl pointer-events-none`} />
 
       {/* Clean subtle ACTIVA vector background curves without dots */}
+      {/* === AMÉLIORATION AJOUTÉE : couleur du motif désormais tirée de theme.palette.motifStroke
+          (or/ambre pour Admin, turquoise pour Superviseur, blanc inchangé pour Agent) au lieu
+          d'un blanc fixe pour les 3 rôles — le tracé SVG et les niveaux d'opacité restent
+          strictement identiques, seule la teinte varie selon l'interface active. === */}
       <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
         <svg className="absolute bottom-0 left-0 w-full h-84" viewBox="0 0 250 320" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
-          <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-          <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
-          <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
+          <path d="M-40 320 C 30 240, 110 220, 270 250" stroke={`rgba(${theme.palette.motifStroke}, 0.55)`} strokeWidth="1.8" />
+          <path d="M-40 280 C 50 210, 130 190, 270 220" stroke={`rgba(${theme.palette.motifStroke}, 0.45)`} strokeWidth="1.5" />
+          <path d="M-40 240 C 70 180, 150 160, 270 190" stroke={`rgba(${theme.palette.motifStroke}, 0.38)`} strokeWidth="1.3" />
+          <path d="M-40 200 C 90 150, 170 130, 270 160" stroke={`rgba(${theme.palette.motifStroke}, 0.30)`} strokeWidth="1.2" />
         </svg>
       </div>
 
@@ -221,7 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title="OVERVIEW"
           isOpen={isOverviewOpen}
           onToggle={() => setIsOverviewOpen((prev) => !prev)}
-          titleColor={isAdmin ? 'text-gray-400' : isSupervisor ? 'text-teal-200/70' : 'text-blue-200/70'}
+          titleColor={isAdmin ? 'text-slate-300/90' : isSupervisor ? 'text-teal-200/80' : 'text-blue-200/80'}
         >
           {filteredOverviewItems.map(renderNavItem)}
         </CollapsibleNavSection>
@@ -233,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="MANAGEMENT"
             isOpen={isManagementOpen}
             onToggle={() => setIsManagementOpen((prev) => !prev)}
-            titleColor="text-gray-400"
+            titleColor="text-slate-300/90"
           >
             {managementItems.map(renderNavItem)}
           </CollapsibleNavSection>
@@ -246,7 +253,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="SYSTEM"
             isOpen={isSystemOpen}
             onToggle={() => setIsSystemOpen((prev) => !prev)}
-            titleColor="text-gray-400"
+            titleColor="text-slate-300/90"
           >
             {systemItems.map(renderNavItem)}
           </CollapsibleNavSection>
@@ -254,15 +261,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Status & Version Indicator */}
-      <div className="p-3 border-t border-white/10 bg-black/15 relative z-10">
+      {/* === AMÉLIORATION AJOUTÉE : bannière/fond retiré (plus de bg-white/10 ni de bordure)
+          sur les deux badges — texte nu directement sur le fond de la sidebar — et taille
+          encore réduite (padding supprimé, texte plus petit), sur demande explicite. === */}
+      <div className="p-3 border-t border-white/10 bg-slate-900/20 relative z-10">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10">
-            <div className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse flex-shrink-0" />
-            <span className="text-xs font-semibold text-white tracking-wide truncate">
+          <div className="flex items-center gap-1 min-w-0">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse flex-shrink-0" />
+            <span className="text-[9.5px] font-semibold text-white/90 tracking-wide truncate">
               {currentUser?.entity || 'ACTIVA Liberia'}
             </span>
           </div>
-          <span className="px-2.5 py-1 bg-white/10 border border-white/10 text-white/80 text-xs font-mono font-bold rounded-lg shrink-0">
+          <span className="text-white/60 text-[9.5px] font-mono font-bold shrink-0">
             v2.4.0
           </span>
         </div>

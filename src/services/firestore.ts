@@ -1,6 +1,6 @@
-import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, writeBatch, DocumentReference } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, MedicalForm, AppNotification } from '../types';
+import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, MedicalForm, AppNotification, HealthPolicy, PolicyPayment } from '../types';
 import { getFullDemoData, seedInitialDemoDataIfEmpty } from './seedData';
 
 export enum OperationType {
@@ -235,6 +235,33 @@ export const FirestoreService = {
       }
     ),
 
+  // === AMÉLIORATION AJOUTÉE : module Health Insurance Policy Management & Premium
+  // Monitoring — écoute des collections `healthPolicies` (une par organisation, voir
+  // upsertHealthPolicy ci-dessous) et `policyPayments` (historique de paiement).
+  subscribeToHealthPolicies: (cb: (data: HealthPolicy[]) => void) =>
+    onSnapshot(
+      collection(db, 'healthPolicies'),
+      (snap) => {
+        const map = new Map<string, HealthPolicy>();
+        snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as HealthPolicy));
+        cb(Array.from(map.values()));
+      },
+      (err) => handleFirestoreError(err, OperationType.GET, 'healthPolicies')
+    ),
+
+  subscribeToPolicyPayments: (cb: (data: PolicyPayment[]) => void) =>
+    onSnapshot(
+      collection(db, 'policyPayments'),
+      (snap) => {
+        const map = new Map<string, PolicyPayment>();
+        snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as PolicyPayment));
+        const list = Array.from(map.values());
+        list.sort((a, b) => new Date(b.paymentDate || b.createdAt || 0).getTime() - new Date(a.paymentDate || a.createdAt || 0).getTime());
+        cb(list);
+      },
+      (err) => handleFirestoreError(err, OperationType.GET, 'policyPayments')
+    ),
+
   subscribeToNotifications: (cb: (data: AppNotification[]) => void) =>
     onSnapshot(
       collection(db, 'notifications'),
@@ -262,10 +289,24 @@ export const FirestoreService = {
     }
   },
   updateMember: async (data: Member) => {
+    const { id, ...rest } = data;
     try {
-      const { id, ...rest } = data;
       return await updateDoc(doc(db, 'members', id), rest);
     } catch (err) {
+      // FIX: updateDoc() throws (code 'not-found') if the target document doesn't
+      // actually exist server-side — which happens whenever `data.id` came from a LOCAL
+      // id that was never confirmed as a real Firestore document (e.g. an earlier import
+      // whose write loop was interrupted, or Firestore's offline-cache briefly reporting
+      // a not-yet-synced record). Before this fix, that single throw aborted the ENTIRE
+      // sequential import loop in App.tsx's handleImportMembers — every record queued
+      // after the failing one was silently never written, while the UI still reported a
+      // "success" summary (computed from parsing alone, before any write happened). Self-
+      // healing to addDoc() here (create the record instead of failing) — combined with
+      // Promise.allSettled in handleImportMembers so one failure can no longer take down
+      // the rest — closes that data-loss path.
+      if ((err as any)?.code === 'not-found') {
+        return await addDoc(collection(db, 'members'), rest);
+      }
       handleFirestoreError(err, OperationType.UPDATE, `members/${data.id}`);
       throw err;
     }
@@ -379,6 +420,14 @@ export const FirestoreService = {
       return await updateDoc(doc(db, 'invoices', id), rest);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `invoices/${data.id}`);
+      throw err;
+    }
+  },
+  deleteInvoice: async (id: string) => {
+    try {
+      return await deleteDoc(doc(db, 'invoices', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `invoices/${id}`);
       throw err;
     }
   },
@@ -551,6 +600,106 @@ export const FirestoreService = {
       return await deleteDoc(doc(db, 'notifications', id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `notifications/${id}`);
+      throw err;
+    }
+  },
+
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
+  // Le document `healthPolicies/{organizationName}` utilise le NOM de l'organisation comme
+  // identifiant de document (au lieu d'un id auto-généré) — c'est ce qui permet à
+  // firestore.rules de retrouver la police d'une réclamation/fiche médicale par un simple
+  // get() sur `organization` (le champ déjà utilisé partout ailleurs dans l'app pour relier
+  // un membre/sinistre à son organisation), sans jointure ni Cloud Function.
+  upsertHealthPolicy: async (organizationName: string, data: Partial<HealthPolicy>) => {
+    try {
+      return await setDoc(
+        doc(db, 'healthPolicies', organizationName),
+        { ...data, organizationId: organizationName, updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `healthPolicies/${organizationName}`);
+      throw err;
+    }
+  },
+  deleteHealthPolicy: async (organizationName: string) => {
+    try {
+      return await deleteDoc(doc(db, 'healthPolicies', organizationName));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `healthPolicies/${organizationName}`);
+      throw err;
+    }
+  },
+
+  addPolicyPayment: async (data: Partial<PolicyPayment>) => {
+    try {
+      return await addDoc(collection(db, 'policyPayments'), {
+        ...data,
+        createdAt: data.createdAt || new Date().toISOString(),
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'policyPayments');
+      throw err;
+    }
+  },
+  updatePolicyPayment: async (data: PolicyPayment) => {
+    try {
+      const { id, ...rest } = data;
+      return await updateDoc(doc(db, 'policyPayments', id), rest);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `policyPayments/${data.id}`);
+      throw err;
+    }
+  },
+  deletePolicyPayment: async (id: string) => {
+    try {
+      return await deleteDoc(doc(db, 'policyPayments', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `policyPayments/${id}`);
+      throw err;
+    }
+  },
+
+  // === AMÉLIORATION AJOUTÉE : suppression en cascade des données d'une organisation — sur
+  // demande explicite ("supprimer toutes les données de X dans Firestore et sur
+  // l'application"). Jusqu'ici, `deleteOrganization` (inchangée, toujours utilisée en dernier
+  // par l'appelant) ne supprimait que le document `organizations/{id}`, laissant orphelins
+  // tous les membres, sinistres, inscriptions, factures, formulaires médicaux et plafonds
+  // liés (champ `organization` == nom de l'organisation), ainsi que sa police santé et son
+  // historique de paiements (voir upsertHealthPolicy ci-dessus). Cette fonction supprime
+  // maintenant TOUTES ces données liées, par lots (writeBatch, sous la limite Firestore de
+  // 500 opérations/lot) pour rester robuste même sur un volume important.
+  cascadeDeleteOrganizationData: async (organizationName: string) => {
+    if (!organizationName) return;
+    const BATCH_LIMIT = 450;
+    const deleteRefsInBatches = async (refs: DocumentReference[]) => {
+      for (let i = 0; i < refs.length; i += BATCH_LIMIT) {
+        const chunk = refs.slice(i, i + BATCH_LIMIT);
+        const batch = writeBatch(db);
+        chunk.forEach((ref) => batch.delete(ref));
+        await batch.commit();
+      }
+    };
+
+    try {
+      // Toutes les collections où un document porte un champ `organization` (nom exact).
+      const orgScopedCollections = ['members', 'claims', 'enrollments', 'invoices', 'medicalForms', 'ceilings'];
+      for (const collectionName of orgScopedCollections) {
+        const snap = await getDocs(query(collection(db, collectionName), where('organization', '==', organizationName)));
+        await deleteRefsInBatches(snap.docs.map((d) => d.ref));
+      }
+
+      // Police santé (id de document = nom de l'organisation, par convention) + son historique
+      // de paiements (champ `organizationId` == nom de l'organisation).
+      try {
+        await deleteDoc(doc(db, 'healthPolicies', organizationName));
+      } catch {
+        // pas de police configurée pour cette organisation -> rien à supprimer, on continue
+      }
+      const paymentsSnap = await getDocs(query(collection(db, 'policyPayments'), where('organizationId', '==', organizationName)));
+      await deleteRefsInBatches(paymentsSnap.docs.map((d) => d.ref));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `cascade-organization-data/${organizationName}`);
       throw err;
     }
   },

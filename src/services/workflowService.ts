@@ -1,5 +1,7 @@
-import { Enrollment, Claim, Member, Organization, InvoiceItem, AppNotification, DependentItem, DependentRelationship } from '../types';
+import { Enrollment, Claim, Member, Organization, InvoiceItem, AppNotification, DependentItem, DependentRelationship, HealthPolicy } from '../types';
 import { FirestoreService } from './firestore';
+import { getPolicyCoverageStatus } from './policyEngine';
+import { generateNextCardNumber } from './cardNumberService';
 
 /**
  * Service to execute end-to-end multi-role workflows and keep Firestore records,
@@ -221,9 +223,23 @@ export const WorkflowService = {
           dependents: currentDeps,
         });
       } else {
+        // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
+        // explicite. Ce repli (déclenché quand l'ayant droit approuvé référence un assuré
+        // principal introuvable dans l'annuaire) générait auparavant un numéro aléatoire au
+        // format obsolète "ACT-PRI-XXXXX", contournant le système de numérotation
+        // centralisé. Génère désormais un numéro AMID-YYMMDD-NNNNN unique et transactionnel,
+        // uniquement dans ce cas de repli (si `mainInsuredCardNo` est déjà renseigné, il est
+        // conservé tel quel, sans y toucher).
+        const primaryCardNo =
+          enr.mainInsuredCardNo ||
+          (await generateNextCardNumber({
+            organization: enr.organization,
+            insuredName: enr.mainInsuredName || 'Principal Insured',
+            method: 'ENROLLMENT',
+          }));
         // Create primary holder entry and attach dependent
         await FirestoreService.addMember({
-          cardNo: enr.mainInsuredCardNo || `ACT-PRI-${Math.floor(10000 + Math.random() * 90000)}`,
+          cardNo: primaryCardNo,
           principalName: enr.mainInsuredName || 'Principal Insured',
           birthDate: '1985-01-01',
           gender: 'M',
@@ -405,5 +421,90 @@ export const WorkflowService = {
       targetSection: entityType === 'organization' ? 'organizations' : entityType === 'member' ? 'members' : 'claims',
       entityId: entityId,
     });
+  },
+
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
+  // Recalcule automatiquement le statut de CHAQUE police (moteur centralisé
+  // policyEngine.getPolicyCoverageStatus — jamais un statut stocké qu'on ferait confiance
+  // aveuglément) et, uniquement pour les polices dont le statut calculé diverge du dernier
+  // statut persisté, met à jour Firestore + crée une notification pour les utilisateurs
+  // opérationnels concernés (Admin/Supervisor). Sans backend planifié (Cloud Functions) dans
+  // ce projet, cette fonction est appelée depuis App.tsx à chaque changement des données de
+  // police ET sur un intervalle périodique, pour que les transitions basées sur la date
+  // (expiration, fin de délai de grâce) soient détectées même sans écriture déclenchante.
+  // Idempotent : une police déjà à jour (statut calculé == statut stocké) n'est jamais
+  // réécrite, donc aucun risque de boucle infinie via le listener onSnapshot qui redéclenche
+  // cette fonction.
+  syncPolicyStatuses: async (policies: HealthPolicy[], members: Member[]): Promise<void> => {
+    for (const policy of policies) {
+      const computed = getPolicyCoverageStatus(policy);
+      if (computed.status === policy.status && computed.coverageBlocked === policy.coverageBlocked) {
+        continue; // Already accurate — nothing to persist or notify.
+      }
+
+      const wasBlocked = policy.coverageBlocked;
+      const nowBlocked = computed.coverageBlocked;
+
+      await FirestoreService.upsertHealthPolicy(policy.organizationId, {
+        status: computed.status,
+        coverageBlocked: computed.coverageBlocked,
+        suspensionReason: computed.suspensionReason,
+        suspensionDate:
+          !wasBlocked && nowBlocked && (computed.status === 'Suspended')
+            ? new Date().toISOString().split('T')[0]
+            : policy.suspensionDate,
+        reactivationDate:
+          wasBlocked && !nowBlocked ? new Date().toISOString().split('T')[0] : policy.reactivationDate,
+      });
+
+      const orgMembers = members.filter(
+        (m) => m.organization?.toLowerCase().trim() === policy.organizationId.toLowerCase().trim()
+      );
+      const dependentsCount = orgMembers.reduce(
+        (sum, m) => sum + ((m.dependents?.length || 0) + (m.children?.length || 0) + (m.spouseName ? 1 : 0)),
+        0
+      );
+
+      let title = '';
+      let message = '';
+      if (computed.status === 'Expired') {
+        title = 'Policy Expired';
+        message = `${policy.organizationId}\nPolicy ${policy.policyNumber} expired on ${policy.expirationDate}.\n\n${orgMembers.length} insured members affected\n${dependentsCount} dependents affected`;
+      } else if (computed.status === 'Suspended') {
+        title = 'Policy Suspended';
+        message = `${policy.organizationId}\nPolicy ${policy.policyNumber} has been suspended${
+          computed.suspensionReason === 'Non-payment' ? ' due to unpaid premium' : ''
+        }.\n\n${orgMembers.length} insured members affected\n${dependentsCount} dependents affected`;
+      } else if (computed.status === 'Expiring Soon') {
+        title = 'Policy Expiring Soon';
+        message = `${policy.organizationId}\nPolicy ${policy.policyNumber} expires on ${policy.expirationDate} (${computed.daysUntilExpiration} day(s) left).`;
+      } else if (wasBlocked && !nowBlocked) {
+        title = 'Policy Reactivated';
+        message = `${policy.organizationId}\nPolicy ${policy.policyNumber} has been reactivated. Healthcare access restored for ${orgMembers.length} insured members and ${dependentsCount} dependents.`;
+      }
+
+      if (title) {
+        await FirestoreService.addNotification({
+          recipientRole: 'Admin',
+          title,
+          message,
+          timestamp: new Date().toISOString(),
+          unread: true,
+          type: 'policy',
+          targetSection: 'organizations',
+          entityId: policy.id,
+        });
+        await FirestoreService.addNotification({
+          recipientRole: 'Supervisor',
+          title,
+          message,
+          timestamp: new Date().toISOString(),
+          unread: true,
+          type: 'policy',
+          targetSection: 'organizations',
+          entityId: policy.id,
+        });
+      }
+    }
   },
 };

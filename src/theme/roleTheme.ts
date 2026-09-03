@@ -44,6 +44,11 @@ export interface RoleThemeConfig {
     accentRing: string;
     accentGlow: string;
     hexRamp: BrandHexRamp;
+    // === AMÉLIORATION AJOUTÉE : couleur (triplet RGB, utilisé dans des rgba()) du motif de
+    // courbes décoratif de la sidebar — distincte par rôle, pour qu'on distingue visuellement
+    // l'interface active en naviguant d'un rôle à l'autre, même si le dégradé de fond reste
+    // dans une tonalité bleu/marine proche. Le motif lui-même (tracé SVG) est inchangé.
+    motifStroke: string;
   };
 }
 
@@ -51,14 +56,14 @@ export const ADMIN_THEME: RoleThemeConfig = {
   role: 'Admin',
   displayName: 'Administrator',
   palette: {
-    sidebarBg: '#111827',
-    sidebarGradient: 'bg-gradient-to-b from-[#111827] via-[#1F2937] to-[#0F172A]',
-    sidebarBorder: 'border-[#374151]',
-    activeItemBg: 'bg-white/15 hover:bg-white/20',
+    sidebarBg: '#334155',
+    sidebarGradient: 'bg-gradient-to-b from-[#334155] via-[#3B485C] to-[#1E293B]',
+    sidebarBorder: 'border-slate-600/70',
+    activeItemBg: 'bg-white/20 hover:bg-white/25',
     activeItemText: 'text-white font-bold',
     activeIndicator: 'bg-white',
     activeIconColor: 'text-white',
-    inactiveText: 'text-gray-300 hover:text-white',
+    inactiveText: 'text-slate-200/90 hover:text-white',
     inactiveHoverBg: 'hover:bg-white/10',
     badgeBg: 'bg-[#111827] text-white border border-gray-600',
     primaryColor: 'bg-[#1F2937] hover:bg-[#111827]',
@@ -77,6 +82,8 @@ export const ADMIN_THEME: RoleThemeConfig = {
       '50': '#f8fafc', '100': '#f1f5f9', '200': '#e2e8f0', '300': '#cbd5e1', '400': '#94a3b8',
       '500': '#64748b', '600': '#475569', '700': '#334155', '800': '#1e293b', '900': '#0f172a',
     },
+    // Admin — teinte or/ambre (identité "exécutif"), distincte du bleu Agent et du vert Superviseur.
+    motifStroke: '245, 197, 66',
   },
 };
 
@@ -110,6 +117,8 @@ export const SUPERVISOR_THEME: RoleThemeConfig = {
       '50': '#f0fdfa', '100': '#ccfbf1', '200': '#99f6e4', '300': '#5eead4', '400': '#2dd4bf',
       '500': '#14b8a6', '600': '#0d9488', '700': '#0f766e', '800': '#115e59', '900': '#134e4a',
     },
+    // Superviseur — teinte turquoise/menthe, cohérente avec activeIndicator (#2DD4BF).
+    motifStroke: '45, 212, 191',
   },
 };
 
@@ -144,6 +153,9 @@ export const AGENT_THEME: RoleThemeConfig = {
       '50': '#eff6ff', '100': '#dbeafe', '200': '#bfdbfe', '300': '#93c5fd', '400': '#60a5fa',
       '500': '#3b82f6', '600': '#2563eb', '700': '#1d4ed8', '800': '#1e40af', '900': '#0a2e6b',
     },
+    // Agent — blanc, identique à l'existant (comportement inchangé, sert de référence à la
+    // page de connexion qui reprend ce même motif).
+    motifStroke: '255, 255, 255',
   },
 };
 

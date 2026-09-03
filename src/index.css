@@ -26,6 +26,30 @@
     color: #0a2e6b;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* === AMÉLIORATION AJOUTÉE : le curseur texte clignotant (I-beam) et la sélection de
+       texte ne doivent apparaître que dans les champs de saisie dédiés (barres de recherche,
+       page de connexion, etc.) — partout ailleurs, le pointeur normal (flèche/main) doit
+       s'afficher, comme sur les données et éléments cliquables. Ces deux règles sont
+       réactivées explicitement ci-dessous pour input/textarea/[contenteditable]. */
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input, textarea, select, [contenteditable="true"] {
+    cursor: text;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Checkboxes/radios/date & file pickers keep the normal pointer, not the text I-beam */
+  input[type="checkbox"], input[type="radio"], input[type="date"], input[type="file"],
+  input[type="submit"], input[type="button"], select {
+    cursor: pointer;
+  }
+
+  button, a, [role="button"], summary {
+    cursor: pointer;
   }
 }
 
@@ -52,6 +76,58 @@
   }
   aside, nav, header, button, .no-print {
     display: none !important;
+  }
+}
+
+/* === AMÉLIORATION AJOUTÉE : animation du panneau bleu de la page de connexion (badge,
+   titre "Hello, ACTIVA HealthPass!", texte et copyright entrent en fondu/glissement à
+   l'affichage ; le motif de courbes décoratif dérive lentement en continu) — sur demande
+   explicite. Comportement du formulaire, mise en page et couleurs strictement inchangés,
+   seule une animation d'entrée/ambiance est ajoutée. Respecte prefers-reduced-motion. */
+@keyframes login-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-motif-drift {
+  0%, 100% {
+    transform: translateX(0) translateY(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateX(8px) translateY(-6px);
+    opacity: 0.65;
+  }
+}
+
+.login-anim-fade-up {
+  opacity: 0;
+  animation: login-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.login-anim-delay-1 { animation-delay: 0.1s; }
+.login-anim-delay-2 { animation-delay: 0.25s; }
+.login-anim-delay-3 { animation-delay: 0.4s; }
+.login-anim-delay-4 { animation-delay: 0.55s; }
+
+.login-motif-drift {
+  animation: login-motif-drift 12s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-anim-fade-up {
+    opacity: 1;
+    animation: none;
+    transform: none;
+  }
+  .login-motif-drift {
+    animation: none;
   }
 }
 

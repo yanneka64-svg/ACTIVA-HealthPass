@@ -13,6 +13,8 @@ import {
   X,
   Eye,
   FileSpreadsheet,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { InvoiceItem, Language } from '../types';
 import { useTranslation } from '../i18n/translations';
@@ -22,9 +24,16 @@ import { printBordereauSlip, downloadBordereauPDF } from '../utils/printUtils';
 interface InvoicesViewProps {
   lang: Language;
   invoices: InvoiceItem[];
+  userRole?: string;
+  onDeleteInvoice?: (id: string) => Promise<void> | void;
 }
 
-export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) => {
+export const InvoicesView: React.FC<InvoicesViewProps> = ({
+  lang,
+  invoices,
+  userRole = 'Admin',
+  onDeleteInvoice,
+}) => {
   const t = useTranslation(lang);
   const { formatAmount } = useCurrency();
   const [viewMode, setViewMode] = useState<'full' | 'patient' | 'family'>('full');
@@ -33,6 +42,44 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
   const [orgFilter, setOrgFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [viewSlipInvoice, setViewSlipInvoice] = useState<InvoiceItem | null>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<InvoiceItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
+  const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
+  const canDeleteInvoice = isAdmin || isSupervisor;
+
+  // === AMÉLIORATION AJOUTÉE : gris de la barre latérale Admin (auparavant bg-slate-900,
+  // un noir quasi-pur perçu comme "noir" plutôt que gris par l'utilisateur) ===
+  const primaryBtnClass = isAdmin
+    ? 'bg-slate-700 hover:bg-slate-800 text-white'
+    : isSupervisor
+    ? 'bg-[#0F766E] hover:bg-[#115E59] text-white'
+    : 'bg-[#0A347B] hover:bg-[#072659] text-white';
+
+  const activeTabClass = isAdmin
+    ? 'bg-slate-700 text-white shadow-xs'
+    : isSupervisor
+    ? 'bg-[#0F766E] text-white shadow-xs'
+    : 'bg-[#0A347B] text-white shadow-xs';
+
+  const primaryTextClass = isAdmin ? 'text-slate-700' : isSupervisor ? 'text-[#0F766E]' : 'text-[#0A347B]';
+
+  const handleDeleteConfirm = async () => {
+    if (!invoiceToDelete || !onDeleteInvoice) return;
+    try {
+      setIsDeleting(true);
+      await onDeleteInvoice(invoiceToDelete.id);
+      if (viewSlipInvoice?.id === invoiceToDelete.id) {
+        setViewSlipInvoice(null);
+      }
+      setInvoiceToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete invoice', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Derive unique orgs and categories for filters
   const uniqueOrgs = useMemo(() => {
@@ -178,16 +225,21 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
         </div>
       </div>
 
-      {/* 3. TABS & FILTER TOOLBAR (Aligned on a single horizontal line) */}
-      <div className="bg-white rounded-2xl p-3 sm:p-3.5 border border-[#E8EDF2] shadow-xs flex flex-wrap items-center justify-between gap-3">
-        {/* Navigation Tabs */}
-        <div className="inline-flex p-1 bg-[#F8FAFC] rounded-xl border border-[#E8EDF2] shrink-0">
+      {/* 3. TABS & FILTER TOOLBAR */}
+      {/* === AMÉLIORATION AJOUTÉE : sur mobile, la barre passait en dépassement horizontal
+          (le champ de recherche et le filtre organisation gardaient une largeur minimale fixe
+          qui dépassait l'écran, forçant toute la page à défiler horizontalement). Chaque bloc
+          est maintenant en pleine largeur et empilé verticalement en dessous de `sm`, et
+          redevient une seule ligne horizontale comme avant à partir de `sm`. ===  */}
+      <div className="bg-white rounded-2xl p-3 sm:p-3.5 border border-[#E8EDF2] shadow-xs flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-between gap-3">
+        {/* Navigation Tabs — scrollable horizontally instead of wrapping/overflowing on narrow screens */}
+        <div className="flex sm:inline-flex p-1 bg-[#F8FAFC] rounded-xl border border-[#E8EDF2] shrink-0 overflow-x-auto">
           <button
             onClick={() => setViewMode('full')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'full'
-                ? 'bg-[var(--brand-900)] text-white shadow-xs'
-                : 'text-[#778FAF] hover:text-[var(--brand-900)]'
+                ? activeTabClass
+                : 'text-[#778FAF] hover:text-[#0D2B63]'
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
@@ -197,8 +249,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             onClick={() => setViewMode('patient')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'patient'
-                ? 'bg-[var(--brand-900)] text-white shadow-xs'
-                : 'text-[#778FAF] hover:text-[var(--brand-900)]'
+                ? activeTabClass
+                : 'text-[#778FAF] hover:text-[#0D2B63]'
             }`}
           >
             <User className="w-3.5 h-3.5" />
@@ -208,8 +260,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             onClick={() => setViewMode('family')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'family'
-                ? 'bg-[var(--brand-900)] text-white shadow-xs'
-                : 'text-[#778FAF] hover:text-[var(--brand-900)]'
+                ? activeTabClass
+                : 'text-[#778FAF] hover:text-[#0D2B63]'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
@@ -217,16 +269,16 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
           </button>
         </div>
 
-        {/* Search & Filters on the same line */}
-        <div className="flex items-center gap-2.5 flex-1 min-w-[280px] sm:flex-initial justify-end">
+        {/* Search & Filters: full-width stacked on mobile, inline on the same row from sm */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto sm:flex-1 sm:min-w-[280px] sm:justify-end">
           {/* Search */}
-          <div className="relative min-w-[200px] flex-1 sm:w-64 sm:flex-initial">
+          <div className="relative w-full sm:w-64">
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search invoice"
-              className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs text-[var(--brand-900)] placeholder:text-[#778FAF] focus:outline-none focus:border-[var(--brand-900)] focus:ring-1 focus:ring-[var(--brand-900)] focus:bg-white transition"
+              className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-slate-800 focus:ring-1 focus:ring-slate-800 focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-[#778FAF] absolute left-3 top-2.5" />
             {searchTerm && (
@@ -240,7 +292,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
           <select
             value={orgFilter}
             onChange={(e) => setOrgFilter(e.target.value)}
-            className="px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[var(--brand-900)] focus:outline-none focus:border-[var(--brand-900)] cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-auto px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[#0D2B63] focus:outline-none focus:border-slate-800 cursor-pointer whitespace-nowrap"
           >
             <option value="ALL">All Organizations</option>
             {uniqueOrgs.map((org) => (
@@ -254,21 +306,125 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
 
       {/* 4. MAIN DATA VIEW */}
       {viewMode === 'full' ? (
-        /* Full Data Table matching Screenshot */
-        <div className="bg-white rounded-2xl border border-[#E8EDF2] shadow-xs overflow-hidden">
+        <>
+        {/* === AMÉLIORATION AJOUTÉE : sur téléphone, le tableau (9 colonnes) forçait toute la
+            page à défiler horizontalement et seules 2 colonnes restaient visibles à l'écran —
+            une liste de fiches empilées verticalement le remplace en dessous de `sm`, avec
+            exactement les mêmes informations et actions (Slip / Suppression) qu'une ligne du
+            tableau. Le tableau original reste inchangé à partir de `sm`. === */}
+        <div className="sm:hidden space-y-3">
+          {filteredInvoices.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-[#E8EDF2] p-8 text-center text-[#778FAF] font-medium text-xs">
+              No invoices found matching your criteria.
+            </div>
+          ) : (
+            filteredInvoices.map((inv) => {
+              const covered = inv.coveredAmount !== undefined ? inv.coveredAmount : (inv.amount * (inv.coveragePercentage || 80)) / 100;
+              const copay = Math.max(0, inv.amount - covered);
+              const claimRef = inv.claimId || `SIN-${inv.id.substring(0, 8)}`;
+
+              return (
+                <div key={inv.id} className="bg-white rounded-2xl border border-[#E8EDF2] shadow-xs p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 font-mono text-xs truncate">{inv.reference}</div>
+                      <div className="text-[10.5px] text-[#778FAF] truncate">{claimRef} · {inv.serviceDate || '2025-08-18'}</div>
+                    </div>
+                    {inv.status === 'valid' || inv.status === 'approved' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A878] text-[10.5px] font-bold shrink-0">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Validated</span>
+                      </span>
+                    ) : inv.status === 'pending' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF6D9] text-[#F5B942] text-[10.5px] font-bold shrink-0">
+                        <Clock className="w-3 h-3" />
+                        <span>Pending</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#DC4C4C] text-[10.5px] font-bold shrink-0">
+                        <X className="w-3 h-3" />
+                        <span>Rejected</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <User className="w-3.5 h-3.5 text-[#778FAF] shrink-0" />
+                    <span className="font-bold text-[#0D2B63] truncate">{inv.patientName}</span>
+                    <span className="text-[10.5px] font-mono text-slate-500 shrink-0">{inv.patientPolicyNumber || 'ACT-2025-0089'}</span>
+                  </div>
+
+                  <div className="text-xs truncate">
+                    <span className="font-bold text-[#0D2B63]">{inv.provider}</span>
+                    <span className="text-[10.5px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
+                  </div>
+
+                  <span className="inline-block px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10.5px] font-semibold text-[#0D2B63]" title={inv.description || inv.careType}>
+                    {inv.careType}
+                  </span>
+
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#E8EDF2] text-center">
+                    <div>
+                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Invoiced</div>
+                      <div className="font-bold text-[#0D2B63] text-xs">{formatAmount(inv.amount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Covered</div>
+                      <div className="font-bold text-[#00A878] text-xs">{formatAmount(covered)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Copay</div>
+                      <div className="font-bold text-[#0D2B63] text-xs">{formatAmount(copay)}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <button
+                      onClick={() => setViewSlipInvoice(inv)}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-700" />
+                      <span>View Slip</span>
+                    </button>
+                    {canDeleteInvoice && (
+                      <button
+                        onClick={() => setInvoiceToDelete(inv)}
+                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer"
+                        title="Delete invoice (Admin)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Full Data Table matching Screenshot — desktop/tablet only, see mobile cards above */}
+        <div className="hidden sm:block bg-white rounded-2xl border border-[#E8EDF2] shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[900px]">
+            {/* === AMÉLIORATION AJOUTÉE : tableau réorganisé pour que chaque ligne (en-tête ET
+                contenu) tienne sur une seule ligne — cellules en `whitespace-nowrap`/`truncate`
+                au lieu de s'empiler sur 2-3 lignes, alignement vertical centré au lieu de
+                `align-top`, padding uniformisé, et intitulés de colonnes allégés
+                ("HEALTHCARE FACILITY" → "FACILITY", "ACT & CARE CATEGORY" → "CATEGORY").
+                Les informations secondaires (n° de sinistre, date, organisation, médecin,
+                libellé détaillé) restent accessibles via une infobulle (title) plutôt que
+                d'occuper une ligne supplémentaire. === */}
+            <table className="w-full text-left border-collapse min-w-[880px]">
               <thead>
                 <tr className="border-b border-[#E8EDF2] bg-[#F8FAFC] text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-                  <th className="py-3.5 px-5">INVOICE REF</th>
-                  <th className="py-3.5 px-5">PATIENT</th>
-                  <th className="py-3.5 px-5">HEALTHCARE FACILITY</th>
-                  <th className="py-3.5 px-5">ACT & CARE CATEGORY</th>
-                  <th className="py-3.5 px-4 text-right">INVOICED ($)</th>
-                  <th className="py-3.5 px-4 text-right text-[#00A859]">COVERED ($)</th>
-                  <th className="py-3.5 px-4 text-right">COPAY ($)</th>
-                  <th className="py-3.5 px-5 text-center">STATUS</th>
-                  <th className="py-3.5 px-5 text-center">DOCUMENTS</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Invoice Ref</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Patient</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Facility</th>
+                  <th className="py-3 px-4 whitespace-nowrap">Category</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">Invoiced ($)</th>
+                  <th className="py-3 px-4 text-right text-[#00A878] whitespace-nowrap">Covered ($)</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">Copay ($)</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8EDF2] text-xs">
@@ -282,69 +438,66 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                   filteredInvoices.map((inv) => {
                     const covered = inv.coveredAmount !== undefined ? inv.coveredAmount : (inv.amount * (inv.coveragePercentage || 80)) / 100;
                     const copay = Math.max(0, inv.amount - covered);
+                    const claimRef = inv.claimId || `SIN-${inv.id.substring(0, 8)}`;
 
                     return (
                       <tr key={inv.id} className="hover:bg-[#F8FAFC]/80 transition">
-                        {/* INVOICE REF */}
-                        <td className="py-4 px-5 align-top">
-                          <div className="font-bold text-[var(--brand-900)] font-mono text-xs">{inv.reference}</div>
-                          <div className="text-[11px] text-[#778FAF] mt-0.5">
-                            Claim: <span className="font-mono">{inv.claimId || `SIN-${inv.id.substring(0, 8)}`}</span>
-                          </div>
-                          <div className="text-[11px] text-[#778FAF] mt-0.5">
-                            🗓 {inv.serviceDate || '2025-08-18'}
+                        {/* INVOICE REF — reference + claim + date, all on one line */}
+                        <td className="py-3 px-4 align-middle max-w-[190px]" title={`Claim: ${claimRef} • ${inv.serviceDate || '2025-08-18'}`}>
+                          <div className="flex items-baseline gap-1.5 truncate">
+                            <span className="font-bold text-slate-900 font-mono text-xs">{inv.reference}</span>
+                            <span className="text-[10.5px] text-[#778FAF] truncate">
+                              {claimRef} · {inv.serviceDate || '2025-08-18'}
+                            </span>
                           </div>
                         </td>
 
-                        {/* PATIENT */}
-                        <td className="py-4 px-5 align-top">
-                          <div className="flex items-center gap-1.5">
+                        {/* PATIENT — name + card number on one line, organization as tooltip */}
+                        <td className="py-3 px-4 align-middle max-w-[200px]" title={inv.organization}>
+                          <div className="flex items-center gap-1.5 truncate">
                             <User className="w-3.5 h-3.5 text-[#778FAF] shrink-0" />
-                            <span className="font-bold text-[var(--brand-900)]">{inv.patientName}</span>
-                          </div>
-                          <div className="text-[11px] font-mono text-[var(--brand-900)] font-semibold mt-0.5">
-                            {inv.patientPolicyNumber || 'ACT-2025-0089'}
-                          </div>
-                          <div className="text-[11px] text-[#778FAF] mt-0.5 truncate max-w-[180px]">
-                            🏢 {inv.organization}
+                            <span className="font-bold text-[#0D2B63] truncate">{inv.patientName}</span>
+                            <span className="text-[10.5px] font-mono text-slate-500 shrink-0">
+                              {inv.patientPolicyNumber || 'ACT-2025-0089'}
+                            </span>
                           </div>
                         </td>
 
-                        {/* HEALTHCARE FACILITY */}
-                        <td className="py-4 px-5 align-top">
-                          <div className="font-bold text-[var(--brand-900)]">{inv.provider}</div>
-                          <div className="text-[11px] text-[#778FAF] mt-0.5">
-                            🩺 {inv.prescribingDoctor || 'Dr. Medical Staff'}
+                        {/* FACILITY — provider + doctor on one line */}
+                        <td className="py-3 px-4 align-middle max-w-[190px]">
+                          <div className="truncate">
+                            <span className="font-bold text-[#0D2B63]">{inv.provider}</span>
+                            <span className="text-[10.5px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
                           </div>
                         </td>
 
-                        {/* ACT & CARE CATEGORY */}
-                        <td className="py-4 px-5 align-top">
-                          <div className="font-medium text-[var(--brand-900)] max-w-[200px] truncate">
-                            {inv.description || inv.careType}
-                          </div>
-                          <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10px] font-semibold text-[#778FAF]">
+                        {/* CATEGORY — single badge, full description as tooltip */}
+                        <td className="py-3 px-4 align-middle max-w-[160px]">
+                          <span
+                            className="inline-block max-w-full truncate align-bottom px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10.5px] font-semibold text-[#0D2B63]"
+                            title={inv.description || inv.careType}
+                          >
                             {inv.careType}
                           </span>
                         </td>
 
                         {/* INVOICED */}
-                        <td className="py-4 px-4 text-right align-top font-bold text-[var(--brand-900)] text-[13px]">
+                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-bold text-[#0D2B63] text-[13px]">
                           {formatAmount(inv.amount)}
                         </td>
 
                         {/* COVERED */}
-                        <td className="py-4 px-4 text-right align-top font-bold text-[#00A859] text-[13px]">
+                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-bold text-[#00A878] text-[13px]">
                           {formatAmount(covered)}
                         </td>
 
                         {/* COPAY */}
-                        <td className="py-4 px-4 text-right align-top font-bold text-[var(--brand-900)] text-[13px]">
+                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-bold text-[#0D2B63] text-[13px]">
                           {formatAmount(copay)}
                         </td>
 
                         {/* STATUS */}
-                        <td className="py-4 px-5 text-center align-top">
+                        <td className="py-3 px-4 text-center align-middle whitespace-nowrap">
                           {inv.status === 'valid' || inv.status === 'approved' ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#DEFEEB] text-[#00A859] text-[11px] font-bold">
                               <CheckCircle2 className="w-3 h-3" />
@@ -363,15 +516,28 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                           )}
                         </td>
 
-                        {/* DOCUMENTS ACTION */}
-                        <td className="py-4 px-5 text-center align-top">
-                          <button
-                            onClick={() => setViewSlipInvoice(inv)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#F8FAFC] border border-[#E8EDF2] hover:border-[var(--brand-900)] text-[var(--brand-900)] rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-[var(--brand-900)]" />
-                            <span>Invoice</span>
-                          </button>
+                        {/* ACTIONS */}
+                        <td className="py-3 px-4 text-center align-middle whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setViewSlipInvoice(inv)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
+                              title="View invoice slip"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-slate-700" />
+                              <span>Slip</span>
+                            </button>
+
+                            {canDeleteInvoice && (
+                              <button
+                                onClick={() => setInvoiceToDelete(inv)}
+                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer"
+                                title="Delete invoice (Admin)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -381,6 +547,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             </table>
           </div>
         </div>
+        </>
       ) : (
         /* Grouped Views */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -393,13 +560,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {viewMode === 'patient' ? (
-                      <User className="w-4 h-4 text-[var(--brand-900)]" />
+                      <User className="w-4 h-4 text-slate-800" />
                     ) : (
-                      <Users className="w-4 h-4 text-[var(--brand-900)]" />
+                      <Users className="w-4 h-4 text-slate-800" />
                     )}
                     <h3 className="font-bold text-sm text-[var(--brand-900)]">{g.name}</h3>
                   </div>
-                  <span className="px-2 py-0.5 bg-[#EAF2FF] text-[var(--brand-900)] rounded-full text-[10px] font-bold">
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-800 rounded-full text-[10px] font-bold">
                     {g.count} Invoices
                   </span>
                 </div>
@@ -412,8 +579,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                       key={item.id}
                       className="flex items-center justify-between text-xs py-1 border-b border-slate-50 last:border-0"
                     >
-                      <span className="font-mono text-[var(--brand-900)] font-semibold">{item.reference}</span>
-                      <span className="font-bold text-[var(--brand-900)]">{formatAmount(item.amount)}</span>
+                      <span className="font-mono text-slate-800 font-semibold">{item.reference}</span>
+                      <span className="font-bold text-[#0D2B63]">{formatAmount(item.amount)}</span>
                     </div>
                   ))}
                   {g.items.length > 3 && (
@@ -431,7 +598,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
                   onClick={() => {
                     setViewSlipInvoice(g.items[0]);
                   }}
-                  className="px-3 py-1.5 bg-[#F8FAFC] hover:bg-[#EAF2FF] border border-[#E8EDF2] text-[var(--brand-900)] text-xs font-bold rounded-lg transition"
+                  className="px-3 py-1.5 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-slate-800 text-xs font-bold rounded-lg transition cursor-pointer"
                 >
                   View Details
                 </button>
@@ -447,7 +614,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-[#E8EDF2] max-h-[90vh] overflow-y-auto space-y-6">
             <div className="flex items-center justify-between border-b border-[#E8EDF2] pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-[#EAF2FF] rounded-xl text-[var(--brand-900)]">
+                <div className="p-2.5 bg-slate-100 rounded-xl text-slate-800">
                   <Receipt className="w-5 h-5" />
                 </div>
                 <div>
@@ -459,7 +626,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
               </div>
               <button
                 onClick={() => setViewSlipInvoice(null)}
-                className="p-1.5 text-[#778FAF] hover:text-[var(--brand-900)] hover:bg-[#F8FAFC] rounded-lg transition"
+                className="p-1.5 text-[#778FAF] hover:text-[#0D2B63] hover:bg-[#F8FAFC] rounded-lg transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -469,8 +636,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-xl border border-[#E8EDF2] text-xs">
               <div>
                 <p className="text-[#778FAF] font-medium">Patient</p>
-                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.patientName}</p>
-                <p className="font-mono text-[10px] text-[var(--brand-900)]">
+                <p className="font-bold text-[#0D2B63] mt-0.5">{viewSlipInvoice.patientName}</p>
+                <p className="font-mono text-[10px] text-slate-700">
                   {viewSlipInvoice.patientPolicyNumber || 'ACT-2025-0089'}
                 </p>
               </div>
@@ -531,20 +698,87 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ lang, invoices }) =>
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
+              <div>
+                {canDeleteInvoice && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvoiceToDelete(viewSlipInvoice);
+                    }}
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Delete Invoice</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-2.5">
+                <button
+                  onClick={() => printBordereauSlip(viewSlipInvoice, lang)}
+                  className="px-4 py-2 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-[#0D2B63] rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Printer className="w-4 h-4 text-slate-700" />
+                  <span>Print Slip</span>
+                </button>
+                <button
+                  onClick={() => downloadBordereauPDF(viewSlipInvoice, lang)}
+                  className={`px-4 py-2 ${primaryBtnClass} rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer`}
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download PDF Voucher</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. DELETE CONFIRMATION MODAL */}
+      {invoiceToDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-bold text-slate-900">
+                Delete Invoice #{invoiceToDelete.reference}?
+              </h3>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to permanently delete this invoice of {formatAmount(invoiceToDelete.amount)} issued for {invoiceToDelete.patientName} ({invoiceToDelete.provider})?
+              </p>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-800">
+              ⚠️ This action is irreversible and will remove the amount from the accounting ledger.
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2">
               <button
-                onClick={() => printBordereauSlip(viewSlipInvoice, lang)}
-                className="px-4 py-2 bg-[#F8FAFC] hover:bg-[#EAF2FF] border border-[#E8EDF2] text-[var(--brand-900)] rounded-xl text-xs font-bold flex items-center gap-2 transition"
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setInvoiceToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
               >
-                <Printer className="w-4 h-4 text-[var(--brand-900)]" />
-                <span>Print Slip</span>
+                Cancel
               </button>
               <button
-                onClick={() => downloadBordereauPDF(viewSlipInvoice, lang)}
-                className="px-4 py-2 bg-[var(--brand-900)] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs"
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
-                <Download className="w-4 h-4" />
-                <span>Download PDF Voucher</span>
+                {isDeleting ? (
+                  <span>Deleting...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirm Deletion</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

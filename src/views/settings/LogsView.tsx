@@ -9,12 +9,10 @@ import {
   Calendar,
   Clock,
   History,
-  Download,
-  FileText,
-  FileSpreadsheet,
 } from 'lucide-react';
 import { LoginLog, Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
+import { ExportDropdown } from '../../components/ExportDropdown'; // === AMÉLIORATION AJOUTÉE : CSV + JSON fusionnés en un seul bouton Export ===
 
 interface LogsViewProps {
   lang: Language;
@@ -99,25 +97,13 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
             <option value="failed">{t.logs.failed}</option>
           </select>
 
-          <button
-            type="button"
-            onClick={handleDownloadCSV}
-            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-            title="Download logs in CSV format"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-600" />
-            <span>CSV</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDownloadJSON}
-            className="px-3 py-2 rounded-xl bg-[var(--brand-50)] hover:bg-[var(--brand-100)] text-[var(--brand-900)] border border-[var(--brand-200)] text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-            title="Download logs in JSON format"
-          >
-            <FileText className="w-3.5 h-3.5 text-[var(--brand-900)]" />
-            <span>JSON</span>
-          </button>
+          {/* === AMÉLIORATION AJOUTÉE : "CSV" et "JSON" fusionnés en un seul bouton "Export" (menu déroulant) === */}
+          <ExportDropdown
+            lang={lang}
+            label="Export"
+            onExportCSV={handleDownloadCSV}
+            onExportJSON={handleDownloadJSON}
+          />
         </div>
       </div>
 

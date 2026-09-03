@@ -1,7 +1,7 @@
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, getDoc, getDocs, onSnapshot, setDoc, collection } from 'firebase/firestore';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Language,
   NavSection,
@@ -15,9 +15,12 @@ import {
   LoginLog,
   MedicalForm,
   AppNotification,
+  HealthPolicy,
+  PolicyPayment,
 } from './types';
 import { FirestoreService } from './services/firestore';
 import { WorkflowService } from './services/workflowService';
+import { migrateCardNumberCounters, migrateAllCardsToNewCardNumberFormat } from './services/cardNumberService';
 import { seedInitialDemoDataIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
@@ -32,7 +35,6 @@ import {
   isSectionAllowedForRole,
 } from './utils/authUtils';
 import { getRoleTheme, getRoleCssVars } from './theme/roleTheme';
-import { useIdleLogout } from './hooks/useIdleLogout';
 
 // Views
 import { DashboardView } from './views/DashboardView';
@@ -51,9 +53,42 @@ import { AgentIdentificationView } from './views/agent/AgentIdentificationView';
 import { AgentMedicalFormView } from './views/agent/AgentMedicalFormView';
 import { AgentClaimsView } from './views/agent/AgentClaimsView';
 import { AgentEnrollmentsView } from './views/agent/AgentEnrollmentsView';
-import { LayoutDashboard, Receipt, FileText, UserCheck, FileCheck, Users, Menu as MenuIcon } from 'lucide-react';
+import { InactivityWarningModal } from './components/InactivityWarningModal';
+import { playSuccessSound, playNotificationSound } from './utils/sound'; // === AMÉLIORATION AJOUTÉE : sons de confirmation & notification ===
+import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon, Users, FileCheck } from 'lucide-react';
 
 export type AuthStateStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'inactive' | 'invalid_role';
+
+// === AMÉLIORATION AJOUTÉE : reconnexion forcée après un nouveau déploiement. Firebase Auth
+// garde une session ouverte indéfiniment par défaut (persistance locale standard, comme
+// Gmail) — ce qui n'est pas un bug, mais signifiait qu'un redéploiement de l'app ne renvoyait
+// jamais vers l'écran de connexion. `__APP_BUILD_ID__` est une empreinte unique générée à
+// chaque exécution de `vite build` (voir vite.config.ts), donc à chaque déploiement en
+// production. Au démarrage, on la compare à la dernière connue sur cet appareil : si elles
+// diffèrent (et qu'une valeur précédente existait déjà, donc pas la toute première visite),
+// la session en cours est fermée pour que l'utilisateur revoie l'écran de connexion au
+// prochain chargement. Comme la vérification n'a lieu qu'au montage de l'application, un
+// onglet déjà ouvert et en cours d'utilisation n'est jamais affecté par un déploiement
+// pendant qu'il tourne — seul un rechargement/nouvel onglet récupère le nouveau build et
+// déclenche la déconnexion si nécessaire.
+const BUILD_ID_STORAGE_KEY = 'activa_app_build_id';
+
+function signOutIfNewDeployment() {
+  try {
+    const lastKnownBuildId = localStorage.getItem(BUILD_ID_STORAGE_KEY);
+    if (lastKnownBuildId && lastKnownBuildId !== __APP_BUILD_ID__) {
+      sessionStorage.removeItem('activa_current_section');
+      signOut(auth).catch(() => {
+        // Ignore — if this fails, the user simply stays logged in on the new
+        // version, which is the pre-existing (safe) behavior.
+      });
+    }
+    localStorage.setItem(BUILD_ID_STORAGE_KEY, __APP_BUILD_ID__);
+  } catch {
+    // localStorage unavailable (private browsing, etc.) — skip silently, session
+    // persistence just behaves as it did before this improvement.
+  }
+}
 
 export default function App() {
   // Authentication & Role Resolution State Machine
@@ -63,8 +98,20 @@ export default function App() {
   const [forcedFirstLogin, setForcedFirstLogin] = useState(false);
   const [forcedPasswordExpiry, setForcedPasswordExpiry] = useState(false);
 
-  // Navigation Section
+  // Inactivity Auto-Logout
+  // === AMÉLIORATION AJOUTÉE : délai réduit à 5 minutes (300s) d'inactivité, avertissement
+  // à 60s restantes, sur demande explicite (auparavant 15 minutes / avertissement à 2 min) ===
+  const INACTIVITY_TIMEOUT_SECONDS = 300;
+  const WARNING_BEFORE_SECONDS = 60;
+  const [inactivityRemainingSeconds, setInactivityRemainingSeconds] = useState(INACTIVITY_TIMEOUT_SECONDS);
+  const [showInactivityModal, setShowInactivityModal] = useState(false);
+
+  // Navigation Section & Preselected Member
   const [currentSection, setCurrentSection] = useState<NavSection>('dashboard');
+  const [selectedMemberForMedicalForm, setSelectedMemberForMedicalForm] = useState<Member | null>(null);
+  // === AMÉLIORATION AJOUTÉE : assuré présélectionné lors du clic sur "New Claim" depuis la
+  // fiche d'identification de l'agent, pour préremplir le formulaire de réclamation.
+  const [selectedMemberForClaim, setSelectedMemberForClaim] = useState<Member | null>(null);
 
   const handleSelectSection = (sec: NavSection) => {
     setCurrentSection(sec);
@@ -81,6 +128,8 @@ export default function App() {
   };
 
   useEffect(() => {
+    signOutIfNewDeployment();
+
     let unsubAccountListener: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -273,6 +322,9 @@ export default function App() {
   const [logs, setLogs] = useState<LoginLog[]>([]);
   const [medicalForms, setMedicalForms] = useState<MedicalForm[]>(() => (demoData.forms || []) as MedicalForm[]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
+  const [healthPolicies, setHealthPolicies] = useState<HealthPolicy[]>([]);
+  const [policyPayments, setPolicyPayments] = useState<PolicyPayment[]>([]);
 
   useEffect(() => {
     localStorage.setItem('activa_lang', 'en');
@@ -289,6 +341,8 @@ export default function App() {
       const unsubCeilings = FirestoreService.subscribeToCeilings(setCeilings);
       const unsubMedicalForms = FirestoreService.subscribeToMedicalForms(setMedicalForms);
       const unsubNotifications = FirestoreService.subscribeToNotifications(setNotifications);
+      const unsubHealthPolicies = FirestoreService.subscribeToHealthPolicies(setHealthPolicies);
+      const unsubPolicyPayments = FirestoreService.subscribeToPolicyPayments(setPolicyPayments);
 
       let unsubLogs: (() => void) | undefined;
       if (userRole === 'Admin') {
@@ -305,10 +359,45 @@ export default function App() {
         unsubCeilings();
         unsubMedicalForms();
         unsubNotifications();
+        unsubHealthPolicies();
+        unsubPolicyPayments();
         if (unsubLogs) unsubLogs();
       };
     }
   }, [authStatus, userRole]);
+
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring —
+  // recalcul automatique du statut de chaque police (expiration, dépassement du délai de
+  // grâce, réactivation) à chaque changement des données ET sur un intervalle périodique
+  // (aucune Cloud Function planifiée disponible dans ce projet pour détecter les transitions
+  // basées uniquement sur la date, sans écriture déclenchante). Voir
+  // WorkflowService.syncPolicyStatuses pour la logique — idempotente, ne réécrit/ne notifie
+  // que les polices dont le statut calculé diverge réellement du dernier statut persisté.
+  useEffect(() => {
+    if (authStatus !== 'authenticated' || healthPolicies.length === 0) return;
+    WorkflowService.syncPolicyStatuses(healthPolicies, members);
+    const interval = setInterval(() => {
+      WorkflowService.syncPolicyStatuses(healthPolicies, members);
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [authStatus, healthPolicies, members]);
+
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
+  // explicite. Bootstrap automatique, une seule fois par session, des deux compteurs de
+  // numéros de carte (sections 3/18) : relevés au maximum réellement présent dans TOUTE la
+  // base (jamais seulement le dernier enregistrement créé — voir
+  // cardNumberService.migrateCardNumberCounters), avec backfill du registre d'unicité pour
+  // les cartes créées avant ce système. Idempotent — peut aussi être relancé à tout moment
+  // depuis Admin > Organizations > Cards > "Validate Card Number Sequence".
+  const cardNumberMigrationRanRef = useRef(false);
+  useEffect(() => {
+    if (authStatus !== 'authenticated' || cardNumberMigrationRanRef.current || members.length === 0) return;
+    cardNumberMigrationRanRef.current = true;
+    migrateCardNumberCounters(members).catch((err) => {
+      console.warn('Card number sequence bootstrap failed:', err);
+      cardNumberMigrationRanRef.current = false; // allow a retry on the next members update
+    });
+  }, [authStatus, members]);
 
   const handleLoginSuccess = (user: any) => {
     // onAuthStateChanged will handle atomic role resolution
@@ -333,30 +422,97 @@ export default function App() {
       setCurrentUser(null);
       setUserRole(null);
       setCurrentSection('dashboard');
+      setShowInactivityModal(false);
+      setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
       setAuthStatus('unauthenticated');
     }
   };
 
+  // === AMÉLIORATION AJOUTÉE (correction de bug) : l'ancienne version de cet effet dépendait
+  // de `showInactivityModal` — chaque fois que ce state changeait (précisément à l'ouverture
+  // de l'avertissement), l'effet se nettoyait et se relançait, détruisant/recréant
+  // `setInterval` et les écouteurs d'événements. Combiné à un décompte basé sur des
+  // incréments d'état plutôt que sur une horloge réelle, ce cycle laissait le minuteur dans
+  // un état incohérent et la déconnexion automatique ne se déclenchait plus de façon fiable.
+  // Réécrit ci-dessous avec un horodatage de dernière activité (ref, indépendant du cycle de
+  // rendu React) comparé à Date.now() à chaque tick : le décompte reste exact quel que soit
+  // le nombre de re-rendus, et l'effet ne dépend plus que de `authStatus`.
+  const inactivityLastActivityRef = useRef<number>(Date.now());
+
+  // Inactivity Auto-Logout Effect (5m inactivity threshold, warning at 1m left)
+  useEffect(() => {
+    if (authStatus !== 'authenticated') {
+      setShowInactivityModal(false);
+      return;
+    }
+
+    inactivityLastActivityRef.current = Date.now();
+    setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
+
+    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll', 'wheel', 'click'];
+    const handleUserActivity = () => {
+      inactivityLastActivityRef.current = Date.now();
+    };
+    events.forEach((ev) => window.addEventListener(ev, handleUserActivity, { passive: true }));
+
+    let loggedOut = false;
+    const interval = setInterval(() => {
+      if (loggedOut) return;
+      const elapsedSeconds = Math.floor((Date.now() - inactivityLastActivityRef.current) / 1000);
+      const remaining = Math.max(0, INACTIVITY_TIMEOUT_SECONDS - elapsedSeconds);
+      setInactivityRemainingSeconds(remaining);
+      setShowInactivityModal(remaining > 0 && remaining <= WARNING_BEFORE_SECONDS);
+      if (remaining <= 0) {
+        loggedOut = true;
+        setShowInactivityModal(false);
+        handleLogout();
+      }
+    }, 1000);
+
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, handleUserActivity));
+      clearInterval(interval);
+    };
+  }, [authStatus]);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isReloadingDemo, setIsReloadingDemo] = useState<boolean>(false);
 
-  // === AMÉLIORATION AJOUTÉE : déconnexion automatique après inactivité (sécurité) ===
-  // Auparavant, un compte restait connecté indéfiniment tant que l'onglet restait ouvert,
-  // même sans utilisation — un risque réel sur un poste partagé (agence, guichet). Un
-  // avertissement s'affiche 60s avant l'échéance (15 min d'inactivité par défaut), puis la
-  // déconnexion est automatique si aucune activité (souris/clavier/tactile) n'est détectée.
-  useIdleLogout({
-    enabled: authStatus === 'authenticated',
-    onWarning: () => {
-      // Note: this warning toast is part of the authenticated view's own JSX, so it can
-      // only be shown BEFORE the timeout fires (while still authenticated) — once
-      // handleLogout() below runs, authStatus flips and the app re-renders straight to
-      // the login screen, unmounting this toast along with the rest of this view.
-      setToastMessage('You will be automatically logged out in 1 minute due to inactivity.');
-      setTimeout(() => setToastMessage(null), 8000);
-    },
-    onTimeout: handleLogout,
-  });
+  // === NOTE DE FUSION : une déconnexion automatique après inactivité existe déjà plus bas
+  // dans ce fichier (showInactivityModal / INACTIVITY_TIMEOUT_SECONDS / InactivityWarningModal
+  // — fenêtre dédiée avec compte à rebours visible et bouton "Stay Connected"). Cette branche
+  // avait développé indépendamment un second mécanisme équivalent mais plus simple
+  // (hooks/useIdleLogout.ts, un simple toast). Les deux ne doivent jamais tourner en même
+  // temps (deux minuteries indépendantes déclenchant chacune une déconnexion créeraient un
+  // comportement imprévisible) : le mécanisme déjà en place ci-dessous (plus complet) est
+  // conservé ; useIdleLogout() n'est plus appelé ici, mais le hook reste disponible dans le
+  // code (hooks/useIdleLogout.ts) si besoin.
+
+  // === AMÉLIORATION AJOUTÉE : jouer un son de confirmation à chaque opération validée
+  // (approbation, sauvegarde, soumission, import, etc.), matérialisée ici par l'apparition
+  // d'un toast de succès. Les toasts d'erreur (message contenant "Error"/"error") sont
+  // exclus pour ne pas jouer un son de succès sur un échec.
+  useEffect(() => {
+    if (toastMessage && !/error/i.test(toastMessage)) {
+      playSuccessSound();
+    }
+  }, [toastMessage]);
+
+  // === AMÉLIORATION AJOUTÉE : jouer un son dès qu'une nouvelle notification arrive
+  // (écoute temps réel Firestore). La première synchronisation (chargement initial /
+  // connexion) ne déclenche jamais de son — seules les notifications réellement NOUVELLES
+  // qui arrivent après coup en déclenchent un.
+  const prevNotificationIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const currentIds = new Set(notifications.map((n) => n.id));
+    if (prevNotificationIdsRef.current !== null) {
+      const hasNewNotification = notifications.some((n) => !prevNotificationIdsRef.current!.has(n.id));
+      if (hasNewNotification) {
+        playNotificationSound();
+      }
+    }
+    prevNotificationIdsRef.current = currentIds;
+  }, [notifications]);
 
   const handleResetDemoData = async () => {
     setIsReloadingDemo(true);
@@ -424,6 +580,15 @@ export default function App() {
 
   const handleDeleteClaim = (claimId: string) => {
     FirestoreService.deleteClaim(claimId);
+  };
+
+  // FIX: InvoicesView's delete-confirmation button called onDeleteInvoice(id), but this
+  // prop was never passed at either of InvoicesView's two call sites below ('invoices' for
+  // Admin, 'receipts' for Supervisor) — so confirming a deletion silently did nothing.
+  // FirestoreService.deleteInvoice already existed and works; it just needed wiring here,
+  // matching the same pattern already used for claims/members.
+  const handleDeleteInvoice = (invoiceId: string) => {
+    return FirestoreService.deleteInvoice(invoiceId);
   };
 
   const handleCreateClaim = async (newClaim: Partial<Claim>) => {
@@ -529,23 +694,99 @@ export default function App() {
     FirestoreService.deleteMember(id);
   };
 
-  // === FIX (pre-existing bug): this function called FirestoreService.addMember()
-  // (= addDoc, creating a NEW document) on EVERY item returned by the Excel parser,
-  // including existing members that were merely updated in memory. Result: re-importing a
-  // file on an already-populated database DUPLICATED every existing member in Firestore.
-  // The parsers (parseMemberExcel, parseActivaMultiOrgExcel...) mark new records with a
-  // temporary id prefixed "mem-imp-", so we now route to updateMember() for records already
-  // in the database (real Firestore id) and to addMember() only for genuinely new records
-  // (temporary id, stripped before the write).
-  const handleImportMembers = (imported: Partial<Member>[]) => {
-    imported.forEach((i) => {
-      if (i.id && !i.id.startsWith('mem-imp-')) {
-        FirestoreService.updateMember(i as Member);
-      } else {
-        const { id, ...rest } = i;
-        FirestoreService.addMember(rest);
+  // FIX: this used sequential `for` loops with a bare `await` per Firestore write and no
+  // per-item error handling — if ANY single write threw (e.g. updateMember() on a record
+  // whose id didn't correspond to a real server-side document — see the self-healing fix
+  // in FirestoreService.updateMember), the exception propagated out of the loop and every
+  // record queued AFTER the failing one was silently never written, while the toast below
+  // still reported success (its message only reflects `imported.length`, computed from
+  // parsing alone — before any write happens). Reported: importing a 149-row file showed
+  // "1 created, 148 updated" but the Insured Members Directory only ever showed 1 record
+  // afterward. Both loops now use Promise.allSettled so one failing write can never take
+  // down the rest, and the toast reports what ACTUALLY got saved, not just what was parsed.
+  const handleImportMembers = async (imported: Partial<Member>[]) => {
+    // 1. Automatically create any organization referenced by the import that doesn't exist yet
+    const currentOrgNames = new Set(organizations.map((o) => (o.name || '').toLowerCase().trim()));
+    const newOrgsToCreate: string[] = [];
+
+    imported.forEach((item) => {
+      if (item.organization && item.organization.trim()) {
+        const orgTrimmed = item.organization.trim();
+        if (!currentOrgNames.has(orgTrimmed.toLowerCase())) {
+          currentOrgNames.add(orgTrimmed.toLowerCase());
+          newOrgsToCreate.push(orgTrimmed);
+        }
       }
     });
+
+    const orgResults = await Promise.allSettled(
+      newOrgsToCreate.map((newOrgName) => {
+        const newOrg: Organization = {
+          id: `org-auto-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          name: newOrgName,
+          policyNumber: `POL-${newOrgName.substring(0, 3).toUpperCase()}-2026`,
+          declaredMembers: 10,
+          coverageRate: 80,
+          status: 'Actif',
+          effectiveDate: '2026-01-01',
+          expirationDate: '2026-12-31',
+          contactPhone: '+231 770 00 11 22',
+          contactEmail: `contact@${newOrgName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+        };
+        return FirestoreService.addOrganization(newOrg);
+      })
+    );
+    const orgFailures = orgResults.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+
+    // 2. Add or update members in Firestore — every record attempted independently
+    const memberResults = await Promise.allSettled(
+      imported.map((i) => {
+        if (i.id && members.some((m) => m.id === i.id)) {
+          return FirestoreService.updateMember(i as Member);
+        }
+        return FirestoreService.addMember(i);
+      })
+    );
+    const memberFailures = memberResults.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+    const memberSuccessCount = memberResults.length - memberFailures.length;
+
+    if (memberFailures.length > 0) {
+      console.error(
+        `handleImportMembers: ${memberFailures.length} of ${imported.length} member record(s) failed to save.`,
+        memberFailures.map((f) => f.reason)
+      );
+    }
+    if (orgFailures.length > 0) {
+      console.error(
+        `handleImportMembers: ${orgFailures.length} of ${newOrgsToCreate.length} auto-created organization(s) failed to save.`,
+        orgFailures.map((f) => f.reason)
+      );
+    }
+
+    if (memberFailures.length > 0 || orgFailures.length > 0) {
+      setToastMessage(
+        `Saved ${memberSuccessCount} of ${imported.length} insured records.` +
+          (memberFailures.length > 0 ? ` ⚠️ ${memberFailures.length} record(s) FAILED to save — check your connection and try importing again.` : '') +
+          (newOrgsToCreate.length > 0 ? ` ${newOrgsToCreate.length - orgFailures.length}/${newOrgsToCreate.length} new organization(s) added.` : '')
+      );
+      setTimeout(() => setToastMessage(null), 8000);
+    } else if (newOrgsToCreate.length > 0) {
+      setToastMessage(
+        `Imported ${imported.length} insured records. ${newOrgsToCreate.length} new organization(s) automatically added.`
+      );
+      setTimeout(() => setToastMessage(null), 4000);
+    } else {
+      setToastMessage(`Imported ${imported.length} insured records successfully.`);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
+
+    // Surface real persistence failures to ExcelImportModal so it stops reporting a false
+    // "success" summary based only on parsing — see the matching fix in that component.
+    if (memberFailures.length > 0) {
+      const firstReason = memberFailures[0]?.reason;
+      const firstMsg = firstReason instanceof Error ? firstReason.message : String(firstReason);
+      throw new Error(`${memberFailures.length} of ${imported.length} insured record(s) failed to save (${firstMsg}). ${memberSuccessCount} were saved successfully — you can safely re-import the same file, already-saved records will just be updated, not duplicated.`);
+    }
   };
 
   // ORGANIZATIONS HANDLERS WITH CASCADING MEMBER SUSPENSION
@@ -626,8 +867,26 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 5000);
   };
 
-  const handleDeleteOrg = (id: string) => {
-    FirestoreService.deleteOrganization(id);
+  // === AMÉLIORATION AJOUTÉE : suppression en cascade — sur demande explicite ("supprimer
+  // toutes les données de X dans Firestore et sur l'application"). Auparavant, cette fonction
+  // ne supprimait que la fiche organisations/{id}, laissant orphelins tous les membres,
+  // sinistres, inscriptions, factures, formulaires médicaux, plafonds et la police santé (+
+  // historique de paiements) liés à cette organisation. La signature (id: string) et l'appel
+  // depuis OrganizationsView restent strictement inchangés — le nom de l'organisation est
+  // retrouvé depuis l'état `organizations` déjà chargé en mémoire.
+  const handleDeleteOrg = async (id: string) => {
+    const org = organizations.find((o) => o.id === id);
+    if (org) {
+      await FirestoreService.cascadeDeleteOrganizationData(org.name);
+      await WorkflowService.logAction(
+        'ORGANIZATION_DELETED',
+        'organization',
+        org.id,
+        `Organization ${org.name} (Policy #${org.policyNumber}) and ALL linked data (members, claims, enrollments, invoices, medical forms, ceilings, health policy & payments) permanently deleted.`,
+        currentUser
+      );
+    }
+    await FirestoreService.deleteOrganization(id);
   };
 
   // === FIX (same bug as handleImportMembers, see comment above) ===
@@ -640,6 +899,41 @@ export default function App() {
         FirestoreService.addOrganization(rest);
       }
     });
+  };
+
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System (v2) — migration
+  // ponctuelle de toutes les cartes déjà existantes vers la structure AMID-YYMMDD-NNNNN, sur
+  // demande explicite. Orchestrée ici (et non dans cardNumberService.ts directement) car
+  // c'est le seul endroit disposant déjà en mémoire de toutes les collections impactées
+  // (membres, sinistres, factures, fiches médicales, inscriptions).
+  const handleMigrateAllCards = async () => {
+    const summary = await migrateAllCardsToNewCardNumberFormat(
+      members,
+      claims,
+      invoices,
+      medicalForms,
+      enrollments,
+      { uid: currentUser?.uid, name: currentUser?.fullName || currentUser?.displayName || currentUser?.email }
+    );
+    await WorkflowService.logAction(
+      'CARD_NUMBER_FORMAT_MIGRATED',
+      'system',
+      'card-number-format-v2',
+      `Card number format migration to AMID-YYMMDD-NNNNN completed: ${summary.migratedMembers} members and ${summary.migratedDependents} dependents renumbered; ${summary.claimsUpdated} claims, ${summary.invoicesUpdated} invoices, ${summary.medicalFormsUpdated} medical forms and ${summary.enrollmentsUpdated} enrollments updated to match.`,
+      currentUser
+    );
+    return summary;
+  };
+
+  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
+  const handleSaveHealthPolicy = (organizationName: string, data: Partial<HealthPolicy>) => {
+    FirestoreService.upsertHealthPolicy(organizationName, data);
+  };
+  const handleAddPolicyPayment = (data: Partial<PolicyPayment>) => {
+    FirestoreService.addPolicyPayment(data);
+  };
+  const handleDeletePolicyPayment = (id: string) => {
+    FirestoreService.deletePolicyPayment(id);
   };
 
   // PROVIDERS HANDLERS
@@ -784,8 +1078,12 @@ export default function App() {
         ];
 
   return (
+    // === AMÉLIORATION AJOUTÉE : h-screen + overflow-hidden au lieu de min-h-screen — le
+    // document lui-même ne défile plus. Voir plus bas : seule la zone de contenu (sous le
+    // Topbar) devient scrollable, pour que la barre de défilement verticale ne remonte pas
+    // au-dessus du bandeau blanc du haut (Topbar / bouton profil).
     <div
-      className="min-h-screen bg-[#F8FAFC] text-[var(--brand-900)] font-sans flex antialiased selection:bg-[var(--brand-900)] selection:text-white"
+      className="h-screen overflow-hidden bg-[#F8FAFC] text-[var(--brand-900)] font-sans flex antialiased selection:bg-[var(--brand-900)] selection:text-white"
       style={roleCssVars}
     >
       {/* Mobile Sidebar Overlay */}
@@ -814,8 +1112,8 @@ export default function App() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:ml-[240px] flex flex-col min-w-0">
-        {/* Sticky Topbar */}
+      <div className="flex-1 lg:ml-[240px] flex flex-col min-w-0 h-screen overflow-hidden">
+        {/* Topbar (outside the scroll container below — stays fixed at the top, un-scrolled) */}
         <Topbar
           currentSection={effectiveSection}
           currentUser={currentUser}
@@ -841,8 +1139,13 @@ export default function App() {
           </div>
         )}
 
+        {/* === AMÉLIORATION AJOUTÉE : conteneur de défilement dédié au contenu, sous le Topbar.
+            Le Topbar (bandeau blanc avec le bouton profil) reste désormais hors de cette zone
+            scrollable : la barre de défilement verticale ne part donc plus du tout en haut de
+            la page, mais juste sous le Topbar, comme demandé. === */}
+        <div className="flex-1 overflow-y-auto">
         {/* Section Router Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
+        <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
           {effectiveSection === 'dashboard' && (
             <DashboardView
               lang={lang}
@@ -863,13 +1166,14 @@ export default function App() {
 
           {effectiveSection === 'claims' && (
             activeRole === 'Agent' ? (
-              <AgentClaimsView 
+              <AgentClaimsView
                 claims={claims}
                 members={members}
                 providers={providers}
                 organizations={organizations}
                 ceilings={ceilings}
                 lang={lang}
+                preselectedMember={selectedMemberForClaim}
                 onCreateClaim={handleCreateClaim}
               />
             ) : (
@@ -891,14 +1195,20 @@ export default function App() {
           )}
 
           {effectiveSection === 'invoices' && (
-            <InvoicesView lang={lang} invoices={invoices} />
+            <InvoicesView
+              lang={lang}
+              invoices={invoices}
+              userRole={activeRole}
+              onDeleteInvoice={handleDeleteInvoice}
+            />
           )}
 
           {effectiveSection === 'enrollments' && (
             activeRole === 'Agent' ? (
-              <AgentEnrollmentsView 
+              <AgentEnrollmentsView
                 organizations={organizations}
                 enrollments={enrollments}
+                members={members}
                 currentUser={currentUser}
                 userRole={activeRole}
                 lang={lang}
@@ -925,7 +1235,17 @@ export default function App() {
               members={members}
               claims={claims}
               lang={lang}
-              onGenerateMedicalForm={handleGenerateMedicalFormFromIdentification}
+              organizations={organizations}
+              healthPolicies={healthPolicies}
+              onGenerateMedicalForm={(member) => {
+                setSelectedMemberForMedicalForm(member);
+                handleSelectSection('medical_form');
+              }}
+              onNewEnrollment={() => handleSelectSection('enrollments')}
+              onNewClaim={(member) => {
+                setSelectedMemberForClaim(member);
+                handleSelectSection('claims');
+              }}
             />
           )}
 
@@ -937,6 +1257,7 @@ export default function App() {
               medicalForms={medicalForms}
               userRole={activeRole}
               lang={lang}
+              preselectedMember={selectedMemberForMedicalForm}
               onCreateMedicalForm={(form) => FirestoreService.addMedicalForm(form)}
               onUpdateMedicalForm={(form) => FirestoreService.updateMedicalForm(form)}
               initialMemberCardNo={medicalFormPrefillCardNo}
@@ -977,7 +1298,12 @@ export default function App() {
           )}
 
           {effectiveSection === 'receipts' && (
-            <InvoicesView lang={lang} invoices={invoices} />
+            <InvoicesView
+              lang={lang}
+              invoices={invoices}
+              userRole={activeRole}
+              onDeleteInvoice={handleDeleteInvoice}
+            />
           )}
 
           {effectiveSection === 'reports' && (
@@ -988,6 +1314,9 @@ export default function App() {
               organizations={organizations}
               providers={providers}
               userRole={activeRole}
+              healthPolicies={healthPolicies}
+              policyPayments={policyPayments}
+              members={members}
             />
           )}
 
@@ -1003,6 +1332,7 @@ export default function App() {
               onImportMembers={handleImportMembers}
               onSuspendMember={handleSuspendMember}
               onReactivateMember={handleReactivateMember}
+              currentUser={currentUser}
             />
           )}
 
@@ -1017,6 +1347,13 @@ export default function App() {
               onImportOrganizations={handleImportOrgs}
               onSuspendOrganization={handleSuspendOrg}
               onReactivateOrganization={handleReactivateOrg}
+              healthPolicies={healthPolicies}
+              policyPayments={policyPayments}
+              onSaveHealthPolicy={handleSaveHealthPolicy}
+              onAddPolicyPayment={handleAddPolicyPayment}
+              onDeletePolicyPayment={handleDeletePolicyPayment}
+              currentUser={currentUser}
+              onMigrateAllCards={handleMigrateAllCards}
             />
           )}
 
@@ -1046,6 +1383,7 @@ export default function App() {
 
           {effectiveSection === 'logs' && <LogsView lang={lang} logs={logs} />}
         </main>
+        </div>
 
         {/* Mobile & Tablet Miniature Bottom Navigation Bar */}
         {/* === ADDED IMPROVEMENT: the mobile bar now uses the active role's color (theme.palette.avatarBg)
@@ -1075,13 +1413,27 @@ export default function App() {
 
           <button
             onClick={() => setSidebarOpen(true)}
-            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-white/70 hover:text-white transition"
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-white/70 hover:text-white transition cursor-pointer"
           >
             <MenuIcon className="w-5 h-5" />
             <span className="text-[10px] mt-0.5">Menu</span>
           </button>
         </nav>
       </div>
+
+      {/* Inactivity Warning Modal */}
+      <InactivityWarningModal
+        isOpen={showInactivityModal}
+        remainingSeconds={inactivityRemainingSeconds}
+        onStayConnected={() => {
+          inactivityLastActivityRef.current = Date.now();
+          setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
+          setShowInactivityModal(false);
+        }}
+        onLogout={handleLogout}
+        lang={lang}
+        userRole={userRole || undefined}
+      />
 
       {/* Global Change Password Modal from Topbar or Security Enforcement */}
       <ChangePasswordModal
@@ -1110,11 +1462,19 @@ export default function App() {
 
               await updatePassword(auth.currentUser, newPwd);
 
-              const { doc, updateDoc } = await import('firebase/firestore');
+              const { doc, updateDoc, deleteField: deleteFieldFn } = await import('firebase/firestore');
+              // === AMÉLIORATION AJOUTÉE : sécurité (audit) — l'utilisateur vient de définir
+              // son vrai mot de passe Firebase Auth ; tout mot de passe (en clair ou haché)
+              // encore stocké sur ce compte pour l'ancien mécanisme de secours n'a plus lieu
+              // d'être conservé — Firebase Auth fait désormais foi à chaque connexion.
               await updateDoc(doc(db, 'accounts', auth.currentUser.uid), {
                 isTemporaryPassword: false,
                 mustChangePassword: false,
-                passwordChangedAt: new Date().toISOString()
+                passwordChangedAt: new Date().toISOString(),
+                password: deleteFieldFn(),
+                tempPassword: deleteFieldFn(),
+                passwordHash: deleteFieldFn(),
+                passwordSalt: deleteFieldFn(),
               });
 
               setForcedFirstLogin(false);
@@ -1133,6 +1493,7 @@ export default function App() {
         lang={lang}
         isForcedFirstLogin={forcedFirstLogin}
         isExpiredPassword={forcedPasswordExpiry}
+        userRole={userRole || undefined}
       />
     </div>
   );

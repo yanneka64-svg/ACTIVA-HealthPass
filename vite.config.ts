@@ -6,6 +6,14 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    // === AMÉLIORATION AJOUTÉE : empreinte de build injectée à la compilation — un identifiant
+    // unique par exécution de `vite build` (donc par déploiement en production). L'app la
+    // compare à la valeur stockée localement au démarrage pour déconnecter automatiquement les
+    // sessions ouvertes sur une ancienne version, sans jamais toucher un onglet déjà en cours
+    // d'utilisation (voir src/App.tsx / checkBuildVersionAndLogoutIfStale). ===
+    define: {
+      __APP_BUILD_ID__: JSON.stringify(String(Date.now())),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

@@ -18,7 +18,7 @@ export const AuthBlockedScreen: React.FC<AuthBlockedScreenProps> = ({
       case 'inactive':
         return {
           title: 'Account Deactivated',
-          subtitle: 'Account deactivated by the administrator',
+          subtitle: 'Deactivated by the administrator',
           detail:
             'This user account is currently marked as inactive. Please contact the Head of Operations or your system administrator to reactivate your access.',
           icon: UserX,
@@ -27,7 +27,7 @@ export const AuthBlockedScreen: React.FC<AuthBlockedScreenProps> = ({
       case 'invalid_role':
         return {
           title: 'Invalid Role Configuration',
-          subtitle: 'User role not assigned or invalid',
+          subtitle: 'No valid role assigned to this user',
           detail:
             'Your account is authenticated, but no valid operational role (Admin, Supervisor, or Agent) was assigned. An administrator must assign a valid role before access can be granted.',
           icon: AlertTriangle,
@@ -37,7 +37,7 @@ export const AuthBlockedScreen: React.FC<AuthBlockedScreenProps> = ({
       default:
         return {
           title: 'Account Profile Not Found',
-          subtitle: 'User profile not found',
+          subtitle: 'No matching user profile found',
           detail:
             'No matching operational profile was found in the system for this account. Please verify with your ACTIVA administrator.',
           icon: ShieldAlert,

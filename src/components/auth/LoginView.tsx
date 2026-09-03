@@ -4,7 +4,8 @@ import { Language } from '../../types';
 import { Logo } from '../Logo';
 import { auth, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, deleteField } from 'firebase/firestore';
+import { verifyPassword, hashPassword } from '../../utils/passwordUtils';
 
 interface LoginViewProps {
   onLoginSuccess: (user: any, accountData?: any) => void;
@@ -180,17 +181,50 @@ export const LoginView: React.FC<LoginViewProps> = ({
           await setDoc(userDocRef, { ...matchingAccountDoc, id: userCredential.user.uid }, { merge: true });
         }
 
+        // === AMÉLIORATION AJOUTÉE : sécurité (audit) — nettoyage paresseux. Cet utilisateur
+        // vient de s'authentifier via Firebase Auth (le chemin normal, désormais utilisé à
+        // chaque connexion) : le mot de passe en clair encore présent depuis la création du
+        // compte (avant ce correctif) n'a donc plus aucune utilité — Firebase Auth fait
+        // désormais foi. Effacé silencieusement, sans jamais bloquer la connexion en cours.
+        const existingData = userDocSnap.exists() ? userDocSnap.data() : matchingAccountDoc;
+        if (existingData && (existingData.password || existingData.tempPassword)) {
+          setDoc(userDocRef, { password: deleteField(), tempPassword: deleteField() }, { merge: true }).catch(() => {
+            // Best-effort only — never block a successful login on this cleanup.
+          });
+        }
+
         onLoginSuccess(userCredential.user);
         return true;
       }
 
       // 4. If sign in did not find user in Firebase Auth, but matching account was created by Admin in Firestore:
       if (matchingAccountDoc) {
-        const storedPwd = matchingAccountDoc.password || matchingAccountDoc.tempPassword;
-        if (storedPwd && storedPwd !== password) {
-          setError('Incorrect password. Please verify the credentials provided by your administrator.');
-          setIsLoggingIn(false);
-          return false;
+        // === AMÉLIORATION AJOUTÉE : sécurité (audit) — le mot de passe n'est plus jamais
+        // comparé ni stocké en clair. Les comptes créés/réinitialisés après ce correctif
+        // portent passwordHash/passwordSalt (voir src/utils/passwordUtils.ts), vérifiés ici.
+        // Les comptes plus anciens (créés avant ce correctif) n'ont encore que
+        // password/tempPassword en clair : la comparaison historique reste acceptée pour ne
+        // jamais bloquer un utilisateur légitime, mais dès que la connexion réussit ainsi, le
+        // compte est immédiatement converti en hash et le mot de passe en clair est effacé
+        // (migration paresseuse, transparente, sans action requise de l'utilisateur).
+        let migratedHash: { passwordHash: string; passwordSalt: string } | null = null;
+        if (matchingAccountDoc.passwordHash && matchingAccountDoc.passwordSalt) {
+          const ok = await verifyPassword(password, matchingAccountDoc.passwordHash, matchingAccountDoc.passwordSalt);
+          if (!ok) {
+            setError('Incorrect password. Please verify the credentials provided by your administrator.');
+            setIsLoggingIn(false);
+            return false;
+          }
+        } else {
+          const storedPwd = matchingAccountDoc.password || matchingAccountDoc.tempPassword;
+          if (storedPwd && storedPwd !== password) {
+            setError('Incorrect password. Please verify the credentials provided by your administrator.');
+            setIsLoggingIn(false);
+            return false;
+          }
+          if (storedPwd) {
+            migratedHash = await hashPassword(password);
+          }
         }
 
         // Auto-provision Firebase Auth credential for this registered corporate account
@@ -212,14 +246,24 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
         if (userCredential?.user) {
           const userDocRef = doc(db, 'accounts', userCredential.user.uid);
-          await setDoc(userDocRef, { ...matchingAccountDoc, id: userCredential.user.uid }, { merge: true });
+          const mergedData: any = { ...matchingAccountDoc, id: userCredential.user.uid };
+          if (migratedHash) {
+            // === AMÉLIORATION AJOUTÉE : sécurité (audit) — voir commentaire plus haut : ce
+            // compte vient de passer la vérification par mot de passe en clair (ancien
+            // format) ; converti en hash et le clair effacé, dans cette même écriture.
+            mergedData.passwordHash = migratedHash.passwordHash;
+            mergedData.passwordSalt = migratedHash.passwordSalt;
+            mergedData.password = deleteField();
+            mergedData.tempPassword = deleteField();
+          }
+          await setDoc(userDocRef, mergedData, { merge: true });
           onLoginSuccess(userCredential.user);
           return true;
         }
       }
 
       // 5. If no account matches in Firestore and no Firebase Auth user exists:
-      setError('Invalid username or password.');
+      setError('Invalid username or password. Please verify your credentials.');
       setIsLoggingIn(false);
       return false;
     } catch (err: any) {
@@ -231,7 +275,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       ) {
         setError('Invalid username or password. Please verify your credentials.');
       } else if (err.code === 'auth/too-many-requests') {
-        setError('Too many attempts. Please try again shortly.');
+        setError('Too many failed attempts. Please wait a moment and try again.');
       } else if (err.code === 'auth/weak-password') {
         setError('Password must be at least 6 characters long.');
       } else {
@@ -271,121 +315,168 @@ export const LoginView: React.FC<LoginViewProps> = ({
     }
   };
 
+  // === AMÉLIORATION AJOUTÉE : page de connexion refaite en écran divisé (split-screen),
+  // sur demande explicite. Le panneau gauche reprend EXACTEMENT le dégradé bleu et le motif
+  // de courbes décoratif de la sidebar de l'interface Agent (voir src/theme/roleTheme.ts —
+  // AGENT_THEME.palette.sidebarGradient — et src/components/Sidebar.tsx pour le motif SVG).
+  // Le logo est désormais uniquement sur la partie blanche, agrandi et centré au-dessus de
+  // "Welcome Back!" pour être mieux mis en valeur. Le comportement du formulaire (validation,
+  // authentification Firebase, messages d'erreur) est strictement inchangé — seule la mise en
+  // page a été retravaillée. Sur mobile (le panneau bleu est masqué en dessous de lg), une
+  // barre compacte reprend les mêmes informations (portail sécurisé, langue, copyright) pour
+  // ne rien perdre de ce qui existait avant.
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between p-4 sm:p-6 lg:p-8 font-sans antialiased select-none">
-      {/* Top Header Bar */}
-      <header className="w-full flex items-center justify-between py-2 px-2 sm:px-4">
-        {/* Left: ACTIVA Cloud Secure Portal */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0a2e6b] shadow-2xs">
-          <Shield className="w-3.5 h-3.5 text-[#0a2e6b]" />
-          <span>ACTIVA Cloud Secure Portal</span>
+    <div className="min-h-screen w-full flex font-sans antialiased select-none">
+      {/* Mobile-only top bar — repris du header existant, visible uniquement quand le panneau
+          bleu (masqué en dessous de lg) n'est pas affiché. */}
+      <div className="lg:hidden fixed top-0 inset-x-0 z-20 flex items-center justify-between gap-2 px-4 py-3 bg-white border-b border-[#E8EDF2]">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
+          <Shield className="w-3.5 h-3.5 text-[#0A347B]" />
+          <span>ACTIVA Secure Portal</span>
         </div>
-
-        {/* Right: English (Default) */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0a2e6b] shadow-2xs">
-          <Globe className="w-3.5 h-3.5 text-[#0a2e6b]" />
-          <span>English (Default)</span>
-        </div>
-      </header>
-
-      {/* Centered Login Card Container */}
-      <div className="my-auto flex flex-col items-center justify-center">
-        <div className="w-full max-w-[460px] bg-white rounded-[26px] shadow-xl shadow-slate-300/30 border border-[#E8EDF2] overflow-hidden flex flex-col transition-all duration-300">
-          
-          {/* CARD NAVY HEADER (#0a2e6b) */}
-          <div className="bg-[#0a2e6b] pt-8 pb-7 px-6 text-white text-center flex flex-col items-center">
-            {/* Logo container with white background and moderate rounded corners */}
-            <div className="mb-4 bg-white rounded-xl px-4 py-2 shadow-sm border border-slate-200/90 flex items-center justify-center">
-              <Logo size="md" showTagline={true} transparent={true} />
-            </div>
-
-            {/* Header Title & Subtitle */}
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-tight">
-              Production Portal Login
-            </h1>
-            <p className="text-xs sm:text-[13px] text-[#EAF2FF] font-medium mt-1.5 opacity-90 leading-snug">
-              Health Insurance & Claims Management Platform
-            </p>
-          </div>
-
-          {/* LOGIN FORM */}
-          <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-5 bg-white">
-            {/* Error Alert Box */}
-            {error && (
-              <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 text-[#DC4C4C] shrink-0 mt-0.5" />
-                <div className="flex-1 leading-relaxed">{error}</div>
-              </div>
-            )}
-
-            {/* Corporate Email or Username */}
-            <div>
-              <label className="block text-[13px] font-semibold text-[#0a2e6b] mb-1.5">
-                Corporate Email or Username
-              </label>
-              <div className="relative">
-                <input
-                  id="login-username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. by.ekani@group-activa.com"
-                  className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0a2e6b] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0a2e6b] focus:ring-2 focus:ring-[#0a2e6b]/20 focus:bg-white transition duration-150"
-                  autoComplete="username"
-                  required
-                />
-                <User className="w-4 h-4 text-[#778FAF] absolute left-3.5 top-3.5 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-[13px] font-semibold text-[#0a2e6b] mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="login-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0a2e6b] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0a2e6b] focus:ring-2 focus:ring-[#0a2e6b]/20 focus:bg-white transition duration-150"
-                  autoComplete="current-password"
-                  required
-                />
-                <Lock className="w-4 h-4 text-[#778FAF] absolute left-3.5 top-3.5 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Sign In Button */}
-            <div className="pt-2">
-              <button
-                id="login-submit-button"
-                type="submit"
-                disabled={isLoggingIn || lockoutRemainingSec > 0}
-                className="w-full py-3.5 px-4 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] active:bg-[#07214f] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>{lockoutRemainingSec > 0 ? `Try again in ${lockoutRemainingSec}s` : isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </form>
-
-          {/* CARD FOOTER */}
-          <div className="px-6 py-4 bg-[#F8FAFC] border-t border-[#E8EDF2] text-center text-xs text-[#778FAF] font-medium">
-            <span>© 2026 ACTIVA Insurance Group. All rights reserved.</span>
-          </div>
-        </div>
-
-        {/* Version underneath on background */}
-        <div className="mt-3 text-center text-xs font-mono font-bold text-[#0a2e6b]">
-          v2.4.0
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
+          <Globe className="w-3.5 h-3.5 text-[#0A34A3]" />
+          <span>EN</span>
         </div>
       </div>
 
-      {/* Bottom spacer for balance */}
-      <div className="h-6"></div>
+      {/* LEFT PANEL — dégradé bleu + motif de courbes, identiques à la sidebar Agent */}
+      <div className="hidden lg:flex lg:w-[46%] xl:w-[44%] bg-gradient-to-b from-[#072659] via-[#0A347B] to-[#0D2B63] relative overflow-hidden flex-col justify-between p-10 xl:p-14">
+        {/* Halo lumineux — identique à Sidebar.tsx (accentGlow Agent: bg-blue-400/20) */}
+        <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Motif de courbes — copié tel quel de Sidebar.tsx. === AMÉLIORATION AJOUTÉE :
+            dérive lente et continue (login-motif-drift), sur demande explicite. === */}
+        <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0 login-motif-drift">
+          <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
+            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
+            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
+            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
+          </svg>
+        </div>
+
+        {/* === AMÉLIORATION AJOUTÉE : entrée en fondu/glissement, en cascade, du badge, du
+            titre, du texte et du copyright — sur demande explicite ("je veux que ces données
+            soient animées"). Contenu, couleurs et mise en page strictement inchangés. === */}
+        <div className="relative z-10 flex items-center gap-1.5 self-start px-3 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-xs font-semibold text-white login-anim-fade-up login-anim-delay-1">
+          <Shield className="w-3.5 h-3.5" />
+          <span>ACTIVA Cloud Secure Portal</span>
+        </div>
+
+        <div className="relative z-10">
+          <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight login-anim-fade-up login-anim-delay-2">
+            Hello,<br />ACTIVA HealthPass!
+          </h1>
+          <p className="mt-5 text-sm xl:text-[15px] text-[#EAF2FF]/90 font-medium leading-relaxed max-w-sm login-anim-fade-up login-anim-delay-3">
+            Manage enrollments, claims and coverage in one secure place. Fast, reliable, and built for your team.
+          </p>
+        </div>
+
+        <div className="relative z-10 text-xs text-white/60 font-medium login-anim-fade-up login-anim-delay-4">
+          © 2026 ACTIVA Insurance Group. All rights reserved.
+        </div>
+      </div>
+
+      {/* RIGHT PANEL — blanc, logo + formulaire */}
+      <div className="flex-1 bg-white relative flex flex-col">
+        {/* Language badge, desktop only (position reprise de l'ancien header) */}
+        <div className="hidden lg:flex absolute top-6 right-6 xl:top-10 xl:right-10 items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs">
+          <Globe className="w-3.5 h-3.5 text-[#0A34A3]" />
+          <span>English (Default)</span>
+        </div>
+
+        <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-10 xl:p-16 pt-20 lg:pt-10">
+          <div className="w-full max-w-[400px]">
+            {/* Logo agrandi et centré, mieux mis en valeur qu'avant. === AMÉLIORATION
+                AJOUTÉE : espace réduit entre le logo et "Welcome Back!" (mb-8 -> mb-5), sur
+                demande explicite. === */}
+            <div className="flex justify-center mb-5">
+              <Logo size="2xl" showTagline={true} transparent={true} />
+            </div>
+
+            <h2 className="text-2xl sm:text-[28px] font-black text-[#0D2B63] tracking-tight text-center">
+              Welcome Back!
+            </h2>
+            <p className="mt-1.5 text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
+              Sign in to access your ACTIVA HealthPass account.
+            </p>
+
+            <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+              {/* Error Alert Box */}
+              {error && (
+                <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-[#DC4C4C] shrink-0 mt-0.5" />
+                  <div className="flex-1 leading-relaxed">{error}</div>
+                </div>
+              )}
+
+              {/* === AMÉLIORATION AJOUTÉE : libellé simplifié en "Username" et exemple d'adresse
+                  e-mail retiré du placeholder (champ vide) — le champ accepte toujours email OU
+                  nom d'utilisateur exactement comme avant, seul l'affichage change. === */}
+              <div>
+                <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
+                  Username
+                </label>
+                <div className="relative">
+                  <input
+                    id="login-username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder=""
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                    autoComplete="username"
+                    required
+                  />
+                  <User className="w-4 h-4 text-[#778FAF] absolute left-3.5 top-3.5 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Password */}
+              {/* === AMÉLIORATION AJOUTÉE : l'icône de cadenas ("illustration") a été retirée de
+                  l'intérieur du champ mot de passe, sur demande explicite — le champ conserve
+                  exactement le même comportement, seul le padding gauche est réajusté (pl-10 ->
+                  pl-4) puisqu'il n'y a plus d'icône à laisser de la place. === */}
+              <div>
+                <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="login-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder=""
+                    className="w-full pl-4 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Sign In Button */}
+              <div className="pt-1">
+                <button
+                  id="login-submit-button"
+                  type="submit"
+                  disabled={isLoggingIn || lockoutRemainingSec > 0}
+                  className="w-full py-3 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span>{lockoutRemainingSec > 0 ? `Try again in ${lockoutRemainingSec}s` : isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* Mobile-only footer copyright — repris de l'ancien pied de carte */}
+        <div className="lg:hidden text-center text-xs text-[#778FAF] font-medium py-4 border-t border-[#E8EDF2]">
+          © 2026 ACTIVA Insurance Group. All rights reserved.
+        </div>
+      </div>
     </div>
   );
 };

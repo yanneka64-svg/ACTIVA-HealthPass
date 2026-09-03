@@ -16,6 +16,7 @@ interface ChangePasswordModalProps {
   isExpiredPassword?: boolean;
   customTitle?: string;
   customSubtitle?: string;
+  userRole?: string;
 }
 
 export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
@@ -27,8 +28,15 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   isExpiredPassword = false,
   customTitle,
   customSubtitle,
+  userRole = 'Admin',
 }) => {
   const t = useTranslation(lang);
+  // === AMÉLIORATION AJOUTÉE : accent gris pour Admin (au lieu du bleu Agent #0a2e6b
+  // affiché auparavant peu importe le rôle connecté) ; fenêtre passée au blanc.
+  const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
+  const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
+  const accentBtnClass = isAdmin ? 'bg-slate-700 hover:bg-slate-800' : isSupervisor ? 'bg-[#0F766E] hover:bg-[#115E59]' : 'bg-[#0a2e6b] hover:bg-[#07214f]';
+  const accentRingClass = isAdmin ? 'focus:ring-slate-500' : isSupervisor ? 'focus:ring-[#0F766E]' : 'focus:ring-[#0a2e6b]';
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -50,7 +58,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
     e.preventDefault();
     if (!isFormValid) {
       setError(
-        'Please meet all password security requirements.'
+        'Please meet all the password security requirements.'
       );
       return;
     }
@@ -67,21 +75,21 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="bg-[var(--brand-900)] p-6 text-white text-center relative">
-          <div className="w-12 h-12 rounded-2xl bg-white/10 mx-auto flex items-center justify-center text-emerald-300 mb-3 shadow-inner">
+        <div className="bg-white border-b border-slate-200 p-6 text-slate-900 text-center relative">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 mx-auto flex items-center justify-center text-emerald-600 mb-3 shadow-inner">
             <KeyRound className="w-6 h-6" />
           </div>
-          <h3 className="font-extrabold text-lg tracking-tight">
+          <h3 className="font-extrabold text-lg tracking-tight text-slate-900">
             {modalTitle}
           </h3>
-          <p className="text-xs text-[var(--brand-100)] mt-1 max-w-xs mx-auto leading-relaxed">
+          <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
             {modalSubtitle}
           </p>
 
           {!isMandatory && onClose && (
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10"
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
             >
               <X className="w-5 h-5" />
             </button>
@@ -107,7 +115,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 ${accentRingClass} focus:bg-white transition`}
                   placeholder="••••••••"
                   required
                 />
@@ -125,7 +133,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
+                className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 ${accentRingClass} focus:bg-white transition`}
                 placeholder="••••••••"
                 required
               />
@@ -142,7 +150,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
+                className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 ${accentRingClass} focus:bg-white transition`}
                 placeholder="••••••••"
                 required
               />
@@ -210,7 +218,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               disabled={!isFormValid}
               className={`flex-1 py-2.5 px-4 rounded-xl text-white text-xs font-bold shadow-md transition flex items-center justify-center gap-2 ${
                 isFormValid
-                  ? 'bg-[var(--brand-900)] hover:bg-[#07214f]'
+                  ? accentBtnClass
                   : 'bg-slate-300 cursor-not-allowed text-slate-500'
               }`}
             >

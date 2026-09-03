@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Search,
   Plus,
+  PlusCircle, // === AMÉLIORATION AJOUTÉE : "+" entouré d'un cercle, harmonisé sur toute l'interface ===
   Sliders,
   Edit2,
   Trash2,
@@ -20,7 +21,6 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
-  Settings,
   ArrowRight,
   MoreVertical,
   ShieldAlert,
@@ -237,7 +237,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
   // Benefit badge styling
   const getBenefitBadgeStyle = (name: string) => {
     if (name.includes('Outpatient')) {
-      return 'bg-[var(--brand-50)] text-[var(--brand-900)] border-[var(--brand-200)]';
+      return 'bg-blue-50 text-blue-800 border-blue-200';
     }
     if (name.includes('Inpatient') || name.includes('Hospital')) {
       return 'bg-indigo-50 text-indigo-800 border-indigo-200';
@@ -263,7 +263,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
     const initialOrg =
       selectedOrgFilter !== 'ALL'
         ? selectedOrgFilter
-        : availableOrgs[0]?.name || 'Orange Liberia Telecom';
+        : availableOrgs[0]?.name || 'TotalEnergies Liberia Ltd';
     setWizardOrg(initialOrg);
     setWizardSelectedBenefits(['Outpatient Consultations', 'Inpatient Hospitalization']);
 
@@ -286,7 +286,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
   // Open Wizard to edit an existing ceiling
   const openEditCeilingModal = (c: Ceiling) => {
     setEditingCeilingId(c.id);
-    const org = c.organization || availableOrgs[0]?.name || 'Orange Liberia Telecom';
+    const org = c.organization || availableOrgs[0]?.name || 'TotalEnergies Liberia Ltd';
     const benefitName = c.careType || c.serviceCategory || 'Outpatient Consultations';
     setWizardOrg(org);
     setWizardSelectedBenefits([benefitName]);
@@ -323,7 +323,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
 
   // Open Age Limits Quick Editor Modal
   const openAgeLimitsModal = (orgName?: string) => {
-    const targetOrg = orgName || (selectedOrgFilter !== 'ALL' ? selectedOrgFilter : availableOrgs[0]?.name || 'Orange Liberia Telecom');
+    const targetOrg = orgName || (selectedOrgFilter !== 'ALL' ? selectedOrgFilter : availableOrgs[0]?.name || 'TotalEnergies Liberia Ltd');
     setAgeLimitsOrg(targetOrg);
     const existingCeiling = ceilings.find((c) => c.organization === targetOrg);
     setAgeLimitPrincipal(existingCeiling?.maxAgePrincipal ?? 65);
@@ -494,72 +494,82 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. TOP POLICY AGE LIMITS & REAL-TIME ELIGIBILITY CONTROLS BANNER */}
-      <div className="bg-gradient-to-r from-[var(--brand-900)] via-[var(--brand-900)] to-[var(--brand-900)] rounded-3xl p-6 text-white shadow-xl border border-[var(--brand-800)]/60 relative overflow-hidden">
+      {/* === AMÉLIORATION AJOUTÉE : bannière alignée sur le gris déjà utilisé par la barre
+          latérale Admin (auparavant un dégradé quasi-noir #111827/#0F172A, incohérent avec
+          le reste de l'interface Admin) === */}
+      <div className="bg-gradient-to-r from-[#334155] via-[#3B485C] to-[#1E293B] rounded-3xl p-6 text-white shadow-xl border border-slate-600/70 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-[var(--brand-200)]">
-              <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
-              <span>Policy Age Limits & Real-Time Eligibility Verification</span>
+        {/* === AMÉLIORATION AJOUTÉE : le badge "Policy Age Limits & Real-Time Eligibility
+            Verification" (et le paragraphe descriptif sous lui) sont désormais alignés en HAUT
+            (items-start, au lieu de items-center) — au même niveau vertical que le libellé
+            "PRIMARY INSURED" en haut de sa bulle — et restent justifiés à l'extrême gauche de la
+            bannière ; les bulles + le bouton "Configure Benefit Limit" gardent leur position
+            initiale à droite, inchangée. === */}
+        <div className="relative z-10 space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+            {/* === AMÉLIORATION AJOUTÉE : le paragraphe descriptif est remonté juste sous le
+                badge "Policy Age Limits & Real-Time Eligibility Verification" (au lieu de se
+                trouver plus bas, après les bulles d'âge et le bouton), avec un retour à la
+                ligne normal et un alignement explicite à gauche. === */}
+            <div className="space-y-2 max-w-md lg:max-w-lg shrink-0">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-gray-300">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
+                <span>Policy Age Limits & Real-Time Eligibility Verification</span>
+              </div>
+              {/* === AMÉLIORATION AJOUTÉE : texte justifié (text-justify) sur demande explicite,
+                  au lieu d'un simple alignement à gauche — les bords gauche ET droit du
+                  paragraphe sont désormais alignés. === */}
+              <p className="text-xs text-gray-300 leading-relaxed font-medium text-justify whitespace-normal break-words">
+                Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
+              </p>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Coverage Ceilings & Age Thresholds
-            </h2>
-            <p className="text-xs text-[var(--brand-100)]/90 leading-relaxed font-medium">
-              Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
-            </p>
-          </div>
 
-          {/* Dynamic Age Limits Display Pills */}
-          <div className="flex flex-wrap items-center gap-3">
+            {/* Dynamic Age Limits Display Pills */}
+            <div className="flex flex-wrap items-center gap-3">
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--brand-200)] block">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
                 Primary Insured
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgePrinc}</span>
-                <span className="text-[10px] font-bold text-[var(--brand-200)]">years</span>
+                <span className="text-[10px] font-bold text-gray-300">years</span>
               </div>
             </div>
 
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--brand-200)] block">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
                 Spouse
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgeSpouse}</span>
-                <span className="text-[10px] font-bold text-[var(--brand-200)]">years</span>
+                <span className="text-[10px] font-bold text-gray-300">years</span>
               </div>
             </div>
 
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[140px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--brand-200)] block">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
                 Child / Dependant
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgeChild}</span>
-                <span className="text-[10px] font-bold text-emerald-300">({activeAgeStudent}y student)</span>
+                <span className="text-[10px] font-bold text-emerald-400">({activeAgeStudent}y student)</span>
               </div>
             </div>
 
-            <button
-              id="configure-age-limits-btn"
-              onClick={() => openAgeLimitsModal()}
-              className="px-4 py-3 rounded-2xl bg-white text-[var(--brand-900)] hover:bg-[var(--brand-50)] font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
-            >
-              <Settings className="w-4 h-4 text-[var(--brand-900)]" />
-              <span>Configure Age Limits</span>
-            </button>
-
+            {/* === AMÉLIORATION AJOUTÉE : bouton "Configure Age Limits" retiré — un seul bouton
+                subsiste ("Configure Benefit Limit"), restylé en blanc comme demandé.
+                openAgeLimitsModal reste disponible dans le code (état ageLimitsModalOpen conservé)
+                pour ne rien supprimer côté logique métier, seul le déclencheur visuel est retiré. */}
             <button
               id="configure-benefit-limit-btn"
               onClick={openNewBenefitLimitWizard}
-              className="px-4 py-3 rounded-2xl bg-[#DC2626] hover:bg-[#B91C1C] text-white font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
+              className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-slate-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
             >
-              <Plus className="w-4 h-4 text-white" />
+              <PlusCircle className="w-4 h-4 text-slate-800" />
               <span>Configure Benefit Limit</span>
             </button>
+            </div>
           </div>
         </div>
       </div>
@@ -577,7 +587,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 setCurrentPage(1);
               }}
               placeholder="Search benefit name or organization..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           </div>
@@ -589,7 +599,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               setSelectedBenefitFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
             <option value="ALL">All Benefit Types</option>
             {availableBenefits.map((b) => (
@@ -608,7 +618,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 setItemsPerPage(Number(e.target.value));
                 setCurrentPage(1);
               }}
-              className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+              className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
@@ -625,7 +635,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
         <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2.5">
-              <Sliders className="w-4 h-4 text-[var(--brand-900)]" />
+              <Sliders className="w-4 h-4 text-slate-700" />
               <h2 className="font-extrabold text-sm text-slate-900">
                 Coverage Ceilings & Limits Matrix
               </h2>
@@ -643,15 +653,19 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
         {filteredCeilings.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs font-medium space-y-2">
             <p>{t.noData}</p>
+            {/* === AMÉLIORATION AJOUTÉE : "+" textuel remplacé par l'icône ronde harmonisée === */}
             <button
               onClick={openNewBenefitLimitWizard}
-              className="text-[var(--brand-900)] font-bold hover:underline cursor-pointer"
+              className="text-slate-700 font-bold hover:underline cursor-pointer inline-flex items-center gap-1.5"
             >
-              + Create a new benefit limit
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>Create a new benefit limit</span>
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Desktop/tablet: table (unchanged) */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
@@ -681,7 +695,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               <tbody className="divide-y divide-slate-100 font-medium">
                 {paginatedCeilings.map((c) => {
                   const benefitName = c.careType || c.serviceCategory || 'Outpatient Consultations';
-                  const orgName = c.organization || 'Orange Liberia Telecom';
+                  const orgName = c.organization || 'TotalEnergies Liberia Ltd';
                   const isOutpatient = !benefitName.toLowerCase().includes('inpatient');
 
                   // Resolved amounts with fallbacks
@@ -720,7 +734,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       {/* Organization */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg bg-[var(--brand-50)] text-[var(--brand-900)] flex items-center justify-center font-bold text-[10px] shrink-0 border border-[var(--brand-100)]">
+                          <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 border border-slate-200">
                             <Building2 className="w-3.5 h-3.5" />
                           </div>
                           <div>
@@ -771,7 +785,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       {/* Age Limits Column */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-md bg-[var(--brand-50)] text-[var(--brand-900)] border border-[var(--brand-100)] text-[10px] font-bold" title={`Principal ≤ ${maxP} yrs`}>
+                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-100 text-[10px] font-bold" title={`Principal ≤ ${maxP} yrs`}>
                             P: ≤{maxP}y
                           </span>
                           <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold" title={`Spouse ≤ ${maxS} yrs`}>
@@ -812,7 +826,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => openEditCeilingModal(c)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-[var(--brand-900)] hover:bg-[var(--brand-50)] transition cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                             title="Edit benefit limits"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -832,6 +846,116 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* === AMÉLIORATION AJOUTÉE : liste de cartes sur mobile, au lieu du tableau à 7
+              colonnes qui débordait/se comprimait mal sur petit écran. Mêmes données et
+              mêmes actions (Edit / Delete) que le tableau desktop. === */}
+          <div className="sm:hidden divide-y divide-slate-100">
+            {paginatedCeilings.map((c) => {
+              const benefitName = c.careType || c.serviceCategory || 'Outpatient Consultations';
+              const orgName = c.organization || 'TotalEnergies Liberia Ltd';
+              const isOutpatient = !benefitName.toLowerCase().includes('inpatient');
+
+              const outMoPrinc = c.outpatientMonthlyPrincipal ?? (isOutpatient ? c.monthlyLimit || 250 : 0);
+              const outMoDep = c.outpatientMonthlyDependent ?? (isOutpatient ? Math.round((c.monthlyLimit || 250) * 0.6) : 0);
+              const inMoPrinc = c.inpatientMonthlyPrincipal ?? (!isOutpatient ? c.monthlyLimit || 500 : 0);
+              const inMoDep = c.inpatientMonthlyDependent ?? (!isOutpatient ? Math.round((c.monthlyLimit || 500) * 0.6) : 0);
+
+              const monthlyPrinc = isOutpatient ? (outMoPrinc || 250) : (inMoPrinc || 500);
+              const monthlyDep = isOutpatient ? (outMoDep || 150) : (inMoDep || 300);
+
+              const annPrinc = c.outpatientAnnualPrincipal ?? c.inpatientAnnualPrincipal ?? c.individualLimit ?? 1000;
+              const annDep = c.outpatientAnnualDependent ?? c.inpatientAnnualDependent ?? Math.round(annPrinc * 0.66);
+
+              const maxP = c.maxAgePrincipal ?? 65;
+              const maxS = c.maxAgeSpouse ?? 65;
+              const maxC = c.maxAgeChild ?? 21;
+
+              const consumed = c.consumedPercentage || 28;
+              const isHigh = consumed > 75;
+
+              return (
+                <div key={c.id} className="p-4 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 border border-slate-200">
+                        <Building2 className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="font-bold text-slate-900 text-xs truncate">{orgName}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => openEditCeilingModal(c)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                        title="Edit benefit limits"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteCeiling(c.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                        title="Delete rule"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold border ${getBenefitBadgeStyle(
+                      benefitName
+                    )}`}
+                  >
+                    {benefitName}
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-2.5 text-[11px]">
+                    <div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Monthly (P/D)</div>
+                      <div className="font-mono font-bold text-slate-900">
+                        ${monthlyPrinc.toLocaleString()} / ${monthlyDep.toLocaleString()}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Annual (P/D)</div>
+                      <div className="font-mono font-bold text-slate-900">
+                        ${annPrinc.toLocaleString()} / ${annDep.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-100 text-[10px] font-bold">
+                      P: ≤{maxP}y
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold">
+                      S: ≤{maxS}y
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold">
+                      C: ≤{maxC}y
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] font-bold">
+                      <span className="text-slate-400 font-medium">Consumption</span>
+                      <span className={isHigh ? 'text-rose-600' : 'text-slate-700'}>{consumed}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${consumed}%`,
+                          backgroundColor: isHigh ? '#e11d48' : consumed > 50 ? '#f59e0b' : '#00A859',
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
 
         {/* Table Pagination Footer */}
@@ -856,7 +980,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   onClick={() => setCurrentPage(p)}
                   className={`w-7 h-7 rounded-lg text-xs font-bold transition cursor-pointer ${
                     currentPage === p
-                      ? 'bg-[var(--brand-900)] text-white'
+                      ? 'bg-slate-700 text-white'
                       : 'border border-slate-200 text-slate-700 hover:bg-white'
                   }`}
                 >
@@ -880,14 +1004,14 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
       {ageLimitsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95">
-            <div className="px-6 py-4.5 bg-gradient-to-r from-[var(--brand-900)] to-[var(--brand-900)] text-white flex items-center justify-between">
+            <div className="px-6 py-4.5 bg-white border-b border-slate-200 text-slate-900 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <ShieldAlert className="w-5 h-5 text-amber-300" />
-                <h3 className="text-base font-black">Configure Policy Age Limits</h3>
+                <ShieldAlert className="w-5 h-5 text-amber-500" />
+                <h3 className="text-base font-black text-slate-900">Configure Policy Age Limits</h3>
               </div>
               <button
                 onClick={() => setAgeLimitsModalOpen(false)}
-                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -909,7 +1033,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                     setAgeLimitChild(ex?.maxAgeChild ?? 21);
                     setAgeLimitStudent(ex?.maxAgeStudent ?? 25);
                   }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                 >
                   {availableOrgs.map((org) => (
                     <option key={org.id} value={org.name}>
@@ -921,7 +1045,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
                 <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-                  <label className="block text-xs font-extrabold text-[var(--brand-900)] mb-1">
+                  <label className="block text-xs font-extrabold text-blue-900 mb-1">
                     Principal Insured (Max Age)
                   </label>
                   <div className="flex items-center gap-2">
@@ -931,7 +1055,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       max="100"
                       value={ageLimitPrincipal}
                       onChange={(e) => setAgeLimitPrincipal(parseInt(e.target.value, 10) || 65)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
                     <span className="text-xs font-bold text-slate-400">years</span>
                   </div>
@@ -949,7 +1073,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       max="100"
                       value={ageLimitSpouse}
                       onChange={(e) => setAgeLimitSpouse(parseInt(e.target.value, 10) || 65)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
                     <span className="text-xs font-bold text-slate-400">years</span>
                   </div>
@@ -967,7 +1091,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       max="40"
                       value={ageLimitChild}
                       onChange={(e) => setAgeLimitChild(parseInt(e.target.value, 10) || 21)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
                     <span className="text-xs font-bold text-slate-400">years</span>
                   </div>
@@ -985,7 +1109,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       max="40"
                       value={ageLimitStudent}
                       onChange={(e) => setAgeLimitStudent(parseInt(e.target.value, 10) || 25)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
                     <span className="text-xs font-bold text-slate-400">years</span>
                   </div>
@@ -1029,7 +1153,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             {/* Drawer Top Header */}
             <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
               <div>
-                <h3 className="text-base font-bold text-[var(--brand-900)] tracking-tight">
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">
                   {editingCeilingId ? 'Edit Benefit Limit' : 'New Benefit Limit'}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -1051,7 +1175,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 <div
                   className={`flex items-center gap-1.5 ${
                     wizardStep === 1
-                      ? 'text-[var(--brand-900)]'
+                      ? 'text-slate-800 font-bold'
                       : wizardStep > 1
                       ? 'text-emerald-700'
                       : 'text-slate-400'
@@ -1060,7 +1184,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                       wizardStep === 1
-                        ? 'bg-[var(--brand-900)] text-white'
+                        ? 'bg-slate-700 text-white'
                         : wizardStep > 1
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-slate-200 text-slate-600'
@@ -1076,7 +1200,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 <div
                   className={`flex items-center gap-1.5 ${
                     wizardStep === 2
-                      ? 'text-[var(--brand-900)]'
+                      ? 'text-slate-800 font-bold'
                       : wizardStep > 2
                       ? 'text-emerald-700'
                       : 'text-slate-400'
@@ -1085,7 +1209,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                       wizardStep === 2
-                        ? 'bg-[var(--brand-900)] text-white'
+                        ? 'bg-slate-700 text-white'
                         : wizardStep > 2
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-slate-200 text-slate-600'
@@ -1100,13 +1224,13 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 {/* Step 3 */}
                 <div
                   className={`flex items-center gap-1.5 ${
-                    wizardStep === 3 ? 'text-[var(--brand-900)]' : 'text-slate-400'
+                    wizardStep === 3 ? 'text-slate-800 font-bold' : 'text-slate-400'
                   }`}
                 >
                   <span
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                       wizardStep === 3
-                        ? 'bg-[var(--brand-900)] text-white'
+                        ? 'bg-slate-700 text-white'
                         : 'bg-slate-200 text-slate-600'
                     }`}
                   >
@@ -1140,7 +1264,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                             setWizardAgeStudent(ex.maxAgeStudent ?? 25);
                           }
                         }}
-                        className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white appearance-none cursor-pointer"
+                        className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:bg-white appearance-none cursor-pointer"
                       >
                         {availableOrgs.map((org) => (
                           <option key={org.id} value={org.name}>
@@ -1156,7 +1280,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   {/* Age Limits per Policy Configuration */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                     <div className="flex items-center gap-2">
-                      <ShieldAlert className="w-4 h-4 text-[var(--brand-900)]" />
+                      <ShieldAlert className="w-4 h-4 text-slate-700" />
                       <span className="text-xs font-extrabold text-slate-900">
                         Configurable Policy Age Thresholds
                       </span>
@@ -1171,7 +1295,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           type="number"
                           value={wizardAgePrincipal}
                           onChange={(e) => setWizardAgePrincipal(parseInt(e.target.value, 10) || 65)}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         />
                       </div>
                       <div>
@@ -1182,7 +1306,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           type="number"
                           value={wizardAgeSpouse}
                           onChange={(e) => setWizardAgeSpouse(parseInt(e.target.value, 10) || 65)}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         />
                       </div>
                       <div>
@@ -1193,7 +1317,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           type="number"
                           value={wizardAgeChild}
                           onChange={(e) => setWizardAgeChild(parseInt(e.target.value, 10) || 21)}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         />
                       </div>
                       <div>
@@ -1204,7 +1328,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           type="number"
                           value={wizardAgeStudent}
                           onChange={(e) => setWizardAgeStudent(parseInt(e.target.value, 10) || 25)}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         />
                       </div>
                     </div>
@@ -1221,7 +1345,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       Selected Organization
                     </label>
                     <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-[var(--brand-900)]" />
+                      <Building2 className="w-4 h-4 text-slate-700" />
                       <span>{wizardOrg}</span>
                     </div>
                   </div>
@@ -1241,7 +1365,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                             onClick={() => toggleBenefitSelection(benefit)}
                             className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
                               isSelected
-                                ? 'bg-[var(--brand-900)] text-white shadow-2xs'
+                                ? 'bg-slate-700 text-white shadow-2xs'
                                 : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
                             }`}
                           >
@@ -1274,7 +1398,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           onClick={() => setActiveLimitsTab('monthly')}
                           className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                             activeLimitsTab === 'monthly'
-                              ? 'bg-white text-[var(--brand-900)] shadow-2xs'
+                              ? 'bg-white text-slate-800 shadow-2xs'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
@@ -1285,7 +1409,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           onClick={() => setActiveLimitsTab('annual')}
                           className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                             activeLimitsTab === 'annual'
-                              ? 'bg-white text-[var(--brand-900)] shadow-2xs'
+                              ? 'bg-white text-slate-800 shadow-2xs'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
@@ -1300,7 +1424,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-600 uppercase">
                             <th className="py-2.5 px-3">Benefit</th>
-                            <th className="py-2.5 px-2 text-center bg-[var(--brand-50)]/50 text-[var(--brand-900)]">
+                            <th className="py-2.5 px-2 text-center bg-blue-50/50 text-blue-900">
                               Outpatient
                             </th>
                             <th className="py-2.5 px-2 text-center bg-indigo-50/50 text-indigo-900">
@@ -1341,7 +1465,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                               parseFloat(e.target.value) || 0
                                             )
                                           }
-                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--brand-900)]"
+                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
                                         />
                                       </div>
                                     </div>
@@ -1366,7 +1490,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                               parseFloat(e.target.value) || 0
                                             )
                                           }
-                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--brand-900)]"
+                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
                                         />
                                       </div>
                                     </div>
@@ -1397,7 +1521,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                               parseFloat(e.target.value) || 0
                                             )
                                           }
-                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--brand-900)]"
+                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
                                         />
                                       </div>
                                     </div>
@@ -1422,7 +1546,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                               parseFloat(e.target.value) || 0
                                             )
                                           }
-                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--brand-900)]"
+                                          className="w-full pl-5 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500"
                                         />
                                       </div>
                                     </div>
@@ -1461,7 +1585,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                         {wizardSelectedBenefits.map((b) => (
                           <span
                             key={b}
-                            className="px-2.5 py-1 rounded-lg bg-[var(--brand-50)] text-[var(--brand-900)] border border-[var(--brand-200)] text-xs font-bold"
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold"
                           >
                             {b}
                           </span>
@@ -1483,8 +1607,8 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           >
                             <div className="font-bold text-slate-900">{benefit}</div>
                             <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-                              <div className="p-2 bg-[var(--brand-50)]/50 rounded-lg">
-                                <span className="font-bold text-[var(--brand-900)] block">Outpatient</span>
+                              <div className="p-2 bg-blue-50/50 rounded-lg">
+                                <span className="font-bold text-blue-800 block">Outpatient</span>
                                 <div>Monthly: Princ ${cfg.outpatientMonthlyPrincipal} | Dep ${cfg.outpatientMonthlyDependent}</div>
                                 <div>Annual: Princ ${cfg.outpatientAnnualPrincipal} | Dep ${cfg.outpatientAnnualDependent}</div>
                               </div>
@@ -1521,7 +1645,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setWizardStep((s) => (s + 1) as 1 | 2 | 3)}
-                    className="px-4 py-2 rounded-xl bg-[var(--brand-900)] hover:bg-[#072559] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <span>{wizardStep === 1 ? 'Next: Benefits & Limits' : 'Next: Review & Save'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />

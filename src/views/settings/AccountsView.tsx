@@ -38,6 +38,7 @@ import {
 import { Language, UserAccount, UserProfile, PermissionKey, ACTIVA_ENTITIES } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { PERMISSIONS_MATRIX, MatrixRow } from '../../services/permissions';
+import { hashPassword } from '../../utils/passwordUtils';
 
 export interface HabilitationDefinition {
   key: string;
@@ -359,6 +360,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     const selectedCountry = selectedEntity.replace(/^ACTIVA\s+/i, '');
 
     const pwdToSave = formData.password || generateStrongPassword();
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) — le mot de passe n'est plus jamais écrit en
+    // clair dans Firestore (accounts/{uid}.password / .tempPassword). Seuls le hash et le sel
+    // (voir src/utils/passwordUtils.ts) sont persistés ; `pwdToSave` en clair ne sert plus
+    // qu'à créer le compte Firebase Auth et à l'afficher UNE FOIS à l'écran (credentialDialog
+    // ci-dessous), jamais à être stocké tel quel.
+    const { passwordHash, passwordSalt } = await hashPassword(pwdToSave);
 
     // Create user in Firebase Auth using secondary app to prevent log-out
     let uid = 'USR-' + Date.now();
@@ -400,8 +407,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
         isActive: true,
         isTemporaryPassword: true,
         mustChangePassword: true,
-        password: pwdToSave,
-        tempPassword: pwdToSave,
+        passwordHash,
+        passwordSalt,
         passwordChangedAt: new Date().toISOString(),
         createdAt: new Date().toISOString().split('T')[0]
       };
@@ -429,8 +436,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       phoneCountryCode: formData.phoneCountryCode || '+231',
       profile: formData.profile,
       permissions: (formData.permissions as PermissionKey[]) || (getPermissionsForProfile(formData.profile) as PermissionKey[]),
-      password: pwdToSave,
-      tempPassword: pwdToSave,
+      passwordHash,
+      passwordSalt,
       isActive: true,
       createdAt: new Date().toISOString().split('T')[0]
     };
@@ -526,20 +533,25 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
   const handleResetPassword = async (acc: UserAccount) => {
     const newPwd = generateStrongPassword();
-    const newPassword = newPwd; 
-    
+    const newPassword = newPwd;
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) — voir handleCreateSubmit ci-dessus, même
+    // principe : seuls le hash et le sel sont désormais persistés, jamais le mot de passe en
+    // clair. Le comportement de connexion pour l'utilisateur reste strictement identique
+    // (voir LoginView.tsx, qui vérifie désormais le hash).
+    const { passwordHash, passwordSalt } = await hashPassword(newPassword);
+
     try {
       await updateDoc(doc(db, 'accounts', acc.id), {
-        password: newPassword,
-        tempPassword: newPassword,
+        passwordHash,
+        passwordSalt,
         isTemporaryPassword: true,
         mustChangePassword: true,
         passwordChangedAt: new Date().toISOString(),
       });
       await FirestoreService.updateAccount({
         id: acc.id,
-        password: newPassword,
-        tempPassword: newPassword,
+        passwordHash,
+        passwordSalt,
         isTemporaryPassword: true,
         mustChangePassword: true,
         passwordChangedAt: new Date().toISOString(),
@@ -548,8 +560,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       console.warn('Firestore password update note:', e);
       await FirestoreService.updateAccount({
         id: acc.id,
-        password: newPassword,
-        tempPassword: newPassword,
+        passwordHash,
+        passwordSalt,
         isTemporaryPassword: true,
         mustChangePassword: true,
         passwordChangedAt: new Date().toISOString(),
@@ -669,7 +681,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name, email, phone..."
-              className="w-full pl-8 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
+              className="w-full pl-8 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:bg-white transition"
             />
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
             {searchTerm && (
@@ -682,7 +694,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
           <select
             value={profileFilter}
             onChange={(e) => setProfileFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] cursor-pointer"
+            className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer"
           >
             <option value="ALL">All Profiles</option>
             <option value="Admin">Administrators</option>
@@ -700,7 +712,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 shadow-2xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             title="View permissions matrix by role (Agent, Supervisor, Admin)"
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-[var(--brand-900)]" />
+            <ShieldCheck className="w-3.5 h-3.5 text-slate-700" />
             <span>Role Permissions Matrix</span>
           </button>
 
@@ -708,10 +720,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
           <button
             type="button"
             onClick={handleOpenCreate}
-            className="px-3.5 py-2 rounded-xl bg-[var(--brand-900)] hover:bg-[#0b357a] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>+ New Account</span>
+            <span>New Account</span>
           </button>
         </div>
       </div>
@@ -720,7 +732,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Users className="w-4 h-4 text-[var(--brand-900)]" />
+            <Users className="w-4 h-4 text-slate-700" />
             <h3 className="font-extrabold text-sm text-slate-900">
               User Accounts & Mobile Access
             </h3>
@@ -756,7 +768,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                           <span className="font-bold text-slate-900 font-mono">
                             {acc.username || 'Not assigned'}
                           </span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[var(--brand-900)]/10 border border-[var(--brand-900)]/20 text-[var(--brand-900)] text-[10px] font-extrabold">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 border border-slate-300 text-slate-700 text-[10px] font-extrabold">
                             {acc.entity || (acc.country ? (acc.country.startsWith('ACTIVA') ? acc.country : `ACTIVA ${acc.country}`) : 'ACTIVA Liberia')}
                           </span>
                         </div>
@@ -783,8 +795,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       {/* Profile Badge */}
                       <td className="py-3.5 px-4">
                         {acc.profile === 'Admin' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--brand-50)] text-[var(--brand-900)] border border-[var(--brand-200)] text-[11px] font-black">
-                            <ShieldCheck className="w-3 h-3 text-[var(--brand-900)]" />
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-300 text-[11px] font-black">
+                            <ShieldCheck className="w-3 h-3 text-slate-600" />
                             <span>Admin</span>
                           </span>
                         )}
@@ -801,7 +813,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                           </span>
                         )}
                         <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
-                          <Shield className="w-2.5 h-2.5 text-[var(--brand-900)]" />
+                          <Shield className="w-2.5 h-2.5 text-slate-500" />
                           <span>{(acc.permissions?.length || getPermissionsForProfile(acc.profile)).length} active permissions</span>
                         </div>
                       </td>
@@ -852,7 +864,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(acc)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-[var(--brand-900)] hover:bg-[var(--brand-50)] transition cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                             title="Edit account"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -950,7 +962,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
                   Username (Login ID)
                 </span>
-                <div className="mt-0.5 inline-block px-3 py-1 rounded-lg bg-[var(--brand-50)] border border-[var(--brand-200)] text-[var(--brand-900)] font-mono text-xs font-bold">
+                <div className="mt-0.5 inline-block px-3 py-1 rounded-lg bg-slate-100 border border-slate-300 text-slate-800 font-mono text-xs font-bold">
                   {credentialDialog.username || credentialDialog.email}
                 </div>
               </div>
@@ -1008,7 +1020,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <button
                 type="button"
                 onClick={() => setCredentialDialog((prev) => ({ ...prev, isOpen: false }))}
-                className="py-2.5 px-8 bg-[var(--brand-900)] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+                className="py-2.5 px-8 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
               >
                 Done
               </button>
@@ -1024,7 +1036,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             {/* Header */}
             <div className="px-6 sm:px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-white">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-[var(--brand-50)]/80 border border-[var(--brand-100)] flex items-center justify-center text-[var(--brand-600)] shadow-2xs">
+                <div className="w-11 h-11 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shadow-2xs">
                   <Edit2 className="w-5 h-5" />
                 </div>
                 <div>
@@ -1061,7 +1073,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   {[
                     { role: 'Agent' as UserProfile, desc: 'Enrollment, data entry & tracking within their scope' },
                     { role: 'Supervisor' as UserProfile, desc: 'Validation, rejection, return & reporting' },
-                    { role: 'Admin' as UserProfile, desc: 'Global management, deletion & system settings' },
+                    { role: 'Admin' as UserProfile, desc: 'Global management, deletion & system administration' },
                   ].map(({ role, desc }) => {
                     const isSelected = formData.profile === role || (role === 'Supervisor' && formData.profile === 'Superviseur');
                     return (
@@ -1094,16 +1106,16 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               </div>
 
               {/* Permissions Assignment */}
-              <div className="bg-sky-50/40 border border-sky-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-2.5">
-                    <ShieldCheck className="w-5 h-5 text-[var(--brand-900)] shrink-0 mt-0.5" />
+                    <ShieldCheck className="w-5 h-5 text-slate-700 shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
                         Permissions Assignment ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} active)
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Adjust individual rights or apply a standard profile
+                        Adjust rights individually or apply a standard profile
                       </p>
                     </div>
                   </div>
@@ -1111,16 +1123,16 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: getPermissionsForProfile(formData.profile) })}
-                      className="px-3 py-1 bg-white border border-[var(--brand-400)] text-[var(--brand-700)] text-xs font-semibold rounded-full hover:bg-[var(--brand-50)] transition cursor-pointer shadow-2xs"
+                      className="px-3 py-1 bg-white border border-slate-300 text-slate-700 text-xs font-semibold rounded-full hover:bg-slate-100 transition cursor-pointer shadow-2xs"
                     >
-                      Default profile ({formData.profile})
+                      Default Profile ({formData.profile})
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: HABILITATIONS_SCHEMA.map((h) => h.key) })}
                       className="px-3 py-1 bg-white border border-emerald-400 text-emerald-700 text-xs font-semibold rounded-full hover:bg-emerald-50 transition cursor-pointer shadow-2xs"
                     >
-                      Tout Activer
+                      Enable All
                     </button>
                     <button
                       type="button"
@@ -1147,7 +1159,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       onClick={() => setActivePermCategory(cat.id)}
                       className={`px-3.5 py-1.5 rounded-full text-xs transition whitespace-nowrap cursor-pointer ${
                         activePermCategory === cat.id
-                          ? 'bg-[var(--brand-900)] text-white font-bold shadow-2xs'
+                          ? 'bg-slate-700 text-white font-bold shadow-2xs'
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium'
                       }`}
                     >
@@ -1172,7 +1184,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                             : [...current, hab.key];
                           setFormData({ ...formData, permissions: updated });
                         }}
-                        className="bg-white border border-[var(--brand-100)] hover:border-[var(--brand-300)] rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs transition cursor-pointer"
+                        className="bg-white border border-slate-200 hover:border-slate-400 rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs transition cursor-pointer"
                       >
                         <div className="pr-3">
                           <span className="text-xs font-extrabold text-slate-900 block">{hab.label}</span>
@@ -1185,7 +1197,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => {}}
-                            className="w-4 h-4 text-[var(--brand-600)] rounded cursor-pointer accent-[var(--brand-600)] pointer-events-none"
+                            className="w-4 h-4 text-slate-700 rounded cursor-pointer accent-slate-700 pointer-events-none"
                           />
                         </div>
                       </div>
@@ -1308,7 +1320,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     type="checkbox"
                     checked={formData.mobileAccessEnabled}
                     onChange={(e) => setFormData({ ...formData, mobileAccessEnabled: e.target.checked })}
-                    className="w-4 h-4 text-[var(--brand-600)] rounded accent-[var(--brand-600)] cursor-pointer"
+                    className="w-4 h-4 text-slate-700 rounded accent-slate-700 cursor-pointer"
                   />
                   <span className="text-xs font-semibold text-slate-800">
                     Grant access to Field Mobile Application (HealthPass Android / iOS)
@@ -1328,7 +1340,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>Save Changes</span>
@@ -1346,15 +1358,15 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             {/* Header */}
             <div className="px-6 sm:px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-white">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-[var(--brand-50)]/80 border border-[var(--brand-100)] flex items-center justify-center text-[var(--brand-600)] shadow-2xs">
+                <div className="w-11 h-11 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shadow-2xs">
                   <UserPlus className="w-5 h-5" />
                 </div>
                 <div>
                   <h2 className="text-base font-extrabold text-slate-900">
-                    Create a user account & assign permissions
+                    Create a User Account & Assign Permissions
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Set the profile and finely tune access rights
+                    Define the profile and precisely adjust access rights
                   </p>
                 </div>
               </div>
@@ -1383,7 +1395,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   {[
                     { role: 'Agent' as UserProfile, desc: 'Enrollment, data entry & tracking within their scope' },
                     { role: 'Supervisor' as UserProfile, desc: 'Validation, rejection, return & reporting' },
-                    { role: 'Admin' as UserProfile, desc: 'Global management, deletion & system settings' },
+                    { role: 'Admin' as UserProfile, desc: 'Global management, deletion & system administration' },
                   ].map(({ role, desc }) => {
                     const isSelected = formData.profile === role || (role === 'Supervisor' && formData.profile === 'Superviseur');
                     return (
@@ -1417,16 +1429,16 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               </div>
 
               {/* Permissions Assignment (Screenshot 1) */}
-              <div className="bg-sky-50/40 border border-sky-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-2.5">
-                    <ShieldCheck className="w-5 h-5 text-[var(--brand-900)] shrink-0 mt-0.5" />
+                    <ShieldCheck className="w-5 h-5 text-slate-700 shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
                         Permissions Assignment ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} active)
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Adjust individual rights or apply a standard profile
+                        Adjust rights individually or apply a standard profile
                       </p>
                     </div>
                   </div>
@@ -1434,16 +1446,16 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: getPermissionsForProfile(formData.profile) })}
-                      className="px-3 py-1 bg-white border border-[var(--brand-400)] text-[var(--brand-700)] text-xs font-semibold rounded-full hover:bg-[var(--brand-50)] transition cursor-pointer shadow-2xs"
+                      className="px-3 py-1 bg-white border border-slate-300 text-slate-700 text-xs font-semibold rounded-full hover:bg-slate-100 transition cursor-pointer shadow-2xs"
                     >
-                      Default profile ({formData.profile})
+                      Default Profile ({formData.profile})
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: HABILITATIONS_SCHEMA.map((h) => h.key) })}
                       className="px-3 py-1 bg-white border border-emerald-400 text-emerald-700 text-xs font-semibold rounded-full hover:bg-emerald-50 transition cursor-pointer shadow-2xs"
                     >
-                      Tout Activer
+                      Enable All
                     </button>
                     <button
                       type="button"
@@ -1470,7 +1482,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       onClick={() => setActivePermCategory(cat.id)}
                       className={`px-3.5 py-1.5 rounded-full text-xs transition whitespace-nowrap cursor-pointer ${
                         activePermCategory === cat.id
-                          ? 'bg-[var(--brand-900)] text-white font-bold shadow-2xs'
+                          ? 'bg-slate-700 text-white font-bold shadow-2xs'
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium'
                       }`}
                     >
@@ -1495,7 +1507,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                             : [...current, hab.key];
                           setFormData({ ...formData, permissions: updated });
                         }}
-                        className="bg-white border border-[var(--brand-100)] hover:border-[var(--brand-300)] rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs transition cursor-pointer"
+                        className="bg-white border border-slate-200 hover:border-slate-400 rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs transition cursor-pointer"
                       >
                         <div className="pr-3">
                           <span className="text-xs font-extrabold text-slate-900 block">{hab.label}</span>
@@ -1508,7 +1520,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => {}}
-                            className="w-4 h-4 text-[var(--brand-600)] rounded cursor-pointer accent-[var(--brand-600)] pointer-events-none"
+                            className="w-4 h-4 text-slate-700 rounded cursor-pointer accent-slate-700 pointer-events-none"
                           />
                         </div>
                       </div>
@@ -1561,7 +1573,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     <button
                       type="button"
                       onClick={handleAutoUsername}
-                      className="text-xs font-semibold text-[var(--brand-600)] hover:text-[var(--brand-700)] flex items-center gap-1 cursor-pointer"
+                      className="text-xs font-semibold text-slate-600 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
                     >
                       <RefreshCw className="w-3 h-3" />
                       <span>Auto</span>
@@ -1657,7 +1669,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, password: generateStrongPassword() })}
-                    className="text-xs font-semibold text-[var(--brand-600)] hover:text-[var(--brand-700)] flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-semibold text-slate-600 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
                   >
                     <RefreshCw className="w-3 h-3" />
                     <span>Regenerate</span>
@@ -1684,7 +1696,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     type="checkbox"
                     checked={formData.mobileAccessEnabled}
                     onChange={(e) => setFormData({ ...formData, mobileAccessEnabled: e.target.checked })}
-                    className="w-4 h-4 text-[var(--brand-600)] rounded accent-[var(--brand-600)] cursor-pointer"
+                    className="w-4 h-4 text-slate-700 rounded accent-slate-700 cursor-pointer"
                   />
                   <span className="text-xs font-semibold text-slate-800">
                     Grant access to Field Mobile Application (HealthPass Android / iOS)
@@ -1704,7 +1716,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>Create Account & Assign</span>
@@ -1720,14 +1732,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="bg-[var(--brand-900)] p-5 text-white flex items-center justify-between">
+            <div className="bg-white border-b border-slate-200 p-5 text-slate-900 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
-                  <ShieldCheck className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center border border-slate-200">
+                  <ShieldCheck className="w-5 h-5 text-slate-700" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base">Role Entitlements & Permissions Matrix</h3>
-                  <p className="text-xs text-[var(--brand-100)]">
+                  <h3 className="font-extrabold text-base text-slate-900">Role Entitlements & Permissions Matrix</h3>
+                  <p className="text-xs text-slate-500">
                     Rights reference by profile (Agent, Supervisor, Admin) and Segregation of Duties (SoD) rules
                   </p>
                 </div>
@@ -1735,7 +1747,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <button
                 type="button"
                 onClick={() => setMatrixModalOpen(false)}
-                className="p-1.5 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1757,7 +1769,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   onClick={() => setActiveMatrixTab(tab.id)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
                     activeMatrixTab === tab.id
-                      ? 'bg-[var(--brand-900)] text-white shadow-xs'
+                      ? 'bg-slate-700 text-white shadow-xs'
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                   }`}
                 >
@@ -1848,13 +1860,13 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             {/* Footer */}
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 text-xs text-slate-600">
-                <Shield className="w-4 h-4 text-[var(--brand-900)]" />
+                <Shield className="w-4 h-4 text-slate-500" />
                 <span>Entitlements are automatically assigned according to the selected role profile and can be customized per staff member.</span>
               </div>
               <button
                 type="button"
                 onClick={() => setMatrixModalOpen(false)}
-                className="px-4 py-2 bg-[var(--brand-900)] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 Close Matrix
               </button>

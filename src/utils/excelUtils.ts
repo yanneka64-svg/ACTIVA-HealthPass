@@ -1,8 +1,9 @@
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Member, Organization, Provider, Claim, InvoiceItem, DependentItem } from '../types';
+import { Member, Organization, Provider, Claim, InvoiceItem, DependentItem, DependentRelationship, HealthPolicy, PolicyPayment, CardNumberPreviewRow } from '../types';
 import { drawPdfLogoStrip, drawRefinedHeaderTitle, PDF_LOGO_STRIP_HEIGHT } from './pdfBranding';
+import { planCardNumbersForImport } from '../services/cardNumberService';
 
 // Normalization helper: remove accents, lowercase, trim, remove symbols
 export function normalizeHeader(header: string): string {
@@ -25,6 +26,37 @@ export function matchHeaderAlias(header: string, aliases: string[]): boolean {
   });
 }
 
+// === AMÉLIORATION AJOUTÉE : sécurité (audit) — protection contre l'injection de formule
+// Excel/CSV ("CSV/Formula Injection", OWASP). Une valeur provenant de données saisies par
+// un utilisateur (nom d'assuré, nom d'organisation, commentaire de réclamation...) et
+// commençant par =, +, -, @ ou une tabulation/retour chariot est interprétée comme une
+// FORMULE par Excel/Google Sheets à l'ouverture du fichier exporté, ce qui peut exécuter du
+// code externe (ex: `=WEBSERVICE(...)`, `=cmd|'/c calc'!A1`) sur le poste de la personne qui
+// ouvre l'export. On neutralise cela en préfixant ces valeurs d'une apostrophe droite (') —
+// convention Excel standard pour forcer l'interprétation en texte brut — ce qui n'altère
+// jamais une valeur légitime (un nom d'organisation ne commence normalement pas par ces
+// caractères) et reste invisible à l'affichage dans la cellule.
+function sanitizeExcelCellValue<T>(value: T): T {
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(value)) {
+    return (`'${value}` as unknown) as T;
+  }
+  return value;
+}
+
+// Applique sanitizeExcelCellValue() à chaque champ de chaque ligne d'un tableau de données
+// juste avant sa conversion en feuille Excel (XLSX.utils.json_to_sheet). Ne modifie ni les
+// clés (en-têtes de colonnes) ni la structure des données — uniquement les valeurs texte à
+// risque.
+function sanitizeRowsForExcel<T extends Record<string, any>>(rows: T[]): T[] {
+  return rows.map((row) => {
+    const sanitized: Record<string, any> = {};
+    for (const key of Object.keys(row)) {
+      sanitized[key] = sanitizeExcelCellValue(row[key]);
+    }
+    return sanitized as T;
+  });
+}
+
 // Download blob helper
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -40,13 +72,41 @@ export function downloadBlob(blob: Blob, filename: string) {
 // ================= MEMBER IMPORT =================
 const MEMBER_COLUMN_MAPPINGS = {
   cardNo: ['card no', 'card number', 'card id', 'member id', 'matricule', 'no carte', 'numero carte', 'id carte', 'carte'],
-  principalName: ['primary insured', 'principal name', 'member name', 'insured name', 'full name', 'name', 'assure principal', 'principal', 'nom principal', 'nom et prenom'],
-  spouseName: ['spouse', 'spouse name', 'partner', 'conjoint', 'nom conjoint', 'epoux', 'epouse'],
-  children: ['children', 'dependents', 'child', 'kids', 'enfants', 'enfant', 'ayants droit'],
+  principalName: ['primary insured name', 'primary insured', 'principal name', 'member name', 'insured name', 'full name', 'name', 'assure principal', 'principal', 'nom principal', 'nom et prenom'],
+  birthDate: ['date of birth', 'birth date', 'dob', 'birthdate', 'date de naissance', 'naissance'],
+  spouseName: ['spouse name', 'spouse', 'partner', 'conjoint', 'nom conjoint', 'epoux', 'epouse'],
+  spouseDob: ['spouse date of birth', 'spouse dob', 'spouse birth date', 'date de naissance conjoint', 'dob conjoint'],
+  child1Name: ['child 1 name', 'child 1', 'enfant 1', 'nom enfant 1', 'child1'],
+  child1Dob: ['child 1 date of birth', 'child 1 dob', 'child1 dob', 'dob child 1', 'date de naissance enfant 1'],
+  child2Name: ['child 2 name', 'child 2', 'enfant 2', 'nom enfant 2', 'child2'],
+  child2Dob: ['child 2 date of birth', 'child 2 dob', 'child2 dob', 'dob child 2', 'date de naissance enfant 2'],
+  child3Name: ['child 3 name', 'child 3', 'enfant 3', 'nom enfant 3', 'child3'],
+  child3Dob: ['child 3 date of birth', 'child 3 dob', 'child3 dob', 'dob child 3', 'date de naissance enfant 3'],
+  child4Name: ['child 4 name', 'child 4', 'enfant 4', 'nom enfant 4', 'child4'],
+  child4Dob: ['child 4 date of birth', 'child 4 dob', 'child4 dob', 'dob child 4', 'date de naissance enfant 4'],
+  childrenLegacy: ['children', 'dependents', 'child', 'kids', 'enfants', 'enfant', 'ayants droit'],
+  // === AMÉLIORATION AJOUTÉE : le fichier "Staff" réel du client (voir demande utilisateur)
+  // utilise une colonne "N° of Dependant" — un simple décompte, pas le détail des ayants
+  // droit (celui-ci arrive via le fichier Dépendants séparé). On la reconnaît spécifiquement
+  // ici pour ne pas la confondre avec `childrenLegacy` (liste de noms séparés par virgules).
+  dependentsCount: ['n of dependant', 'no of dependant', 'nbr of dependant', 'number of dependant', 'number of dependants', 'nb dependant', 'nb dependants', 'nombre de dependants', 'nombre dependants', 'dependant count', 'dependent count', 'nb ayants droit', 'nombre ayants droit'],
   organization: ['organization', 'company', 'employer', 'policy holder', 'organisation', 'entreprise', 'societe', 'police'],
+  biometrics: ['biometrics', 'biometrie', 'fingerprint', 'empreinte', 'afis', 'biometric status'],
   relationship: ['relationship', 'family status', 'role', 'lien', 'lien de parente', 'statut familial', 'qualite'],
   status: ['status', 'active status', 'membership status', 'statut', 'etat'],
-  birthDate: ['date of birth', 'birth date', 'dob', 'birthdate', 'date de naissance', 'naissance'],
+};
+
+// Dependent-specific Column Mappings (for dedicated dependents template / capture 3)
+const DEPENDENT_COLUMN_MAPPINGS = {
+  principalCardNo: ['principal card no', 'primary card no', 'parent card no', 'card no principal', 'no carte principal', 'matricule principal'],
+  principalName: ['primary insured name', 'primary insured', 'principal name', 'assure principal', 'nom principal'],
+  dependentCardNo: ['dependent card no', 'dependent card number', 'card no dependent', 'no carte dependant', 'no carte ayant droit'],
+  dependentName: ['dependent name', 'dependent full name', 'full name', 'nom dependant', 'nom ayant droit', 'nom complet'],
+  relationship: ['relationship', 'family relation', 'lien', 'lien de parente', 'qualite', 'statut'],
+  birthDate: ['date of birth', 'birth date', 'dob', 'date de naissance', 'naissance'],
+  gender: ['gender', 'sex', 'sexe', 'genre'],
+  organization: ['organization', 'company', 'employer', 'organisation', 'entreprise'],
+  biometrics: ['biometrics', 'biometrie', 'fingerprint', 'empreinte'],
 };
 
 export interface ImportResult<T> {
@@ -57,6 +117,59 @@ export interface ImportResult<T> {
   missingHeaders: string[];
   errors: string[];
   parsedItems: T[];
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — présent
+  // uniquement pour l'import de membres (Capture 2). Prévisualisation obligatoire (section
+  // 10) : chaque ligne indique le n° de carte Excel, le n° final calculé, l'action
+  // (Conservé/Généré/Aucun) et le statut (Valid/Duplicate/Invalid). Rien n'est réservé tant
+  // que l'import n'est pas confirmé — voir cardNumberService.planCardNumbersForImport /
+  // commitPlannedCardNumbers et ExcelImportModal.tsx.
+  cardNumberPreview?: CardNumberPreviewRow[];
+}
+
+// Calculate age from YYYY-MM-DD
+function parseAgeFromDob(dob?: string): number | undefined {
+  if (!dob) return undefined;
+  try {
+    const d = new Date(dob);
+    if (isNaN(d.getTime())) return undefined;
+    const today = new Date(2026, 7, 31);
+    let age = today.getFullYear() - d.getFullYear();
+    const m = today.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) {
+      age--;
+    }
+    return age >= 0 ? age : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Format raw Excel date or string into YYYY-MM-DD
+function formatExcelDate(val: any): string {
+  if (!val) return '';
+  if (typeof val === 'number') {
+    // Excel serial date format
+    const dateObj = XLSX.SSF.parse_date_code(val);
+    if (dateObj) {
+      const y = dateObj.y;
+      const m = String(dateObj.m).padStart(2, '0');
+      const d = String(dateObj.d).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+  const str = String(val).trim();
+  if (!str) return '';
+  // Match standard YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  // Match DD/MM/YYYY or DD-MM-YYYY
+  const parts = str.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{4})$/);
+  if (parts) {
+    const d = parts[1].padStart(2, '0');
+    const m = parts[2].padStart(2, '0');
+    const y = parts[3];
+    return `${y}-${m}-${d}`;
+  }
+  return str;
 }
 
 export async function parseMemberExcel(
@@ -66,7 +179,7 @@ export async function parseMemberExcel(
   return new Promise((resolve) => {
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const buffer = e.target?.result;
         const workbook = XLSX.read(buffer, { type: 'array' });
@@ -89,10 +202,32 @@ export async function parseMemberExcel(
           return;
         }
 
-        // Detect column mapping from the keys of the first row
         const headers = Object.keys(rawJson[0]);
-        const headerMap: { [key in keyof typeof MEMBER_COLUMN_MAPPINGS]?: string } = {};
 
+        // FIX: Check if this is a dedicated dependents sheet (Capture 3).
+        // Was using matchHeaderAlias(), which does a BIDIRECTIONAL substring match
+        // (norm.includes(alias) OR alias.includes(norm)) — since every principals-only
+        // file (Capture 2) has a "Card No." column, and "card no" is itself a substring of
+        // the alias "principal card no" (and "dependent card no" / "parent card no"), EVERY
+        // Capture 2 upload was being misclassified as a dependents sheet and then rejected
+        // for lacking "Dependent Full Name" — the exact bug reported ("Missing Required
+        // Columns: Dependent Full Name" on a principals-only import). Detection now checks
+        // for the actual distinguishing words ("dependent", "principal card", "parent
+        // card") appearing IN the header, one-directional only — "Card No." alone no longer
+        // matches, while genuine Capture 3 headers ("Dependent Card No.", "Dependent Full
+        // Name", "Principal Card No.") still do.
+        const isDedicatedDependentsSheet = headers.some((h) => {
+          const norm = normalizeHeader(h);
+          return norm.includes('dependent') || norm.includes('principal card') || norm.includes('parent card');
+        });
+
+        if (isDedicatedDependentsSheet) {
+          // Process as Dedicated Dependents Sheet (Capture 3)
+          return resolve(parseDedicatedDependentsRows(rawJson, headers, existingMembers));
+        }
+
+        // Process as Primary Insured Sheet (Capture 2)
+        const headerMap: { [key in keyof typeof MEMBER_COLUMN_MAPPINGS]?: string } = {};
         for (const [field, aliases] of Object.entries(MEMBER_COLUMN_MAPPINGS)) {
           const matchedHeader = headers.find(h => matchHeaderAlias(h, aliases));
           if (matchedHeader) {
@@ -102,8 +237,8 @@ export async function parseMemberExcel(
 
         // Required headers validation: cardNo and principalName
         const missingHeaders: string[] = [];
-        if (!headerMap.cardNo) missingHeaders.push('Card No. (Health Card ID)');
-        if (!headerMap.principalName) missingHeaders.push('Primary Insured / Full Name');
+        if (!headerMap.cardNo) missingHeaders.push('Card No.');
+        if (!headerMap.principalName) missingHeaders.push('Primary Insured Name');
 
         if (missingHeaders.length > 0) {
           resolve({
@@ -123,55 +258,212 @@ export async function parseMemberExcel(
         let ignored = 0;
         const updatedList: Member[] = [...existingMembers];
 
-        rawJson.forEach((row) => {
-          const cardNoVal = String(row[headerMap.cardNo!] || '').trim();
+        // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
+        // explicite. Pré-passe : détermine, pour chaque ligne portant un nom d'assuré, le
+        // numéro de carte final — conservé si déjà présent dans le fichier (après validation
+        // du format et vérification qu'il n'est pas déjà attribué à quelqu'un d'autre, en
+        // base ou ailleurs dans ce même fichier), généré automatiquement sinon (CASE 2,
+        // section 8 — auparavant une ligne sans "Card No." était silencieusement ignorée).
+        // Rien n'est réservé en base à ce stade : c'est un calcul en lecture seule (voir
+        // planCardNumbersForImport), destiné à alimenter la prévisualisation obligatoire
+        // avant import (section 10) — cardNumberPreview ci-dessous. La réservation réelle des
+        // numéros a lieu uniquement lorsque l'import est confirmé (voir
+        // cardNumberService.commitPlannedCardNumbers, appelé par l'appelant de cette fonction).
+        const rowsForPlanning = rawJson
+          .map((row, idx) => ({
+            idx,
+            insuredName: headerMap.principalName ? String(row[headerMap.principalName] || '').trim() : '',
+            cardNoRaw: headerMap.cardNo ? String(row[headerMap.cardNo] || '').trim() : '',
+            organization: headerMap.organization ? String(row[headerMap.organization] || '').trim() : undefined,
+          }))
+          .filter((r) => r.insuredName); // une ligne sans nom reste "ignored" comme avant, hors planification
+
+        const { preview: cardNumberPreview, finalCardNumbers } = await planCardNumbersForImport(
+          rowsForPlanning.map((r) => ({ insuredName: r.insuredName, cardNoRaw: r.cardNoRaw, organization: r.organization }))
+        );
+        const finalCardNoByRowIdx = new Map<number, string | null>();
+        rowsForPlanning.forEach((r, i) => finalCardNoByRowIdx.set(r.idx, finalCardNumbers[i]));
+
+        for (let rowIdx = 0; rowIdx < rawJson.length; rowIdx++) {
+          const row = rawJson[rowIdx];
           const principalVal = String(row[headerMap.principalName!] || '').trim();
 
-          if (!cardNoVal || !principalVal) {
+          if (!principalVal) {
             ignored++;
-            return;
+            continue;
           }
 
-          const orgVal = headerMap.organization ? String(row[headerMap.organization] || '').trim() : 'Standard';
-          const spouseVal = headerMap.spouseName ? String(row[headerMap.spouseName] || '').trim() : '';
-          const childrenRaw = headerMap.children ? String(row[headerMap.children] || '').trim() : '';
-          const childrenList = childrenRaw ? childrenRaw.split(/[,;/]+/).map(s => s.trim()).filter(Boolean) : [];
+          const plannedCardNo = finalCardNoByRowIdx.get(rowIdx);
+          if (!plannedCardNo) {
+            // Invalid format or duplicate (in-file or already in the database) — already
+            // reported in cardNumberPreview above; skip creating/updating this row.
+            ignored++;
+            continue;
+          }
+          const cardNoVal = plannedCardNo;
+
+          const orgVal = headerMap.organization ? String(row[headerMap.organization] || '').trim() : 'TotalEnergies Liberia Ltd';
+          const dobVal = headerMap.birthDate ? formatExcelDate(row[headerMap.birthDate]) : '1985-06-15';
           const statusRaw = headerMap.status ? String(row[headerMap.status] || '').trim().toLowerCase() : 'active';
-          const status = (statusRaw.includes('inact') || statusRaw.includes('suspend')) ? (statusRaw.includes('suspend') ? 'Suspended' : 'Inactive') : 'Active';
-          const birthDate = headerMap.birthDate ? String(row[headerMap.birthDate] || '1985-06-15') : '1985-06-15';
-          const relationshipRaw = headerMap.relationship ? String(row[headerMap.relationship] || 'Primary').trim() : 'Primary';
+          const status = (statusRaw.includes('inact') || statusRaw.includes('suspend')) ? (statusRaw.includes('suspend') ? 'Suspendu' : 'Inactif') : 'Actif';
+          
+          // === AMÉLIORATION AJOUTÉE : lecture de "N° of Dependant" (décompte déclaré) ===
+          const dependentsCountRaw = headerMap.dependentsCount ? row[headerMap.dependentsCount] : undefined;
+          const dependentsCountParsed = dependentsCountRaw !== undefined && dependentsCountRaw !== ''
+            ? Number(dependentsCountRaw)
+            : undefined;
+          const declaredDependentsCountVal = (dependentsCountParsed !== undefined && !isNaN(dependentsCountParsed))
+            ? dependentsCountParsed
+            : undefined;
 
-          const existingIndex = updatedList.findIndex(m => m.cardNo.toLowerCase() === cardNoVal.toLowerCase());
+          const biometricsRaw = headerMap.biometrics ? String(row[headerMap.biometrics] || '').trim().toLowerCase() : '';
+          const hasBiometrics = biometricsRaw ? !biometricsRaw.includes('no') && !biometricsRaw.includes('non') && !biometricsRaw.includes('false') : true;
 
-          const memberObj: Member = {
-            id: existingIndex >= 0 ? updatedList[existingIndex].id : `mem-imp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            cardNo: cardNoVal,
-            principalName: principalVal,
-            spouseName: spouseVal || undefined,
-            children: childrenList,
-            birthDate: birthDate,
-            relationship: (relationshipRaw.toLowerCase().includes('conjoint') || relationshipRaw.toLowerCase().includes('spouse')) ? 'Spouse' : (relationshipRaw.toLowerCase().includes('child') || relationshipRaw.toLowerCase().includes('enfant')) ? 'Child' : 'Primary',
-            organization: orgVal || 'Standard',
-            status: status as any,
-            hasPhoto: existingIndex >= 0 ? updatedList[existingIndex].hasPhoto : false,
-            hasBiometrics: existingIndex >= 0 ? updatedList[existingIndex].hasBiometrics : false,
-            photoUrl: existingIndex >= 0 ? updatedList[existingIndex].photoUrl : undefined,
-            outpatientBalanceUSD: existingIndex >= 0 ? updatedList[existingIndex].outpatientBalanceUSD : 1000,
-            outpatientCeilingUSD: existingIndex >= 0 ? updatedList[existingIndex].outpatientCeilingUSD : 1000,
-            inpatientBalanceUSD: existingIndex >= 0 ? updatedList[existingIndex].inpatientBalanceUSD : 10000,
-            inpatientCeilingUSD: existingIndex >= 0 ? updatedList[existingIndex].inpatientCeilingUSD : 10000,
-            gender: 'M',
-            createdAt: existingIndex >= 0 ? updatedList[existingIndex].createdAt : new Date().toISOString().split('T')[0],
-          };
+          // Extract Spouse & Dependents
+          const builtDependents: any[] = [];
+          const childrenNames: string[] = [];
+
+          // 1. Spouse
+          const spouseVal = headerMap.spouseName ? String(row[headerMap.spouseName] || '').trim() : '';
+          const spouseDob = headerMap.spouseDob ? formatExcelDate(row[headerMap.spouseDob]) : '';
+          if (spouseVal) {
+            const spAge = parseAgeFromDob(spouseDob);
+            builtDependents.push({
+              id: `dep-${cardNoVal}-sp`,
+              cardNo: `${cardNoVal}-SP`,
+              fullName: spouseVal,
+              birthDate: spouseDob || '1988-04-12',
+              age: spAge || 38,
+              relationship: 'Spouse',
+              gender: 'F',
+              hasBiometrics: true,
+            });
+          }
+
+          // 2. Children 1 to 4 (Capture 2 specific columns)
+          const childrenDefs = [
+            { nameKey: headerMap.child1Name, dobKey: headerMap.child1Dob, tag: 'C1', gender: 'M' },
+            { nameKey: headerMap.child2Name, dobKey: headerMap.child2Dob, tag: 'C2', gender: 'F' },
+            { nameKey: headerMap.child3Name, dobKey: headerMap.child3Dob, tag: 'C3', gender: 'M' },
+            { nameKey: headerMap.child4Name, dobKey: headerMap.child4Dob, tag: 'C4', gender: 'F' },
+          ];
+
+          childrenDefs.forEach((ch, idx) => {
+            const cName = ch.nameKey ? String(row[ch.nameKey] || '').trim() : '';
+            if (cName) {
+              const cDob = ch.dobKey ? formatExcelDate(row[ch.dobKey]) : '';
+              const cAge = parseAgeFromDob(cDob);
+              childrenNames.push(cName);
+              builtDependents.push({
+                id: `dep-${cardNoVal}-${ch.tag.toLowerCase()}`,
+                cardNo: `${cardNoVal}-${ch.tag}`,
+                fullName: cName,
+                birthDate: cDob || `${2026 - (10 - idx * 2)}-06-01`,
+                age: cAge || (10 - idx * 2),
+                relationship: 'Child',
+                gender: ch.gender,
+                hasBiometrics: (cAge || (10 - idx * 2)) >= 6,
+              });
+            }
+          });
+
+          // 3. Fallback: Legacy comma-separated children
+          if (childrenNames.length === 0 && headerMap.childrenLegacy) {
+            const rawLegacy = String(row[headerMap.childrenLegacy] || '').trim();
+            if (rawLegacy) {
+              const items = rawLegacy.split(/[,;/]+/).map(s => s.trim()).filter(Boolean);
+              items.forEach((childStr, cIdx) => {
+                const match = childStr.match(/^(.*?)(?:\s*\((.*?)\))?$/);
+                const name = match && match[1] ? match[1].trim() : childStr;
+                const ageStr = match && match[2] ? match[2].trim() : undefined;
+                const parsedAge = ageStr ? parseInt(ageStr, 10) : undefined;
+                childrenNames.push(name);
+                builtDependents.push({
+                  id: `dep-${cardNoVal}-c${cIdx + 1}`,
+                  cardNo: `${cardNoVal}-C${cIdx + 1}`,
+                  fullName: name,
+                  birthDate: parsedAge ? `${2026 - parsedAge}-06-01` : '2018-09-10',
+                  age: parsedAge || 8,
+                  relationship: 'Child',
+                  gender: cIdx % 2 === 0 ? 'M' : 'F',
+                  hasBiometrics: (parsedAge || 8) >= 6,
+                });
+              });
+            }
+          }
+
+          const existingIndex = updatedList.findIndex(
+            m => m.cardNo.toLowerCase() === cardNoVal.toLowerCase() ||
+                 (m.principalName.toLowerCase() === principalVal.toLowerCase() && m.organization.toLowerCase() === orgVal.toLowerCase())
+          );
 
           if (existingIndex >= 0) {
-            updatedList[existingIndex] = memberObj;
+            // Merge into existing member
+            const existing = updatedList[existingIndex];
+            
+            // Merge dependents without duplicates
+            const mergedDependents = [...(existing.dependents || [])];
+            builtDependents.forEach((newDep) => {
+              const idx = mergedDependents.findIndex(d => d.fullName.toLowerCase() === newDep.fullName.toLowerCase() || d.cardNo.toLowerCase() === newDep.cardNo.toLowerCase());
+              if (idx >= 0) {
+                mergedDependents[idx] = { ...mergedDependents[idx], ...newDep };
+              } else {
+                mergedDependents.push(newDep);
+              }
+            });
+
+            const mergedChildren = Array.from(new Set([...(existing.children || []), ...childrenNames]));
+
+            const updatedMember: Member = {
+              ...existing,
+              principalName: principalVal,
+              organization: orgVal,
+              birthDate: dobVal || existing.birthDate,
+              spouseName: spouseVal || existing.spouseName,
+              children: mergedChildren,
+              dependents: mergedDependents,
+              status: existing.status || (status as any),
+              hasBiometrics: hasBiometrics ?? existing.hasBiometrics,
+              declaredDependentsCount: declaredDependentsCountVal ?? existing.declaredDependentsCount,
+              fingerprintScore: existing.fingerprintScore || 96,
+              outpatientBalanceUSD: existing.outpatientBalanceUSD ?? 1000,
+              outpatientCeilingUSD: existing.outpatientCeilingUSD ?? 1000,
+              inpatientBalanceUSD: existing.inpatientBalanceUSD ?? 10000,
+              inpatientCeilingUSD: existing.inpatientCeilingUSD ?? 10000,
+            };
+
+            updatedList[existingIndex] = updatedMember;
             updated++;
           } else {
-            updatedList.unshift(memberObj);
+            // Create New Member
+            const newMember: Member = {
+              id: `mem-imp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              cardNo: cardNoVal,
+              principalName: principalVal,
+              spouseName: spouseVal || undefined,
+              children: childrenNames,
+              dependents: builtDependents,
+              birthDate: dobVal || '1985-06-15',
+              relationship: 'Principal',
+              organization: orgVal || 'TotalEnergies Liberia Ltd',
+              status: status as any,
+              hasPhoto: false,
+              hasBiometrics: hasBiometrics,
+              declaredDependentsCount: declaredDependentsCountVal,
+              fingerprintScore: 97,
+              fingerprintDate: new Date().toISOString().split('T')[0],
+              outpatientBalanceUSD: 1000,
+              outpatientCeilingUSD: 1000,
+              inpatientBalanceUSD: 10000,
+              inpatientCeilingUSD: 10000,
+              gender: 'M',
+              createdAt: new Date().toISOString().split('T')[0],
+            };
+
+            updatedList.unshift(newMember);
             created++;
           }
-        });
+        }
 
         resolve({
           success: true,
@@ -181,6 +473,7 @@ export async function parseMemberExcel(
           missingHeaders: [],
           errors: [],
           parsedItems: updatedList,
+          cardNumberPreview,
         });
       } catch (err: any) {
         resolve({
@@ -211,19 +504,292 @@ export async function parseMemberExcel(
   });
 }
 
+// Parse Dedicated Dependents Rows (Capture 3 Model)
+function parseDedicatedDependentsRows(
+  rawJson: Record<string, any>[],
+  headers: string[],
+  existingMembers: Member[]
+): ImportResult<Member> {
+  const headerMap: { [key in keyof typeof DEPENDENT_COLUMN_MAPPINGS]?: string } = {};
+  for (const [field, aliases] of Object.entries(DEPENDENT_COLUMN_MAPPINGS)) {
+    const matchedHeader = headers.find(h => matchHeaderAlias(h, aliases));
+    if (matchedHeader) {
+      headerMap[field as keyof typeof DEPENDENT_COLUMN_MAPPINGS] = matchedHeader;
+    }
+  }
+
+  const missingHeaders: string[] = [];
+  if (!headerMap.principalCardNo && !headerMap.principalName) missingHeaders.push('Principal Card No. or Primary Insured Name');
+  if (!headerMap.dependentName) missingHeaders.push('Dependent Full Name');
+
+  if (missingHeaders.length > 0) {
+    return {
+      success: false,
+      created: 0,
+      updated: 0,
+      ignored: 0,
+      missingHeaders,
+      errors: [`Missing required columns for Dependents: ${missingHeaders.join(', ')}`],
+      parsedItems: [],
+    };
+  }
+
+  let created = 0;
+  let updated = 0;
+  let ignored = 0;
+  const updatedList: Member[] = [...existingMembers];
+
+  rawJson.forEach((row) => {
+    const parentCardVal = headerMap.principalCardNo ? String(row[headerMap.principalCardNo] || '').trim() : '';
+    const parentNameVal = headerMap.principalName ? String(row[headerMap.principalName] || '').trim() : '';
+    const depCardVal = headerMap.dependentCardNo ? String(row[headerMap.dependentCardNo] || '').trim() : '';
+    const depNameVal = headerMap.dependentName ? String(row[headerMap.dependentName] || '').trim() : '';
+    const relVal = headerMap.relationship ? String(row[headerMap.relationship] || 'Child').trim() : 'Child';
+    const dobVal = headerMap.birthDate ? formatExcelDate(row[headerMap.birthDate]) : '';
+    const genderVal = headerMap.gender ? String(row[headerMap.gender] || 'M').trim().toUpperCase() : 'M';
+    const orgVal = headerMap.organization ? String(row[headerMap.organization] || '').trim() : '';
+    const biometricsRaw = headerMap.biometrics ? String(row[headerMap.biometrics] || '').trim().toLowerCase() : '';
+    const hasBiometrics = biometricsRaw ? !biometricsRaw.includes('no') && !biometricsRaw.includes('non') : true;
+
+    if (!depNameVal) {
+      ignored++;
+      return;
+    }
+
+    // Find parent principal
+    let parentIndex = -1;
+    if (parentCardVal) {
+      parentIndex = updatedList.findIndex(m => m.cardNo.toLowerCase() === parentCardVal.toLowerCase());
+    }
+    if (parentIndex < 0 && parentNameVal) {
+      parentIndex = updatedList.findIndex(m => m.principalName.toLowerCase() === parentNameVal.toLowerCase());
+    }
+
+    const age = parseAgeFromDob(dobVal);
+    const assignedDepCard = depCardVal || (parentCardVal ? `${parentCardVal}-D${Date.now().toString().slice(-3)}` : `DEP-${Date.now().toString().slice(-4)}`);
+
+    const relLower = relVal.toLowerCase();
+    const resolvedRel: DependentRelationship = (relLower.includes('conjoint') || relLower.includes('spouse') || relLower.includes('wife') || relLower.includes('husband'))
+      ? 'spouse'
+      : (relLower.includes('parent') || relLower.includes('pere') || relLower.includes('mere'))
+      ? 'parent'
+      : 'child';
+
+    const newDepItem: DependentItem = {
+      id: `dep-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      cardNo: assignedDepCard,
+      fullName: depNameVal,
+      birthDate: dobVal || '2015-05-10',
+      age: age || 10,
+      relationship: resolvedRel,
+      gender: (genderVal.startsWith('F') || genderVal.startsWith('W')) ? 'F' : 'M',
+      hasBiometrics: hasBiometrics,
+    };
+
+    if (parentIndex >= 0) {
+      // Attach to existing principal
+      const parent = updatedList[parentIndex];
+      const existingDeps: DependentItem[] = [...(parent.dependents || [])];
+      const matchDepIndex = existingDeps.findIndex(
+        d => d.fullName.toLowerCase() === depNameVal.toLowerCase() || (d.cardNo && d.cardNo.toLowerCase() === assignedDepCard.toLowerCase())
+      );
+
+      if (matchDepIndex >= 0) {
+        existingDeps[matchDepIndex] = { ...existingDeps[matchDepIndex], ...newDepItem };
+      } else {
+        existingDeps.push(newDepItem);
+      }
+
+      const isSpouse = newDepItem.relationship === 'spouse';
+      const updatedChildren = isSpouse ? (parent.children || []) : Array.from(new Set([...(parent.children || []), depNameVal]));
+
+      updatedList[parentIndex] = {
+        ...parent,
+        spouseName: isSpouse ? depNameVal : parent.spouseName,
+        children: updatedChildren,
+        dependents: existingDeps,
+      };
+      updated++;
+    } else {
+      // Create new principal with this dependent attached
+      const fallbackCardNo = parentCardVal || `ACT-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+      const fallbackPrincipalName = parentNameVal || `Primary of ${depNameVal}`;
+      const isSpouse = newDepItem.relationship === 'spouse';
+
+      const newPrincipal: Member = {
+        id: `mem-imp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        cardNo: fallbackCardNo,
+        principalName: fallbackPrincipalName,
+        spouseName: isSpouse ? depNameVal : undefined,
+        children: isSpouse ? [] : [depNameVal],
+        dependents: [newDepItem],
+        birthDate: '1985-01-01',
+        relationship: 'Principal',
+        organization: orgVal || 'TotalEnergies Liberia Ltd',
+        status: 'Actif',
+        hasPhoto: false,
+        hasBiometrics: true,
+        fingerprintScore: 95,
+        outpatientBalanceUSD: 1000,
+        outpatientCeilingUSD: 1000,
+        inpatientBalanceUSD: 10000,
+        inpatientCeilingUSD: 10000,
+        gender: 'M',
+        createdAt: new Date().toISOString().split('T')[0],
+      };
+      updatedList.unshift(newPrincipal);
+      created++;
+    }
+  });
+
+  return {
+    success: true,
+    created,
+    updated,
+    ignored,
+    missingHeaders: [],
+    errors: [],
+    parsedItems: updatedList,
+  };
+}
+
+// Generate Primary Insured Template (Capture 2 Model)
+// === AMÉLIORATION AJOUTÉE : template aligné sur le fichier réel du client ===
+// Auparavant ce template proposait des colonnes "Spouse Name/DOB" et "Child 1-4 Name/DOB"
+// qui n'existent pas dans les fichiers Excel réellement utilisés en production (ex :
+// "Samaritain Purse - Staff.xlsx"). Le fichier réel du client a la structure suivante :
+// Card No. | Primary Insured Name | Date of Birth | N° of Dependant | Organization |
+// Biometrics | Statut — avec le détail des ayants droit importé séparément via le template
+// Dépendants (bouton "Template Dépendants"). Le template ci-dessous reproduit exactement
+// cette structure ; parseMemberExcel() (plus haut dans ce fichier) sait déjà lire chacune de
+// ces colonnes (cardNo, principalName, birthDate, dependentsCount, organization, biometrics,
+// status), donc un fichier rempli à partir de ce template s'intègre correctement dans
+// l'application. Les anciennes colonnes Spouse/Child restent reconnues par le parseur si un
+// ancien fichier les contient encore (rétrocompatibilité), seul le template téléchargeable
+// change.
 export function generateMemberTemplateExcel() {
   const wsData = [
-    ['Card No.', 'Primary Insured Name', 'Spouse Name', 'Children (comma-separated)', 'Organization / Employer', 'Relationship', 'Status', 'Date of Birth (YYYY-MM-DD)'],
-    ['ACT-2026-99001', 'Samuel DOE', 'Mary DOE', 'James DOE (10 yrs), Linda DOE (6 yrs)', 'Orange Liberia Telecom', 'Primary', 'Active', '1985-05-14'],
-    ['ACT-2026-99002', 'Grace KOLLIE', 'Joseph KOLLIE', 'Peter KOLLIE (4 yrs)', 'Ecobank Liberia Head Office', 'Primary', 'Active', '1990-11-20'],
-    ['ACT-2026-99003', 'Alexander FREEMAN', '', '', 'TotalEnergies Liberia Ltd', 'Primary', 'Active', '1982-08-03'],
+    [
+      'Card No.',
+      'Primary Insured Name',
+      'Date of Birth',
+      'N° of Dependant',
+      'Organization',
+      'Biometrics',
+      'Statut',
+    ],
+    [
+      'AMID-00001-0001',
+      'Samuel DOE',
+      '14/05/1985',
+      2,
+      'Firestone Natural Rubber Co',
+      '',
+      '',
+    ],
+    [
+      'AMID-00002-0002',
+      'Grace KOLLIE',
+      '20/11/1992',
+      1,
+      'ArcelorMittal Mining Liberia',
+      '',
+      '',
+    ],
+    [
+      'AMID-00003-0003',
+      'Alexander FREEMAN',
+      '03/07/1980',
+      0,
+      'TotalEnergies Liberia Ltd',
+      '',
+      '',
+    ],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Members Template');
+  XLSX.utils.book_append_sheet(wb, ws, 'Primary Insured');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), 'ACTIVA_Members_Import_Template.xlsx');
+  downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), 'ACTIVA_Template_Assures_Principaux.xlsx');
+}
+
+// Generate Dedicated Dependents Template (Capture 3 Model)
+export function generateDependentsTemplateExcel() {
+  const wsData = [
+    [
+      'Principal Card No.',
+      'Primary Insured Name',
+      'Dependent Card No.',
+      'Dependent Full Name',
+      'Relationship',
+      'Date of Birth',
+      'Gender',
+      'Organization',
+      'Biometrics',
+    ],
+    [
+      'ACT-2026-10350',
+      'Samuel DOE',
+      'ACT-2026-10350-SP',
+      'Mary DOE',
+      'Spouse',
+      '1988-09-22',
+      'F',
+      'Firestone Natural Rubber Co',
+      'Yes',
+    ],
+    [
+      'ACT-2026-10350',
+      'Samuel DOE',
+      'ACT-2026-10350-C1',
+      'Lucas DOE',
+      'Child',
+      '2014-03-10',
+      'M',
+      'Firestone Natural Rubber Co',
+      'Yes',
+    ],
+    [
+      'ACT-2026-10350',
+      'Samuel DOE',
+      'ACT-2026-10350-C2',
+      'Emma DOE',
+      'Child',
+      '2017-08-19',
+      'F',
+      'Firestone Natural Rubber Co',
+      'Yes',
+    ],
+    [
+      'ACT-2026-10351',
+      'Grace KOLLIE',
+      'ACT-2026-10351-SP',
+      'Joseph KOLLIE',
+      'Spouse',
+      '1990-04-15',
+      'M',
+      'ArcelorMittal Mining Liberia',
+      'Yes',
+    ],
+    [
+      'ACT-2026-10351',
+      'Grace KOLLIE',
+      'ACT-2026-10351-C1',
+      'Nathan KOLLIE',
+      'Child',
+      '2019-06-12',
+      'M',
+      'ArcelorMittal Mining Liberia',
+      'Yes',
+    ],
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Dependents');
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), 'ACTIVA_Template_Dependants.xlsx');
 }
 
 // ================= ADDED IMPROVEMENT: MULTI-ORGANIZATION IMPORT ("Staff / Deps" workbook) =================
@@ -856,11 +1422,12 @@ export function exportMembersToExcel(members: Member[], lang?: any) {
   const wb = XLSX.utils.book_new();
 
   // Add Sheet 1: Principal Insured
-  const wsPrincipals = XLSX.utils.json_to_sheet(principalsData);
+  const wsPrincipals = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(principalsData));
   XLSX.utils.book_append_sheet(wb, wsPrincipals, 'Principal Insured');
 
   // Add Sheet 2: Dependents
   const wsDependents = XLSX.utils.json_to_sheet(
+    sanitizeRowsForExcel(
     dependentsData.length > 0
       ? dependentsData
       : [
@@ -877,6 +1444,7 @@ export function exportMembersToExcel(members: Member[], lang?: any) {
             'Biometrics Registered': '—',
           },
         ]
+    )
   );
   XLSX.utils.book_append_sheet(wb, wsDependents, 'Dependents');
 
@@ -1094,7 +1662,7 @@ export function exportOrganizationsToExcel(orgs: Organization[], lang?: any) {
     'Global Ceiling ($)': o.globalCeiling ? `$${o.globalCeiling.toLocaleString('en-US')}` : 'N/A',
   }));
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Organizations');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1297,7 +1865,7 @@ export function exportProvidersToExcel(providers: Provider[], lang?: any) {
     'Contract Status': p.status || 'Contracted',
   }));
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Healthcare Providers');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1339,7 +1907,7 @@ export function exportClaimsToExcel(claims: Claim[], lang?: any) {
     'Comments': c.comments || '',
   }));
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Benefit Claims');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1379,7 +1947,7 @@ export function exportInvoicesToExcel(invoices: InvoiceItem[], lang?: any) {
     'Coverage Rate (%)': `${i.coveragePercentage}%`,
   }));
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Invoices & Settlements');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1396,7 +1964,7 @@ export function exportReportsToExcel(providerDistribution: any[], orgDistributio
     'Total Amount ($ USD)': p.amount,
     'Percentage Share (%)': `${p.percentage}%`,
   }));
-  const wsProv = XLSX.utils.json_to_sheet(provData);
+  const wsProv = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(provData));
   XLSX.utils.book_append_sheet(wb, wsProv, 'By Provider');
 
   const orgData = orgDistribution.map(o => ({
@@ -1405,7 +1973,7 @@ export function exportReportsToExcel(providerDistribution: any[], orgDistributio
     'Total Amount ($ USD)': o.amount,
     'Percentage Share (%)': `${o.percentage}%`,
   }));
-  const wsOrg = XLSX.utils.json_to_sheet(orgData);
+  const wsOrg = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(orgData));
   XLSX.utils.book_append_sheet(wb, wsOrg, 'By Organization');
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1680,4 +2248,121 @@ export function generateExecutiveReportPDF(metrics: {
   doc.text('ACTIVA Insurance — Official Management & Compliance Audit Trail', pageWidth / 2, finalY + 15, { align: 'center' });
 
   doc.save(`ACTIVA_Executive_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+// ================= HEALTH POLICY & PREMIUM MONITORING EXPORTS =================
+// === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
+export function exportPoliciesToExcel(policies: (HealthPolicy & { organizationName?: string })[], lang?: any) {
+  const data = policies.map((p) => ({
+    'Organization': p.organizationId,
+    'Policy Number': p.policyNumber,
+    'Policy Type': p.policyType || '',
+    'Effective Date': p.effectiveDate,
+    'Expiration Date': p.expirationDate,
+    'Policy Status': p.status,
+    'Annual Premium': p.annualPremium,
+    'Currency': p.currency,
+    'Payment Frequency': p.paymentFrequency,
+    'Next Payment Due': p.nextPaymentDueDate || '',
+    'Outstanding Amount': p.outstandingAmount ?? 0,
+    'Coverage Blocked': p.coverageBlocked ? 'YES' : 'NO',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Policies & Premiums');
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Policies_Premiums_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+export function exportPolicyDetailToPDF(
+  policy: HealthPolicy,
+  payments: PolicyPayment[],
+  coveredPrincipals: number,
+  coveredDependents: number
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(10, 46, 107);
+  doc.rect(0, 0, pageWidth, 28, 'F');
+  doc.setFillColor(0, 168, 89);
+  doc.rect(0, 28, pageWidth, 3, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('ACTIVA HEALTHCARE ASSURANCE', 15, 12);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('HEALTH INSURANCE POLICY DETAIL', 15, 19);
+  doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 15, 24);
+
+  let y = 40;
+  doc.setTextColor(10, 46, 107);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('POLICY DETAILS', 15, y);
+  y += 7;
+
+  autoTable(doc, {
+    startY: y,
+    body: [
+      ['Organization', policy.organizationId],
+      ['Policy Number', policy.policyNumber],
+      ['Policy Status', policy.status],
+      ['Coverage Period', `${policy.effectiveDate} → ${policy.expirationDate}`],
+      ['Annual Premium', `${policy.currency} ${policy.annualPremium.toLocaleString()}`],
+      ['Payment Frequency', policy.paymentFrequency],
+      ['Installment Amount', `${policy.currency} ${policy.installmentAmount.toLocaleString()}`],
+      ['Outstanding Amount', `${policy.currency} ${(policy.outstandingAmount ?? 0).toLocaleString()}`],
+    ],
+    theme: 'plain',
+    bodyStyles: { fontSize: 9 },
+    columnStyles: { 0: { fontStyle: 'bold', textColor: [100, 116, 139] } },
+  });
+
+  let nextY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : y + 60;
+
+  doc.setTextColor(10, 46, 107);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('PAYMENT HISTORY', 15, nextY);
+
+  const paymentRows = payments.map((p) => [
+    p.quarter ? `Q${p.quarter}` : p.paymentDate,
+    p.paymentDate,
+    p.dueDate,
+    `${p.currency} ${p.amountPaid.toLocaleString()}`,
+    p.status,
+  ]);
+
+  autoTable(doc, {
+    startY: nextY + 4,
+    head: [['Period', 'Payment Date', 'Due Date', 'Amount Paid', 'Status']],
+    body: paymentRows.length > 0 ? paymentRows : [['—', '—', '—', '—', 'No payments recorded']],
+    headStyles: { fillColor: [13, 63, 143], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    bodyStyles: { fontSize: 8 },
+  });
+
+  nextY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 12 : nextY + 60;
+
+  doc.setTextColor(10, 46, 107);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('COVERED POPULATION', 15, nextY);
+
+  autoTable(doc, {
+    startY: nextY + 4,
+    body: [
+      ['Principal Insured', String(coveredPrincipals)],
+      ['Dependents', String(coveredDependents)],
+      ['Total Covered', String(coveredPrincipals + coveredDependents)],
+    ],
+    theme: 'plain',
+    bodyStyles: { fontSize: 9 },
+    columnStyles: { 0: { fontStyle: 'bold', textColor: [100, 116, 139] } },
+  });
+
+  doc.save(`ACTIVA_Policy_${policy.policyNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
 }

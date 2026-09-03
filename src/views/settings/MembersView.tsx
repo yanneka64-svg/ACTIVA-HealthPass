@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search,
-  Plus,
   UploadCloud,
   Download,
   Users,
@@ -36,10 +35,12 @@ import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { exportMembersToCSV, exportMembersToExcel, parseMemberExcel, parseActivaMultiOrgExcel, generateMultiOrgTemplateExcel } from '../../utils/excelUtils';
 import { uploadPhotoOrFallback } from '../../utils/storageUtils';
+import { dedupeMembersByCardNo } from '../../utils/memberUtils';
 import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
 import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import { checkMemberEligibility } from '../../services/eligibilityService';
+import { generateNextCardNumber, reserveExistingCardNumber } from '../../services/cardNumberService';
 
 export interface FormattedDependent {
   id: string;
@@ -182,9 +183,15 @@ interface MembersViewProps {
   onAddMember: (member: Partial<Member>) => void;
   onUpdateMember: (member: Member) => void;
   onDeleteMember: (id: string) => void;
-  onImportMembers: (imported: Partial<Member>[]) => void;
+  // === AMÉLIORATION AJOUTÉE : accepte désormais aussi une version asynchrone qui peut lever
+  // une erreur (ex: échec d'écriture Firestore), afin que l'échec réel de persistance remonte
+  // jusqu'au modal d'import au lieu d'être ignoré.
+  onImportMembers: (imported: Partial<Member>[]) => void | Promise<void>;
   onSuspendMember?: (member: Member) => void;
   onReactivateMember?: (member: Member) => void;
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — nécessaire pour
+  // renseigner "Assigned By" lors de la génération/réservation d'un numéro de carte.
+  currentUser?: any;
 }
 
 export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
@@ -198,6 +205,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   onImportMembers,
   onSuspendMember,
   onReactivateMember,
+  currentUser,
 }) => {
   const t = useTranslation(lang);
   const [searchTerm, setSearchTerm] = useState('');
@@ -208,6 +216,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   const [importMultiOrgModalOpen, setImportMultiOrgModalOpen] = useState(false);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [isSavingCard, setIsSavingCard] = useState(false);
 
   // Suspend/Reactivate confirmation modal
   const [confirmMemberAction, setConfirmMemberAction] = useState<{ member: Member; action: 'suspend' | 'reactivate' } | null>(null);
@@ -249,7 +258,19 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   const [newChildInput, setNewChildInput] = useState('');
 
   const filteredMembers = useMemo(() => {
-    return members.filter((m) => {
+    // === AMÉLIORATION AJOUTÉE : dédoublonnage par numéro de carte avant filtrage/affichage
+    // — voir dedupeMembersByCardNo pour le contexte (données Firestore inchangées).
+    const uniqueMembers = dedupeMembersByCardNo(members);
+    return uniqueMembers.filter((m) => {
+      // In Admin/Supervisor members table, only show primary insured members (dependents are viewed in details modal)
+      // NOTE: the `=== ''` branch here was always dead code (an empty string is already
+      // falsy and covered by `!m.relationship`; RelationshipType's members are all non-empty
+      // literals so that comparison could never be true) — removed only because it started
+      // tripping a real TS2367 compile error once this array went through
+      // dedupeMembersByCardNo() first; behavior is unchanged.
+      const isPrincipal = !m.relationship || m.relationship === 'Principal';
+      if (!isPrincipal) return false;
+
       const matchSearch =
         m.cardNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         m.principalName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -359,11 +380,17 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
 
   const openCreateModal = () => {
     setEditingMember(null);
-    setFormCardNo(`ACT-2026-${Math.floor(1000 + Math.random() * 9000)}`);
+    // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — le champ était
+    // auparavant pré-rempli avec une valeur aléatoire au format obsolète "ACT-2026-XXXX",
+    // masquant le fait que le champ pouvait rester vide pour déclencher la génération
+    // automatique (AMID-YYMMDD-NNNNN) et risquant, si laissé tel quel, d'enregistrer un
+    // numéro de carte invalide. Laissé vide par défaut, comme l'indique désormais le
+    // libellé "leave blank to auto-generate".
+    setFormCardNo('');
     setFormPrincipalName('');
     setFormBirthDate('');
     setFormGender('M');
-    setFormOrg(organizations.length > 0 ? organizations[0].name : 'Orange Liberia Telecom');
+    setFormOrg(organizations.length > 0 ? organizations[0].name : 'TotalEnergies Liberia Ltd');
     setFormRelationship('Principal');
     setMainInsuredName('');
     setMainInsuredCardNo('');
@@ -439,9 +466,43 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     setFormChildren(formChildren.filter((_, i) => i !== index));
   };
 
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — handleSubmit est
+  // désormais asynchrone. En édition, le numéro de carte n'est jamais touché (le champ est
+  // d'ailleurs désactivé dans le formulaire). En création : vide -> génération automatique et
+  // transactionnelle ; saisi -> validation du format puis réservation transactionnelle
+  // (rejeté si déjà attribué à un autre assuré) — jamais fait confiance sans vérification.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formCardNo.trim() || !formPrincipalName.trim() || !formOrg.trim()) return;
+    if (!formPrincipalName.trim() || !formOrg.trim()) return;
+
+    let finalCardNo = formCardNo.trim();
+    if (!editingMember) {
+      setIsSavingCard(true);
+      try {
+        if (finalCardNo) {
+          await reserveExistingCardNumber(finalCardNo, {
+            organization: formOrg,
+            insuredName: formPrincipalName.trim(),
+            assignedBy: currentUser?.uid,
+            assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+            method: 'MANUAL',
+          });
+        } else {
+          finalCardNo = await generateNextCardNumber({
+            organization: formOrg,
+            insuredName: formPrincipalName.trim(),
+            assignedBy: currentUser?.uid,
+            assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+            method: 'MANUAL',
+          });
+        }
+      } catch (err: any) {
+        alert(err?.message || 'Could not assign a card number. Please try again.');
+        setIsSavingCard(false);
+        return;
+      }
+      setIsSavingCard(false);
+    }
 
     // Construct dependents array
     const dependentsList: DependentItem[] = [];
@@ -493,7 +554,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       });
     } else {
       onAddMember({
-        cardNo: formCardNo.trim(),
+        cardNo: finalCardNo,
         principalName: formPrincipalName.trim(),
         birthDate: formBirthDate || '1990-01-01',
         gender: formGender,
@@ -533,7 +594,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name, card number..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:bg-white transition"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           </div>
@@ -541,7 +602,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
           <select
             value={selectedOrg}
             onChange={(e) => setSelectedOrg(e.target.value)}
-            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
             <option value="ALL">All Organizations</option>
             {organizations.map((org) => (
@@ -554,7 +615,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
             <option value="ALL">All Status</option>
             <option value="Actif">Active</option>
@@ -597,9 +658,9 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     setExportMenuOpen(false);
                     exportMembersToCSV(filteredMembers, lang);
                   }}
-                  className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-[var(--brand-50)] hover:text-[var(--brand-900)] flex items-center gap-2 transition cursor-pointer"
+                  className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-2 transition cursor-pointer"
                 >
-                  <FileText className="w-4 h-4 text-[#2563EB]" />
+                  <FileText className="w-4 h-4 text-slate-600" />
                   <span>CSV (.csv)</span>
                 </button>
               </div>
@@ -637,9 +698,9 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
             <button
               id="create-member-btn"
               onClick={openCreateModal}
-            className="px-4 py-2 rounded-xl bg-[var(--brand-900)] hover:bg-[var(--brand-900)] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" />
             <span>New Member</span>
           </button>
           )}
@@ -650,9 +711,9 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <Users className="w-5 h-5 text-[#2563EB]" />
-            <h3 className="font-bold text-base text-[var(--brand-900)]">Insured Members & Dependents</h3>
-            <span className="px-2.5 py-0.5 rounded-full bg-[var(--brand-50)] text-[#2563EB] text-xs font-bold border border-[var(--brand-100)]">
+            <Users className="w-5 h-5 text-slate-800" />
+            <h3 className="font-bold text-base text-slate-800">Primary Insured Members</h3>
+            <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 text-xs font-bold border border-slate-200">
               {filteredMembers.length}
             </span>
           </div>
@@ -693,11 +754,11 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       onClick={() => openMemberView(m)}
                       className="hover:bg-[#F8FAFC] transition-colors cursor-pointer group"
                     >
-                      <td className="py-3.5 px-4 font-mono font-bold text-[#2563EB] whitespace-nowrap">
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
                         {m.cardNo}
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-[var(--brand-900)] group-hover:text-[#2563EB] transition-colors flex items-center gap-2 flex-wrap">
+                        <div className="font-bold text-slate-800 group-hover:text-slate-900 transition-colors flex items-center gap-2 flex-wrap">
                           <span>{m.principalName}</span>
                           {isAgeExceeded && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-black">
@@ -711,8 +772,8 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                         </div>
                       </td>
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#EFF6FF] text-[#1D4ED8] border border-[var(--brand-100)] group-hover:bg-[var(--brand-100)]/80 transition-colors">
-                          <Users className="w-3.5 h-3.5 text-[#1D4ED8]" />
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 group-hover:bg-slate-200 transition-colors">
+                          <Users className="w-3.5 h-3.5 text-slate-600" />
                           <span>{depCount === 1 ? '1 Dependant' : `${depCount} Dependants`}</span>
                         </span>
                       </td>
@@ -721,7 +782,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                           <div className="w-6 h-6 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-700 overflow-hidden shrink-0">
                             {m.organization.charAt(0)}
                           </div>
-                          <span className="font-medium text-xs text-[var(--brand-900)]">{m.organization}</span>
+                          <span className="font-medium text-xs text-slate-800">{m.organization}</span>
                         </div>
                       </td>
                       <td className="py-3.5 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
@@ -741,7 +802,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                           <span className={`w-5 h-5 rounded-md flex items-center justify-center border ${m.hasBiometrics ? 'bg-emerald-50 text-[#10B981] border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
                             <Fingerprint className="w-3 h-3" />
                           </span>
-                          <span className="text-xs font-semibold text-[#2563EB] hover:underline ml-0.5">
+                          <span className="text-xs font-semibold text-slate-700 hover:underline ml-0.5">
                             View
                           </span>
                         </button>
@@ -806,7 +867,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                                   e.stopPropagation();
                                   openEditModal(m);
                                 }}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-[#2563EB] hover:bg-[var(--brand-50)] transition cursor-pointer"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                                 title={t.edit}
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
@@ -844,7 +905,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
             <button className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 text-xs cursor-pointer">
               ‹
             </button>
-            <button className="w-7 h-7 flex items-center justify-center rounded-lg bg-[var(--brand-900)] text-white text-xs font-bold">
+            <button className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-700 text-white text-xs font-bold">
               1
             </button>
             <button className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 text-xs cursor-pointer">
@@ -863,7 +924,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-[var(--brand-900)]">About Insured Members</h4>
+              <h4 className="text-sm font-bold text-slate-800">About Insured Members</h4>
             </div>
           </div>
           <p className="text-xs text-[#64748B] mb-4">
@@ -876,17 +937,17 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 <UserCheck className="w-3.5 h-3.5" />
               </div>
               <div>
-                <div className="text-xs font-bold text-[var(--brand-900)]">Accurate Profiles</div>
+                <div className="text-xs font-bold text-slate-800">Accurate Profiles</div>
                 <div className="text-[10px] text-[#64748B] mt-0.5">Maintain up-to-date member information</div>
               </div>
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-[var(--brand-100)]/60 text-[#2563EB] flex items-center justify-center shrink-0 mt-0.5">
+              <div className="w-7 h-7 rounded-lg bg-slate-200/60 text-slate-700 flex items-center justify-center shrink-0 mt-0.5">
                 <Users className="w-3.5 h-3.5" />
               </div>
               <div>
-                <div className="text-xs font-bold text-[var(--brand-900)]">Dependants Management</div>
+                <div className="text-xs font-bold text-slate-800">Dependants Management</div>
                 <div className="text-[10px] text-[#64748B] mt-0.5">Track dependants and their relationships</div>
               </div>
             </div>
@@ -896,7 +957,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 <ShieldCheck className="w-3.5 h-3.5" />
               </div>
               <div>
-                <div className="text-xs font-bold text-[var(--brand-900)]">Coverage Validity</div>
+                <div className="text-xs font-bold text-slate-800">Coverage Validity</div>
                 <div className="text-[10px] text-[#64748B] mt-0.5">Ensure valid coverage and plan eligibility</div>
               </div>
             </div>
@@ -906,11 +967,11 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         {/* Card 2: Supported Relationship Types */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center gap-2.5 mb-1.5">
-            <div className="w-8 h-8 rounded-xl bg-[var(--brand-50)] text-[#2563EB] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-[var(--brand-900)]">Supported Relationship Types</h4>
+              <h4 className="text-sm font-bold text-slate-800">Supported Relationship Types</h4>
             </div>
           </div>
           <p className="text-xs text-[#64748B] mb-4">
@@ -942,8 +1003,8 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
               {/* Modal Header */}
               <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-[var(--brand-900)]/10 flex items-center justify-center">
-                    <Users className="w-5 h-5 text-[var(--brand-900)]" />
+                  <div className="w-10 h-10 rounded-2xl bg-slate-200/70 flex items-center justify-center">
+                    <Users className="w-5 h-5 text-slate-700" />
                   </div>
                   <div>
                     <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
@@ -994,13 +1055,13 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       )}
 
                       {/* PRIMARY INSURED RECALL SUMMARY CARD */}
-                      <div className="bg-gradient-to-r from-slate-50 via-[var(--brand-50)]/30 to-slate-50 border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
+                      <div className="bg-gradient-to-r from-slate-50 via-slate-100/40 to-slate-50 border border-slate-200/90 rounded-2xl p-5 shadow-2xs">
                         <div className="text-[10px] font-extrabold tracking-wider uppercase text-slate-400 mb-2.5">
                           PRIMARY INSURED
                         </div>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div className="flex items-center gap-3.5">
-                            <div className="w-12 h-12 rounded-2xl bg-[var(--brand-900)] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
+                            <div className="w-12 h-12 rounded-2xl bg-slate-700 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
                               {selectedMemberForView.principalName.charAt(0)}
                             </div>
                             <div>
@@ -1015,7 +1076,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                                 )}
                               </div>
                               <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs">
-                                <span className="font-mono font-bold text-[#2563EB] bg-white px-2.5 py-0.5 rounded-md border border-[var(--brand-200)] shadow-2xs">
+                                <span className="font-mono font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-md border border-slate-200 shadow-2xs">
                                   Card No: {selectedMemberForView.cardNo}
                                 </span>
                                 <span className="text-slate-300">•</span>
@@ -1093,8 +1154,8 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                               const depAgeExceeded = !depElig.isEligible && depElig.code === 'AGE_LIMIT_EXCEEDED';
 
                               return (
-                                <tr key={dep.id} className="hover:bg-[var(--brand-50)]/30 transition-colors">
-                                  <td className="py-3.5 px-4 font-mono font-bold text-[var(--brand-900)] whitespace-nowrap">
+                                <tr key={dep.id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="py-3.5 px-4 font-mono font-bold text-slate-700 whitespace-nowrap">
                                     {dep.cardNo}
                                   </td>
                                   <td className="py-3.5 px-4 whitespace-nowrap">
@@ -1209,7 +1270,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       </div>
                       <div className="flex justify-between items-center text-xs">
                         <span className="text-slate-500 font-medium">Balance USD:</span>
-                        <span className="font-black text-[var(--brand-900)]">$ {selectedMemberForView.inpatientBalanceUSD || 5000}</span>
+                        <span className="font-black text-emerald-600">$ {selectedMemberForView.inpatientBalanceUSD || 5000}</span>
                       </div>
                       <div className="h-px bg-slate-200 w-full my-1.5"></div>
                       <div className="flex justify-between items-center text-xs">
@@ -1218,7 +1279,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       </div>
                       <div className="flex justify-between items-center text-xs">
                         <span className="text-slate-500 font-medium">Balance LRD:</span>
-                        <span className="font-black text-[var(--brand-900)]">L$ {selectedMemberForView.inpatientBalanceLRD || 975000}</span>
+                        <span className="font-black text-emerald-600">L$ {selectedMemberForView.inpatientBalanceLRD || 975000}</span>
                       </div>
                     </div>
                   </div>
@@ -1291,25 +1352,25 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
             {/* Modal Header */}
-            <div className="bg-[var(--brand-900)] px-6 sm:px-8 py-5 text-white flex items-center justify-between">
+            <div className="bg-white border-b border-slate-200 px-6 sm:px-8 py-5 text-slate-900 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div>
-                  <h3 className="font-extrabold text-base sm:text-lg">
+                  <h3 className="font-extrabold text-base sm:text-lg text-slate-900">
                     {editingMember ? 'Edit Insured Member' : 'Insured Biometric Enrollment'}
                   </h3>
-                  <p className="text-xs text-[var(--brand-100)] mt-0.5">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     Identity capture and biometric enrollment for health card issuance
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
-                  <UserCheck className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-slate-700" />
                 </div>
                 <button
                   type="button"
                   onClick={() => setMemberModalOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-white/15 text-white cursor-pointer ml-1 transition"
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer ml-1 transition"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1321,24 +1382,30 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
               {/* SECTION 1: BENEFICIARY IDENTITY */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
-                  <Shield className="w-4 h-4 text-[var(--brand-900)]" />
+                  <Shield className="w-4 h-4 text-slate-700" />
                   <span className="text-xs font-black uppercase tracking-wider text-slate-700">
                     Beneficiary Identity
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur
+                      demande explicite. À la création, laisser vide génère automatiquement un
+                      numéro unique (AMID-XXXXX-XXXX) ; un numéro saisi manuellement est validé
+                      (format) et réservé (rejeté s'il est déjà attribué à quelqu'un d'autre).
+                      En modification, le numéro existant n'est jamais modifiable ici — un
+                      numéro déjà attribué est définitif (section 15 de la demande). === */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Health Card No *
+                      Health Card No {editingMember ? '(cannot be changed)' : '(leave blank to auto-generate)'}
                     </label>
                     <input
                       type="text"
                       value={formCardNo}
                       onChange={(e) => setFormCardNo(e.target.value)}
-                      placeholder="e.g. ACT-2026-10293"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-[var(--brand-900)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
-                      required
+                      placeholder={editingMember ? undefined : 'e.g. AMID-260903-00497 — leave blank to auto-assign'}
+                      disabled={!!editingMember}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-70 disabled:cursor-not-allowed"
                     />
                   </div>
                   <div>
@@ -1350,7 +1417,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       value={formPrincipalName}
                       onChange={(e) => setFormPrincipalName(e.target.value)}
                       placeholder="e.g. John Doe"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                       required
                     />
                   </div>
@@ -1365,7 +1432,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       type="date"
                       value={formBirthDate}
                       onChange={(e) => setFormBirthDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                       required
                     />
                   </div>
@@ -1376,7 +1443,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     <select
                       value={formGender}
                       onChange={(e) => setFormGender(e.target.value as 'M' | 'F')}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] cursor-pointer"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer"
                     >
                       <option value="M">Male</option>
                       <option value="F">Female</option>
@@ -1389,7 +1456,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     <select
                       value={formOrg}
                       onChange={(e) => setFormOrg(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] cursor-pointer"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer"
                       required
                     >
                       {organizations.map((org) => (
@@ -1405,7 +1472,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
               {/* SECTION 2: POLICY STATUS & BENEFICIARY TIER */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
-                  <User className="w-4 h-4 text-[var(--brand-900)]" />
+                  <User className="w-4 h-4 text-slate-700" />
                   <span className="text-xs font-black uppercase tracking-wider text-slate-700">
                     Policy Status & Beneficiary Tier
                   </span>
@@ -1419,7 +1486,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     <select
                       value={formRelationship}
                       onChange={(e) => setFormRelationship(e.target.value as RelationshipType)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] cursor-pointer"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer"
                     >
                       <option value="Principal">Principal Insured</option>
                       <option value="Spouse">Spouse</option>
@@ -1434,7 +1501,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     <select
                       value={formStatus}
                       onChange={(e) => setFormStatus(e.target.value as MemberStatus)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] cursor-pointer"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer"
                     >
                       <option value="Actif">{t.active}</option>
                       <option value="Suspendu">{t.suspended}</option>
@@ -1444,7 +1511,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 </div>
 
                 {formRelationship !== 'Principal' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 bg-[var(--brand-50)]/50 rounded-2xl border border-[var(--brand-100)]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
                         Principal Insured Full Name *
@@ -1454,7 +1521,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                         value={mainInsuredName}
                         onChange={(e) => setMainInsuredName(e.target.value)}
                         placeholder="e.g. Samuel Cooper"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         required
                       />
                     </div>
@@ -1466,8 +1533,8 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                         type="text"
                         value={mainInsuredCardNo}
                         onChange={(e) => setMainInsuredCardNo(e.target.value)}
-                        placeholder="e.g. ACT-2026-0001"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-[var(--brand-900)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                        placeholder="e.g. AMID-260903-00001"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         required
                       />
                     </div>
@@ -1478,7 +1545,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
               {/* SECTION 3: CONTACT DETAILS */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
-                  <Phone className="w-4 h-4 text-[var(--brand-900)]" />
+                  <Phone className="w-4 h-4 text-slate-700" />
                   <span className="text-xs font-black uppercase tracking-wider text-slate-700">
                     Contact Details
                   </span>
@@ -1494,7 +1561,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       value={formPhone}
                       onChange={(e) => setFormPhone(e.target.value)}
                       placeholder="+231 77 123 4567"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
                   </div>
                   <div>
@@ -1506,7 +1573,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       value={formEmail}
                       onChange={(e) => setFormEmail(e.target.value)}
                       placeholder="insured@organization.com"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
                   </div>
                 </div>
@@ -1515,7 +1582,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
               {/* SECTION 4: BIOMETRIC CAPTURE & FACIAL IDENTIFICATION */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
-                  <Fingerprint className="w-4 h-4 text-[var(--brand-900)]" />
+                  <Fingerprint className="w-4 h-4 text-slate-700" />
                   <span className="text-xs font-black uppercase tracking-wider text-slate-700">
                     Biometric Capture & Facial Identification
                   </span>
@@ -1545,7 +1612,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       <button
                         type="button"
                         onClick={() => setIsWebcamModalOpen(true)}
-                        className="flex-1 py-2 px-2.5 rounded-xl bg-[var(--brand-600)] hover:bg-[var(--brand-700)] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                        className="flex-1 py-2 px-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                       >
                         <Camera className="w-3.5 h-3.5" />
                         <span>Webcam</span>
@@ -1614,10 +1681,11 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[var(--brand-900)] hover:bg-[#07214f] text-white text-xs font-extrabold shadow-md shadow-[var(--brand-900)]/20 transition flex items-center gap-2 cursor-pointer"
+                  disabled={isSavingCard}
+                  className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-extrabold shadow-md shadow-slate-900/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <UserCheck className="w-4 h-4" />
-                  <span>{editingMember ? 'Update Member' : 'Submit Enrollment'}</span>
+                  <span>{isSavingCard ? 'Assigning card number…' : editingMember ? 'Update Member' : 'Submit Enrollment'}</span>
                 </button>
               </div>
             </form>
@@ -1655,9 +1723,14 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         lang={lang}
         title={t.members.importExcel}
         targetType="members"
+        currentUser={currentUser}
         onImport={(file) => parseMemberExcel(file, members)}
-        onSuccess={(importedList) => {
-          onImportMembers(importedList);
+        onSuccess={async (importedList) => {
+          // === AMÉLIORATION AJOUTÉE : on attend désormais la persistance réelle avant de
+          // fermer le modal. Si onImportMembers échoue (ex: écritures Firestore en échec),
+          // l'erreur remonte au modal (qui affichera un message d'erreur au lieu d'un faux
+          // succès) et le modal reste ouvert pour permettre à l'utilisateur de réessayer.
+          await onImportMembers(importedList);
           setImportModalOpen(false);
         }}
       />

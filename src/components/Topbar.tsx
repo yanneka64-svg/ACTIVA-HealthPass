@@ -14,6 +14,7 @@ import {
   ExternalLink,
   RefreshCw,
   UserCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { Language, NavSection, AppNotification } from '../types';
 import { useTranslation } from '../i18n/translations';
@@ -217,9 +218,13 @@ export const Topbar: React.FC<TopbarProps> = ({
       </div>
 
       {/* Right Global Controls */}
+      {/* === AMÉLIORATION AJOUTÉE : la bande "Online" et la pastille "English" surchargeaient
+          l'en-tête sur mobile/tablette (texte tronqué, panneaux qui débordaient) — masquées
+          en dessous de md (768px), où seuls la cloche de notification et l'avatar restent
+          visibles ; à partir de md elles réapparaissent comme avant === */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
         {/* Online Status Badge */}
-        <div className="flex items-center gap-1.5 px-3 py-1 bg-[#ECFDF5] border border-emerald-200 rounded-full text-xs font-semibold text-[#047857]">
+        <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-[#ECFDF5] border border-emerald-200 rounded-full text-xs font-semibold text-[#047857]">
           <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse"></div>
           <span>Online</span>
         </div>
@@ -230,7 +235,7 @@ export const Topbar: React.FC<TopbarProps> = ({
           className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[var(--brand-900)] shadow-2xs hover:bg-slate-50 transition cursor-default"
           title="System Language: English (Official)"
         >
-          <Globe className="w-3.5 h-3.5 text-[#2563EB]" />
+          <Globe className={`w-3.5 h-3.5 ${theme.palette.primaryText}`} />
           <span>English</span>
         </div>
 
@@ -257,8 +262,19 @@ export const Topbar: React.FC<TopbarProps> = ({
           </button>
 
           {/* Notifications Flyout Panel */}
+          {/* === AMÉLIORATION AJOUTÉE : positionné en `fixed` ancré aux bords de l'écran (avec
+              marge) sur mobile, au lieu d'un panneau `absolute` de 320-384px ancré à droite de
+              la cloche qui débordait et se retrouvait tronqué à gauche de l'écran. À partir de
+              `sm`, on revient au positionnement `absolute` habituel sous la cloche. === */}
+          {/* === AMÉLIORATION AJOUTÉE : `max-w-full` retiré du panneau ci-dessous — comme ce
+              panneau est positionné en `absolute` par rapport au petit conteneur `relative`
+              qui enveloppe juste l'icône de la cloche (32px de large), `max-width: 100%` se
+              résolvait à 32px et écrasait toute la largeur du panneau (w-96) en un mince
+              ruban vertical illisible sur desktop/tablette. La largeur mobile (`inset-x-4`)
+              et desktop (`sm:w-96`) suffisent déjà à contraindre le panneau, `max-w-full`
+              était inutile. === */}
           {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-96 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-3 border-b border-[#E8EDF2] flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {/* === ADDED IMPROVEMENT: notification panel colors aligned with the active role's theme === */}
@@ -306,6 +322,8 @@ export const Topbar: React.FC<TopbarProps> = ({
                             ? 'bg-emerald-100 text-emerald-700'
                             : notif.type === 'invoice'
                             ? 'bg-[var(--brand-100)] text-[var(--brand-700)]'
+                            : notif.type === 'policy'
+                            ? 'bg-rose-100 text-rose-700'
                             : 'bg-purple-100 text-purple-700'
                         }`}
                       >
@@ -313,6 +331,9 @@ export const Topbar: React.FC<TopbarProps> = ({
                         {notif.type === 'enrollment' && <UserPlus className="w-4 h-4" />}
                         {notif.type === 'invoice' && <Receipt className="w-4 h-4" />}
                         {notif.type === 'system' && <ShieldCheck className="w-4 h-4" />}
+                        {/* === AMÉLIORATION AJOUTÉE : icône dédiée pour les notifications de
+                            police d'assurance santé (expiration, suspension, réactivation) === */}
+                        {notif.type === 'policy' && <ShieldAlert className="w-4 h-4" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1 mb-0.5">
@@ -365,8 +386,12 @@ export const Topbar: React.FC<TopbarProps> = ({
             </div>
           </button>
 
+          {/* === AMÉLIORATION AJOUTÉE : même correctif que le panneau de notifications — ancré
+              aux bords de l'écran sur mobile pour ne jamais déborder, et `max-w-full` retiré
+              (il se résolvait à la largeur du petit conteneur `relative` de l'avatar plutôt
+              que celle du panneau, écrasant sa largeur) === */}
           {profileMenuOpen && (
-            <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in duration-150">
+            <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-72 bg-white rounded-2xl shadow-2xl border border-[#E8EDF2] py-2 z-50 animate-in fade-in duration-150">
               <div className="px-4 py-3 border-b border-[#E8EDF2]">
                 <p className={`text-xs font-extrabold ${theme.palette.pageTitleColor}`}>
                   {userName}

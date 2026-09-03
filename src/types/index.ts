@@ -51,8 +51,14 @@ export interface UserAccount {
   lastPasswordReset?: string;
   createdAt: string;
   lastLogin?: string;
+  // === AMÉLIORATION AJOUTÉE : sécurité (audit) — password/tempPassword restent typés (lus en
+  // fallback pour les comptes créés avant ce correctif, voir passwordUtils.ts / LoginView.tsx)
+  // mais ne sont plus jamais écrits en clair pour un compte nouvellement créé ou réinitialisé :
+  // seuls passwordHash + passwordSalt le sont désormais (voir src/utils/passwordUtils.ts).
   password?: string;
   tempPassword?: string;
+  passwordHash?: string;
+  passwordSalt?: string;
 }
 
 export type RelationshipType = 'Primary' | 'Principal' | 'Spouse' | 'Conjoint' | 'Child' | 'Enfant' | 'Ascendant' | 'Dependent';
@@ -102,6 +108,12 @@ export interface Member {
   phone?: string;
   email?: string;
   createdAt: string;
+  // === AMÉLIORATION AJOUTÉE : le fichier Excel réel des assurés principaux (Staff) du
+  // client porte une colonne "N° of Dependant" — un simple décompte déclaré des personnes
+  // à charge, distinct du détail des ayants droit (importé séparément via le template
+  // Dépendants). Champ optionnel pour ne perdre aucune information du fichier importé et
+  // permettre plus tard une réconciliation "déclaré" vs "réellement enregistré".
+  declaredDependentsCount?: number;
 }
 
 export type ClaimStatus = 'pending' | 'approved' | 'rejected' | 'returned';
@@ -215,6 +227,10 @@ export interface MedicalForm {
   memberId: string;
   memberName: string;
   memberCardNo: string;
+  // === AMÉLIORATION AJOUTÉE : date de naissance et sexe de l'assuré, capturés au moment de
+  // la génération du Medical Form pour remplacer l'affichage du solde disponible sur le PDF ===
+  memberBirthDate?: string;
+  memberGender?: 'M' | 'F';
   organization: string;
   providerId: string;
   providerName: string;
@@ -257,6 +273,83 @@ export interface Organization {
   email?: string;
   phone?: string;
   globalCeiling?: number;
+}
+
+// === AMÉLIORATION AJOUTÉE : module de gestion des polices d'assurance santé et suivi des
+// primes (Health Insurance Policy Management & Premium Monitoring), intégré sans toucher au
+// modèle Organization existant ni à sa table principale — voir src/services/policyEngine.ts
+// pour le moteur de statut automatique et src/components/HealthPolicyConfigModal.tsx pour la
+// configuration détaillée par organisation.
+export type HealthPolicyStatus = 'Active' | 'Expiring Soon' | 'Expired' | 'Suspended' | 'Pending Renewal';
+export type SuspensionReason = 'Non-payment' | 'Administrative' | 'Other';
+export type PolicyPaymentFrequency = 'Annual' | 'Semi-Annual' | 'Quarterly' | 'Monthly';
+export type PolicyPaymentStatus = 'Paid' | 'Partially Paid' | 'Overdue' | 'Pending';
+
+export interface HealthPolicy {
+  id: string;
+  // NOTE : par construction (voir upsertHealthPolicy dans firestore.ts), `id` est
+  // l'organisation exacte (Organization.name) — une police par organisation — ce qui permet
+  // aux règles de sécurité Firestore de retrouver la police d'une réclamation/fiche médicale
+  // par un simple get() sur /healthPolicies/{organization}, sans jointure côté serveur.
+  organizationId: string;
+  policyNumber: string;
+  policyType?: string;
+  effectiveDate: string;
+  expirationDate: string;
+
+  // Statut stocké : reflète le dernier calcul du moteur (getPolicyCoverageStatus), recalculé
+  // et persisté à chaque chargement/écriture pertinente — jamais la seule source de vérité
+  // affichée (l'UI recalcule toujours en direct à partir des dates/paiements réels).
+  status: HealthPolicyStatus;
+  suspensionReason?: SuspensionReason;
+  manuallySuspended?: boolean;
+
+  annualPremium: number;
+  currency: string;
+
+  paymentFrequency: PolicyPaymentFrequency;
+  installmentAmount: number;
+
+  nextPaymentDueDate?: string;
+  lastPaymentDate?: string;
+  lastPaymentAmount?: number;
+
+  // Seuils configurables (jamais codés en dur dans le moteur) — voir
+  // policyEngine.ts DEFAULT_GRACE_PERIOD_DAYS / DEFAULT_EXPIRING_SOON_WARNING_DAYS pour les
+  // valeurs par défaut appliquées quand ces champs sont absents.
+  gracePeriodDays?: number;
+  expiringSoonWarningDays?: number;
+
+  outstandingAmount?: number;
+  coverageBlocked: boolean;
+
+  suspensionDate?: string;
+  reactivationDate?: string;
+
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export interface PolicyPayment {
+  id: string;
+  policyId: string;
+  paymentDate: string;
+  dueDate: string;
+  amountDue: number;
+  amountPaid: number;
+  currency: string;
+
+  status: PolicyPaymentStatus;
+
+  paymentReference?: string;
+  paymentMethod?: string;
+
+  // Trimestre couvert par ce paiement (1-4), utilisé pour l'échéancier "Q1 Paid / Q2 Paid /
+  // Q3 Overdue / Q4 Pending" des polices à fréquence trimestrielle.
+  quarter?: 1 | 2 | 3 | 4;
+
+  recordedBy?: string;
+  createdAt: string;
 }
 
 export type ProviderType =
@@ -391,8 +484,60 @@ export interface AppNotification {
   time?: string;
   timestamp: string;
   unread: boolean;
-  type: 'claim' | 'enrollment' | 'invoice' | 'system';
+  type: 'claim' | 'enrollment' | 'invoice' | 'system' | 'policy';
   targetSection?: NavSection;
   entityId?: string;
+}
+
+// === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
+// explicite. Voir src/services/cardNumberService.ts pour le moteur (génération
+// transactionnelle, migration, unicité).
+//
+// === AMÉLIORATION AJOUTÉE (v2) : nouvelle structure de numéro AMID-YYMMDD-NNNNN — sur
+// demande explicite, remplace l'ancienne structure AMID-XXXXX-XXXX (deux séquences
+// indépendantes "printed"/"insured"). Le premier segment (6 chiffres) est désormais une
+// date d'émission (année, mois, jour) et non plus un compteur ; seul le second segment (5
+// chiffres, "assuredNumber") reste une séquence globale, unique et jamais réutilisée — un
+// registre d'unicité (une entrée par numéro complet) et une trace d'audit par attribution
+// (voir section 29 de la demande initiale) sont conservés à l'identique.
+export type CardAssignmentMethod = 'ENROLLMENT' | 'EXCEL_IMPORT' | 'MANUAL' | 'MIGRATION';
+
+// Document unique `counters/cardNumbers` — l'état courant de l'unique séquence restante
+// (assuredNumber, segment XXXXX). Le segment de date n'est plus un compteur : il est
+// recalculé à chaque émission à partir de la date d'émission de la carte concernée.
+export interface CardNumberCounters {
+  lastAssuredNumber: number; // ex: 496 (segment XXXXX)
+  formatVersion?: 'v2'; // présent une fois la migration vers AMID-YYMMDD-NNNNN effectuée
+  updatedAt?: string;
+}
+
+// Un document par numéro complet dans `cardNumberRegistry/{cardNumber}` — l'existence du
+// document EST la contrainte d'unicité (deux assurés ne peuvent jamais créer le même id de
+// document). Sert aussi de trace d'audit ("Who / What / When / How", voir section 29).
+export interface CardNumberAssignment {
+  id: string; // = cardNumber, ex: "AMID-260903-00496"
+  cardNumber: string;
+  issueDate: string; // "260903" (YYMMDD, segment XXXXXX)
+  assuredNumber: string; // "00496" (segment XXXXX)
+  organization?: string | null;
+  memberId?: string | null;
+  insuredName?: string | null;
+  assignedBy?: string | null; // uid
+  assignedByName?: string | null;
+  assignedAt: string;
+  method: CardAssignmentMethod;
+}
+
+// Une ligne de la prévisualisation d'import Excel (section 10) — calculée sans rien écrire
+// en base tant que l'import n'est pas confirmé (section 23).
+export interface CardNumberPreviewRow {
+  rowIndex: number;
+  insuredName: string;
+  organization?: string;
+  cardNoExcel: string; // '—' si vide dans le fichier
+  cardNoFinal: string; // '—' si aucun numéro ne peut être attribué (doublon/invalide)
+  action: 'Kept' | 'Generated' | 'None';
+  status: 'Valid' | 'Duplicate' | 'Invalid';
+  reason?: string;
 }
 

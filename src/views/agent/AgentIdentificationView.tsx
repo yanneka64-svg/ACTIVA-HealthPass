@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Search, User, CreditCard, Shield, Clock, HeartPulse, Activity, AlertTriangle, Fingerprint, Users, FileCheck, ScanFace, Stethoscope, Table2, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
-import { Member, Claim, Language } from '../../types';
+import { Member, Claim, Language, Organization, HealthPolicy } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
@@ -13,6 +13,15 @@ interface AgentIdentificationViewProps {
   // === AMÉLIORATION AJOUTÉE : permet de générer une fiche maladie directement depuis
   // l'identification, sans re-sélectionner l'assuré dans l'onglet Médical Form.
   onGenerateMedicalForm?: (member: Member) => void;
+  // === AMÉLIORATION AJOUTÉE (fusion avec main) : organisations/polices transmises pour un
+  // usage futur (ex: n° de police sur la fiche assuré) — acceptées ici sans casser
+  // l'interface existante ; non encore branchées dans le rendu de cette vue.
+  organizations?: Organization[];
+  healthPolicies?: HealthPolicy[];
+  // === AMÉLIORATION AJOUTÉE (fusion avec main) : callbacks pour navigation directe vers
+  // Enrollments/Claims depuis cette vue, si l'appelant les fournit.
+  onNewEnrollment?: () => void;
+  onNewClaim?: (member: Member) => void;
 }
 
 // Maximum number of matching candidates shown while typing (kept small and scrollable —
@@ -37,7 +46,14 @@ function memberMatchesQuery(m: Member, q: string): boolean {
   );
 }
 
-export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = ({ members, claims, lang, onGenerateMedicalForm }) => {
+export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = ({
+  members,
+  claims,
+  lang,
+  onGenerateMedicalForm,
+  onNewEnrollment,
+  onNewClaim,
+}) => {
   const t = useTranslation(lang);
   const { formatAmount } = useCurrency();
   const [searchQuery, setSearchQuery] = useState('');
