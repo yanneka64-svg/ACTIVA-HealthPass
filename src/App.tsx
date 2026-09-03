@@ -896,7 +896,11 @@ export default function App() {
   const effectiveSection: NavSection = isCurrentSectionPermitted ? currentSection : getDefaultSectionForRole(activeRole);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0D2B63] font-sans flex antialiased selection:bg-[#0A347B] selection:text-white">
+    // === AMÉLIORATION AJOUTÉE : h-screen + overflow-hidden au lieu de min-h-screen — le
+    // document lui-même ne défile plus. Voir plus bas : seule la zone de contenu (sous le
+    // Topbar) devient scrollable, pour que la barre de défilement verticale ne remonte pas
+    // au-dessus du bandeau blanc du haut (Topbar / bouton profil).
+    <div className="h-screen overflow-hidden bg-[#F8FAFC] text-[#0D2B63] font-sans flex antialiased selection:bg-[#0A347B] selection:text-white">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
@@ -923,8 +927,8 @@ export default function App() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:ml-[240px] flex flex-col min-w-0">
-        {/* Sticky Topbar */}
+      <div className="flex-1 lg:ml-[240px] flex flex-col min-w-0 h-screen overflow-hidden">
+        {/* Topbar (outside the scroll container below — stays fixed at the top, un-scrolled) */}
         <Topbar
           currentSection={effectiveSection}
           currentUser={currentUser}
@@ -949,8 +953,13 @@ export default function App() {
           </div>
         )}
 
+        {/* === AMÉLIORATION AJOUTÉE : conteneur de défilement dédié au contenu, sous le Topbar.
+            Le Topbar (bandeau blanc avec le bouton profil) reste désormais hors de cette zone
+            scrollable : la barre de défilement verticale ne part donc plus du tout en haut de
+            la page, mais juste sous le Topbar, comme demandé. === */}
+        <div className="flex-1 overflow-y-auto">
         {/* Section Router Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
+        <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
           {effectiveSection === 'dashboard' && (
             <DashboardView
               lang={lang}
@@ -1174,6 +1183,7 @@ export default function App() {
 
           {effectiveSection === 'logs' && <LogsView lang={lang} logs={logs} />}
         </main>
+        </div>
 
         {/* Mobile & Tablet Miniature Bottom Navigation Bar - Role & Theme Harmonized */}
         <nav

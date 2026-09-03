@@ -508,9 +508,18 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             initiale à droite, inchangée. === */}
         <div className="relative z-10 space-y-3">
           <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-gray-300 shrink-0">
-              <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
-              <span>Policy Age Limits & Real-Time Eligibility Verification</span>
+            {/* === AMÉLIORATION AJOUTÉE : le paragraphe descriptif est remonté juste sous le
+                badge "Policy Age Limits & Real-Time Eligibility Verification" (au lieu de se
+                trouver plus bas, après les bulles d'âge et le bouton), avec un retour à la
+                ligne normal et un alignement explicite à gauche. === */}
+            <div className="space-y-2 max-w-md lg:max-w-lg shrink-0">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-gray-300">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
+                <span>Policy Age Limits & Real-Time Eligibility Verification</span>
+              </div>
+              <p className="text-xs text-gray-300 leading-relaxed font-medium text-left whitespace-normal break-words">
+                Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
+              </p>
             </div>
 
             {/* Dynamic Age Limits Display Pills */}
@@ -559,10 +568,6 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             </button>
             </div>
           </div>
-
-          <p className="text-xs text-gray-300 leading-relaxed font-medium max-w-3xl">
-            Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
-          </p>
         </div>
       </div>
 
