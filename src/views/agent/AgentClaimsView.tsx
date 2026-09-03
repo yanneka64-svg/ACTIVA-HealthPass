@@ -532,8 +532,12 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-[#0a2e6b]" />
+                    {/* === AMÉLIORATION AJOUTÉE : "& Coverage Balances" retiré du titre de la
+                        section (les deux cartes de solde de couverture juste en dessous ont
+                        aussi été retirées, sur demande explicite) — rien ne remplace cet
+                        espace, il reste vide. === */}
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
-                      1. Beneficiary Identification &amp; Coverage Balances
+                      1. Beneficiary Identification
                     </h4>
                   </div>
                   {matchedMember && (
@@ -615,32 +619,6 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       <option value="USD">USD ($) — US Dollars (Standard)</option>
                       <option value="LRD">LRD (L$) — Liberian Dollars</option>
                     </select>
-                  </div>
-                </div>
-
-                {/* Remaining Coverage Balances */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="p-3.5 bg-blue-50/60 border border-blue-100 rounded-xl flex items-center justify-between gap-2">
-                    <div>
-                      <div className="text-[10px] font-bold text-[#0a2e6b] uppercase tracking-wide">Remaining Outpatient Balance</div>
-                      <div className="text-lg font-black text-[#0a2e6b]">
-                        {formatAmount(matchedMember?.outpatientBalanceUSD ?? 0)}
-                      </div>
-                    </div>
-                    <div className="text-right text-[11px] text-slate-500 font-semibold">
-                      Ceiling: {formatAmount(matchedMember?.outpatientCeilingUSD ?? matchedMember?.outpatientBalanceUSD ?? 0)}
-                    </div>
-                  </div>
-                  <div className="p-3.5 bg-emerald-50/60 border border-emerald-100 rounded-xl flex items-center justify-between gap-2">
-                    <div>
-                      <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">Remaining Inpatient Balance</div>
-                      <div className="text-lg font-black text-emerald-700">
-                        {formatAmount(matchedMember?.inpatientBalanceUSD ?? 0)}
-                      </div>
-                    </div>
-                    <div className="text-right text-[11px] text-slate-500 font-semibold">
-                      Ceiling: {formatAmount(matchedMember?.inpatientCeilingUSD ?? matchedMember?.inpatientBalanceUSD ?? 0)}
-                    </div>
                   </div>
                 </div>
 
