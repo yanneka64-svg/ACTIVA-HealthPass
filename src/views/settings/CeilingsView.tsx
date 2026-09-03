@@ -660,7 +660,9 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Desktop/tablet: table (unchanged) */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
@@ -841,6 +843,116 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* === AMÉLIORATION AJOUTÉE : liste de cartes sur mobile, au lieu du tableau à 7
+              colonnes qui débordait/se comprimait mal sur petit écran. Mêmes données et
+              mêmes actions (Edit / Delete) que le tableau desktop. === */}
+          <div className="sm:hidden divide-y divide-slate-100">
+            {paginatedCeilings.map((c) => {
+              const benefitName = c.careType || c.serviceCategory || 'Outpatient Consultations';
+              const orgName = c.organization || 'Orange Liberia Telecom';
+              const isOutpatient = !benefitName.toLowerCase().includes('inpatient');
+
+              const outMoPrinc = c.outpatientMonthlyPrincipal ?? (isOutpatient ? c.monthlyLimit || 250 : 0);
+              const outMoDep = c.outpatientMonthlyDependent ?? (isOutpatient ? Math.round((c.monthlyLimit || 250) * 0.6) : 0);
+              const inMoPrinc = c.inpatientMonthlyPrincipal ?? (!isOutpatient ? c.monthlyLimit || 500 : 0);
+              const inMoDep = c.inpatientMonthlyDependent ?? (!isOutpatient ? Math.round((c.monthlyLimit || 500) * 0.6) : 0);
+
+              const monthlyPrinc = isOutpatient ? (outMoPrinc || 250) : (inMoPrinc || 500);
+              const monthlyDep = isOutpatient ? (outMoDep || 150) : (inMoDep || 300);
+
+              const annPrinc = c.outpatientAnnualPrincipal ?? c.inpatientAnnualPrincipal ?? c.individualLimit ?? 1000;
+              const annDep = c.outpatientAnnualDependent ?? c.inpatientAnnualDependent ?? Math.round(annPrinc * 0.66);
+
+              const maxP = c.maxAgePrincipal ?? 65;
+              const maxS = c.maxAgeSpouse ?? 65;
+              const maxC = c.maxAgeChild ?? 21;
+
+              const consumed = c.consumedPercentage || 28;
+              const isHigh = consumed > 75;
+
+              return (
+                <div key={c.id} className="p-4 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 border border-slate-200">
+                        <Building2 className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="font-bold text-slate-900 text-xs truncate">{orgName}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => openEditCeilingModal(c)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                        title="Edit benefit limits"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteCeiling(c.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                        title="Delete rule"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold border ${getBenefitBadgeStyle(
+                      benefitName
+                    )}`}
+                  >
+                    {benefitName}
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-2.5 text-[11px]">
+                    <div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Monthly (P/D)</div>
+                      <div className="font-mono font-bold text-slate-900">
+                        ${monthlyPrinc.toLocaleString()} / ${monthlyDep.toLocaleString()}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Annual (P/D)</div>
+                      <div className="font-mono font-bold text-slate-900">
+                        ${annPrinc.toLocaleString()} / ${annDep.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-100 text-[10px] font-bold">
+                      P: ≤{maxP}y
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold">
+                      S: ≤{maxS}y
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold">
+                      C: ≤{maxC}y
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] font-bold">
+                      <span className="text-slate-400 font-medium">Consumption</span>
+                      <span className={isHigh ? 'text-rose-600' : 'text-slate-700'}>{consumed}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${consumed}%`,
+                          backgroundColor: isHigh ? '#e11d48' : consumed > 50 ? '#f59e0b' : '#00A859',
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
 
         {/* Table Pagination Footer */}

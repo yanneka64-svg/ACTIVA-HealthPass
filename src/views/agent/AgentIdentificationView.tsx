@@ -323,9 +323,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
       )}
 
       {/* 2. TWO-COLUMN LAYOUT: DIRECTORY (left) + SELECTED MEMBER DETAIL (right) */}
+      {/* === AMÉLIORATION AJOUTÉE : sur mobile (< lg), l'annuaire et la fiche détaillée
+          n'apparaissent plus empilés sur une seule très longue page — un seul des deux est
+          affiché à la fois (l'annuaire par défaut, la fiche une fois un assuré sélectionné,
+          avec un bouton "Back" pour y revenir), comme sur desktop où les deux colonnes
+          restent visibles en même temps (comportement desktop inchangé). === */}
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-start">
         {/* LEFT: Insured Directory */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
+        <div className={`bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3 ${selectedBeneficiary ? 'hidden lg:block' : ''}`}>
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
               Insured Directory ({filteredDirectory.length})
@@ -403,6 +408,18 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
           </div>
         ) : (
           <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Mobile-only "Back to Directory" — le panneau annuaire est masqué sur mobile
+                tant qu'un assuré est sélectionné (voir ci-dessus), ce bouton permet d'y
+                revenir sans avoir à faire défiler toute la fiche détaillée. */}
+            <button
+              type="button"
+              onClick={() => setSelectedBeneficiary(null)}
+              className="lg:hidden flex items-center gap-1.5 text-xs font-bold text-[#0A347B] hover:text-[#08285e] cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5 rotate-180" />
+              <span>Back to Directory</span>
+            </button>
+
             {/* Profile Header Card */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
               <div className="flex flex-col lg:flex-row lg:items-start gap-4">
@@ -474,7 +491,10 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                   </div>
                 </div>
 
-                <div className="flex sm:flex-row lg:flex-col xl:flex-row gap-2.5 shrink-0">
+                {/* === AMÉLIORATION AJOUTÉE : les boutons passent en pleine largeur et empilés
+                    sur mobile (au lieu d'une rangée serrée qui pouvait déborder), pour rester
+                    faciles à toucher et lisibles. === */}
+                <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row gap-2.5 shrink-0 w-full sm:w-auto">
                   {onGenerateMedicalForm && (
                     <button
                       type="button"
@@ -491,7 +511,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         };
                         onGenerateMedicalForm(memberPayload);
                       }}
-                      className="px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white whitespace-nowrap"
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white whitespace-nowrap"
                     >
                       <FileCheck className="w-4 h-4" />
                       <span>Generate Medical Form</span>
@@ -508,7 +528,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         };
                         onNewClaim(memberPayload);
                       }}
-                      className="px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#0A347B] hover:bg-[#08285e] text-white whitespace-nowrap"
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#0A347B] hover:bg-[#08285e] text-white whitespace-nowrap"
                     >
                       <Receipt className="w-4 h-4" />
                       <span>New Claim</span>
@@ -746,57 +766,96 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                   No medical services recorded for this member in {currentMonthLabel}.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
-                        <th className="py-2.5 px-3 whitespace-nowrap">Date &amp; Ref</th>
-                        <th className="py-2.5 px-3">Medical Procedure</th>
-                        <th className="py-2.5 px-3">Healthcare Provider / Hospital</th>
-                        <th className="py-2.5 px-3 text-right">Amount</th>
-                        <th className="py-2.5 px-3 text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {currentMonthClaims.map((claim) => (
-                        <tr key={claim.id} className="hover:bg-slate-50/80 transition">
-                          <td className="py-3 px-3 whitespace-nowrap">
-                            <span className="font-bold text-slate-800 block">{claim.serviceDate}</span>
-                            <span className="text-[10px] text-[#0A347B] font-mono">{claim.reference}</span>
-                          </td>
-                          <td className="py-3 px-3">
-                            <span className="font-bold text-slate-800 block">{claim.careType}</span>
-                            <span className="text-[10px] text-slate-400">{claim.careType}</span>
-                          </td>
-                          <td className="py-3 px-3 text-slate-700 font-medium flex items-center gap-1.5">
-                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span>{claim.provider}</span>
-                          </td>
-                          <td className="py-3 px-3 text-right whitespace-nowrap font-bold text-slate-800">
-                            {formatAmount(claim.amount || 0)}
-                          </td>
-                          <td className="py-3 px-3 text-center whitespace-nowrap">
-                            <span
-                              className={`inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
-                                claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : claim.status === 'Rejected' || claim.status === 'rejected'
-                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
-                              }`}
-                            >
-                              {claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
-                                ? 'Approved'
-                                : claim.status === 'Rejected' || claim.status === 'rejected'
-                                ? 'Rejected'
-                                : 'Pending'}
-                            </span>
-                          </td>
+                <>
+                  {/* Desktop/tablet: table (unchanged) */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
+                          <th className="py-2.5 px-3 whitespace-nowrap">Date &amp; Ref</th>
+                          <th className="py-2.5 px-3">Medical Procedure</th>
+                          <th className="py-2.5 px-3">Healthcare Provider / Hospital</th>
+                          <th className="py-2.5 px-3 text-right">Amount</th>
+                          <th className="py-2.5 px-3 text-center">Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {currentMonthClaims.map((claim) => (
+                          <tr key={claim.id} className="hover:bg-slate-50/80 transition">
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              <span className="font-bold text-slate-800 block">{claim.serviceDate}</span>
+                              <span className="text-[10px] text-[#0A347B] font-mono">{claim.reference}</span>
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-slate-800 block">{claim.careType}</span>
+                              <span className="text-[10px] text-slate-400">{claim.careType}</span>
+                            </td>
+                            <td className="py-3 px-3 text-slate-700 font-medium flex items-center gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>{claim.provider}</span>
+                            </td>
+                            <td className="py-3 px-3 text-right whitespace-nowrap font-bold text-slate-800">
+                              {formatAmount(claim.amount || 0)}
+                            </td>
+                            <td className="py-3 px-3 text-center whitespace-nowrap">
+                              <span
+                                className={`inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
+                                  claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : claim.status === 'Rejected' || claim.status === 'rejected'
+                                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}
+                              >
+                                {claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
+                                  ? 'Approved'
+                                  : claim.status === 'Rejected' || claim.status === 'rejected'
+                                  ? 'Rejected'
+                                  : 'Pending'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* === AMÉLIORATION AJOUTÉE : liste de cartes sur mobile, au lieu du tableau
+                      qui débordait/se comprimait mal sur petit écran. === */}
+                  <div className="sm:hidden space-y-2.5">
+                    {currentMonthClaims.map((claim) => (
+                      <div key={claim.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-bold text-xs text-slate-800">{claim.serviceDate}</div>
+                            <div className="text-[10px] text-[#0A347B] font-mono">{claim.reference}</div>
+                          </div>
+                          <span
+                            className={`shrink-0 inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
+                              claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : claim.status === 'Rejected' || claim.status === 'rejected'
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}
+                          >
+                            {claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
+                              ? 'Approved'
+                              : claim.status === 'Rejected' || claim.status === 'rejected'
+                              ? 'Rejected'
+                              : 'Pending'}
+                          </span>
+                        </div>
+                        <div className="font-bold text-xs text-slate-800">{claim.careType}</div>
+                        <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{claim.provider}</span>
+                        </div>
+                        <div className="text-sm font-black text-slate-800">{formatAmount(claim.amount || 0)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           </div>

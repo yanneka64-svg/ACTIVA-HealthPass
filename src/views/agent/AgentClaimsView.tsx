@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Fingerprint,
+  ChevronDown,
 } from 'lucide-react';
 import { Claim, Member, Provider, Language, MedicalAct, ClaimAttachment, Organization, Ceiling } from '../../types';
 import { useTranslation } from '../../i18n/translations';
@@ -91,6 +92,14 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   const [selectedClaimDetail, setSelectedClaimDetail] = useState<Claim | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [eligibilityBlockError, setEligibilityBlockError] = useState<string | null>(null);
+  // === AMÉLIORATION AJOUTÉE : sur mobile, les 4 sections du formulaire se replient en
+  // accordéon (une seule ouverte à la fois, la première par défaut) pour réduire le nombre
+  // d'éléments visibles en même temps — sur desktop (lg+), les 4 sections restent toutes
+  // visibles en permanence, comme avant.
+  const [mobileOpenSection, setMobileOpenSection] = useState<number>(1);
+  const toggleMobileSection = (section: number) => {
+    setMobileOpenSection((prev) => (prev === section ? 0 : section));
+  };
 
   // Form State
   const [memberCardInput, setMemberCardInput] = useState('');
@@ -529,7 +538,13 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
               {/* 1. Beneficiary Identification & Coverage Balances */}
               <div className="space-y-3.5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                {/* === AMÉLIORATION AJOUTÉE : en-tête cliquable sur mobile pour replier/déplier
+                    la section (accordéon) — sur desktop (lg+) le clic n'a aucun effet visible
+                    puisque le contenu reste toujours affiché (lg:block !important). === */}
+                <div
+                  onClick={() => toggleMobileSection(1)}
+                  className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer lg:cursor-default"
+                >
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-[#0a2e6b]" />
                     {/* === AMÉLIORATION AJOUTÉE : "& Coverage Balances" retiré du titre de la
@@ -540,13 +555,17 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       1. Beneficiary Identification
                     </h4>
                   </div>
-                  {matchedMember && (
-                    <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      Eligible Beneficiary
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {matchedMember && (
+                      <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Eligible Beneficiary
+                      </span>
+                    )}
+                    <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 1 ? 'rotate-180' : ''}`} />
+                  </div>
                 </div>
 
+                <div className={`${mobileOpenSection === 1 ? 'block' : 'hidden'} lg:!block space-y-3.5`}>
                 {/* Primary fields row: Principal / Patient Treated / Card Number / Service Currency */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                   <div>
@@ -677,17 +696,25 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     </div>
                   )}
                 </div>
+                </div>
               </div>
 
               {/* 2. Healthcare Provider & Attending Physician */}
               <div className="space-y-3.5 bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                  <Building className="w-4 h-4 text-[#0a2e6b]" />
-                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
-                    2. Healthcare Provider &amp; Attending Physician
-                  </h4>
+                <div
+                  onClick={() => toggleMobileSection(2)}
+                  className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2 cursor-pointer lg:cursor-default"
+                >
+                  <div className="flex items-center gap-2">
+                    <Building className="w-4 h-4 text-[#0a2e6b]" />
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
+                      2. Healthcare Provider &amp; Attending Physician
+                    </h4>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 2 ? 'rotate-180' : ''}`} />
                 </div>
 
+                <div className={`${mobileOpenSection === 2 ? 'block' : 'hidden'} lg:!block`}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -722,16 +749,24 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     />
                   </div>
                 </div>
+                </div>
               </div>
 
               {/* 3. Medical Acts & Procedures - USD & LRD Support */}
               <div className="space-y-3.5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                  <div className="flex items-center gap-2">
+                  {/* === AMÉLIORATION AJOUTÉE : le clic pour replier/déplier ne porte que sur ce
+                      bloc titre (pas sur toute la ligne), pour ne jamais intercepter les clics
+                      sur le sélecteur de devise / bouton "Add Medical Act" à droite. === */}
+                  <div
+                    onClick={() => toggleMobileSection(3)}
+                    className="flex items-center gap-2 cursor-pointer lg:cursor-default"
+                  >
                     <Activity className="w-4 h-4 text-[#0a2e6b]" />
                     <div>
-                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
-                        3. Medical Acts &amp; Procedures ({medicalActs.length})
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <span>3. Medical Acts &amp; Procedures ({medicalActs.length})</span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 3 ? 'rotate-180' : ''}`} />
                       </h4>
                       <p className="text-[10.5px] text-slate-400 font-medium">
                         Itemized breakdown of care billed in {currency === 'USD' ? 'US Dollars (USD / $)' : 'Liberian Dollars (LRD / L$)'}
@@ -775,6 +810,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   </div>
                 </div>
 
+                <div className={`${mobileOpenSection === 3 ? 'block' : 'hidden'} lg:!block space-y-3.5`}>
                 {/* Medical Act items */}
                 <div className="space-y-2.5">
                   {medicalActs.map((act, idx) => (
@@ -872,6 +908,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     </div>
                   </div>
                 </div>
+                </div>
               </div>
 
               {/* === AMÉLIORATION AJOUTÉE : les 3 zones d'upload séparées (Prescription / Invoice /
@@ -880,12 +917,16 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   (prescriptionFile / invoiceFile / uploadedAttachments) selon la catégorie
                   choisie — aucune capacité perdue (aperçu, téléchargement, suppression). === */}
               <div className="space-y-3.5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div
+                  onClick={() => toggleMobileSection(4)}
+                  className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer lg:cursor-default"
+                >
                   <div className="flex items-center gap-2">
                     <Paperclip className="w-4 h-4 text-[#0a2e6b]" />
                     <div>
-                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
-                        4. Supporting Documents &amp; Invoices ({allAttachmentsForDisplay.length})
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <span>4. Supporting Documents &amp; Invoices ({allAttachmentsForDisplay.length})</span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 4 ? 'rotate-180' : ''}`} />
                       </h4>
                       <p className="text-[10.5px] text-slate-400 font-medium">
                         Upload prescriptions, hospital invoices, Word documents (.doc/.docx), PDFs, and medical photos
@@ -897,6 +938,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   </span>
                 </div>
 
+                <div className={`${mobileOpenSection === 4 ? 'block' : 'hidden'} lg:!block`}>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Left: category selector + drop zone */}
                   <div className="space-y-2.5">
@@ -1014,6 +1056,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       </div>
                     )}
                   </div>
+                </div>
                 </div>
               </div>
 
