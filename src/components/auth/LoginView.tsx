@@ -232,10 +232,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </div>
             )}
 
-            {/* Corporate Email or Username */}
+            {/* === AMÉLIORATION AJOUTÉE : libellé simplifié en "Username" et exemple d'adresse
+                e-mail retiré du placeholder (champ vide) — le champ accepte toujours email OU
+                nom d'utilisateur exactement comme avant, seul l'affichage change. === */}
             <div>
               <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
-                Corporate Email or Username
+                Username
               </label>
               <div className="relative">
                 <input
@@ -243,7 +245,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. by.ekani@group-activa.com"
+                  placeholder=""
                   className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
                   autoComplete="username"
                   required

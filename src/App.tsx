@@ -55,6 +55,37 @@ import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon, Users,
 
 export type AuthStateStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'inactive' | 'invalid_role';
 
+// === AMÉLIORATION AJOUTÉE : reconnexion forcée après un nouveau déploiement. Firebase Auth
+// garde une session ouverte indéfiniment par défaut (persistance locale standard, comme
+// Gmail) — ce qui n'est pas un bug, mais signifiait qu'un redéploiement de l'app ne renvoyait
+// jamais vers l'écran de connexion. `__APP_BUILD_ID__` est une empreinte unique générée à
+// chaque exécution de `vite build` (voir vite.config.ts), donc à chaque déploiement en
+// production. Au démarrage, on la compare à la dernière connue sur cet appareil : si elles
+// diffèrent (et qu'une valeur précédente existait déjà, donc pas la toute première visite),
+// la session en cours est fermée pour que l'utilisateur revoie l'écran de connexion au
+// prochain chargement. Comme la vérification n'a lieu qu'au montage de l'application, un
+// onglet déjà ouvert et en cours d'utilisation n'est jamais affecté par un déploiement
+// pendant qu'il tourne — seul un rechargement/nouvel onglet récupère le nouveau build et
+// déclenche la déconnexion si nécessaire.
+const BUILD_ID_STORAGE_KEY = 'activa_app_build_id';
+
+function signOutIfNewDeployment() {
+  try {
+    const lastKnownBuildId = localStorage.getItem(BUILD_ID_STORAGE_KEY);
+    if (lastKnownBuildId && lastKnownBuildId !== __APP_BUILD_ID__) {
+      sessionStorage.removeItem('activa_current_section');
+      signOut(auth).catch(() => {
+        // Ignore — if this fails, the user simply stays logged in on the new
+        // version, which is the pre-existing (safe) behavior.
+      });
+    }
+    localStorage.setItem(BUILD_ID_STORAGE_KEY, __APP_BUILD_ID__);
+  } catch {
+    // localStorage unavailable (private browsing, etc.) — skip silently, session
+    // persistence just behaves as it did before this improvement.
+  }
+}
+
 export default function App() {
   // Authentication & Role Resolution State Machine
   const [authStatus, setAuthStatus] = useState<AuthStateStatus>('loading');
@@ -84,6 +115,8 @@ export default function App() {
   };
 
   useEffect(() => {
+    signOutIfNewDeployment();
+
     let unsubAccountListener: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
