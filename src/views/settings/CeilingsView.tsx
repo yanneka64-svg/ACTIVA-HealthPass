@@ -517,7 +517,10 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
                 <span>Policy Age Limits & Real-Time Eligibility Verification</span>
               </div>
-              <p className="text-xs text-gray-300 leading-relaxed font-medium text-left whitespace-normal break-words">
+              {/* === AMÉLIORATION AJOUTÉE : texte justifié (text-justify) sur demande explicite,
+                  au lieu d'un simple alignement à gauche — les bords gauche ET droit du
+                  paragraphe sont désormais alignés. === */}
+              <p className="text-xs text-gray-300 leading-relaxed font-medium text-justify whitespace-normal break-words">
                 Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
               </p>
             </div>
