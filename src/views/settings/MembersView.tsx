@@ -375,7 +375,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     setFormPrincipalName('');
     setFormBirthDate('');
     setFormGender('M');
-    setFormOrg(organizations.length > 0 ? organizations[0].name : 'Orange Liberia Telecom');
+    setFormOrg(organizations.length > 0 ? organizations[0].name : 'TotalEnergies Liberia Ltd');
     setFormRelationship('Principal');
     setMainInsuredName('');
     setMainInsuredCardNo('');

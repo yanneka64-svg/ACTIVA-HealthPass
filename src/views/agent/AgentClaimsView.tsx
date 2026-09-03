@@ -654,7 +654,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         type="text"
                         value={organizationInput}
                         onChange={(e) => setOrganizationInput(e.target.value)}
-                        placeholder="e.g. Firestone, Orange Liberia..."
+                        placeholder="e.g. Firestone, TotalEnergies..."
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                       />
                     </div>

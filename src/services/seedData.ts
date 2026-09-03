@@ -62,33 +62,11 @@ export const getFullDemoData = () => {
   ];
 
   // 1. ORGANIZATIONS
+  // === AMÉLIORATION AJOUTÉE : "Orange Liberia Telecom" (org-1) et "Ecobank Liberia Head
+  // Office" (org-2) retirées des données de démonstration — sur demande explicite ("supprimer
+  // les informations d'Orange et de Ecobank ... sur l'application"). Elles ne réapparaîtront
+  // donc plus via getFullDemoData() ni via seedInitialDemoDataIfEmpty()/forceReloadDemoData().
   const orgs: Partial<Organization>[] = [
-    {
-      id: 'org-1',
-      name: 'Orange Liberia Telecom',
-      policyNumber: 'POL-2026-OLT',
-      effectiveDate: '2026-01-01',
-      expirationDate: '2026-12-31',
-      declaredMembers: 450,
-      coverageRate: 85,
-      status: 'Active',
-      email: 'benefits@orange.com.lr',
-      phone: '+231 77 000 1122',
-      globalCeiling: 250000
-    },
-    {
-      id: 'org-2',
-      name: 'Ecobank Liberia Head Office',
-      policyNumber: 'POL-2026-ECO',
-      effectiveDate: '2026-01-01',
-      expirationDate: '2026-12-31',
-      declaredMembers: 320,
-      coverageRate: 90,
-      status: 'Active',
-      email: 'hr@ecobank.com',
-      phone: '+231 77 555 8899',
-      globalCeiling: 400000
-    },
     {
       id: 'org-3',
       name: 'TotalEnergies Liberia Ltd',
@@ -190,115 +168,9 @@ export const getFullDemoData = () => {
   ];
 
   // 3. MEMBERS
+  // === AMÉLIORATION AJOUTÉE : membres démo mem-1 (Orange) et mem-2 (Ecobank) retirés — même
+  // motif que pour les organisations ci-dessus. ===
   const membersList: Partial<Member>[] = [
-    {
-      id: 'mem-1',
-      cardNo: 'ACT-2026-88192',
-      principalName: 'Jean-Marc KOUASSI',
-      spouseName: 'Marie-Claire KOUASSI',
-      dependentRelationship: 'spouse',
-      children: ['Emmanuel KOUASSI', 'Sarah KOUASSI', 'David KOUASSI'],
-      dependents: [
-        {
-          id: 'dep-1-1',
-          cardNo: 'ACT-2026-88193',
-          fullName: 'Marie-Claire KOUASSI',
-          relationship: 'spouse',
-          birthDate: '1986-05-14',
-          age: 39,
-          gender: 'F',
-          hasBiometrics: true,
-        },
-        {
-          id: 'dep-1-2',
-          cardNo: 'ACT-2026-88194',
-          fullName: 'Emmanuel KOUASSI',
-          relationship: 'child',
-          birthDate: '2014-08-21',
-          age: 12,
-          gender: 'M',
-          hasBiometrics: true,
-        },
-        {
-          id: 'dep-1-3',
-          cardNo: 'ACT-2026-88195',
-          fullName: 'Sarah KOUASSI',
-          relationship: 'child',
-          birthDate: '2018-03-10',
-          age: 8,
-          gender: 'F',
-          hasBiometrics: true,
-        },
-        {
-          id: 'dep-1-4',
-          cardNo: 'ACT-2026-88196',
-          fullName: 'David KOUASSI',
-          relationship: 'child',
-          birthDate: '2022-06-05',
-          age: 4,
-          gender: 'M',
-          hasBiometrics: false,
-        },
-      ],
-      birthDate: '1984-04-12',
-      relationship: 'Primary',
-      organization: 'Orange Liberia Telecom',
-      status: 'Active',
-      hasPhoto: true,
-      hasBiometrics: true,
-      outpatientBalanceUSD: 720,
-      outpatientCeilingUSD: 1000,
-      inpatientBalanceUSD: 8500,
-      inpatientCeilingUSD: 10000,
-      gender: 'M',
-      phone: '+231 77 400 1234',
-      email: 'jean.kouassi@orange.com.lr',
-      createdAt: '2026-01-10',
-    },
-    {
-      id: 'mem-2',
-      cardNo: 'ACT-2026-77341',
-      principalName: 'Aminata DIALLO',
-      spouseName: 'Ousmane DIALLO',
-      dependentRelationship: 'husband',
-      children: ['Fatou DIALLO', 'Ibrahima DIALLO'],
-      dependents: [
-        {
-          id: 'dep-2-1',
-          cardNo: 'ACT-2026-77342',
-          fullName: 'Ousmane DIALLO',
-          relationship: 'husband',
-          birthDate: '1988-11-12',
-          age: 37,
-          gender: 'M',
-          hasBiometrics: true,
-        },
-        {
-          id: 'dep-2-2',
-          cardNo: 'ACT-2026-77343',
-          fullName: 'Fatou DIALLO',
-          relationship: 'child',
-          birthDate: '2020-04-15',
-          age: 6,
-          gender: 'F',
-          hasBiometrics: false,
-        },
-      ],
-      birthDate: '1990-09-24',
-      relationship: 'Primary',
-      organization: 'Ecobank Liberia Head Office',
-      status: 'Active',
-      hasPhoto: true,
-      hasBiometrics: true,
-      outpatientBalanceUSD: 540,
-      outpatientCeilingUSD: 800,
-      inpatientBalanceUSD: 9200,
-      inpatientCeilingUSD: 10000,
-      gender: 'F',
-      phone: '+231 88 500 5678',
-      email: 'aminata.diallo@ecobank.com',
-      createdAt: '2026-01-12',
-    },
     {
       id: 'mem-3',
       cardNo: 'ACT-2026-66219',
@@ -414,53 +286,9 @@ export const getFullDemoData = () => {
   ];
 
   // 4. SAMPLE MEDICAL FORMS
+  // === AMÉLIORATION AJOUTÉE : formulaires démo mf-1 (Orange) et mf-2 (Ecobank) retirés —
+  // même motif que ci-dessus. ===
   const forms: Partial<MedicalForm>[] = [
-    {
-      id: 'mf-1',
-      securityNumber: 'ACT-MED-2026-889102',
-      barcode: 'ACT-MED-2026-889102',
-      memberId: 'mem-1',
-      memberName: 'Jean-Marc KOUASSI',
-      memberCardNo: 'ACT-2026-88192',
-      organization: 'Orange Liberia Telecom',
-      providerId: 'prv-1',
-      providerName: 'John F. Kennedy Mother-Child Hospital',
-      coverageType: 'Outpatient',
-      outpatientBalanceUSD: 720,
-      inpatientBalanceUSD: 8500,
-      issueDate: '2026-03-20',
-      status: 'issued',
-      doctorName: 'Dr. Samuel Eto\'o',
-      doctorPrescription: {
-        presumedDiagnosis: 'Acute febrile bronchial syndrome',
-        requestedExams: 'Chest X-ray, Full Blood Count (FBC), CRP',
-        treatmentOrder: 'Amoxicillin / Clavulanic acid 1g (1 tab bid x 7 days), Paracetamol 1g (1 tab tid prn)'
-      },
-      createdAt: '2026-03-20T10:30:00Z'
-    },
-    {
-      id: 'mf-2',
-      securityNumber: 'ACT-MED-2026-441290',
-      barcode: 'ACT-MED-2026-441290',
-      memberId: 'mem-2',
-      memberName: 'Aminata DIALLO',
-      memberCardNo: 'ACT-2026-77341',
-      organization: 'Ecobank Liberia Head Office',
-      providerId: 'prv-2',
-      providerName: 'Saint Joseph International Clinic',
-      coverageType: 'Inpatient',
-      outpatientBalanceUSD: 540,
-      inpatientBalanceUSD: 9200,
-      issueDate: '2026-03-18',
-      status: 'completed',
-      doctorName: 'Dr. Marie Dubois',
-      doctorPrescription: {
-        presumedDiagnosis: 'Day hospital assessment - Ambulatory surgery',
-        requestedExams: 'Full pre-operative workup, ECG',
-        treatmentOrder: 'Standard inpatient care + monitoring protocol'
-      },
-      createdAt: '2026-03-18T14:15:00Z'
-    },
     {
       id: 'mf-3',
       securityNumber: 'ACT-MED-2026-771239',
@@ -487,47 +315,9 @@ export const getFullDemoData = () => {
   ];
 
   // 5. SAMPLE CLAIMS
+  // === AMÉLIORATION AJOUTÉE : sinistres démo cl-1 (Orange) et cl-2 (Ecobank) retirés — même
+  // motif que ci-dessus. ===
   const sampleClaims: Partial<Claim>[] = [
-    {
-      id: 'cl-1',
-      reference: 'CLM-2026-9041',
-      memberCardNo: 'ACT-2026-88192',
-      memberName: 'Jean-Marc KOUASSI',
-      organization: 'Orange Liberia Telecom',
-      provider: 'John F. Kennedy Mother-Child Hospital',
-      doctorName: 'Dr. Samuel Eto\'o',
-      amount: 85,
-      currency: 'USD',
-      careType: 'Specialist Consultation',
-      medicalActs: [
-        { name: 'Specialist Consultation: Pulmonology', amount: 50 },
-        { name: 'Pharmacy / Prescription: Antibiotic & Antipyretic regimen', amount: 35 }
-      ],
-      serviceDate: '2026-03-22',
-      submissionDate: '2026-03-22',
-      status: 'approved',
-      comments: 'Patient treated: Emmanuel KOUASSI (12 yrs) (Child). Attending Physician: Dr. Samuel Eto\'o'
-    },
-    {
-      id: 'cl-2',
-      reference: 'CLM-2026-9042',
-      memberCardNo: 'ACT-2026-77341',
-      memberName: 'Aminata DIALLO',
-      organization: 'Ecobank Liberia Head Office',
-      provider: 'Saint Joseph International Clinic',
-      doctorName: 'Dr. Marie Dubois',
-      amount: 320,
-      currency: 'USD',
-      careType: 'Inpatient Hospitalization & Surgery',
-      medicalActs: [
-        { name: 'Inpatient room stay & nursing care', amount: 180 },
-        { name: 'Lab tests and pre-op radiology workup', amount: 140 }
-      ],
-      serviceDate: '2026-03-21',
-      submissionDate: '2026-03-21',
-      status: 'pending',
-      comments: 'Patient treated: Aminata DIALLO (Primary Insured). Pre-authorization form attached.'
-    },
     {
       id: 'cl-3',
       reference: 'CLM-2026-9043',
@@ -589,35 +379,9 @@ export const getFullDemoData = () => {
   ];
 
   // 6. INVOICES
+  // === AMÉLIORATION AJOUTÉE : factures démo inv-1 (Orange) et inv-2 (Ecobank) retirées —
+  // même motif que ci-dessus. ===
   const sampleInvoices: Partial<InvoiceItem>[] = [
-    {
-      id: 'inv-1',
-      reference: 'INV-2026-JFK-03',
-      patientName: 'Emmanuel KOUASSI',
-      familyHead: 'Jean-Marc KOUASSI',
-      cardNo: 'ACT-2026-88192',
-      provider: 'John F. Kennedy Mother-Child Hospital',
-      organization: 'Orange Liberia Telecom',
-      amount: 1250,
-      status: 'valid',
-      serviceDate: '2026-03-20',
-      careType: 'Specialist Consultation',
-      coveragePercentage: 85
-    },
-    {
-      id: 'inv-2',
-      reference: 'INV-2026-STJ-03',
-      patientName: 'Aminata DIALLO',
-      familyHead: 'Aminata DIALLO',
-      cardNo: 'ACT-2026-77341',
-      provider: 'Saint Joseph International Clinic',
-      organization: 'Ecobank Liberia Head Office',
-      amount: 3200,
-      status: 'pending',
-      serviceDate: '2026-03-21',
-      careType: 'Inpatient Hospitalization & Surgery',
-      coveragePercentage: 90
-    },
     {
       id: 'inv-3',
       reference: 'INV-2026-PHAR-03',
@@ -649,27 +413,9 @@ export const getFullDemoData = () => {
   ];
 
   // 7. CEILINGS
+  // === AMÉLIORATION AJOUTÉE : plafonds démo ceil-1 (Orange) et ceil-2 (Ecobank) retirés —
+  // même motif que ci-dessus. ===
   const sampleCeilings: Partial<Ceiling>[] = [
-    {
-      id: 'ceil-1',
-      careType: 'Outpatient Ambulatory Care',
-      organization: 'Orange Liberia Telecom',
-      monthlyLimit: 250,
-      individualLimit: 1000,
-      familyLimit: 3000,
-      periodicity: 'Annual',
-      consumedPercentage: 28
-    },
-    {
-      id: 'ceil-2',
-      careType: 'Inpatient Hospitalization',
-      organization: 'Ecobank Liberia Head Office',
-      monthlyLimit: 2500,
-      individualLimit: 10000,
-      familyLimit: 30000,
-      periodicity: 'Annual',
-      consumedPercentage: 15
-    },
     {
       id: 'ceil-3',
       careType: 'Specialized Dental Care',

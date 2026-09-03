@@ -263,7 +263,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
     const initialOrg =
       selectedOrgFilter !== 'ALL'
         ? selectedOrgFilter
-        : availableOrgs[0]?.name || 'Orange Liberia Telecom';
+        : availableOrgs[0]?.name || 'TotalEnergies Liberia Ltd';
     setWizardOrg(initialOrg);
     setWizardSelectedBenefits(['Outpatient Consultations', 'Inpatient Hospitalization']);
 
@@ -286,7 +286,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
   // Open Wizard to edit an existing ceiling
   const openEditCeilingModal = (c: Ceiling) => {
     setEditingCeilingId(c.id);
-    const org = c.organization || availableOrgs[0]?.name || 'Orange Liberia Telecom';
+    const org = c.organization || availableOrgs[0]?.name || 'TotalEnergies Liberia Ltd';
     const benefitName = c.careType || c.serviceCategory || 'Outpatient Consultations';
     setWizardOrg(org);
     setWizardSelectedBenefits([benefitName]);
@@ -323,7 +323,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
 
   // Open Age Limits Quick Editor Modal
   const openAgeLimitsModal = (orgName?: string) => {
-    const targetOrg = orgName || (selectedOrgFilter !== 'ALL' ? selectedOrgFilter : availableOrgs[0]?.name || 'Orange Liberia Telecom');
+    const targetOrg = orgName || (selectedOrgFilter !== 'ALL' ? selectedOrgFilter : availableOrgs[0]?.name || 'TotalEnergies Liberia Ltd');
     setAgeLimitsOrg(targetOrg);
     const existingCeiling = ceilings.find((c) => c.organization === targetOrg);
     setAgeLimitPrincipal(existingCeiling?.maxAgePrincipal ?? 65);
@@ -692,7 +692,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               <tbody className="divide-y divide-slate-100 font-medium">
                 {paginatedCeilings.map((c) => {
                   const benefitName = c.careType || c.serviceCategory || 'Outpatient Consultations';
-                  const orgName = c.organization || 'Orange Liberia Telecom';
+                  const orgName = c.organization || 'TotalEnergies Liberia Ltd';
                   const isOutpatient = !benefitName.toLowerCase().includes('inpatient');
 
                   // Resolved amounts with fallbacks
@@ -850,7 +850,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
           <div className="sm:hidden divide-y divide-slate-100">
             {paginatedCeilings.map((c) => {
               const benefitName = c.careType || c.serviceCategory || 'Outpatient Consultations';
-              const orgName = c.organization || 'Orange Liberia Telecom';
+              const orgName = c.organization || 'TotalEnergies Liberia Ltd';
               const isOutpatient = !benefitName.toLowerCase().includes('inpatient');
 
               const outMoPrinc = c.outpatientMonthlyPrincipal ?? (isOutpatient ? c.monthlyLimit || 250 : 0);

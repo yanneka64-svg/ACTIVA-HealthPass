@@ -829,8 +829,26 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 5000);
   };
 
-  const handleDeleteOrg = (id: string) => {
-    FirestoreService.deleteOrganization(id);
+  // === AMÉLIORATION AJOUTÉE : suppression en cascade — sur demande explicite ("supprimer
+  // toutes les données de X dans Firestore et sur l'application"). Auparavant, cette fonction
+  // ne supprimait que la fiche organisations/{id}, laissant orphelins tous les membres,
+  // sinistres, inscriptions, factures, formulaires médicaux, plafonds et la police santé (+
+  // historique de paiements) liés à cette organisation. La signature (id: string) et l'appel
+  // depuis OrganizationsView restent strictement inchangés — le nom de l'organisation est
+  // retrouvé depuis l'état `organizations` déjà chargé en mémoire.
+  const handleDeleteOrg = async (id: string) => {
+    const org = organizations.find((o) => o.id === id);
+    if (org) {
+      await FirestoreService.cascadeDeleteOrganizationData(org.name);
+      await WorkflowService.logAction(
+        'ORGANIZATION_DELETED',
+        'organization',
+        org.id,
+        `Organization ${org.name} (Policy #${org.policyNumber}) and ALL linked data (members, claims, enrollments, invoices, medical forms, ceilings, health policy & payments) permanently deleted.`,
+        currentUser
+      );
+    }
+    await FirestoreService.deleteOrganization(id);
   };
 
   const handleImportOrgs = (imported: Partial<Organization>[]) => {

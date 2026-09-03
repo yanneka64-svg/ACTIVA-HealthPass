@@ -85,6 +85,15 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
   // Suspend/Reactivate confirmation modal
   const [confirmOrgAction, setConfirmOrgAction] = useState<{ org: Organization; action: 'suspend' | 'reactivate' } | null>(null);
 
+  // === AMÉLIORATION AJOUTÉE : confirmation renforcée avant suppression — sur demande
+  // explicite. La suppression supprime désormais TOUTES les données liées (membres,
+  // sinistres, inscriptions, factures, formulaires médicaux, plafonds, police santé et
+  // historique de paiements) et non plus seulement la fiche organisation — une action
+  // irréversible bien plus large qu'avant. Elle exige donc de retaper le nom exact de
+  // l'organisation avant que le bouton de suppression définitive ne s'active.
+  const [deleteOrgTarget, setDeleteOrgTarget] = useState<Organization | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+
   // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
   const [policyConfigOrg, setPolicyConfigOrg] = useState<Organization | null>(null);
   const getPolicyForOrg = (org: Organization) => healthPolicies.find((p) => p.organizationId === org.name) || null;
@@ -164,6 +173,15 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       showToast(`Organization "${org.name}" has been REACTIVATED.`);
     }
     setConfirmOrgAction(null);
+  };
+
+  // === AMÉLIORATION AJOUTÉE : voir la déclaration de deleteOrgTarget ci-dessus. ===
+  const executeDeleteOrg = () => {
+    if (!deleteOrgTarget) return;
+    onDeleteOrganization(deleteOrgTarget.id);
+    showToast(`Organization "${deleteOrgTarget.name}" and all linked data have been permanently deleted.`);
+    setDeleteOrgTarget(null);
+    setDeleteConfirmInput('');
   };
 
   const orgMembersList = useMemo(() => {
@@ -580,9 +598,9 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => onDeleteOrganization(org.id)}
+                            onClick={() => { setDeleteOrgTarget(org); setDeleteConfirmInput(''); }}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                            title="Delete organization"
+                            title="Delete organization & all linked data"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1176,6 +1194,61 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 }`}
               >
                 {confirmOrgAction.action === 'suspend' ? 'Confirm Suspension' : 'Confirm Reactivation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === AMÉLIORATION AJOUTÉE : DELETE CONFIRMATION MODAL (avec ré-saisie du nom) — voir
+          la déclaration de deleteOrgTarget plus haut pour le contexte. === */}
+      {deleteOrgTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 p-6 space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 bg-rose-100 text-rose-600">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-extrabold text-slate-900">Permanently Delete Organization?</h3>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  This will permanently delete <strong>{deleteOrgTarget.name}</strong> and{' '}
+                  <strong>ALL</strong> of its linked data: insured members & dependents, claims,
+                  enrollments, invoices, medical forms, coverage ceilings, and its health policy
+                  & payment history. This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">
+                Type <span className="text-rose-600">{deleteOrgTarget.name}</span> to confirm
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                placeholder={deleteOrgTarget.name}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white transition"
+                autoFocus
+              />
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => { setDeleteOrgTarget(null); setDeleteConfirmInput(''); }}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleteConfirmInput.trim() !== deleteOrgTarget.name.trim()}
+                onClick={executeDeleteOrg}
+                className="px-5 py-2 rounded-xl text-white text-xs font-bold shadow-md cursor-pointer transition bg-rose-600 hover:bg-rose-700 shadow-rose-600/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-600"
+              >
+                Delete Permanently
               </button>
             </div>
           </div>

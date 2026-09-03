@@ -227,7 +227,7 @@ export async function parseMemberExcel(
             return;
           }
 
-          const orgVal = headerMap.organization ? String(row[headerMap.organization] || '').trim() : 'Orange Liberia Telecom';
+          const orgVal = headerMap.organization ? String(row[headerMap.organization] || '').trim() : 'TotalEnergies Liberia Ltd';
           const dobVal = headerMap.birthDate ? formatExcelDate(row[headerMap.birthDate]) : '1985-06-15';
           const statusRaw = headerMap.status ? String(row[headerMap.status] || '').trim().toLowerCase() : 'active';
           const status = (statusRaw.includes('inact') || statusRaw.includes('suspend')) ? (statusRaw.includes('suspend') ? 'Suspendu' : 'Inactif') : 'Actif';
@@ -370,7 +370,7 @@ export async function parseMemberExcel(
               dependents: builtDependents,
               birthDate: dobVal || '1985-06-15',
               relationship: 'Principal',
-              organization: orgVal || 'Orange Liberia Telecom',
+              organization: orgVal || 'TotalEnergies Liberia Ltd',
               status: status as any,
               hasPhoto: false,
               hasBiometrics: hasBiometrics,
@@ -549,7 +549,7 @@ function parseDedicatedDependentsRows(
         dependents: [newDepItem],
         birthDate: '1985-01-01',
         relationship: 'Principal',
-        organization: orgVal || 'Orange Liberia Telecom',
+        organization: orgVal || 'TotalEnergies Liberia Ltd',
         status: 'Actif',
         hasPhoto: false,
         hasBiometrics: true,
@@ -607,7 +607,7 @@ export function generateMemberTemplateExcel() {
       'Samuel DOE',
       '14/05/1985',
       2,
-      'Orange Liberia Telecom',
+      'Firestone Natural Rubber Co',
       '',
       '',
     ],
@@ -616,7 +616,7 @@ export function generateMemberTemplateExcel() {
       'Grace KOLLIE',
       '20/11/1992',
       1,
-      'Ecobank Liberia Head Office',
+      'ArcelorMittal Mining Liberia',
       '',
       '',
     ],
@@ -660,7 +660,7 @@ export function generateDependentsTemplateExcel() {
       'Spouse',
       '1988-09-22',
       'F',
-      'Orange Liberia Telecom',
+      'Firestone Natural Rubber Co',
       'Yes',
     ],
     [
@@ -671,7 +671,7 @@ export function generateDependentsTemplateExcel() {
       'Child',
       '2014-03-10',
       'M',
-      'Orange Liberia Telecom',
+      'Firestone Natural Rubber Co',
       'Yes',
     ],
     [
@@ -682,7 +682,7 @@ export function generateDependentsTemplateExcel() {
       'Child',
       '2017-08-19',
       'F',
-      'Orange Liberia Telecom',
+      'Firestone Natural Rubber Co',
       'Yes',
     ],
     [
@@ -693,7 +693,7 @@ export function generateDependentsTemplateExcel() {
       'Spouse',
       '1990-04-15',
       'M',
-      'Ecobank Liberia Head Office',
+      'ArcelorMittal Mining Liberia',
       'Yes',
     ],
     [
@@ -704,7 +704,7 @@ export function generateDependentsTemplateExcel() {
       'Child',
       '2019-06-12',
       'M',
-      'Ecobank Liberia Head Office',
+      'ArcelorMittal Mining Liberia',
       'Yes',
     ],
   ];

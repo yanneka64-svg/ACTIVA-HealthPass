@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, writeBatch, DocumentReference } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, MedicalForm, AppNotification, HealthPolicy, PolicyPayment } from '../types';
 import { getFullDemoData, seedInitialDemoDataIfEmpty } from './seedData';
@@ -652,6 +652,50 @@ export const FirestoreService = {
       return await deleteDoc(doc(db, 'policyPayments', id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `policyPayments/${id}`);
+      throw err;
+    }
+  },
+
+  // === AMÉLIORATION AJOUTÉE : suppression en cascade des données d'une organisation — sur
+  // demande explicite ("supprimer toutes les données de X dans Firestore et sur
+  // l'application"). Jusqu'ici, `deleteOrganization` (inchangée, toujours utilisée en dernier
+  // par l'appelant) ne supprimait que le document `organizations/{id}`, laissant orphelins
+  // tous les membres, sinistres, inscriptions, factures, formulaires médicaux et plafonds
+  // liés (champ `organization` == nom de l'organisation), ainsi que sa police santé et son
+  // historique de paiements (voir upsertHealthPolicy ci-dessus). Cette fonction supprime
+  // maintenant TOUTES ces données liées, par lots (writeBatch, sous la limite Firestore de
+  // 500 opérations/lot) pour rester robuste même sur un volume important.
+  cascadeDeleteOrganizationData: async (organizationName: string) => {
+    if (!organizationName) return;
+    const BATCH_LIMIT = 450;
+    const deleteRefsInBatches = async (refs: DocumentReference[]) => {
+      for (let i = 0; i < refs.length; i += BATCH_LIMIT) {
+        const chunk = refs.slice(i, i + BATCH_LIMIT);
+        const batch = writeBatch(db);
+        chunk.forEach((ref) => batch.delete(ref));
+        await batch.commit();
+      }
+    };
+
+    try {
+      // Toutes les collections où un document porte un champ `organization` (nom exact).
+      const orgScopedCollections = ['members', 'claims', 'enrollments', 'invoices', 'medicalForms', 'ceilings'];
+      for (const collectionName of orgScopedCollections) {
+        const snap = await getDocs(query(collection(db, collectionName), where('organization', '==', organizationName)));
+        await deleteRefsInBatches(snap.docs.map((d) => d.ref));
+      }
+
+      // Police santé (id de document = nom de l'organisation, par convention) + son historique
+      // de paiements (champ `organizationId` == nom de l'organisation).
+      try {
+        await deleteDoc(doc(db, 'healthPolicies', organizationName));
+      } catch {
+        // pas de police configurée pour cette organisation -> rien à supprimer, on continue
+      }
+      const paymentsSnap = await getDocs(query(collection(db, 'policyPayments'), where('organizationId', '==', organizationName)));
+      await deleteRefsInBatches(paymentsSnap.docs.map((d) => d.ref));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `cascade-organization-data/${organizationName}`);
       throw err;
     }
   },
