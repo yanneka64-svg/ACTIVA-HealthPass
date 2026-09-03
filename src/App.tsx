@@ -35,6 +35,7 @@ import {
   isSectionAllowedForRole,
 } from './utils/authUtils';
 import { getRoleTheme, getRoleCssVars } from './theme/roleTheme';
+import { getClientLocationInfo, parseUserAgent } from './utils/geoUtils';
 
 // Views
 import { DashboardView } from './views/DashboardView';
@@ -401,12 +402,21 @@ export default function App() {
 
   const handleLoginSuccess = (user: any) => {
     // onAuthStateChanged will handle atomic role resolution
-    FirestoreService.addLog({
-      userEmail: user?.email || 'user@activa-assurance.com',
-      ipAddress: 'Unknown',
-      status: 'success',
-      userAgent: navigator.userAgent,
-      location: 'Unknown',
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) — ipAddress/location étaient auparavant
+    // TOUJOURS 'Unknown' (valeurs codées en dur), rendant la page Audit & Access Logs
+    // incapable de repérer une connexion depuis un lieu inhabituel. Résolues maintenant via
+    // un service public de géolocalisation IP interrogé depuis le navigateur (voir
+    // geoUtils.ts) ; repli sur 'Unknown' en cas d'échec, sans jamais bloquer la connexion
+    // déjà réussie (l'appel est fait après coup, en tâche de fond).
+    getClientLocationInfo().then(({ ipAddress, location }) => {
+      FirestoreService.addLog({
+        userEmail: user?.email || 'user@activa-assurance.com',
+        ipAddress,
+        status: 'success',
+        userAgent: navigator.userAgent,
+        browser: parseUserAgent(navigator.userAgent),
+        location,
+      });
     });
   };
 

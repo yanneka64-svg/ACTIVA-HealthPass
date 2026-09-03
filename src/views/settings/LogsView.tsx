@@ -48,7 +48,11 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
       `"${l.ipAddress}"`,
       `"${l.userAgent.replace(/"/g, '""')}"`,
       `"${l.status}"`,
-      `"${l.location || 'Monrovia, LR'}"`,
+      // === AMÉLIORATION AJOUTÉE : sécurité (audit) — un repli sur une fausse localisation
+      // fixe ("Monrovia, LR") faisait croire à une géolocalisation réelle même quand la
+      // valeur stockée était vide. Remplacé par 'Unknown', honnête et cohérent avec la
+      // colonne IP_Address ci-dessus (qui n'a jamais eu ce genre de repli fictif).
+      `"${l.location || 'Unknown'}"`,
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(';'), ...rows.map((e) => e.join(';'))].join('\n');
@@ -146,12 +150,22 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
                     <td className="py-3.5 px-4 font-mono text-[var(--brand-900)] font-semibold whitespace-nowrap">
                       {log.ipAddress}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 truncate max-w-[220px]">
-                      {log.userAgent}
+                    {/* === AMÉLIORATION AJOUTÉE : sécurité (audit) — affiche désormais un
+                        libellé lisible ("Chrome on Windows") au lieu de la chaîne technique
+                        brute de navigator.userAgent, tronquée et illisible dans le tableau.
+                        Repli sur la chaîne brute pour les entrées créées avant ce correctif
+                        (champ `browser` absent). === */}
+                    <td className="py-3.5 px-4 text-slate-600 truncate max-w-[220px]" title={log.userAgent}>
+                      {log.browser || log.userAgent}
                     </td>
                     <td className="py-3.5 px-4 text-slate-600 flex items-center gap-1.5">
                       <Globe className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{log.location || 'Monrovia, LR'}</span>
+                      {/* === AMÉLIORATION AJOUTÉE : sécurité (audit) — un repli sur une fausse
+                          localisation fixe ("Monrovia, LR") faisait croire à une
+                          géolocalisation réelle même quand la valeur stockée était vide.
+                          Remplacé par 'Unknown', honnête et cohérent avec la colonne IP
+                          ADDRESS ci-contre. */}
+                      <span>{log.location || 'Unknown'}</span>
                     </td>
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       {log.status === 'success' ? (

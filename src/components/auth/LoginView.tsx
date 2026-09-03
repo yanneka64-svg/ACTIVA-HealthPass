@@ -6,6 +6,8 @@ import { auth, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, getDocs, deleteField } from 'firebase/firestore';
 import { verifyPassword, hashPassword } from '../../utils/passwordUtils';
+import { getClientLocationInfo, parseUserAgent } from '../../utils/geoUtils';
+import { FirestoreService } from '../../services/firestore';
 
 interface LoginViewProps {
   onLoginSuccess: (user: any, accountData?: any) => void;
@@ -307,6 +309,23 @@ export const LoginView: React.FC<LoginViewProps> = ({
       clearLoginAttempts(cleanUsername);
     } else {
       recordFailedLoginAttempt(cleanUsername);
+      // === AMÉLIORATION AJOUTÉE : sécurité (audit) — aucune tentative de connexion échouée
+      // n'était auparavant journalisée (seuls les succès l'étaient, depuis App.tsx) : la page
+      // Audit & Access Logs ne pouvait donc jamais servir à repérer une attaque par force
+      // brute ou des tentatives d'accès non autorisées, alors qu'elle prétend justement en
+      // assurer le suivi ("Immutable security tracking"). Journalisée ici en tâche de fond
+      // (jamais bloquant pour l'utilisateur), avec la même résolution IP/localisation que les
+      // connexions réussies.
+      getClientLocationInfo().then(({ ipAddress, location }) => {
+        FirestoreService.addLog({
+          userEmail: cleanUsername,
+          ipAddress,
+          status: 'failed',
+          userAgent: navigator.userAgent,
+          browser: parseUserAgent(navigator.userAgent),
+          location,
+        });
+      });
       const remaining = getLockoutRemainingMs(cleanUsername);
       if (remaining > 0) {
         setLockoutRemainingSec(Math.ceil(remaining / 1000));

@@ -183,9 +183,18 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) — la page "Audit & Access Logs" doit
+    // pouvoir enregistrer une TENTATIVE DE CONNEXION ÉCHOUÉE (voir LoginView.tsx), qui par
+    // définition survient AVANT toute authentification réussie — exiger isSignedIn() ici
+    // aurait fait échouer silencieusement chaque tentative de journalisation d'un échec,
+    // rendant le journal incapable de détecter une attaque par force brute (son but même).
+    // La création reste ouverte sans authentification (comme pour un formulaire de contact),
+    // mais la LECTURE des journaux reste réservée aux utilisateurs connectés, et
+    // update/delete restent bloqués pour tous (immuabilité inchangée) : un attaquant peut au
+    // pire ajouter de faux enregistrements de connexion, jamais lire ni altérer les vrais.
     match /auditLogs/{logId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow create: if true;
       allow update, delete: if false;
     }
 
