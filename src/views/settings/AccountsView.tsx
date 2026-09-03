@@ -38,6 +38,7 @@ import {
 import { Language, UserAccount, UserProfile, PermissionKey, ACTIVA_ENTITIES } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { PERMISSIONS_MATRIX, MatrixRow } from '../../services/permissions';
+import { hashPassword } from '../../utils/passwordUtils';
 
 export interface HabilitationDefinition {
   key: string;
@@ -359,6 +360,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     const selectedCountry = selectedEntity.replace(/^ACTIVA\s+/i, '');
 
     const pwdToSave = formData.password || generateStrongPassword();
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) — le mot de passe n'est plus jamais écrit en
+    // clair dans Firestore (accounts/{uid}.password / .tempPassword). Seuls le hash et le sel
+    // (voir src/utils/passwordUtils.ts) sont persistés ; `pwdToSave` en clair ne sert plus
+    // qu'à créer le compte Firebase Auth et à l'afficher UNE FOIS à l'écran (credentialDialog
+    // ci-dessous), jamais à être stocké tel quel.
+    const { passwordHash, passwordSalt } = await hashPassword(pwdToSave);
 
     // Create user in Firebase Auth using secondary app to prevent log-out
     let uid = 'USR-' + Date.now();
@@ -400,8 +407,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
         isActive: true,
         isTemporaryPassword: true,
         mustChangePassword: true,
-        password: pwdToSave,
-        tempPassword: pwdToSave,
+        passwordHash,
+        passwordSalt,
         passwordChangedAt: new Date().toISOString(),
         createdAt: new Date().toISOString().split('T')[0]
       };
@@ -429,8 +436,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       phoneCountryCode: formData.phoneCountryCode || '+231',
       profile: formData.profile,
       permissions: (formData.permissions as PermissionKey[]) || (getPermissionsForProfile(formData.profile) as PermissionKey[]),
-      password: pwdToSave,
-      tempPassword: pwdToSave,
+      passwordHash,
+      passwordSalt,
       isActive: true,
       createdAt: new Date().toISOString().split('T')[0]
     };
@@ -526,20 +533,25 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
   const handleResetPassword = async (acc: UserAccount) => {
     const newPwd = generateStrongPassword();
-    const newPassword = newPwd; 
-    
+    const newPassword = newPwd;
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) — voir handleCreateSubmit ci-dessus, même
+    // principe : seuls le hash et le sel sont désormais persistés, jamais le mot de passe en
+    // clair. Le comportement de connexion pour l'utilisateur reste strictement identique
+    // (voir LoginView.tsx, qui vérifie désormais le hash).
+    const { passwordHash, passwordSalt } = await hashPassword(newPassword);
+
     try {
       await updateDoc(doc(db, 'accounts', acc.id), {
-        password: newPassword,
-        tempPassword: newPassword,
+        passwordHash,
+        passwordSalt,
         isTemporaryPassword: true,
         mustChangePassword: true,
         passwordChangedAt: new Date().toISOString(),
       });
       await FirestoreService.updateAccount({
         id: acc.id,
-        password: newPassword,
-        tempPassword: newPassword,
+        passwordHash,
+        passwordSalt,
         isTemporaryPassword: true,
         mustChangePassword: true,
         passwordChangedAt: new Date().toISOString(),
@@ -548,8 +560,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       console.warn('Firestore password update note:', e);
       await FirestoreService.updateAccount({
         id: acc.id,
-        password: newPassword,
-        tempPassword: newPassword,
+        passwordHash,
+        passwordSalt,
         isTemporaryPassword: true,
         mustChangePassword: true,
         passwordChangedAt: new Date().toISOString(),

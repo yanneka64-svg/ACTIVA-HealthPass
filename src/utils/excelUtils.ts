@@ -25,6 +25,37 @@ export function matchHeaderAlias(header: string, aliases: string[]): boolean {
   });
 }
 
+// === AMÉLIORATION AJOUTÉE : sécurité (audit) — protection contre l'injection de formule
+// Excel/CSV ("CSV/Formula Injection", OWASP). Une valeur provenant de données saisies par
+// un utilisateur (nom d'assuré, nom d'organisation, commentaire de réclamation...) et
+// commençant par =, +, -, @ ou une tabulation/retour chariot est interprétée comme une
+// FORMULE par Excel/Google Sheets à l'ouverture du fichier exporté, ce qui peut exécuter du
+// code externe (ex: `=WEBSERVICE(...)`, `=cmd|'/c calc'!A1`) sur le poste de la personne qui
+// ouvre l'export. On neutralise cela en préfixant ces valeurs d'une apostrophe droite (') —
+// convention Excel standard pour forcer l'interprétation en texte brut — ce qui n'altère
+// jamais une valeur légitime (un nom d'organisation ne commence normalement pas par ces
+// caractères) et reste invisible à l'affichage dans la cellule.
+function sanitizeExcelCellValue<T>(value: T): T {
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(value)) {
+    return (`'${value}` as unknown) as T;
+  }
+  return value;
+}
+
+// Applique sanitizeExcelCellValue() à chaque champ de chaque ligne d'un tableau de données
+// juste avant sa conversion en feuille Excel (XLSX.utils.json_to_sheet). Ne modifie ni les
+// clés (en-têtes de colonnes) ni la structure des données — uniquement les valeurs texte à
+// risque.
+function sanitizeRowsForExcel<T extends Record<string, any>>(rows: T[]): T[] {
+  return rows.map((row) => {
+    const sanitized: Record<string, any> = {};
+    for (const key of Object.keys(row)) {
+      sanitized[key] = sanitizeExcelCellValue(row[key]);
+    }
+    return sanitized as T;
+  });
+}
+
 // Download blob helper
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -843,11 +874,12 @@ export function exportMembersToExcel(members: Member[], lang?: any) {
   const wb = XLSX.utils.book_new();
 
   // Add Sheet 1: Principal Insured
-  const wsPrincipals = XLSX.utils.json_to_sheet(principalsData);
+  const wsPrincipals = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(principalsData));
   XLSX.utils.book_append_sheet(wb, wsPrincipals, 'Principal Insured');
 
   // Add Sheet 2: Dependents
   const wsDependents = XLSX.utils.json_to_sheet(
+    sanitizeRowsForExcel(
     dependentsData.length > 0
       ? dependentsData
       : [
@@ -864,6 +896,7 @@ export function exportMembersToExcel(members: Member[], lang?: any) {
             'Biometrics Registered': '—',
           },
         ]
+    )
   );
   XLSX.utils.book_append_sheet(wb, wsDependents, 'Dependents');
 
@@ -1081,7 +1114,7 @@ export function exportOrganizationsToExcel(orgs: Organization[], lang?: any) {
     'Global Ceiling ($)': o.globalCeiling ? `$${o.globalCeiling.toLocaleString('en-US')}` : 'N/A',
   }));
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Organizations');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1284,7 +1317,7 @@ export function exportProvidersToExcel(providers: Provider[], lang?: any) {
     'Contract Status': p.status || 'Contracted',
   }));
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Healthcare Providers');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1326,7 +1359,7 @@ export function exportClaimsToExcel(claims: Claim[], lang?: any) {
     'Comments': c.comments || '',
   }));
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Benefit Claims');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1366,7 +1399,7 @@ export function exportInvoicesToExcel(invoices: InvoiceItem[], lang?: any) {
     'Coverage Rate (%)': `${i.coveragePercentage}%`,
   }));
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Invoices & Settlements');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1383,7 +1416,7 @@ export function exportReportsToExcel(providerDistribution: any[], orgDistributio
     'Total Amount ($ USD)': p.amount,
     'Percentage Share (%)': `${p.percentage}%`,
   }));
-  const wsProv = XLSX.utils.json_to_sheet(provData);
+  const wsProv = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(provData));
   XLSX.utils.book_append_sheet(wb, wsProv, 'By Provider');
 
   const orgData = orgDistribution.map(o => ({
@@ -1392,7 +1425,7 @@ export function exportReportsToExcel(providerDistribution: any[], orgDistributio
     'Total Amount ($ USD)': o.amount,
     'Percentage Share (%)': `${o.percentage}%`,
   }));
-  const wsOrg = XLSX.utils.json_to_sheet(orgData);
+  const wsOrg = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(orgData));
   XLSX.utils.book_append_sheet(wb, wsOrg, 'By Organization');
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1676,7 +1709,7 @@ export function exportPoliciesToExcel(policies: (HealthPolicy & { organizationNa
     'Coverage Blocked': p.coverageBlocked ? 'YES' : 'NO',
   }));
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Policies & Premiums');
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });

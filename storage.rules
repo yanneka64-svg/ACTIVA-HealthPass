@@ -1,0 +1,18 @@
+// === AMÉLIORATION AJOUTÉE : sécurité (audit) ===
+// Firebase Storage est initialisé dans src/lib/firebase.ts (getStorage) mais n'est
+// actuellement utilisé par AUCUN composant de l'application (aucun uploadBytes/ref/
+// getDownloadURL dans src/) — il s'agit donc uniquement d'une préparation pour un usage
+// futur (ex: photos des assurés), sans impact sur le fonctionnement actuel. Sans ce fichier,
+// un bucket Firebase Storage nouvellement activé pour ce projet retomberait sur les règles
+// par défaut de Firebase (souvent permissives en mode test), exposant tout fichier déposé à
+// l'avenir à un accès public non désiré. Ce fichier applique, par anticipation, le même
+// principe que firestore.rules : accès réservé aux utilisateurs connectés via Firebase Auth,
+// rien de plus n'étant nécessaire tant qu'aucune fonctionnalité de dépôt de fichier n'existe.
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

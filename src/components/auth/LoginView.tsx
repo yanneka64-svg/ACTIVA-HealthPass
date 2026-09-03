@@ -4,7 +4,8 @@ import { Language } from '../../types';
 import { Logo } from '../Logo';
 import { auth, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, deleteField } from 'firebase/firestore';
+import { verifyPassword, hashPassword } from '../../utils/passwordUtils';
 
 interface LoginViewProps {
   onLoginSuccess: (user: any, accountData?: any) => void;
@@ -124,17 +125,50 @@ export const LoginView: React.FC<LoginViewProps> = ({
           await setDoc(userDocRef, { ...matchingAccountDoc, id: userCredential.user.uid }, { merge: true });
         }
 
+        // === AMÉLIORATION AJOUTÉE : sécurité (audit) — nettoyage paresseux. Cet utilisateur
+        // vient de s'authentifier via Firebase Auth (le chemin normal, désormais utilisé à
+        // chaque connexion) : le mot de passe en clair encore présent depuis la création du
+        // compte (avant ce correctif) n'a donc plus aucune utilité — Firebase Auth fait
+        // désormais foi. Effacé silencieusement, sans jamais bloquer la connexion en cours.
+        const existingData = userDocSnap.exists() ? userDocSnap.data() : matchingAccountDoc;
+        if (existingData && (existingData.password || existingData.tempPassword)) {
+          setDoc(userDocRef, { password: deleteField(), tempPassword: deleteField() }, { merge: true }).catch(() => {
+            // Best-effort only — never block a successful login on this cleanup.
+          });
+        }
+
         onLoginSuccess(userCredential.user);
         return;
       }
 
       // 4. If sign in did not find user in Firebase Auth, but matching account was created by Admin in Firestore:
       if (matchingAccountDoc) {
-        const storedPwd = matchingAccountDoc.password || matchingAccountDoc.tempPassword;
-        if (storedPwd && storedPwd !== password) {
-          setError('Incorrect password. Please verify the credentials provided by your administrator.');
-          setIsLoggingIn(false);
-          return;
+        // === AMÉLIORATION AJOUTÉE : sécurité (audit) — le mot de passe n'est plus jamais
+        // comparé ni stocké en clair. Les comptes créés/réinitialisés après ce correctif
+        // portent passwordHash/passwordSalt (voir src/utils/passwordUtils.ts), vérifiés ici.
+        // Les comptes plus anciens (créés avant ce correctif) n'ont encore que
+        // password/tempPassword en clair : la comparaison historique reste acceptée pour ne
+        // jamais bloquer un utilisateur légitime, mais dès que la connexion réussit ainsi, le
+        // compte est immédiatement converti en hash et le mot de passe en clair est effacé
+        // (migration paresseuse, transparente, sans action requise de l'utilisateur).
+        let migratedHash: { passwordHash: string; passwordSalt: string } | null = null;
+        if (matchingAccountDoc.passwordHash && matchingAccountDoc.passwordSalt) {
+          const ok = await verifyPassword(password, matchingAccountDoc.passwordHash, matchingAccountDoc.passwordSalt);
+          if (!ok) {
+            setError('Incorrect password. Please verify the credentials provided by your administrator.');
+            setIsLoggingIn(false);
+            return;
+          }
+        } else {
+          const storedPwd = matchingAccountDoc.password || matchingAccountDoc.tempPassword;
+          if (storedPwd && storedPwd !== password) {
+            setError('Incorrect password. Please verify the credentials provided by your administrator.');
+            setIsLoggingIn(false);
+            return;
+          }
+          if (storedPwd) {
+            migratedHash = await hashPassword(password);
+          }
         }
 
         // Auto-provision Firebase Auth credential for this registered corporate account
@@ -156,7 +190,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
         if (userCredential?.user) {
           const userDocRef = doc(db, 'accounts', userCredential.user.uid);
-          await setDoc(userDocRef, { ...matchingAccountDoc, id: userCredential.user.uid }, { merge: true });
+          const mergedData: any = { ...matchingAccountDoc, id: userCredential.user.uid };
+          if (migratedHash) {
+            // === AMÉLIORATION AJOUTÉE : sécurité (audit) — voir commentaire plus haut : ce
+            // compte vient de passer la vérification par mot de passe en clair (ancien
+            // format) ; converti en hash et le clair effacé, dans cette même écriture.
+            mergedData.passwordHash = migratedHash.passwordHash;
+            mergedData.passwordSalt = migratedHash.passwordSalt;
+            mergedData.password = deleteField();
+            mergedData.tempPassword = deleteField();
+          }
+          await setDoc(userDocRef, mergedData, { merge: true });
           onLoginSuccess(userCredential.user);
           return;
         }

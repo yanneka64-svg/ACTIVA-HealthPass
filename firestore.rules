@@ -5,6 +5,23 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) ===
+    // Jusqu'ici, `isSignedIn()` était la SEULE condition sur presque toutes les collections :
+    // n'importe quel rôle connecté (même un Agent) pouvait écrire/supprimer n'importe quoi,
+    // y compris promouvoir son propre compte Admin en modifiant accounts/{soi-même}.profile.
+    // `isAdmin()` relit le document accounts/{request.auth.uid} de l'appelant (jamais une
+    // valeur envoyée par le client dans la requête elle-même, qui ne serait pas fiable) pour
+    // vérifier son rôle réel. Utilisée ci-dessous uniquement là où le code de l'application
+    // n'a, de façon vérifiée, JAMAIS d'autre chemin d'écriture que Admin (voir
+    // src/utils/authUtils.ts ROLE_ALLOWED_SECTIONS : Organizations/Providers/Ceilings/Accounts
+    // ne sont accessibles qu'à Admin dans l'interface) — pour ne rien casser du comportement
+    // existant des rôles Agent/Superviseur.
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/accounts/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.profile == 'Admin';
+    }
+
     // === AMÉLIORATION AJOUTÉE : sécurité ===
     // Toutes les règles ci-dessous exigeaient auparavant `allow read, write: if true`,
     // c'est-à-dire un accès total et anonyme (sans connexion) à TOUTES les données de
@@ -22,11 +39,44 @@ service cloud.firestore {
       // dans Firestore AVANT que la connexion Firebase Auth n'existe (flux de "première
       // connexion" où le compte est créé par un Admin dans Firestore avant tout compte
       // Firebase Auth). Restreindre cette lecture casserait ce flux de connexion existant.
-      // En revanche, l'écriture est restreinte : d'après le code, toute écriture sur
-      // /accounts (création/mise à jour de compte, changement de statut, association du
-      // compte à l'UID Firebase) n'a lieu qu'une fois la session Firebase Auth déjà établie.
+      // Le risque résiduel de cette lecture publique est fortement réduit par ailleurs : les
+      // mots de passe n'y sont plus stockés en clair (voir src/utils/passwordUtils.ts).
       allow read: if true;
-      allow write: if isSignedIn();
+
+      // === AMÉLIORATION AJOUTÉE : sécurité (audit) ===
+      // L'écriture n'exigeait auparavant qu'une connexion (isSignedIn()), sans vérifier NI le
+      // rôle NI que l'utilisateur modifie bien son propre compte — un Agent pouvait modifier
+      // le compte d'un autre utilisateur, y compris s'attribuer lui-même le rôle Admin.
+      // Trois cas légitimes identifiés dans le code (aucun autre chemin d'écriture existant) :
+      //   1. Un Admin crée/modifie/réinitialise/désactive n'importe quel compte
+      //      (AccountsView.tsx) -> isAdmin().
+      //   2. Un utilisateur s'auto-associe à son propre document lors de sa toute première
+      //      connexion (LoginView.tsx / App.tsx onAuthStateChanged), en copiant un
+      //      enregistrement déjà créé par un Admin sous un autre id -> uniquement une
+      //      CRÉATION (le document n'existe pas encore sous son uid), jamais une mise à jour.
+      //   3. Un utilisateur déjà associé met à jour son propre document (nettoyage du mot de
+      //      passe en clair après connexion, changement de mot de passe...) -> UNIQUEMENT si
+      //      profile/isActive/permissions restent strictement inchangés, pour empêcher toute
+      //      auto-élévation de privilège.
+      // === AMÉLIORATION AJOUTÉE : sécurité (audit) — durcissement supplémentaire de la
+      // création : un Admin crée un compte quel que soit son rôle (chemin normal actuel,
+      // AccountsView.tsx, qui écrit directement sous le vrai uid Firebase). L'auto-création
+      // (cas 2 ci-dessus, réservé aux comptes hérités créés sous un id temporaire avant
+      // d'avoir un uid réel) ne peut en revanche jamais s'attribuer elle-même le rôle Admin —
+      // pour qu'un utilisateur qui s'inscrirait directement via l'API Firebase Auth (hors de
+      // l'interface) ne puisse pas se créer un compte Admin de toutes pièces.
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == userId && request.resource.data.profile != 'Admin')
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == userId &&
+         request.resource.data.profile == resource.data.profile &&
+         request.resource.data.isActive == resource.data.isActive &&
+         request.resource.data.permissions == resource.data.permissions)
+      );
+      allow delete: if isAdmin();
     }
 
     match /members/{memberId} {
@@ -97,24 +147,46 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) ===
+    // Organizations/Providers/Ceilings ne sont accessibles, dans l'interface, que via les
+    // sections "organizations"/"providers"/"ceilings" — réservées au rôle Admin
+    // (src/utils/authUtils.ts, ROLE_ALLOWED_SECTIONS). Aucun composant Agent/Superviseur
+    // n'appelle jamais leurs fonctions d'écriture : restreindre l'écriture à isAdmin() ne
+    // change donc rien pour ces rôles, mais empêche un Agent de modifier directement les
+    // plafonds de couverture ou de supprimer une organisation en contournant l'interface.
+    // La lecture reste ouverte à tous les rôles connectés : Agents/Superviseurs en ont besoin
+    // (listes déroulantes d'enrôlement, vérification des plafonds, etc.).
     match /organizations/{orgId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /providers/{providerId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /ceilings/{ceilingId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) ===
+    // `loginLogs` n'est en réalité jamais écrit par le code actuel (aucune référence dans
+    // src/), et `auditLogs` (WorkflowService.logAction) n'est utilisé qu'en CRÉATION —
+    // aucune fonction ne modifie ni ne supprime une entrée existante. Restreindre à
+    // create-only rend ces journaux immuables : un utilisateur ne peut plus effacer la trace
+    // de ses propres actions, sans changer aucun comportement observé de l'application.
     match /loginLogs/{logId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
     match /auditLogs/{logId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
     // === AMÉLIORATION AJOUTÉE : règle manquante ===
@@ -127,14 +199,33 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    // === AMÉLIORATION AJOUTÉE : sécurité ===
-    // Le catch-all ci-dessous couvrait auparavant `if true` (accès total anonyme à
-    // n'importe quelle collection non listée ci-dessus, y compris futures). Toutes les
-    // collections réellement utilisées par le code sont désormais explicitement listées
-    // au-dessus ; ce filet de sécurité reste actif (pour ne pas bloquer une collection non
-    // encore recensée) mais exige désormais au minimum une connexion Firebase Auth.
-    match /{document=**} {
-      allow read, write: if isSignedIn();
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) — règle manquante identifiée pendant les
+    // tests. `users/{uid}` est lu par App.tsx (onAuthStateChanged) comme filet de secours
+    // d'auto-association lors de la toute première connexion, uniquement pour son PROPRE
+    // uid (`doc(db, 'users', firebaseUser.uid)`) ; ce chemin n'écrit jamais dans `users`.
+    // Ce document n'avait auparavant aucune règle dédiée et retombait sur le catch-all
+    // générique — remplacé ci-dessous par une règle explicite et plus stricte (lecture de
+    // son propre document uniquement) sans changer ce que l'application fait réellement.
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
     }
+
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit) — correction d'un bug découvert pendant
+    // les tests avec l'émulateur Firestore (voir /tmp/rulestest). Un catch-all générique
+    // `match /{document=**} { allow read, write: if isSignedIn(); }` était présent ici pour
+    // servir de filet de sécurité aux collections non répertoriées. Or, dans le langage des
+    // règles Firestore, quand plusieurs blocs `match` correspondent au même chemin, l'accès
+    // est autorisé si N'IMPORTE LEQUEL d'entre eux l'autorise (logique OU, pas "la règle la
+    // plus spécifique gagne"). Ce catch-all, en couvrant AUSSI tous les chemins déjà traités
+    // ci-dessus (accounts, organizations, auditLogs...), court-circuitait silencieusement
+    // TOUTES les restrictions Admin-only et l'immuabilité des journaux d'audit dès qu'un
+    // utilisateur était simplement connecté — vérifié et confirmé par une suite de tests
+    // sur l'émulateur Firestore (17 scénarios). Toutes les collections effectivement
+    // utilisées par le code (vérifié par recherche exhaustive dans src/) sont désormais
+    // explicitement listées ci-dessus avec leurs propres règles ; Firestore refuse par
+    // défaut tout accès à un chemin sans règle correspondante, donc supprimer ce catch-all
+    // ne change rien pour l'application (aucun code n'accède à une collection non listée)
+    // tout en rendant les restrictions ci-dessus réellement effectives.
   }
 }

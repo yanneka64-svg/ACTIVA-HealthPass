@@ -51,8 +51,14 @@ export interface UserAccount {
   lastPasswordReset?: string;
   createdAt: string;
   lastLogin?: string;
+  // === AMÉLIORATION AJOUTÉE : sécurité (audit) — password/tempPassword restent typés (lus en
+  // fallback pour les comptes créés avant ce correctif, voir passwordUtils.ts / LoginView.tsx)
+  // mais ne sont plus jamais écrits en clair pour un compte nouvellement créé ou réinitialisé :
+  // seuls passwordHash + passwordSalt le sont désormais (voir src/utils/passwordUtils.ts).
   password?: string;
   tempPassword?: string;
+  passwordHash?: string;
+  passwordSalt?: string;
 }
 
 export type RelationshipType = 'Primary' | 'Principal' | 'Spouse' | 'Conjoint' | 'Child' | 'Enfant' | 'Ascendant' | 'Dependent';

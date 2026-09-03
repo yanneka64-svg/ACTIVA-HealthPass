@@ -1486,11 +1486,19 @@ export default function App() {
               const { updatePassword } = await import('firebase/auth');
               await updatePassword(auth.currentUser, newPwd);
               
-              const { doc, updateDoc } = await import('firebase/firestore');
+              const { doc, updateDoc, deleteField: deleteFieldFn } = await import('firebase/firestore');
+              // === AMÉLIORATION AJOUTÉE : sécurité (audit) — l'utilisateur vient de définir
+              // son vrai mot de passe Firebase Auth ; tout mot de passe (en clair ou haché)
+              // encore stocké sur ce compte pour l'ancien mécanisme de secours n'a plus lieu
+              // d'être conservé — Firebase Auth fait désormais foi à chaque connexion.
               await updateDoc(doc(db, 'accounts', auth.currentUser.uid), {
                 isTemporaryPassword: false,
                 mustChangePassword: false,
-                passwordChangedAt: new Date().toISOString()
+                passwordChangedAt: new Date().toISOString(),
+                password: deleteFieldFn(),
+                tempPassword: deleteFieldFn(),
+                passwordHash: deleteFieldFn(),
+                passwordSalt: deleteFieldFn(),
               });
               
               setForcedFirstLogin(false);
