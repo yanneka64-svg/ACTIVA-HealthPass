@@ -16,12 +16,14 @@ import {
   Percent,
   ChevronDown,
   ShieldAlert,
+  CreditCard,
 } from 'lucide-react';
 import { Organization, Language, OrgStatus, HealthPolicy, PolicyPayment, SuspensionReason } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { ExportDropdown } from '../../components/ExportDropdown';
 import { HealthPolicyConfigModal } from '../../components/HealthPolicyConfigModal';
+import { CardNumberManagementModal } from '../../components/CardNumberManagementModal';
 import { getPolicyCoverageStatus } from '../../services/policyEngine';
 import {
   exportOrganizationsToCSV,
@@ -49,6 +51,8 @@ interface OrganizationsViewProps {
   onSaveHealthPolicy?: (organizationName: string, data: Partial<HealthPolicy>) => void;
   onAddPolicyPayment?: (data: Partial<PolicyPayment>) => void;
   onDeletePolicyPayment?: (id: string) => void;
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System ===
+  currentUser?: any;
 }
 
 export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
@@ -66,6 +70,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
   onSaveHealthPolicy,
   onAddPolicyPayment,
   onDeletePolicyPayment,
+  currentUser,
 }) => {
   const t = useTranslation(lang);
   const [searchTerm, setSearchTerm] = useState('');
@@ -96,6 +101,9 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
 
   // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
   const [policyConfigOrg, setPolicyConfigOrg] = useState<Organization | null>(null);
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — section séparée
+  // (modale), volontairement jamais un bloc permanent dans ce tableau (section 21). ===
+  const [cardNumberOrg, setCardNumberOrg] = useState<Organization | null>(null);
   const getPolicyForOrg = (org: Organization) => healthPolicies.find((p) => p.organizationId === org.name) || null;
   const getPaymentsForOrg = (org: Organization) => policyPayments.filter((p) => p.policyId === org.name);
 
@@ -567,6 +575,18 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                           >
                             <Shield className="w-3.5 h-3.5" />
                             <span>Policy</span>
+                          </button>
+                          {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management
+                              System — sur demande explicite. Même convention que le bouton
+                              "Policy" ci-dessus : une section séparée, jamais une colonne
+                              ajoutée au tableau principal (section 21). === */}
+                          <button
+                            onClick={() => setCardNumberOrg(org)}
+                            className="px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
+                            title="Card Number Management"
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>Cards</span>
                           </button>
                           <button
                             onClick={() => handleToggleSuspend(org)}
@@ -1135,6 +1155,16 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
           }}
           onAddPayment={(data) => onAddPolicyPayment && onAddPolicyPayment(data)}
           onDeletePayment={(id) => onDeletePolicyPayment && onDeletePolicyPayment(id)}
+        />
+      )}
+
+      {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System === */}
+      {cardNumberOrg && (
+        <CardNumberManagementModal
+          organization={cardNumberOrg}
+          members={members}
+          currentUser={currentUser}
+          onClose={() => setCardNumberOrg(null)}
         />
       )}
 

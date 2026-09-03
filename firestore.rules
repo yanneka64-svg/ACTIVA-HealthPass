@@ -33,6 +33,24 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
+    // explicite. Voir src/services/cardNumberService.ts. `counters/cardNumbers` porte les deux
+    // compteurs (lastPrintedCardNumber / lastInsuredNumber) et n'est modifié que via une
+    // transaction Firestore côté client (jamais un simple set libre). `cardNumberRegistry/{cardNumber}`
+    // est la contrainte d'unicité elle-même : l'existence du document EST la garantie qu'un
+    // numéro n'a été attribué qu'une seule fois. `allow update, delete: if false` rend chaque
+    // entrée immuable une fois créée — un numéro consommé ne peut jamais être modifié ni
+    // supprimé pour être réattribué à quelqu'un d'autre (section 15 de la demande), même au
+    // niveau de la base de données et pas seulement dans l'interface.
+    match /counters/{counterId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /cardNumberRegistry/{cardNumber} {
+      allow read, create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
     // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
     // `healthPolicies/{organizationName}` (une police par organisation, id = nom exact de
     // l'organisation) porte le champ `coverageBlocked`, recalculé côté client par le même

@@ -39,6 +39,7 @@ import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiome
 import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import { checkMemberEligibility } from '../../services/eligibilityService';
+import { generateNextCardNumber, reserveExistingCardNumber } from '../../services/cardNumberService';
 
 export interface FormattedDependent {
   id: string;
@@ -187,6 +188,9 @@ interface MembersViewProps {
   onImportMembers: (imported: Partial<Member>[]) => void | Promise<void>;
   onSuspendMember?: (member: Member) => void;
   onReactivateMember?: (member: Member) => void;
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — nécessaire pour
+  // renseigner "Assigned By" lors de la génération/réservation d'un numéro de carte.
+  currentUser?: any;
 }
 
 export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
@@ -200,6 +204,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   onImportMembers,
   onSuspendMember,
   onReactivateMember,
+  currentUser,
 }) => {
   const t = useTranslation(lang);
   const [searchTerm, setSearchTerm] = useState('');
@@ -208,6 +213,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [isSavingCard, setIsSavingCard] = useState(false);
 
   // Suspend/Reactivate confirmation modal
   const [confirmMemberAction, setConfirmMemberAction] = useState<{ member: Member; action: 'suspend' | 'reactivate' } | null>(null);
@@ -451,9 +457,43 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     setFormChildren(formChildren.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — handleSubmit est
+  // désormais asynchrone. En édition, le numéro de carte n'est jamais touché (le champ est
+  // d'ailleurs désactivé dans le formulaire). En création : vide -> génération automatique et
+  // transactionnelle ; saisi -> validation du format puis réservation transactionnelle
+  // (rejeté si déjà attribué à un autre assuré) — jamais fait confiance sans vérification.
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formCardNo.trim() || !formPrincipalName.trim() || !formOrg.trim()) return;
+    if (!formPrincipalName.trim() || !formOrg.trim()) return;
+
+    let finalCardNo = formCardNo.trim();
+    if (!editingMember) {
+      setIsSavingCard(true);
+      try {
+        if (finalCardNo) {
+          await reserveExistingCardNumber(finalCardNo, {
+            organization: formOrg,
+            insuredName: formPrincipalName.trim(),
+            assignedBy: currentUser?.uid,
+            assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+            method: 'MANUAL',
+          });
+        } else {
+          finalCardNo = await generateNextCardNumber({
+            organization: formOrg,
+            insuredName: formPrincipalName.trim(),
+            assignedBy: currentUser?.uid,
+            assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+            method: 'MANUAL',
+          });
+        }
+      } catch (err: any) {
+        alert(err?.message || 'Could not assign a card number. Please try again.');
+        setIsSavingCard(false);
+        return;
+      }
+      setIsSavingCard(false);
+    }
 
     // Construct dependents array
     const dependentsList: DependentItem[] = [];
@@ -497,7 +537,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       });
     } else {
       onAddMember({
-        cardNo: formCardNo.trim(),
+        cardNo: finalCardNo,
         principalName: formPrincipalName.trim(),
         birthDate: formBirthDate || '1990-01-01',
         gender: formGender,
@@ -1317,17 +1357,23 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur
+                      demande explicite. À la création, laisser vide génère automatiquement un
+                      numéro unique (AMID-XXXXX-XXXX) ; un numéro saisi manuellement est validé
+                      (format) et réservé (rejeté s'il est déjà attribué à quelqu'un d'autre).
+                      En modification, le numéro existant n'est jamais modifiable ici — un
+                      numéro déjà attribué est définitif (section 15 de la demande). === */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Health Card No *
+                      Health Card No {editingMember ? '(cannot be changed)' : '(optional — leave blank to auto-generate)'}
                     </label>
                     <input
                       type="text"
                       value={formCardNo}
                       onChange={(e) => setFormCardNo(e.target.value)}
-                      placeholder="e.g. ACT-2026-10293"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
-                      required
+                      placeholder={editingMember ? undefined : 'e.g. AMID-01130-0497 — leave blank to auto-assign'}
+                      disabled={!!editingMember}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-70 disabled:cursor-not-allowed"
                     />
                   </div>
                   <div>
@@ -1603,10 +1649,11 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-extrabold shadow-md shadow-slate-900/20 transition flex items-center gap-2 cursor-pointer"
+                  disabled={isSavingCard}
+                  className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-extrabold shadow-md shadow-slate-900/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <UserCheck className="w-4 h-4" />
-                  <span>{editingMember ? 'Update Member' : 'Submit Enrollment'}</span>
+                  <span>{isSavingCard ? 'Assigning card number…' : editingMember ? 'Update Member' : 'Submit Enrollment'}</span>
                 </button>
               </div>
             </form>
@@ -1635,6 +1682,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
         lang={lang}
         title={t.members.importExcel}
         targetType="members"
+        currentUser={currentUser}
         onImport={(file) => parseMemberExcel(file, members)}
         onSuccess={async (importedList) => {
           // === AMÉLIORATION AJOUTÉE : on attend désormais la persistance réelle avant de

@@ -1,7 +1,8 @@
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Member, Organization, Provider, Claim, InvoiceItem, DependentItem, DependentRelationship, HealthPolicy, PolicyPayment } from '../types';
+import { Member, Organization, Provider, Claim, InvoiceItem, DependentItem, DependentRelationship, HealthPolicy, PolicyPayment, CardNumberPreviewRow } from '../types';
+import { planCardNumbersForImport } from '../services/cardNumberService';
 
 // Normalization helper: remove accents, lowercase, trim, remove symbols
 export function normalizeHeader(header: string): string {
@@ -84,6 +85,13 @@ export interface ImportResult<T> {
   missingHeaders: string[];
   errors: string[];
   parsedItems: T[];
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — présent
+  // uniquement pour l'import de membres (Capture 2). Prévisualisation obligatoire (section
+  // 10) : chaque ligne indique le n° de carte Excel, le n° final calculé, l'action
+  // (Conservé/Généré/Aucun) et le statut (Valid/Duplicate/Invalid). Rien n'est réservé tant
+  // que l'import n'est pas confirmé — voir cardNumberService.planCardNumbersForImport /
+  // commitPlannedCardNumbers et ExcelImportModal.tsx.
+  cardNumberPreview?: CardNumberPreviewRow[];
 }
 
 // Calculate age from YYYY-MM-DD
@@ -139,7 +147,7 @@ export async function parseMemberExcel(
   return new Promise((resolve) => {
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const buffer = e.target?.result;
         const workbook = XLSX.read(buffer, { type: 'array' });
@@ -218,14 +226,49 @@ export async function parseMemberExcel(
         let ignored = 0;
         const updatedList: Member[] = [...existingMembers];
 
-        rawJson.forEach((row) => {
-          const cardNoVal = String(row[headerMap.cardNo!] || '').trim();
+        // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
+        // explicite. Pré-passe : détermine, pour chaque ligne portant un nom d'assuré, le
+        // numéro de carte final — conservé si déjà présent dans le fichier (après validation
+        // du format et vérification qu'il n'est pas déjà attribué à quelqu'un d'autre, en
+        // base ou ailleurs dans ce même fichier), généré automatiquement sinon (CASE 2,
+        // section 8 — auparavant une ligne sans "Card No." était silencieusement ignorée).
+        // Rien n'est réservé en base à ce stade : c'est un calcul en lecture seule (voir
+        // planCardNumbersForImport), destiné à alimenter la prévisualisation obligatoire
+        // avant import (section 10) — cardNumberPreview ci-dessous. La réservation réelle des
+        // numéros a lieu uniquement lorsque l'import est confirmé (voir
+        // cardNumberService.commitPlannedCardNumbers, appelé par l'appelant de cette fonction).
+        const rowsForPlanning = rawJson
+          .map((row, idx) => ({
+            idx,
+            insuredName: headerMap.principalName ? String(row[headerMap.principalName] || '').trim() : '',
+            cardNoRaw: headerMap.cardNo ? String(row[headerMap.cardNo] || '').trim() : '',
+            organization: headerMap.organization ? String(row[headerMap.organization] || '').trim() : undefined,
+          }))
+          .filter((r) => r.insuredName); // une ligne sans nom reste "ignored" comme avant, hors planification
+
+        const { preview: cardNumberPreview, finalCardNumbers } = await planCardNumbersForImport(
+          rowsForPlanning.map((r) => ({ insuredName: r.insuredName, cardNoRaw: r.cardNoRaw, organization: r.organization }))
+        );
+        const finalCardNoByRowIdx = new Map<number, string | null>();
+        rowsForPlanning.forEach((r, i) => finalCardNoByRowIdx.set(r.idx, finalCardNumbers[i]));
+
+        for (let rowIdx = 0; rowIdx < rawJson.length; rowIdx++) {
+          const row = rawJson[rowIdx];
           const principalVal = String(row[headerMap.principalName!] || '').trim();
 
-          if (!cardNoVal || !principalVal) {
+          if (!principalVal) {
             ignored++;
-            return;
+            continue;
           }
+
+          const plannedCardNo = finalCardNoByRowIdx.get(rowIdx);
+          if (!plannedCardNo) {
+            // Invalid format or duplicate (in-file or already in the database) — already
+            // reported in cardNumberPreview above; skip creating/updating this row.
+            ignored++;
+            continue;
+          }
+          const cardNoVal = plannedCardNo;
 
           const orgVal = headerMap.organization ? String(row[headerMap.organization] || '').trim() : 'TotalEnergies Liberia Ltd';
           const dobVal = headerMap.birthDate ? formatExcelDate(row[headerMap.birthDate]) : '1985-06-15';
@@ -388,7 +431,7 @@ export async function parseMemberExcel(
             updatedList.unshift(newMember);
             created++;
           }
-        });
+        }
 
         resolve({
           success: true,
@@ -398,6 +441,7 @@ export async function parseMemberExcel(
           missingHeaders: [],
           errors: [],
           parsedItems: updatedList,
+          cardNumberPreview,
         });
       } catch (err: any) {
         resolve({

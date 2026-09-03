@@ -23,6 +23,7 @@ import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
 import { dedupeMembersByCardNo } from '../../utils/memberUtils';
+import { generateNextCardNumber } from '../../services/cardNumberService';
 
 interface AgentEnrollmentsViewProps {
   organizations: Organization[];
@@ -55,7 +56,11 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
   const [selectedEnrDetails, setSelectedEnrDetails] = useState<Enrollment | null>(null);
 
   const [form, setForm] = useState({
+    // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — ce champ n'est
+    // plus rempli par saisie manuelle, il est renseigné automatiquement dans handleSubmit
+    // juste avant la création de l'enrôlement (voir cardNumberService.generateNextCardNumber).
     cardNo: '',
+    printedCardNumberOverride: '',
     // === AMÉLIORATION AJOUTÉE : nom scindé en Last Name / First Name côté saisie (le nom
     // complet reste stocké en un seul champ "fullName" sur l'Enrollment, comme avant).
     lastName: '',
@@ -69,6 +74,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     phone: '',
     email: '',
   });
+  const [isGeneratingCard, setIsGeneratingCard] = useState(false);
 
   // === AMÉLIORATION AJOUTÉE : sélection de l'assuré principal existant depuis l'annuaire ===
   const [selectedPrincipalCardNo, setSelectedPrincipalCardNo] = useState('');
@@ -134,23 +140,46 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     setHasBiometrics(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — handleSubmit est
+  // désormais asynchrone : le numéro de carte est généré et réservé de façon transactionnelle
+  // (unique, jamais réutilisé, jamais deux agents simultanés ne peuvent recevoir le même
+  // numéro — voir cardNumberService.generateNextCardNumber) AVANT que l'enrôlement ne soit
+  // créé. Le reste du workflow (Agent -> Superviseur -> Admin) est strictement inchangé.
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const fullName = `${form.lastName} ${form.firstName}`.trim();
-    if (!form.cardNo || !fullName || !form.organization) {
+    if (!fullName || !form.organization) {
       alert('Please fill out all mandatory fields.');
       return;
     }
 
+    setIsGeneratingCard(true);
+    let generatedCardNo: string;
+    try {
+      generatedCardNo = await generateNextCardNumber({
+        printedCardNumberOverride: form.printedCardNumberOverride || undefined,
+        organization: form.organization,
+        insuredName: fullName,
+        assignedBy: currentUser?.uid,
+        assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+        method: 'ENROLLMENT',
+      });
+    } catch (err: any) {
+      alert(err?.message || 'Could not generate a card number. Please try again.');
+      setIsGeneratingCard(false);
+      return;
+    }
+    setIsGeneratingCard(false);
+
     const newEnrollment: Partial<Enrollment> = {
       reference: `ENR-2026-${Math.floor(100 + Math.random() * 900)}`,
-      cardNo: form.cardNo,
+      cardNo: generatedCardNo,
       fullName,
       birthDate: form.birthDate || '1990-01-01',
       gender: form.gender as 'M' | 'F',
       relationship: form.relationship,
       mainInsuredName: form.relationship === 'Principal' ? fullName : form.mainInsuredName,
-      mainInsuredCardNo: form.relationship === 'Principal' ? form.cardNo : form.mainInsuredCardNo,
+      mainInsuredCardNo: form.relationship === 'Principal' ? generatedCardNo : form.mainInsuredCardNo,
       organization: form.organization,
       phone: form.phone,
       email: form.email,
@@ -176,6 +205,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
       setSubmitted(false);
       setForm({
         cardNo: '',
+        printedCardNumberOverride: '',
         lastName: '',
         firstName: '',
         birthDate: '1990-01-01',
@@ -391,22 +421,35 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">All fields required</span>
                 </div>
 
+                {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur
+                    demande explicite. Le numéro de carte (AMID-XXXXX-XXXX) n'est plus saisi
+                    manuellement : il est désormais généré automatiquement, de façon unique et
+                    transactionnelle (src/services/cardNumberService.ts), au moment de la
+                    soumission. L'agent peut, optionnellement, indiquer le numéro physique
+                    imprimé de la carte (segment XXXXX) — le numéro séquentiel de l'assuré
+                    (segment XXXX) reste lui toujours généré automatiquement. === */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">
-                      Health Card Number: <span className="text-rose-500">*</span>
-                    </label>
+                    <label className="block text-xs font-bold text-slate-700">Health Card Number</label>
                     <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide shrink-0">ACTIVA Unique Identifier</span>
                   </div>
                   <div className="relative">
                     <CreditCard className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <div className="w-full pl-10 pr-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-500 font-mono">
+                      Generated automatically on submission (AMID-XXXXX-XXXX)
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                      Printed Card Number (optional) — leave blank to auto-assign
+                    </label>
                     <input
                       type="text"
-                      value={form.cardNo}
-                      onChange={(e) => setForm({ ...form, cardNo: e.target.value })}
-                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-[#0a2e6b] font-mono focus:ring-2 focus:ring-[#0a2e6b]"
-                      required
-                      placeholder="e.g. ACT-2026-8392"
+                      value={form.printedCardNumberOverride}
+                      onChange={(e) => setForm({ ...form, printedCardNumberOverride: e.target.value.replace(/[^0-9]/g, '').slice(0, 5) })}
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 font-mono focus:ring-2 focus:ring-[#0a2e6b]"
+                      placeholder="e.g. 01130 (physical card number, if already printed)"
+                      maxLength={5}
                     />
                   </div>
                 </div>
@@ -604,10 +647,11 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full py-3 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                    disabled={isGeneratingCard}
+                    className="w-full py-3 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Submit Enrollment Application for Approval</span>
+                    <span>{isGeneratingCard ? 'Assigning card number…' : 'Submit Enrollment Application for Approval'}</span>
                   </button>
                 </div>
               </div>

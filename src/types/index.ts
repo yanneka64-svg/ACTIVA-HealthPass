@@ -482,3 +482,47 @@ export interface AppNotification {
   entityId?: string;
 }
 
+// === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
+// explicite. Voir src/services/cardNumberService.ts pour le moteur (génération
+// transactionnelle, migration, unicité). Deux compteurs indépendants (printed / insured),
+// un registre d'unicité (une entrée par numéro complet, jamais réutilisée) et une trace
+// d'audit par attribution.
+export type CardAssignmentMethod = 'ENROLLMENT' | 'EXCEL_IMPORT' | 'MANUAL' | 'MIGRATION';
+
+// Document unique `counters/cardNumbers` — l'état courant des deux séquences indépendantes.
+export interface CardNumberCounters {
+  lastPrintedCardNumber: number; // ex: 1129 (segment XXXXX)
+  lastInsuredNumber: number; // ex: 496 (segment XXXX)
+  updatedAt?: string;
+}
+
+// Un document par numéro complet dans `cardNumberRegistry/{cardNumber}` — l'existence du
+// document EST la contrainte d'unicité (deux assurés ne peuvent jamais créer le même id de
+// document). Sert aussi de trace d'audit ("Who / What / When / How", voir section 29).
+export interface CardNumberAssignment {
+  id: string; // = cardNumber, ex: "AMID-01129-0496"
+  cardNumber: string;
+  printedCardNumber: string; // "01129"
+  insuredNumber: string; // "0496"
+  organization?: string | null;
+  memberId?: string | null;
+  insuredName?: string | null;
+  assignedBy?: string | null; // uid
+  assignedByName?: string | null;
+  assignedAt: string;
+  method: CardAssignmentMethod;
+}
+
+// Une ligne de la prévisualisation d'import Excel (section 10) — calculée sans rien écrire
+// en base tant que l'import n'est pas confirmé (section 23).
+export interface CardNumberPreviewRow {
+  rowIndex: number;
+  insuredName: string;
+  organization?: string;
+  cardNoExcel: string; // '—' si vide dans le fichier
+  cardNoFinal: string; // '—' si aucun numéro ne peut être attribué (doublon/invalide)
+  action: 'Kept' | 'Generated' | 'None';
+  status: 'Valid' | 'Duplicate' | 'Invalid';
+  reason?: string;
+}
+

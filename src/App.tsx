@@ -20,6 +20,7 @@ import {
 } from './types';
 import { FirestoreService } from './services/firestore';
 import { WorkflowService } from './services/workflowService';
+import { migrateCardNumberCounters } from './services/cardNumberService';
 import { seedInitialDemoDataIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
@@ -370,6 +371,23 @@ export default function App() {
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [authStatus, healthPolicies, members]);
+
+  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
+  // explicite. Bootstrap automatique, une seule fois par session, des deux compteurs de
+  // numéros de carte (sections 3/18) : relevés au maximum réellement présent dans TOUTE la
+  // base (jamais seulement le dernier enregistrement créé — voir
+  // cardNumberService.migrateCardNumberCounters), avec backfill du registre d'unicité pour
+  // les cartes créées avant ce système. Idempotent — peut aussi être relancé à tout moment
+  // depuis Admin > Organizations > Cards > "Validate Card Number Sequence".
+  const cardNumberMigrationRanRef = useRef(false);
+  useEffect(() => {
+    if (authStatus !== 'authenticated' || cardNumberMigrationRanRef.current || members.length === 0) return;
+    cardNumberMigrationRanRef.current = true;
+    migrateCardNumberCounters(members).catch((err) => {
+      console.warn('Card number sequence bootstrap failed:', err);
+      cardNumberMigrationRanRef.current = false; // allow a retry on the next members update
+    });
+  }, [authStatus, members]);
 
   const handleLoginSuccess = (user: any) => {
     // onAuthStateChanged will handle atomic role resolution
@@ -1200,6 +1218,7 @@ export default function App() {
               onImportMembers={handleImportMembers}
               onSuspendMember={handleSuspendMember}
               onReactivateMember={handleReactivateMember}
+              currentUser={currentUser}
             />
           )}
 
@@ -1219,6 +1238,7 @@ export default function App() {
               onSaveHealthPolicy={handleSaveHealthPolicy}
               onAddPolicyPayment={handleAddPolicyPayment}
               onDeletePolicyPayment={handleDeletePolicyPayment}
+              currentUser={currentUser}
             />
           )}
 
