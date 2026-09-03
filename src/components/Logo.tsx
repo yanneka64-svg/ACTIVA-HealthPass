@@ -20,15 +20,19 @@ interface LogoProps {
 // conservé via object-contain.
 export const ACTIVA_HEART_ICON_ASPECT = 427 / 344;
 
-// === AMÉLIORATION AJOUTÉE : partout où le texte "ACTIVA HealthPass" + le slogan doivent
-// s'afficher, on utilise désormais l'image COMPLÈTE du logo fourni (icône + texte + slogan)
-// recadrée telle quelle depuis le fichier haute résolution transmis par l'utilisateur — au
-// lieu de reconstruire le texte en SVG avec une police Google Fonts (Montserrat), qui ne
-// correspondait pas exactement à la police du logo d'origine. Ceci garantit un rendu
-// PIXEL-IDENTIQUE au logo fourni (police, graisse, dégradé sur "HealthPass", espacement),
-// sans aucune reconstruction. Ratio largeur/hauteur natif ≈ 5.25 (1775×338px).
-const FULL_LOGO_SRC = '/activa-healthpass-full-logo.png';
-export const ACTIVA_FULL_LOGO_ASPECT = 1775 / 338;
+// === AMÉLIORATION AJOUTÉE : le texte "ACTIVA HealthPass" + le slogan sont reconstruits en
+// SVG avec Montserrat (police confirmée correcte par l'utilisateur) plutôt qu'affichés comme
+// une image plate — texte net à toutes les tailles, fichier plus léger. La première tentative
+// utilisait la MÊME couleur navy pour "ACTIVA" et "HealthPass", ce qui ne correspondait pas au
+// logo fourni : les deux couleurs ci-dessous sont échantillonnées pixel par pixel directement
+// sur le fichier logo transmis par l'utilisateur ("ACTIVA" et le slogan sont un bleu plus
+// clair, "HealthPass" un navy plus foncé — deux teintes distinctes, pas un dégradé).
+const ACTIVA_BLUE = '#0546AF'; // couleur exacte de "ACTIVA" et du slogan, échantillonnée sur le logo fourni
+const HEALTHPASS_NAVY = '#0A2F6D'; // couleur exacte de "HealthPass", échantillonnée sur le logo fourni
+const TAGLINE_GREEN = '#00A651'; // puces vertes du slogan, cohérent avec la croix de l'emblème
+
+const LOGO_FONT_IMPORT = "@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;900&display=swap');";
+const LOGO_FONT_STACK = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 /**
  * Isolated Medical Heart + Green Cross Icon (official ACTIVA HealthPass emblem)
@@ -47,16 +51,62 @@ export const LogoIcon: React.FC<{ className?: string; size?: number | string }> 
 };
 
 /**
- * Full lockup (emblem + "ACTIVA HealthPass" + tagline) as a single image, pixel-identical to
- * the logo file provided by the user — used by every variant below that shows the wordmark.
+ * "ACTIVA HealthPass" wordmark + optional tagline, rendered as scalable SVG text in the two
+ * exact colors sampled from the provided logo (bright blue "ACTIVA" / navy "HealthPass").
  */
-const FullLogoImage: React.FC<{ className?: string }> = ({ className = 'h-9' }) => (
-  <img
-    src={FULL_LOGO_SRC}
-    alt="ACTIVA HealthPass"
-    className={`${className} w-auto object-contain select-none`}
-    draggable={false}
-  />
+const WordmarkSvg: React.FC<{ className?: string; showTagline?: boolean }> = ({
+  className = 'h-9',
+  showTagline = true,
+}) => (
+  <svg
+    viewBox={showTagline ? '0 0 256 56' : '0 0 256 40'}
+    className={`${className} w-auto max-w-full block`}
+    xmlns="http://www.w3.org/2000/svg"
+    aria-label="ACTIVA HealthPass"
+    preserveAspectRatio="xMidYMid meet"
+  >
+    <defs>
+      <style>
+        {`
+          ${LOGO_FONT_IMPORT}
+          .logo-activa-bold {
+            font-family: ${LOGO_FONT_STACK};
+            font-weight: 900;
+            font-size: 21px;
+            fill: ${ACTIVA_BLUE};
+            letter-spacing: -0.2px;
+          }
+          .logo-healthpass-title {
+            font-family: ${LOGO_FONT_STACK};
+            font-weight: 700;
+            font-size: 21px;
+            fill: ${HEALTHPASS_NAVY};
+            letter-spacing: -0.3px;
+          }
+          .logo-tagline-text {
+            font-family: ${LOGO_FONT_STACK};
+            font-weight: 600;
+            font-size: 9.5px;
+            fill: ${ACTIVA_BLUE};
+            letter-spacing: 0.3px;
+          }
+        `}
+      </style>
+    </defs>
+    <text x="0" y="30">
+      <tspan className="logo-activa-bold">ACTIVA</tspan>
+      <tspan dx="5" className="logo-healthpass-title">HealthPass</tspan>
+    </text>
+    {showTagline && (
+      <g transform="translate(1, 47)">
+        <text x="0" y="0" className="logo-tagline-text">Health</text>
+        <circle cx="41" cy="-3.5" r="2.2" fill={TAGLINE_GREEN} />
+        <text x="51" y="0" className="logo-tagline-text">Safety</text>
+        <circle cx="95" cy="-3.5" r="2.2" fill={TAGLINE_GREEN} />
+        <text x="105" y="0" className="logo-tagline-text">Serenity</text>
+      </g>
+    )}
+  </svg>
 );
 
 /**
@@ -69,13 +119,32 @@ export const MiniLogo: React.FC<{
 }> = ({ className = '', showText = true, transparent = false }) => {
   return (
     <div
-      className={`inline-flex items-center select-none transition-all duration-200 ${
+      className={`inline-flex items-center gap-1.5 select-none transition-all duration-200 ${
         transparent
           ? 'bg-transparent'
           : 'bg-white rounded-lg px-2 py-1 shadow-2xs border border-slate-200/90'
       } ${className}`}
     >
-      {showText ? <FullLogoImage className="h-7 sm:h-8" /> : <LogoIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
+      <LogoIcon className="w-6 h-6 sm:w-7 sm:h-7" />
+      {showText && (
+        <div className="flex flex-col leading-none whitespace-nowrap">
+          <div className="flex items-baseline gap-1">
+            <span className="font-extrabold text-xs sm:text-sm tracking-tight font-sans" style={{ color: ACTIVA_BLUE }}>
+              ACTIVA
+            </span>
+            <span className="font-bold text-[11px] sm:text-xs font-sans" style={{ color: HEALTHPASS_NAVY }}>
+              HealthPass
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-[7.5px] font-semibold tracking-wide mt-0.5" style={{ color: ACTIVA_BLUE }}>
+            <span>Health</span>
+            <span className="font-bold" style={{ color: TAGLINE_GREEN }}>•</span>
+            <span>Safety</span>
+            <span className="font-bold" style={{ color: TAGLINE_GREEN }}>•</span>
+            <span>Serenity</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -115,6 +184,29 @@ export const Logo: React.FC<LogoProps> = ({
     return <MiniLogo className={className} transparent={transparent} />;
   }
 
+  // If compact variant requested (icon + single line brand name, no tagline)
+  if (variant === 'compact') {
+    return (
+      <div
+        className={`inline-flex items-center gap-2 select-none transition-all duration-200 whitespace-nowrap ${
+          transparent
+            ? 'bg-transparent'
+            : 'bg-white rounded-lg px-2.5 py-1.5 shadow-2xs border border-slate-200/90'
+        } ${className}`}
+      >
+        <LogoIcon className="w-7 h-7 sm:w-8 sm:h-8" />
+        <div className="flex items-baseline gap-1 leading-none">
+          <span className="font-black text-sm sm:text-base tracking-tight" style={{ color: ACTIVA_BLUE }}>
+            ACTIVA
+          </span>
+          <span className="font-bold text-xs sm:text-sm" style={{ color: HEALTHPASS_NAVY }}>
+            HealthPass
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   // Height mapping that scales cleanly with parent and never overflows
   const heightMap: Record<LogoSize, string> = {
     xs: 'h-6 sm:h-7',
@@ -127,24 +219,50 @@ export const Logo: React.FC<LogoProps> = ({
 
   const currentHeight = heightMap[size] || 'h-9 sm:h-10 md:h-11';
 
-  // If compact variant requested (icon + single line brand name — same exact lockup image,
-  // the tagline stays baked in since it is not toggleable pixel-for-pixel)
-  if (variant === 'compact') {
+  // Responsive mode: Compact white frame, strictly bounded contents with full text visibility
+  if (variant === 'responsive') {
     return (
       <div
-        className={`inline-flex items-center select-none transition-all duration-200 whitespace-nowrap ${
+        className={`inline-flex items-center justify-center select-none transition-all duration-200 ${
           transparent
             ? 'bg-transparent'
-            : 'bg-white rounded-lg px-2.5 py-1.5 shadow-2xs border border-slate-200/90'
+            : 'bg-white rounded-lg px-2 sm:px-2.5 py-1 sm:py-1.5 shadow-2xs border border-slate-200/90'
         } ${className}`}
       >
-        <FullLogoImage className="h-8 sm:h-9" />
+        {/* Mobile & Tablet Compact View (< md) */}
+        <div className="flex md:hidden items-center gap-1.5 sm:gap-2 whitespace-nowrap max-w-full">
+          <LogoIcon className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" />
+          <div className="flex flex-col text-left leading-tight">
+            <div className="flex items-baseline gap-1">
+              <span className="font-black text-xs sm:text-sm tracking-tight" style={{ color: ACTIVA_BLUE }}>
+                ACTIVA
+              </span>
+              <span className="font-bold text-[11px] sm:text-xs" style={{ color: HEALTHPASS_NAVY }}>
+                HealthPass
+              </span>
+            </div>
+            {showTagline && (
+              <div className="flex items-center gap-1 text-[7px] sm:text-[8.5px] font-semibold tracking-wide mt-0.5" style={{ color: ACTIVA_BLUE }}>
+                <span>Health</span>
+                <span className="font-bold" style={{ color: TAGLINE_GREEN }}>•</span>
+                <span>Safety</span>
+                <span className="font-bold" style={{ color: TAGLINE_GREEN }}>•</span>
+                <span>Serenity</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Desktop View (>= md): icon (raster, official emblem) + wordmark (scalable SVG text) */}
+        <div className="hidden md:flex items-center gap-1.5">
+          <LogoIcon className={`${currentHeight} w-auto`} />
+          <WordmarkSvg className={currentHeight} showTagline={showTagline} />
+        </div>
       </div>
     );
   }
 
-  // Responsive & Full modes both render the exact same provided lockup image, just at
-  // different heights — kept as separate variants for API compatibility with existing callers.
+  // Full mode: same icon + wordmark composition, explicit variant for API compatibility
   return (
     <div
       className={`inline-flex items-center justify-center select-none transition-all duration-200 ${
@@ -153,7 +271,10 @@ export const Logo: React.FC<LogoProps> = ({
           : 'bg-white rounded-lg px-2 sm:px-2.5 py-1 sm:py-1.5 shadow-2xs border border-slate-200/90'
       } ${className}`}
     >
-      <FullLogoImage className={`${currentHeight} max-w-full`} />
+      <div className="flex items-center gap-1.5 max-w-full">
+        <LogoIcon className={`${currentHeight} w-auto`} />
+        <WordmarkSvg className={currentHeight} showTagline={showTagline} />
+      </div>
     </div>
   );
 };
