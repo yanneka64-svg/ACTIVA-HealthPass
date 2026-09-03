@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, User, ArrowRight, AlertCircle, Globe, Shield } from 'lucide-react';
+import { User, ArrowRight, AlertCircle, Globe, Shield } from 'lucide-react';
 import { Language } from '../../types';
 import { Logo } from '../Logo';
 import { auth, db } from '../../lib/firebase';
@@ -203,27 +203,30 @@ export const LoginView: React.FC<LoginViewProps> = ({
       </header>
 
       {/* Centered Login Card Container */}
+      {/* === AMÉLIORATION AJOUTÉE : panneau de connexion réduit (largeur, en-tête et
+          espacements resserrés) sur demande explicite — aucune fonctionnalité du formulaire
+          n'est modifiée, seules les tailles/marges sont réduites. === */}
       <div className="my-auto flex flex-col items-center justify-center">
-        <div className="w-full max-w-[460px] bg-white rounded-[26px] shadow-xl shadow-slate-300/30 border border-[#E8EDF2] overflow-hidden flex flex-col transition-all duration-300">
-          
+        <div className="w-full max-w-[400px] bg-white rounded-[22px] shadow-xl shadow-slate-300/30 border border-[#E8EDF2] overflow-hidden flex flex-col transition-all duration-300">
+
           {/* CARD NAVY HEADER (#0A347B) */}
-          <div className="bg-[#0A347B] pt-8 pb-7 px-6 text-white text-center flex flex-col items-center">
+          <div className="bg-[#0A347B] pt-6 pb-5 px-6 text-white text-center flex flex-col items-center">
             {/* Logo container with white background and moderate rounded corners */}
-            <div className="mb-4 bg-white rounded-xl px-4 py-2 shadow-sm border border-slate-200/90 flex items-center justify-center">
-              <Logo size="md" showTagline={true} transparent={true} />
+            <div className="mb-3 bg-white rounded-xl px-3.5 py-1.5 shadow-sm border border-slate-200/90 flex items-center justify-center">
+              <Logo size="sm" showTagline={true} transparent={true} />
             </div>
 
             {/* Header Title & Subtitle */}
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-tight">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white leading-tight">
               Production Portal Login
             </h1>
-            <p className="text-xs sm:text-[13px] text-[#EAF2FF] font-medium mt-1.5 opacity-90 leading-snug">
+            <p className="text-xs text-[#EAF2FF] font-medium mt-1 opacity-90 leading-snug">
               Health Insurance & Claims Management Platform
             </p>
           </div>
 
           {/* LOGIN FORM */}
-          <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-5 bg-white">
+          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 bg-white">
             {/* Error Alert Box */}
             {error && (
               <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
@@ -255,6 +258,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
             </div>
 
             {/* Password */}
+            {/* === AMÉLIORATION AJOUTÉE : l'icône de cadenas ("illustration") a été retirée de
+                l'intérieur du champ mot de passe, sur demande explicite — le champ conserve
+                exactement le même comportement, seul le padding gauche est réajusté (pl-10 ->
+                pl-4) puisqu'il n'y a plus d'icône à laisser de la place. === */}
             <div>
               <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
                 Password
@@ -266,21 +273,20 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                  className="w-full pl-4 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
                   autoComplete="current-password"
                   required
                 />
-                <Lock className="w-4 h-4 text-[#778FAF] absolute left-3.5 top-3.5 pointer-events-none" />
               </div>
             </div>
 
             {/* Sign In Button */}
-            <div className="pt-2">
+            <div className="pt-1">
               <button
                 id="login-submit-button"
                 type="submit"
                 disabled={isLoggingIn}
-                className="w-full py-3.5 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>{isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
                 <ArrowRight className="w-4 h-4" />
@@ -289,13 +295,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </form>
 
           {/* CARD FOOTER */}
-          <div className="px-6 py-4 bg-[#F8FAFC] border-t border-[#E8EDF2] text-center text-xs text-[#778FAF] font-medium">
+          <div className="px-6 py-3 bg-[#F8FAFC] border-t border-[#E8EDF2] text-center text-xs text-[#778FAF] font-medium">
             <span>© 2026 ACTIVA Insurance Group. All rights reserved.</span>
           </div>
         </div>
 
         {/* Version underneath on background */}
-        <div className="mt-3 text-center text-xs font-mono font-bold text-[#0D2B63]">
+        <div className="mt-2.5 text-center text-xs font-mono font-bold text-[#0D2B63]">
           v2.4.0
         </div>
       </div>
