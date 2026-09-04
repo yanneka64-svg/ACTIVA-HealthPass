@@ -38,17 +38,18 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.setFontSize(7.5);
   doc.text('Direct-Billing Healthcare Network • Official ACTIVA Insurance Document', 14, 23);
 
-  // Security Badge Top Right
+  // Badge Top Right
+  // === AMÉLIORATION AJOUTÉE : ligne "Security No: ..." retirée du bandeau (sur demande
+  // explicite) — le reste (Issue Date, Status) inchangé, seulement recentré verticalement
+  // dans l'espace laissé libre. Le numéro de sécurité reste visible plus bas, au niveau du
+  // code-barres, où il conserve son rôle d'identifiant de sécurité du document.
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(8.5);
-  doc.setFont('courier', 'bold');
-  doc.text(`Security No: ${form.securityNumber}`, pageWidth - 14, 10.5, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text(`Issue Date: ${form.issueDate}`, pageWidth - 14, 16, { align: 'right' });
+  doc.text(`Issue Date: ${form.issueDate}`, pageWidth - 14, 13, { align: 'right' });
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(110, 231, 183); // emerald 300
-  doc.text(`STATUS: VALIDATED / ACTIVE`, pageWidth - 14, 22, { align: 'right' });
+  doc.text(`STATUS: VALIDATED / ACTIVE`, pageWidth - 14, 19, { align: 'right' });
 
   // Reset text color
   doc.setTextColor(30, 41, 59);
@@ -105,23 +106,32 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
     doc.text('INPATIENT ADMISSION', 155, currentY + 14);
   }
 
-  // === AMÉLIORATION AJOUTÉE : restauration du champ "Available Balance" tel qu'il existait
-  // avant (sur demande explicite — la version qui l'avait remplacé par Date of Birth/Gender
-  // ne correspondait plus au document officiel attendu). Date of Birth/Gender retirés du PDF.
+  // === AMÉLIORATION AJOUTÉE : "Available Balance" retiré et remplacé par la date de naissance
+  // de l'assuré, et ajout du sexe (Gender), sur demande explicite — "Voucher Validity" reste
+  // inchangé, simplement décalé pour laisser la place à la ligne "Gender" supplémentaire (4
+  // lignes sur cette colonne au lieu de 3, espacées de 5mm au lieu de 6mm ; la hauteur de
+  // l'encadré ne change pas).
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
-  doc.text('Available Balance :', 120, currentY + 20);
+  doc.text('Date of Birth :', 120, currentY + 19);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 168, 89);
-  const bal = isOutpatient ? form.outpatientBalanceUSD : form.inpatientBalanceUSD;
-  doc.text(`$${bal ?? 600} USD`, 155, currentY + 20);
+  doc.setTextColor(15, 23, 42);
+  doc.text(form.memberBirthDate || 'N/A', 155, currentY + 19);
 
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
-  doc.text('Voucher Validity :', 120, currentY + 26);
+  doc.text('Gender :', 120, currentY + 24);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  const genderLabel = form.memberGender === 'F' ? 'Female' : form.memberGender === 'M' ? 'Male' : 'N/A';
+  doc.text(genderLabel, 155, currentY + 24);
+
+  doc.setTextColor(71, 85, 105);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Voucher Validity :', 120, currentY + 29);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(10, 52, 123);
-  doc.text('48 Hours (Standard Term)', 155, currentY + 26);
+  doc.text('48 Hours (Standard Term)', 155, currentY + 29);
 
   currentY += 41;
 
