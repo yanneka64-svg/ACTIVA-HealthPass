@@ -496,30 +496,35 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-2.5 mt-3">
-                      <div>
+                      {/* === AMÉLIORATION AJOUTÉE : "truncate" (au lieu du retour à la ligne par
+                          défaut) sur les identifiants — même traitement que "Affiliated
+                          Organization" ci-dessous — pour que la ligne reste alignée avec les
+                          autres colonnes au lieu de passer sur deux lignes et de désaligner
+                          visuellement la grille. === */}
+                      <div className="min-w-0">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Card Number</div>
-                        <div className="font-mono font-bold text-sm text-[#0A347B]">{selectedBeneficiary.cardNo}</div>
+                        <div className="font-mono font-bold text-sm text-[#0A347B] truncate" title={selectedBeneficiary.cardNo}>{selectedBeneficiary.cardNo}</div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Policy Number</div>
-                        <div className="font-mono font-bold text-sm text-slate-800">{policyNumber || 'N/A'}</div>
+                        <div className="font-mono font-bold text-sm text-slate-800 truncate" title={policyNumber || 'N/A'}>{policyNumber || 'N/A'}</div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Age &amp; Gender</div>
-                        <div className="font-bold text-sm text-slate-800">
+                        <div className="font-bold text-sm text-slate-800 truncate">
                           {calculateAgeNumber(selectedBeneficiary.birthDate) ?? '—'} yrs ({selectedBeneficiary.gender === 'F' ? 'Female' : 'Male'})
                         </div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Affiliated Organization</div>
-                        <div className="font-bold text-sm text-slate-800 flex items-center gap-1.5 truncate">
+                        <div className="font-bold text-sm text-slate-800 flex items-center gap-1.5 min-w-0">
                           <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate">{selectedBeneficiary.organization}</span>
+                          <span className="truncate" title={selectedBeneficiary.organization}>{selectedBeneficiary.organization}</span>
                         </div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Date of Birth</div>
-                        <div className="font-bold text-sm text-slate-800">{selectedBeneficiary.birthDate || 'N/A'}</div>
+                        <div className="font-bold text-sm text-slate-800 truncate">{selectedBeneficiary.birthDate || 'N/A'}</div>
                       </div>
                     </div>
                   </div>
