@@ -20,7 +20,6 @@ import {
   Copy,
   Eye,
   Check,
-  Lock,
   Sparkles,
   Activity,
   BedDouble,
@@ -323,29 +322,24 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   return (
     <div className="space-y-6">
       {/* === AMÉLIORATION AJOUTÉE : bannière d'en-tête (icône + titre + sous-titre à gauche,
-          badge "Cryptographic Security Active" à droite), sur demande explicite — purement
-          visuelle, ajoutée au-dessus du contenu existant (onglets, formulaire, historique)
-          sans le modifier. Le sous-titre reflète une fonctionnalité déjà réelle du PDF généré
-          (code-barres + numéro de sécurité unique — voir pdfMedicalForm.ts / QrCode plus bas). */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex items-center justify-between flex-wrap gap-3">
+          sur demande explicite) — fusionnée avec la navigation par onglets (auparavant sur
+          sa propre ligne séparée), désormais affichée à droite de la bannière à la place du
+          badge "Cryptographic Security Active" (retiré) et de la bande bleue qui coiffait le
+          formulaire de création (retirée également, voir plus bas). Titre/sous-titre repris
+          tels quels depuis l'ancienne bande bleue ("Medical Form Generation (Coverage
+          Authorization)" / "Smart search for member, practitioner and coverage limits"),
+          sans rien changer au contenu du formulaire lui-même. */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[var(--brand-50)] flex items-center justify-center shrink-0">
             <FileText className="w-5 h-5 text-[var(--brand-900)]" />
           </div>
           <div>
-            <h2 className="font-bold text-sm sm:text-base text-slate-900">Issue Medical Form / Coverage Form</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Secure generation with official ACTIVA Barcode and Unique Security Number</p>
+            <h2 className="font-bold text-sm sm:text-base text-slate-900">Medical Form Generation (Coverage Authorization)</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Smart search for member, practitioner and coverage limits</p>
           </div>
         </div>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold shrink-0">
-          <Lock className="w-3.5 h-3.5" />
-          <span>Cryptographic Security Active</span>
-        </span>
-      </div>
-
-      {/* Top Tab Navigation */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
           <button
             onClick={() => setActiveTab('create')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
@@ -382,19 +376,10 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Form Column: Configuration */}
           <div className="lg:col-span-6 space-y-6">
+            {/* === AMÉLIORATION AJOUTÉE : bande bleue d'en-tête retirée, sur demande explicite
+                — son titre/sous-titre ont été repris dans la bannière commune en haut de page
+                (voir plus haut). Contenu du formulaire ci-dessous strictement inchangé. */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className={`px-6 py-4 ${isSupervisorView ? 'bg-[#0F766E]' : 'bg-[#0A347B]'} text-white flex items-center justify-between`}>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                    <FileText className="w-4 h-4 text-emerald-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm">Medical Form Generation (Coverage Authorization)</h3>
-                    <p className={`text-[11px] ${isSupervisorView ? 'text-teal-100' : 'text-blue-100'}`}>Smart search for member, practitioner and coverage limits</p>
-                  </div>
-                </div>
-              </div>
-
               <form onSubmit={handleGenerateForm} className="p-6 space-y-5">
                 {/* 1. SMART AUTOCOMPLETE FOR INSURED BENEFICIARY */}
                 <div className="space-y-1.5" ref={memberSearchRef}>

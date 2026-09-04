@@ -255,9 +255,21 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Navigation Tabs Header */}
-      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-xs flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2">
+      {/* === AMÉLIORATION AJOUTÉE : bannière d'en-tête (icône + titre + sous-titre à gauche,
+          sur demande explicite) — fusionnée avec la navigation par onglets (auparavant sur sa
+          propre bande blanche séparée juste au-dessus, retirée), désormais affichée à droite
+          de la bannière à la place du badge "Biometric Standard ICAO 9303 & NFIQ 2.0" (retiré).
+          Titre/sous-titre repris tels quels depuis l'ancien en-tête de l'onglet "create", et
+          la bannière reste visible sur les deux onglets (create/list) pour ne jamais perdre le
+          moyen de basculer entre les deux. */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs px-6 py-5 flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h2 className="text-lg font-extrabold text-slate-900">Biometric Member Enrollment</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Certified optical fingerprint capture, facial photograph acquisition, and policy affiliation
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('create')}
@@ -289,40 +301,10 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             )}
           </button>
         </div>
-
-        {activeTab === 'list' && (
-          <div className="flex items-center gap-2 text-xs">
-            <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-bold border border-amber-200">
-              Pending: {pendingCount}
-            </span>
-            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-              Approved: {approvedCount}
-            </span>
-            {rejectedCount > 0 && (
-              <span className="px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 font-bold border border-rose-200">
-                Rejected: {rejectedCount}
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
       {activeTab === 'create' ? (
         <div className="space-y-6">
-          {/* Header */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-extrabold text-slate-900">Biometric Member Enrollment</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Certified optical fingerprint capture, facial photograph acquisition, and policy affiliation
-              </p>
-            </div>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold shrink-0">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Biometric Standard ICAO 9303 &amp; NFIQ 2.0</span>
-            </span>
-          </div>
-
           {submitted && (
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-800 animate-in fade-in">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
