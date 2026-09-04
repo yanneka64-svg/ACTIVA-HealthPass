@@ -286,33 +286,8 @@ export const getFullDemoData = () => {
   ];
 
   // 4. SAMPLE MEDICAL FORMS
-  // === AMÉLIORATION AJOUTÉE : formulaires démo mf-1 (Orange) et mf-2 (Ecobank) retirés —
-  // même motif que ci-dessus. ===
-  const forms: Partial<MedicalForm>[] = [
-    {
-      id: 'mf-3',
-      securityNumber: 'ACT-MED-2026-771239',
-      barcode: 'ACT-MED-2026-771239',
-      memberId: 'mem-4',
-      memberName: 'Evelyn JOHNSON',
-      memberCardNo: 'ACT-2026-55410',
-      organization: 'Firestone Natural Rubber Co',
-      providerId: 'prv-3',
-      providerName: 'Central Downtown Pharmacy',
-      coverageType: 'Outpatient',
-      outpatientBalanceUSD: 610,
-      inpatientBalanceUSD: 7800,
-      issueDate: '2026-03-22',
-      status: 'issued',
-      doctorName: 'Dr. Roland Cole',
-      doctorPrescription: {
-        presumedDiagnosis: 'Uncomplicated Plasmodium falciparum malaria',
-        requestedExams: 'Thick blood smear / Rapid Diagnostic Test',
-        treatmentOrder: 'Artemether + Lumefantrine 20/120mg (4 tabs bid x 3 days)'
-      },
-      createdAt: '2026-03-22T09:00:00Z'
-    }
-  ];
+  // === AMÉLIORATION AJOUTÉE : Historique des formulaires médicaux purgé sur demande explicite ===
+  const forms: Partial<MedicalForm>[] = [];
 
   // 5. SAMPLE CLAIMS
   // === AMÉLIORATION AJOUTÉE : sinistres démo cl-1 (Orange) et cl-2 (Ecobank) retirés — même
@@ -572,13 +547,15 @@ export const seedInitialDemoDataIfEmpty = async () => {
       console.warn('Seed ceilings fallback notice:', e);
     }
 
-    // 7. Medical Forms
+    // 7. Medical Forms (Empty by request)
     try {
-      const snap = await getDocs(collection(db, 'medicalForms'));
-      if (snap.empty) {
-        const batch = writeBatch(db);
-        data.forms.forEach((f) => batch.set(doc(db, 'medicalForms', f.id!), f));
-        await batch.commit();
+      if (data.forms && data.forms.length > 0) {
+        const snap = await getDocs(collection(db, 'medicalForms'));
+        if (snap.empty) {
+          const batch = writeBatch(db);
+          data.forms.forEach((f) => batch.set(doc(db, 'medicalForms', f.id!), f));
+          await batch.commit();
+        }
       }
     } catch (e) {
       console.warn('Seed medicalForms fallback notice:', e);

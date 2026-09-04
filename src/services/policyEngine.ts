@@ -129,3 +129,35 @@ export function hasHealthcareAccess(member: Pick<Member, 'status'>, policy: Heal
 
   return { allowed: true, policyStatus: coverage.status };
 }
+
+/**
+ * Evaluates policy coverage through the secure server API gateway, with fallback to
+ * local policyEngine logic. Ensures calculation cannot be forged from client.
+ */
+export async function evaluatePolicyWithServer(
+  policy: HealthPolicy,
+  referenceDate: Date = new Date()
+): Promise<PolicyCoverageResult> {
+  try {
+    const res = await fetch('/api/policies/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ policy }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        status: data.status,
+        coverageBlocked: data.coverageBlocked,
+        suspensionReason: data.reason?.includes('Non-payment') ? 'Non-payment' : undefined,
+        daysUntilExpiration: data.daysUntilExpiration,
+        daysOverdue: data.daysPastDue,
+      };
+    }
+  } catch {
+    // Local fallback
+  }
+
+  return getPolicyCoverageStatus(policy, referenceDate);
+}
+

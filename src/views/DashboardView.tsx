@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   CheckCircle2,
@@ -17,6 +17,7 @@ import {
   Coins,
   ArrowRightLeft,
   Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 import { Language, Claim, Enrollment, Member, Organization, Provider, NavSection } from '../types';
 import { useTranslation } from '../i18n/translations';
@@ -57,6 +58,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const t = useTranslation('en');
   const { mode: currencyMode, setMode: setCurrencyMode, formatAmount, exchangeRate } = useCurrency();
+
+  const [dashboardNotice, setDashboardNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!dashboardNotice) return;
+    const t = setTimeout(() => setDashboardNotice(null), 4500);
+    return () => clearTimeout(t);
+  }, [dashboardNotice]);
 
   const normalizedRole = (userRole || 'Admin').toLowerCase();
   const isAgent = normalizedRole.includes('agent');
@@ -613,7 +622,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <button
                             onClick={() => {
                               if (!approvalCheck.allowed) {
-                                alert(approvalCheck.reason);
+                                setDashboardNotice(approvalCheck.reason || 'Approval not allowed.');
                                 return;
                               }
                               onApproveClaim(claim.id);
@@ -802,7 +811,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <button
                           onClick={() => {
                             if (!approvalCheck.allowed) {
-                              alert(approvalCheck.reason);
+                              setDashboardNotice(approvalCheck.reason || 'Approval not allowed.');
                               return;
                             }
                             onApproveEnrollment(enr.id);
@@ -895,6 +904,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
+
+      {dashboardNotice && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 max-w-md animate-in fade-in slide-in-from-bottom-2">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="text-xs font-medium flex-1">{dashboardNotice}</span>
+          <button
+            onClick={() => setDashboardNotice(null)}
+            className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 };

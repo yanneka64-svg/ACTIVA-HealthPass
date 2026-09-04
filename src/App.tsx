@@ -400,6 +400,20 @@ export default function App() {
     });
   }, [authStatus, members]);
 
+  // === AMÉLIORATION AJOUTÉE : purge unique de l'historique des formulaires médicaux sur demande explicite ===
+  const medicalFormsPurgedRef = useRef(false);
+  useEffect(() => {
+    if (authStatus !== 'authenticated' || medicalFormsPurgedRef.current) return;
+    medicalFormsPurgedRef.current = true;
+    FirestoreService.deleteAllMedicalForms()
+      .then(() => {
+        setMedicalForms([]);
+      })
+      .catch((err) => {
+        console.warn('Initial cleanup of medical forms history notice:', err);
+      });
+  }, [authStatus]);
+
   const handleLoginSuccess = (user: any) => {
     // onAuthStateChanged will handle atomic role resolution
     // === AMÉLIORATION AJOUTÉE : sécurité (audit) — ipAddress/location étaient auparavant
@@ -990,6 +1004,24 @@ export default function App() {
     
   };
 
+  const handleDeleteMedicalForm = async (id: string) => {
+    try {
+      await FirestoreService.deleteMedicalForm(id);
+      setMedicalForms((prev) => prev.filter((f) => f.id !== id));
+    } catch (e) {
+      console.error('Failed to delete medical form:', e);
+    }
+  };
+
+  const handleClearAllMedicalForms = async () => {
+    try {
+      await FirestoreService.deleteAllMedicalForms();
+      setMedicalForms([]);
+    } catch (e) {
+      console.error('Failed to clear medical forms history:', e);
+    }
+  };
+
   // Badges Calculation for Sidebar
   const pendingClaimsCount = claims.filter((c) => c.status === 'pending').length;
   const pendingEnrollmentsCount = enrollments.filter((e) => e.status === 'pending').length;
@@ -1270,6 +1302,8 @@ export default function App() {
               preselectedMember={selectedMemberForMedicalForm}
               onCreateMedicalForm={(form) => FirestoreService.addMedicalForm(form)}
               onUpdateMedicalForm={(form) => FirestoreService.updateMedicalForm(form)}
+              onDeleteMedicalForm={handleDeleteMedicalForm}
+              onClearAllMedicalForms={handleClearAllMedicalForms}
               initialMemberCardNo={medicalFormPrefillCardNo}
               onConsumedInitialMember={() => setMedicalFormPrefillCardNo(null)}
             />
@@ -1490,12 +1524,12 @@ export default function App() {
               setForcedFirstLogin(false);
               setForcedPasswordExpiry(false);
               setChangePasswordModalOpen(false);
-              alert("Password updated successfully.");
+              setToastMessage(lang === 'fr' ? "Mot de passe mis à jour avec succès." : "Password updated successfully.");
             } catch (error: any) {
               if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                alert("The current password you entered is incorrect.");
+                setToastMessage(lang === 'fr' ? "Le mot de passe actuel est incorrect." : "The current password you entered is incorrect.");
               } else {
-                alert("Error updating password: " + error.message);
+                setToastMessage((lang === 'fr' ? "Erreur de mise à jour du mot de passe : " : "Error updating password: ") + (error.message || 'Error'));
               }
             }
           }

@@ -8,7 +8,7 @@ import { CreditCard, X, RefreshCw, History, CheckCircle2, AlertTriangle, ArrowRi
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Member, Organization, CardNumberAssignment, CardNumberCounters } from '../types';
-import { getCurrentCounters, migrateCardNumberCounters, isValidCardNumberFormat, formatCardNumber, CardFormatMigrationSummary } from '../services/cardNumberService';
+import { getCurrentCounters, migrateCardNumberCounters, isValidCardNumberFormat, formatCardNumber, CardFormatMigrationSummary, getCardContinuityReport, CardContinuityReport } from '../services/cardNumberService';
 
 interface CardNumberManagementModalProps {
   organization: Organization;
@@ -35,6 +35,25 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRows, setHistoryRows] = useState<CardNumberAssignment[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Continuity and Gap Analysis Audit
+  const [continuityOpen, setContinuityOpen] = useState(false);
+  const [continuityReport, setContinuityReport] = useState<CardContinuityReport | null>(null);
+  const [auditingContinuity, setAuditingContinuity] = useState(false);
+
+  const handleRunContinuityReport = async () => {
+    setContinuityOpen((prev) => !prev);
+    if (continuityReport !== null) return;
+    setAuditingContinuity(true);
+    try {
+      const rep = await getCardContinuityReport(members);
+      setContinuityReport(rep);
+    } catch {
+      setContinuityReport(null);
+    } finally {
+      setAuditingContinuity(false);
+    }
+  };
 
   // === AMÉLIORATION AJOUTÉE (v2) : migration ponctuelle de format — action à part,
   // volontairement séparée et bien plus mise en garde que "Validate" (irréversible, touche
@@ -333,6 +352,83 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
               <strong className="text-slate-800">Insured Members</strong> screen — it already keeps every provided
               Card No. and only generates new ones for blank rows.
             </span>
+          </div>
+
+          {/* Continuity & Sequence Audit */}
+          <div>
+            <button
+              type="button"
+              onClick={handleRunContinuityReport}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition flex items-center justify-between cursor-pointer"
+            >
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Continuity & Sequence Gap Audit
+              </span>
+              <span className="text-slate-400">{continuityOpen ? '−' : '+'}</span>
+            </button>
+            {continuityOpen && (
+              <div className="mt-2 border border-slate-200 rounded-xl p-3.5 bg-slate-50 space-y-2.5 text-xs">
+                {auditingContinuity ? (
+                  <div className="p-3 text-center text-slate-400 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Auditing card continuity across all registered insured members…</span>
+                  </div>
+                ) : continuityReport ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-medium">Evaluated Cards:</span>
+                      <span className="font-bold text-slate-800 font-mono">{continuityReport.totalEvaluated}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-medium">Valid Sequence Range:</span>
+                      <span className="font-bold text-slate-800 font-mono">
+                        {continuityReport.minNumber ? pad(continuityReport.minNumber, 5) : '—'} →{' '}
+                        {continuityReport.maxNumber ? pad(continuityReport.maxNumber, 5) : '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-medium">Sequence Status:</span>
+                      {continuityReport.isStrictlyContinuous ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Strictly Continuous (0 gaps)
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          {continuityReport.gaps.length} sequence gap(s) detected
+                        </span>
+                      )}
+                    </div>
+                    {continuityReport.gaps.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 space-y-1 text-[11px] text-amber-900">
+                        <span className="font-bold block">Detected Sequence Gaps:</span>
+                        {continuityReport.gaps.slice(0, 5).map((g, i) => (
+                          <div key={i} className="flex justify-between font-mono">
+                            <span>Gap after #{pad(g.afterNumber, 5)}:</span>
+                            <span className="font-bold text-rose-700">{g.missingCount} missing number(s)</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {continuityReport.anomalies.length > 0 && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-lg p-2.5 space-y-1 text-[11px] text-rose-900">
+                        <span className="font-bold block">Duplicate or Malformed Cards:</span>
+                        {continuityReport.anomalies.slice(0, 4).map((a, i) => (
+                          <div key={i} className="flex justify-between font-mono">
+                            <span>{a.cardNumber}</span>
+                            <span className="font-bold text-rose-700">{a.reason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-slate-500">No continuity data available.</div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* History */}

@@ -15,7 +15,8 @@ import {
   X,
   ListOrdered,
   PlusCircle,
-  Users
+  Users,
+  AlertTriangle,
 } from 'lucide-react';
 import { Organization, Enrollment, Member, UserProfile, Language, RelationshipType } from '../../types';
 import { useTranslation } from '../../i18n/translations';
@@ -77,6 +78,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     phone: '',
     email: '',
   });
+  const [formError, setFormError] = useState<string | null>(null);
   const [isGeneratingCard, setIsGeneratingCard] = useState(false);
 
   // === AMÉLIORATION AJOUTÉE : sélection de l'assuré principal existant depuis l'annuaire ===
@@ -150,9 +152,10 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
   // créé. Le reste du workflow (Agent -> Superviseur -> Admin) est strictement inchangé.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     const fullName = `${form.lastName} ${form.firstName}`.trim();
     if (!fullName || !form.organization) {
-      alert('Please fill out all mandatory fields.');
+      setFormError('Please fill out all mandatory fields (Name and Organization).');
       return;
     }
 
@@ -167,7 +170,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
         method: 'ENROLLMENT',
       });
     } catch (err: any) {
-      alert(err?.message || 'Could not generate a card number. Please try again.');
+      setFormError(err?.message || 'Could not generate a card number. Please try again.');
       setIsGeneratingCard(false);
       return;
     }
@@ -318,6 +321,22 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
           )}
 
           <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+            {formError && (
+              <div className="lg:col-span-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormError(null)}
+                  className="text-rose-500 hover:text-rose-800 text-xs font-bold px-1.5 py-0.5 rounded cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* LEFT COLUMN: Biometric acquisition */}
             <div className="lg:col-span-2 space-y-6">
               {/* Fingerprint sensor */}

@@ -45,15 +45,22 @@ export const WorkflowService = {
 
   /**
    * Supervisor (or Admin) approves an enrollment:
-   * 1. Updates enrollment status to 'approved'
-   * 2. Automatically syncs / registers into Insured Members (`members` collection)
-   * 3. Sends persistent notification to the submitting Agent
+   * 1. Validates Separation of Duties (approver cannot be submitter)
+   * 2. Updates enrollment status to 'approved'
+   * 3. Automatically syncs / registers into Insured Members (`members` collection)
+   * 4. Sends persistent notification and records audit log
    */
   approveEnrollment: async (
     enr: Enrollment,
     members: Member[],
     currentUser: any
   ): Promise<void> => {
+    if (enr.createdBy && currentUser?.uid && enr.createdBy === currentUser.uid) {
+      throw new Error(
+        'Separation of Duties violation: You cannot approve an enrollment that you submitted yourself.'
+      );
+    }
+
     const updated: Enrollment = {
       ...enr,
       status: 'approved',
@@ -78,6 +85,18 @@ export const WorkflowService = {
       targetSection: 'enrollments',
       entityId: enr.id,
     });
+
+    // Enriched audit log
+    await FirestoreService.addLog({
+      userId: currentUser?.uid || 'supervisor',
+      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
+      userRole: currentUser?.role || 'Supervisor',
+      action: 'ENROLLMENT_APPROVED',
+      category: 'Enrollments',
+      entityId: enr.id,
+      entityType: 'enrollment',
+      details: `Enrollment for ${enr.fullName} (Card #${enr.cardNo}) approved by ${currentUser?.fullName || 'Supervisor'}.`,
+    });
   },
 
   /**
@@ -88,6 +107,12 @@ export const WorkflowService = {
     reason: string,
     currentUser: any
   ): Promise<void> => {
+    if (enr.createdBy && currentUser?.uid && enr.createdBy === currentUser.uid) {
+      throw new Error(
+        'Separation of Duties violation: You cannot reject an enrollment that you submitted yourself.'
+      );
+    }
+
     const updated: Enrollment = {
       ...enr,
       status: 'rejected',
@@ -108,6 +133,18 @@ export const WorkflowService = {
       type: 'enrollment',
       targetSection: 'enrollments',
       entityId: enr.id,
+    });
+
+    // Enriched audit log
+    await FirestoreService.addLog({
+      userId: currentUser?.uid || 'supervisor',
+      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
+      userRole: currentUser?.role || 'Supervisor',
+      action: 'ENROLLMENT_REJECTED',
+      category: 'Enrollments',
+      entityId: enr.id,
+      entityType: 'enrollment',
+      details: `Enrollment for ${enr.fullName} rejected by ${currentUser?.fullName || 'Supervisor'}. Reason: ${reason}`,
     });
   },
 
@@ -310,6 +347,12 @@ export const WorkflowService = {
     members: Member[] = [],
     organizations: Organization[] = []
   ): Promise<void> => {
+    if (claim.createdBy && currentUser?.uid && claim.createdBy === currentUser.uid) {
+      throw new Error(
+        'Separation of Duties violation: You cannot approve a medical claim that you submitted yourself.'
+      );
+    }
+
     const updated: Claim = {
       ...claim,
       status: 'approved',
@@ -318,6 +361,18 @@ export const WorkflowService = {
       comments: claim.comments || 'Direct billing approval confirmed.',
     };
     await FirestoreService.updateClaim(updated);
+
+    // Enriched audit log
+    await FirestoreService.addLog({
+      userId: currentUser?.uid || 'supervisor',
+      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
+      userRole: currentUser?.role || 'Supervisor',
+      action: 'CLAIM_APPROVED',
+      category: 'Claims Management',
+      entityId: claim.id,
+      entityType: 'claim',
+      details: `Claim #${claim.reference} for ${claim.memberName} ($${claim.amount}) approved by ${currentUser?.fullName || 'Supervisor'}.`,
+    });
 
     // Notify submitting Agent
     await FirestoreService.addNotification({
@@ -365,6 +420,12 @@ export const WorkflowService = {
     comments: string,
     currentUser: any
   ): Promise<void> => {
+    if (claim.createdBy && currentUser?.uid && claim.createdBy === currentUser.uid) {
+      throw new Error(
+        'Separation of Duties violation: You cannot reject a medical claim that you submitted yourself.'
+      );
+    }
+
     const updated: Claim = {
       ...claim,
       status: 'rejected',
@@ -373,6 +434,18 @@ export const WorkflowService = {
       comments: comments || 'Medical justification not met.',
     };
     await FirestoreService.updateClaim(updated);
+
+    // Enriched audit log
+    await FirestoreService.addLog({
+      userId: currentUser?.uid || 'supervisor',
+      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
+      userRole: currentUser?.role || 'Supervisor',
+      action: 'CLAIM_REJECTED',
+      category: 'Claims Management',
+      entityId: claim.id,
+      entityType: 'claim',
+      details: `Claim #${claim.reference} for ${claim.memberName} rejected by ${currentUser?.fullName || 'Supervisor'}. Reason: ${reason}`,
+    });
 
     // Notify submitting Agent
     await FirestoreService.addNotification({

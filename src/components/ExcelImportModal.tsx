@@ -53,6 +53,7 @@ export function ExcelImportModal<T>({
   // déclenche une étape de prévisualisation OBLIGATOIRE (section 10) avant toute écriture :
   // rien n'est encore persisté ni réservé tant que l'admin n'a pas cliqué "Confirm Import"
   // (section 23). Annuler à ce stade ne consomme donc aucun numéro.
+  const [fileError, setFileError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [finalSummary, setFinalSummary] = useState<{
     total: number; retained: number; generated: number; duplicates: number; invalid: number;
@@ -103,11 +104,12 @@ export function ExcelImportModal<T>({
   }
 
   const handleFiles = async (fileList: File[]) => {
+    setFileError(null);
     const files = fileList.filter(Boolean);
     if (files.length === 0) return;
     const invalid = files.find((f) => !f.name.endsWith('.xlsx') && !f.name.endsWith('.xls'));
     if (invalid) {
-      alert('Please select an Excel file (.xlsx or .xls)');
+      setFileError('Please select a valid Excel file (.xlsx or .xls)');
       return;
     }
 
@@ -328,6 +330,22 @@ export function ExcelImportModal<T>({
 
         {/* Content */}
         <div className="p-6 space-y-5 overflow-y-auto">
+          {fileError && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{fileError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFileError(null)}
+                className="text-rose-500 hover:text-rose-800 text-xs font-bold px-1.5 py-0.5 rounded cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Dropzone */}
           {!loading && !result && (
             <div

@@ -1,7 +1,8 @@
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, writeBatch, DocumentReference } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, MedicalForm, AppNotification, HealthPolicy, PolicyPayment } from '../types';
+import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, AuditLog, MedicalForm, AppNotification, HealthPolicy, PolicyPayment } from '../types';
 import { getFullDemoData, seedInitialDemoDataIfEmpty } from './seedData';
+import { isNewSecurityNumberFormat, normalizeMedicalFormSecurityNumber } from '../utils/medicalFormUtils';
 
 export enum OperationType {
   CREATE = 'create',
@@ -220,18 +221,29 @@ export const FirestoreService = {
       (snap) => {
         if (!snap.empty) {
           const map = new Map<string, MedicalForm>();
-          snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as MedicalForm));
+          snap.docs.forEach((d) => {
+            const raw = { ...d.data(), id: d.id } as MedicalForm;
+            // Ensure every existing medical form follows the new AMID-XX-XX-XXXX structure
+            if (!isNewSecurityNumberFormat(raw.securityNumber)) {
+              const updatedSecNum = normalizeMedicalFormSecurityNumber(raw);
+              raw.securityNumber = updatedSecNum;
+              raw.barcode = updatedSecNum;
+              // Silently migrate the document in Firestore
+              updateDoc(doc(db, 'medicalForms', d.id), {
+                securityNumber: updatedSecNum,
+                barcode: updatedSecNum,
+              }).catch(() => {});
+            }
+            map.set(d.id, raw);
+          });
           cb(Array.from(map.values()));
         } else {
-          const demo = getFullDemoData();
-          cb((demo.forms || []) as MedicalForm[]);
-          seedInitialDemoDataIfEmpty();
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'medicalForms');
-        const demo = getFullDemoData();
-        cb((demo.forms || []) as MedicalForm[]);
+        cb([]);
       }
     ),
 
@@ -486,12 +498,13 @@ export const FirestoreService = {
     }
   },
 
-  // Logs
-  addLog: async (data: Partial<LoginLog>) => {
+  // Logs & Audit Trail
+  addLog: async (data: Partial<AuditLog> | Partial<LoginLog>) => {
     try {
       return await addDoc(collection(db, 'auditLogs'), {
         ...data,
         timestamp: new Date().toISOString(),
+        userAgent: (data as any).userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : undefined),
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'auditLogs');
@@ -529,6 +542,11 @@ export const FirestoreService = {
   // Medical Forms
   addMedicalForm: async (data: Partial<MedicalForm>) => {
     try {
+      if (!isNewSecurityNumberFormat(data.securityNumber)) {
+        const secNum = normalizeMedicalFormSecurityNumber(data);
+        data.securityNumber = secNum;
+        data.barcode = secNum;
+      }
       return await addDoc(collection(db, 'medicalForms'), data);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'medicalForms');
@@ -549,6 +567,20 @@ export const FirestoreService = {
       return await deleteDoc(doc(db, 'medicalForms', id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `medicalForms/${id}`);
+      throw err;
+    }
+  },
+  deleteAllMedicalForms: async () => {
+    try {
+      const snap = await getDocs(collection(db, 'medicalForms'));
+      if (snap.empty) return;
+      const batch = writeBatch(db);
+      snap.docs.forEach((d) => {
+        batch.delete(d.ref);
+      });
+      await batch.commit();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, 'medicalForms');
       throw err;
     }
   },

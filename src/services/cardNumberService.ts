@@ -184,6 +184,147 @@ export async function generateNextCardNumber(ctx: AssignmentContext): Promise<st
 }
 
 /**
+ * Atomically generates N consecutive card numbers in a single transaction,
+ * guaranteeing no gaps and recording each number in the uniqueness registry.
+ */
+export async function batchGenerateCardNumbers(
+  count: number,
+  ctxList: AssignmentContext[] = []
+): Promise<string[]> {
+  if (count <= 0) return [];
+  return runTransaction(db, async (tx) => {
+    const countersSnap = await tx.get(COUNTERS_REF);
+    const counters: CardNumberCounters = countersSnap.exists()
+      ? (countersSnap.data() as CardNumberCounters)
+      : { lastAssuredNumber: 0 };
+
+    let currentAssured = counters.lastAssuredNumber || 0;
+    const generated: string[] = [];
+    const today = new Date();
+
+    for (let i = 0; i < count; i++) {
+      currentAssured += 1;
+      const cardNumber = formatCardNumber(today, currentAssured);
+      const registryRef = doc(db, REGISTRY_COLLECTION, cardNumber);
+      const registrySnap = await tx.get(registryRef);
+      if (registrySnap.exists()) {
+        throw new Error(`Integrity constraint violation: card number ${cardNumber} already assigned.`);
+      }
+
+      const ctx = ctxList[i] || { method: 'MANUAL' as CardAssignmentMethod };
+      tx.set(registryRef, buildAssignmentDoc(cardNumber, toIssueDateSegment(today), currentAssured, ctx));
+      generated.push(cardNumber);
+    }
+
+    tx.set(
+      COUNTERS_REF,
+      {
+        lastAssuredNumber: currentAssured,
+        formatVersion: 'v2',
+        updatedAt: new Date().toISOString(),
+      } as CardNumberCounters,
+      { merge: true }
+    );
+
+    return generated;
+  });
+}
+
+export interface CardContinuityReport {
+  totalEvaluated: number;
+  validCount: number;
+  invalidCount: number;
+  duplicateCount: number;
+  minSequenceNumber: number;
+  maxSequenceNumber: number;
+  detectedGaps: { after: number; missingCount: number }[];
+  invalidSamples: string[];
+  duplicateSamples: string[];
+  isStrictlyContinuous: boolean;
+  generatedAt: string;
+}
+
+/**
+ * Continuity & audit inspection for card numbers across members and dependents.
+ * Verifies sequence integrity, gap analysis, and detects duplicates or format anomalies.
+ */
+export async function getCardContinuityReport(members: Member[]): Promise<CardContinuityReport> {
+  const allCardNumbers: string[] = [];
+  members.forEach((m) => {
+    if (m.cardNo) allCardNumbers.push(m.cardNo);
+    (m.dependents || []).forEach((d) => {
+      if (d.cardNo) allCardNumbers.push(d.cardNo);
+    });
+  });
+
+  try {
+    const res = await fetch('/api/cards/continuity-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cardNumbers: allCardNumbers }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        ...data,
+        generatedAt: new Date().toISOString(),
+      };
+    }
+  } catch {
+    // Local fallback
+  }
+
+  const validNumbers: { original: string; date: string; num: number }[] = [];
+  const invalidNumbers: string[] = [];
+  const duplicates: string[] = [];
+  const seen = new Set<string>();
+
+  for (const c of allCardNumbers) {
+    const trimmed = c.trim();
+    if (seen.has(trimmed)) {
+      duplicates.push(trimmed);
+      continue;
+    }
+    seen.add(trimmed);
+
+    const parsed = parseCardNumber(trimmed);
+    if (!parsed) {
+      invalidNumbers.push(trimmed);
+      continue;
+    }
+    validNumbers.push({
+      original: trimmed,
+      date: parsed.issueDate,
+      num: parsed.assuredNumber,
+    });
+  }
+
+  validNumbers.sort((a, b) => a.num - b.num);
+
+  const gaps: { after: number; missingCount: number }[] = [];
+  for (let i = 0; i < validNumbers.length - 1; i++) {
+    const diff = validNumbers[i + 1].num - validNumbers[i].num;
+    if (diff > 1) {
+      gaps.push({ after: validNumbers[i].num, missingCount: diff - 1 });
+    }
+  }
+
+  return {
+    totalEvaluated: allCardNumbers.length,
+    validCount: validNumbers.length,
+    invalidCount: invalidNumbers.length,
+    duplicateCount: duplicates.length,
+    minSequenceNumber: validNumbers.length > 0 ? validNumbers[0].num : 0,
+    maxSequenceNumber: validNumbers.length > 0 ? validNumbers[validNumbers.length - 1].num : 0,
+    detectedGaps: gaps,
+    invalidSamples: invalidNumbers.slice(0, 10),
+    duplicateSamples: duplicates.slice(0, 10),
+    isStrictlyContinuous: gaps.length === 0,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * CASE where a card number is already provided (existing manual number, Excel row that
  * already has a Card No., admin retyping a historical number) — validates the format,
  * rejects it if already assigned to someone else, reserves it, and raises the counter to at

@@ -230,6 +230,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   const [selectedMemberForBiometrics, setSelectedMemberForBiometrics] = useState<Member | null>(null);
 
   // Form State
+  const [formError, setFormError] = useState<string | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [formCardNo, setFormCardNo] = useState('');
   const [formPrincipalName, setFormPrincipalName] = useState('');
@@ -473,7 +474,11 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   // (rejeté si déjà attribué à un autre assuré) — jamais fait confiance sans vérification.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formPrincipalName.trim() || !formOrg.trim()) return;
+    setFormError(null);
+    if (!formPrincipalName.trim() || !formOrg.trim()) {
+      setFormError('Please fill in all mandatory fields (Name and Organization).');
+      return;
+    }
 
     let finalCardNo = formCardNo.trim();
     if (!editingMember) {
@@ -497,7 +502,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
           });
         }
       } catch (err: any) {
-        alert(err?.message || 'Could not assign a card number. Please try again.');
+        setFormError(err?.message || 'Could not assign a card number. Please try again.');
         setIsSavingCard(false);
         return;
       }
@@ -1379,6 +1384,22 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
 
             {/* Modal Body / Form */}
             <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6 overflow-y-auto">
+              {formError && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{formError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormError(null)}
+                    className="text-rose-500 hover:text-rose-800 text-xs font-bold px-1.5 py-0.5 rounded cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               {/* SECTION 1: BENEFICIARY IDENTITY */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">

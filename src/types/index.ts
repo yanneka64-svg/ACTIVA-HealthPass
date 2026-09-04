@@ -450,9 +450,18 @@ export interface AuditLog {
   id: string;
   timestamp: string;
   user: string;
+  userName?: string;
   action: string;
   module: string;
+  category?: string;
   details: string;
+  userId?: string;
+  userRole?: string;
+  entityId?: string;
+  entityType?: string;
+  ip?: string;
+  userAgent?: string;
+  severity?: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
 }
 
 export type NavSection =

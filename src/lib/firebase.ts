@@ -6,6 +6,8 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
   memoryLocalCache,
+  doc,
+  getDocFromServer,
 } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
@@ -13,7 +15,7 @@ import firebaseConfig from "../../firebase-applet-config.json";
 
 // Silence non-fatal Firestore network transition warnings in development iframe
 try {
-  setLogLevel("error");
+  setLogLevel("silent");
 } catch {
   // Ignore if setLogLevel not supported
 }
@@ -28,7 +30,7 @@ try {
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager(),
       }),
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
       ignoreUndefinedProperties: true,
     },
     firebaseConfig.firestoreDatabaseId
@@ -39,7 +41,7 @@ try {
       app,
       {
         localCache: memoryLocalCache(),
-        experimentalAutoDetectLongPolling: true,
+        experimentalForceLongPolling: true,
         ignoreUndefinedProperties: true,
       },
       firebaseConfig.firestoreDatabaseId
@@ -59,6 +61,18 @@ export const secondaryApp = getApps().some((a) => a.name === "Secondary")
   ? getApp("Secondary")
   : initializeApp(firebaseConfig, "Secondary");
 export const secondaryAuth = getAuth(secondaryApp);
+
+// Validate Connection to Firestore as prescribed in Firebase integration guidelines
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, "test", "connection"));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("the client is offline")) {
+      console.warn("Firestore offline notice: Local cache will be used until connection resumes.");
+    }
+  }
+}
+testConnection();
 
 
 

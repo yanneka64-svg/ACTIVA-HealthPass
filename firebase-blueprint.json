@@ -2,6 +2,13 @@
   "project_id": "gen-lang-client-0957905786",
   "collections": [
     {
+      "name": "accounts",
+      "rules": [
+        { "action": "read", "condition": "true" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
       "name": "users",
       "rules": [
         { "action": "read", "condition": "request.auth != null" },
@@ -10,6 +17,34 @@
     },
     {
       "name": "members",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "counters",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "cardNumberRegistry",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "create", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "healthPolicies",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "write", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "policyPayments",
       "rules": [
         { "action": "read", "condition": "request.auth != null" },
         { "action": "write", "condition": "request.auth != null" }
@@ -58,7 +93,21 @@
       ]
     },
     {
-      "name": "logs",
+      "name": "auditLogs",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "create", "condition": "true" }
+      ]
+    },
+    {
+      "name": "loginLogs",
+      "rules": [
+        { "action": "read", "condition": "request.auth != null" },
+        { "action": "create", "condition": "request.auth != null" }
+      ]
+    },
+    {
+      "name": "notifications",
       "rules": [
         { "action": "read", "condition": "request.auth != null" },
         { "action": "write", "condition": "request.auth != null" }
