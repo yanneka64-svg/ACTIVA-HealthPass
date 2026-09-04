@@ -263,7 +263,26 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       console.warn('Could not generate the PDF for sharing:', err);
     }
 
-    if (pdfFile && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+    // === AMÉLIORATION AJOUTÉE : robustesse — sur certains navigateurs/WebViews mobiles,
+    // `navigator.canShare({ files: ... })` peut lever une exception au lieu de renvoyer
+    // `false` pour une forme de données non supportée. Cette vérification n'était pas
+    // protégée : une exception ici interrompait silencieusement toute la fonction ("rien ne
+    // se passe" au clic, aucun repli sur le téléchargement). Elle est désormais entourée
+    // d'un try/catch, comme le reste de la fonction.
+    let canShareFile = false;
+    try {
+      canShareFile = !!(
+        pdfFile &&
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [pdfFile] })
+      );
+    } catch (err) {
+      console.warn('navigator.canShare threw while checking file support:', err);
+      canShareFile = false;
+    }
+
+    if (canShareFile && pdfFile) {
       try {
         await navigator.share({
           title: `ACTIVA Medical Voucher - ${form.securityNumber}`,
