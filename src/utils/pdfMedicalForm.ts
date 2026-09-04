@@ -1,10 +1,9 @@
 import jsPDF from 'jspdf';
 import { MedicalForm } from '../types';
 import { drawRefinedHeaderTitle } from './pdfBranding';
-// === AMÉLIORATION AJOUTÉE : restauration du logo Activa blanc directement sur le bandeau
-// (à la place du bandeau "IN PARTNERSHIP WITH" + logo Globus, retiré ci-dessous), sur demande
-// explicite — le document généré doit correspondre exactement au modèle attendu.
-import { ACTIVA_LOGO_WHITE_BASE64, ACTIVA_LOGO_ASPECT } from '../assets/logos';
+// === AMÉLIORATION AJOUTÉE : restauration du logo Activa (blanc) directement sur le bandeau
+// d'en-tête, et logo Globus (réseau partenaire) en pied de page, sur demande explicite.
+import { ACTIVA_LOGO_WHITE_BASE64, ACTIVA_LOGO_ASPECT, GLOBUS_LOGO_BASE64, GLOBUS_LOGO_ASPECT } from '../assets/logos';
 
 export const generateMedicalFormPDF = (form: MedicalForm) => {
   const doc = new jsPDF({
@@ -14,6 +13,7 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   });
 
   const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
+  const pageHeight = doc.internal.pageSize.getHeight(); // 297mm
 
   // Header Background bar - ACTIVA Blue #0A347B
   doc.setFillColor(10, 52, 123);
@@ -307,31 +307,42 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   currentY += 15.5;
 
   // 6. MANDATORY RETURN BANNER
+  // === AMÉLIORATION AJOUTÉE : bandeau réduit (hauteur 11 → 8.5, police légèrement plus
+  // petite) pour laisser la place au logo Globus réinséré juste en dessous, sur demande
+  // explicite.
+  const mandatoryBannerHeight = 8.5;
   doc.setFillColor(254, 242, 242);
-  doc.roundedRect(14, currentY, pageWidth - 28, 11, 2, 2, 'F');
+  doc.roundedRect(14, currentY, pageWidth - 28, mandatoryBannerHeight, 2, 2, 'F');
   doc.setDrawColor(225, 29, 72);
   doc.setLineWidth(0.5);
-  doc.roundedRect(14, currentY, pageWidth - 28, 11, 2, 2, 'S');
+  doc.roundedRect(14, currentY, pageWidth - 28, mandatoryBannerHeight, 2, 2, 'S');
 
   doc.setTextColor(190, 18, 60);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(6.5);
   doc.text(
     'MANDATORY NOTICE: THIS FORM MUST BE RETURNED TO THE MEDICAL AGENT AFTER SIGNATURE',
     pageWidth / 2,
-    currentY + 4.5,
+    currentY + 3.5,
     { align: 'center' }
   );
-  doc.setFontSize(7);
+  doc.setFontSize(5.8);
   doc.text(
     'FOR COMPLETION OF HEALTHCARE AUTHORIZATION AND DIRECT-BILLING DISBURSEMENT.',
     pageWidth / 2,
-    currentY + 8.5,
+    currentY + 6.7,
     { align: 'center' }
   );
 
-  // === AMÉLIORATION AJOUTÉE : logo Globus en pied de page retiré (sur demande explicite) —
-  // le document généré ne comportait pas ce logo dans la version attendue.
+  // === AMÉLIORATION AJOUTÉE : logo Globus réinséré en pied de page (légèrement agrandi),
+  // positionné juste sous le bandeau "mandatory notice" désormais réduit, sur demande
+  // explicite.
+  const globusLogoHeight = 13;
+  const globusLogoWidth = globusLogoHeight * GLOBUS_LOGO_ASPECT;
+  const globusLogoX = (pageWidth - globusLogoWidth) / 2;
+  const mandatoryBannerBottomY = currentY + mandatoryBannerHeight;
+  const globusLogoY = Math.min(mandatoryBannerBottomY + 2, pageHeight - globusLogoHeight - 1);
+  doc.addImage(GLOBUS_LOGO_BASE64, 'PNG', globusLogoX, globusLogoY, globusLogoWidth, globusLogoHeight);
 
   return doc;
 };
