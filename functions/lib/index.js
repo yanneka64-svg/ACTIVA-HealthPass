@@ -24,8 +24,17 @@ async function resolveUserRole(uid, tokenRole) {
         const accSnap = await db.doc(`accounts/${uid}`).get();
         if (accSnap.exists) {
             const data = accSnap.data() || {};
+            // === AMÉLIORATION AJOUTÉE : correctif (revue de code, câblage Phase 5) — le document
+            // `accounts/{uid}` stocke le rôle sous le champ `profile` partout ailleurs dans
+            // l'application (AccountsView.tsx, firestore.rules `getUserData().profile`,
+            // normalizeRole()...), jamais sous `role`. Comme aucune Custom Claim `role` n'est
+            // jamais réellement posée dans ce projet (`context.auth.token.role` est donc toujours
+            // absent), cette fonction retombait systématiquement sur le repli 'Agent' pour TOUT
+            // utilisateur, y compris les Admin/Supervisor — ce qui aurait bloqué en permanence
+            // `bulkImportMembers` (réservé à Admin/Supervisor) et faussé le rôle serveur utilisé par
+            // `processClaimDecision`/`processEnrollmentDecision`, une fois ces fonctions déployées.
             return {
-                role: data.role || 'Agent',
+                role: data.profile || data.role || 'Agent',
                 name: data.fullName || data.email || 'Staff User',
             };
         }

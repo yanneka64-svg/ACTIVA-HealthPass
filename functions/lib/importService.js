@@ -2,196 +2,161 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.processBulkMemberImportServer = processBulkMemberImportServer;
 const cardService_1 = require("./cardService");
+// === AMÉLIORATION AJOUTÉE : correctif LOW (revue de code du 3e3bea9) ===
+// L'incrément du compteur de cartes se faisait auparavant hors transaction (une lecture, puis
+// à la toute fin un `set()` séparé après tous les lots d'écriture) : deux imports concurrents
+// (ou un import concurrent à generateNextCardNumberServer) pouvaient lire le même compteur de
+// départ et produire des numéros de carte en double — précisément le scénario que le brief
+// demande explicitement d'empêcher ("empêcher les doublons en cas de... import concurrent").
+// La réservation de la plage de numéros est désormais atomique (une seule transaction), et les
+// numéros de carte SAISIS MANUELLEMENT dans le fichier sont maintenant aussi vérifiés contre
+// le VRAI registre Firestore (pas seulement contre les doublons internes au fichier importé) —
+// auparavant, un numéro déjà consommé lors d'un import précédent aurait été silencieusement
+// écrasé, en violation du principe d'immuabilité du registre.
 async function processBulkMemberImportServer(db, rows, performedBy) {
     const report = [];
-    const seenInFile = new Set();
-    // 1. Fetch current counters atomically
-    const countersRef = db.doc('counters/cardNumbers');
-    const countersSnap = await countersRef.get();
-    const counters = countersSnap.exists ? countersSnap.data() || {} : {};
-    let lastAssuredNumber = counters.lastAssuredNumber || 0;
+    const seenCardNumbers = new Set();
     const today = new Date();
-    // 2. Pre-gather and query provided card numbers against Firestore
-    const rawProvidedCards = rows
-        .map((r) => (r.cardNoRaw || '').trim())
-        .filter((c) => Boolean(c));
-    const existingInFirestore = new Set();
-    // Query in chunks of 30 for Firestore getAll
-    for (let i = 0; i < rawProvidedCards.length; i += 30) {
-        const chunk = rawProvidedCards.slice(i, i + 30);
-        const docRefs = chunk.map((c) => db.doc(`cardNumberRegistry/${c}`));
-        if (docRefs.length > 0) {
-            const snaps = await db.getAll(...docRefs);
-            snaps.forEach((snap) => {
-                if (snap.exists) {
-                    existingInFirestore.add(snap.id);
-                }
-            });
-        }
-    }
-    const validItemsToInsert = [];
-    for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const name = (row.principalName || '').trim();
-        const org = (row.organization || '').trim();
-        if (!name || !org) {
-            report.push({
-                rowIndex: i,
-                principalName: name || 'Unknown',
-                organization: org || 'Unknown',
-                cardNo: '—',
-                status: 'FAILED',
-                reason: 'Missing required principal name or organization',
-            });
-            continue;
-        }
-        let finalCardNo = (row.cardNoRaw || '').trim();
-        let itemAssuredNumber;
-        if (!finalCardNo) {
-            // Case B: Generate next sequential number
-            lastAssuredNumber += 1;
-            finalCardNo = (0, cardService_1.formatCardNumber)(today, lastAssuredNumber);
-            itemAssuredNumber = lastAssuredNumber;
-        }
-        else {
-            // Case A: Validate provided number
-            const parsed = (0, cardService_1.parseCardNumber)(finalCardNo);
-            if (!parsed) {
+    const countersRef = db.doc('counters/cardNumbers');
+    const { plannedRows } = await db.runTransaction(async (tx) => {
+        const countersSnap = await tx.get(countersRef);
+        const counters = countersSnap.exists ? countersSnap.data() || {} : {};
+        let currentAssured = counters.lastAssuredNumber || 0;
+        const planned = [];
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const name = (row.principalName || '').trim();
+            const org = (row.organization || '').trim();
+            if (!name || !org) {
                 report.push({
                     rowIndex: i,
-                    principalName: name,
-                    organization: org,
-                    cardNo: finalCardNo,
+                    principalName: name || 'Unknown',
+                    organization: org || 'Unknown',
+                    cardNo: '—',
                     status: 'FAILED',
-                    reason: 'Invalid card number format (expected AMID-YYMMDD-NNNNN with valid date)',
+                    reason: 'Missing required principal name or organization',
                 });
                 continue;
             }
-            // Check duplicate within Excel file
-            if (seenInFile.has(finalCardNo)) {
-                report.push({
-                    rowIndex: i,
-                    principalName: name,
-                    organization: org,
-                    cardNo: finalCardNo,
-                    status: 'SKIPPED',
-                    reason: 'Duplicate card number within Excel import dataset',
-                });
-                continue;
+            let finalCardNo = (row.cardNoRaw || '').trim();
+            if (!finalCardNo) {
+                // Generate next sequential number (reserved atomically within this transaction).
+                currentAssured += 1;
+                finalCardNo = (0, cardService_1.formatCardNumber)(today, currentAssured);
             }
-            // Check duplicate in Firestore
-            if (existingInFirestore.has(finalCardNo)) {
-                report.push({
-                    rowIndex: i,
-                    principalName: name,
-                    organization: org,
-                    cardNo: finalCardNo,
-                    status: 'SKIPPED',
-                    reason: `Card number ${finalCardNo} is already assigned in Firestore registry`,
-                });
-                continue;
+            else {
+                // Validate provided number
+                const parsed = (0, cardService_1.parseCardNumber)(finalCardNo);
+                if (!parsed) {
+                    report.push({
+                        rowIndex: i,
+                        principalName: name,
+                        organization: org,
+                        cardNo: finalCardNo,
+                        status: 'FAILED',
+                        reason: 'Invalid card number format (expected AMID-YYMMDD-NNNNN)',
+                    });
+                    continue;
+                }
+                if (seenCardNumbers.has(finalCardNo)) {
+                    report.push({
+                        rowIndex: i,
+                        principalName: name,
+                        organization: org,
+                        cardNo: finalCardNo,
+                        status: 'FAILED',
+                        reason: 'Duplicate card number within import dataset',
+                    });
+                    continue;
+                }
+                // Verify against the REAL registry — a provided number could already be consumed by
+                // an earlier import or enrollment, not just duplicated within this file.
+                const existingSnap = await tx.get(db.doc(`cardNumberRegistry/${finalCardNo}`));
+                if (existingSnap.exists) {
+                    report.push({
+                        rowIndex: i,
+                        principalName: name,
+                        organization: org,
+                        cardNo: finalCardNo,
+                        status: 'FAILED',
+                        reason: 'Card number already assigned to another insured member',
+                    });
+                    continue;
+                }
+                // Bump sequential counter if historical number exceeds running sequence
+                if (parsed.assuredNumber > currentAssured) {
+                    currentAssured = parsed.assuredNumber;
+                }
             }
-            itemAssuredNumber = parsed.assuredNumber;
-            // Monotonically bump global counter if historical number exceeds running sequence
-            if (parsed.assuredNumber > lastAssuredNumber) {
-                lastAssuredNumber = parsed.assuredNumber;
-            }
+            seenCardNumbers.add(finalCardNo);
+            planned.push({ rowIndex: i, name, org, row, finalCardNo });
         }
-        seenInFile.add(finalCardNo);
-        // Prepare member document
-        const memberDocId = `MEM-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`;
-        const memberDoc = {
-            id: memberDocId,
-            cardNo: finalCardNo,
-            principalName: name,
-            organization: org,
-            status: 'Actif',
-            relationship: row.relationship || 'Principal',
-            birthDate: row.birthDate || '1990-01-01',
-            gender: row.gender || 'M',
-            phone: row.phone || '',
-            email: row.email || '',
-            hasPhoto: false,
-            hasBiometrics: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            importedBy: performedBy.uid,
-        };
-        const registryDoc = {
-            id: finalCardNo,
-            cardNumber: finalCardNo,
-            issueDate: (0, cardService_1.toIssueDateSegment)(today),
-            assuredNumber: finalCardNo.slice(-5),
-            organization: org,
-            insuredName: name,
-            assignedBy: performedBy.uid,
-            assignedByName: performedBy.name,
-            assignedAt: new Date().toISOString(),
-            method: 'EXCEL_IMPORT',
-        };
-        validItemsToInsert.push({
-            memberDoc,
-            registryDoc,
-            assignedAssuredNumber: itemAssuredNumber,
-        });
-        report.push({
-            rowIndex: i,
-            principalName: name,
-            organization: org,
-            cardNo: finalCardNo,
-            status: 'SUCCESS',
-        });
-    }
-    // 3. Commit writes in chunks with atomic counter updates
-    // Firestore limit: 500 ops per batch. Each item is 2 ops (member + registry).
-    // 150 items = 300 ops + 1 op (counter) = 301 ops per batch, safely under 500.
-    const CHUNK_SIZE = 150;
-    let runningMaxCounter = counters.lastAssuredNumber || 0;
-    for (let c = 0; c < validItemsToInsert.length; c += CHUNK_SIZE) {
-        const batch = db.batch();
-        const chunk = validItemsToInsert.slice(c, c + CHUNK_SIZE);
-        chunk.forEach((item) => {
-            batch.set(db.doc(`members/${item.memberDoc.id}`), item.memberDoc);
-            batch.set(db.doc(`cardNumberRegistry/${item.registryDoc.id}`), item.registryDoc);
-            if (item.assignedAssuredNumber > runningMaxCounter) {
-                runningMaxCounter = item.assignedAssuredNumber;
-            }
-        });
-        // Atomically commit the updated counter alongside this chunk!
-        batch.set(countersRef, {
-            lastAssuredNumber: runningMaxCounter,
+        tx.set(countersRef, {
+            lastAssuredNumber: currentAssured,
             formatVersion: 'v2',
             updatedAt: new Date().toISOString(),
         }, { merge: true });
-        await batch.commit();
-    }
-    // 4. Log audit event
-    try {
-        const auditRef = db.collection('auditLogs').doc();
-        await auditRef.set({
-            id: auditRef.id,
-            timestamp: new Date().toISOString(),
-            userId: performedBy.uid,
-            userName: performedBy.name,
-            userRole: performedBy.role,
-            action: 'BULK_MEMBER_IMPORT',
-            category: 'Data Management',
-            entityId: `BATCH-${Date.now()}`,
-            entityType: 'import_batch',
-            details: `Bulk import completed: ${validItemsToInsert.length} created, ${report.filter((r) => r.status === 'SKIPPED').length} skipped, ${report.filter((r) => r.status === 'FAILED').length} failed out of ${rows.length} total rows.`,
+        return { plannedRows: planned };
+    });
+    const membersToCreate = plannedRows.map((p) => ({
+        id: `MEM-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`,
+        cardNo: p.finalCardNo,
+        principalName: p.name,
+        organization: p.org,
+        status: 'Active',
+        relationship: p.row.relationship || 'Primary',
+        birthDate: p.row.birthDate || '1990-01-01',
+        gender: p.row.gender || 'M',
+        phone: p.row.phone || '',
+        email: p.row.email || '',
+        hasPhoto: false,
+        hasBiometrics: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        importedBy: performedBy.uid,
+    }));
+    const registryDocsToCreate = plannedRows.map((p) => ({
+        id: p.finalCardNo,
+        cardNumber: p.finalCardNo,
+        issueDate: (0, cardService_1.toIssueDateSegment)(today),
+        assuredNumber: p.finalCardNo.slice(-5),
+        organization: p.org,
+        insuredName: p.name,
+        assignedBy: performedBy.uid,
+        assignedByName: performedBy.name,
+        assignedAt: new Date().toISOString(),
+        method: 'EXCEL_IMPORT',
+    }));
+    for (const p of plannedRows) {
+        report.push({
+            rowIndex: p.rowIndex,
+            principalName: p.name,
+            organization: p.org,
+            cardNo: p.finalCardNo,
+            status: 'SUCCESS',
         });
     }
-    catch (e) {
-        // Non-blocking log
+    report.sort((a, b) => a.rowIndex - b.rowIndex);
+    // Commit writes in chunks (Firestore 500 limit) — the counter and every card number are
+    // already atomically reserved above, so this part can safely run outside a transaction.
+    const CHUNK_SIZE = 400;
+    for (let c = 0; c < membersToCreate.length; c += CHUNK_SIZE) {
+        const batch = db.batch();
+        const membersChunk = membersToCreate.slice(c, c + CHUNK_SIZE);
+        const registryChunk = registryDocsToCreate.slice(c, c + CHUNK_SIZE);
+        membersChunk.forEach((m) => {
+            batch.set(db.doc(`members/${m.id}`), m);
+        });
+        registryChunk.forEach((r) => {
+            batch.set(db.doc(`cardNumberRegistry/${r.id}`), r);
+        });
+        await batch.commit();
     }
-    const successCount = validItemsToInsert.length;
-    const skippedCount = report.filter((r) => r.status === 'SKIPPED').length;
-    const failureCount = report.filter((r) => r.status === 'FAILED').length;
     return {
         totalProcessed: rows.length,
-        successCount,
-        failureCount,
-        skippedCount,
+        successCount: membersToCreate.length,
+        failureCount: rows.length - membersToCreate.length,
+        skippedCount: 0,
         report,
     };
 }

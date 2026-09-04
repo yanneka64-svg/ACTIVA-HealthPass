@@ -22,13 +22,24 @@ function evaluatePolicyServer(policy, asOfDate = new Date()) {
         }
     }
     // 2. Check overdue payment & grace period
+    // === AMÉLIORATION AJOUTÉE : correctif MEDIUM — aligné sur l'ordre de règles et les
+    // conditions exactes du moteur client (src/services/policyEngine.ts) : (a) ne bloque QUE si
+    // le retard dépasse le délai de grâce ET qu'un solde est réellement dû (outstandingAmount >
+    // 0, comme côté client — auparavant absent ici, une police en retard de date mais déjà
+    // soldée aurait été bloquée à tort) ; (b) ne retourne plus immédiatement "Active" quand le
+    // paiement est simplement dans le délai de grâce — cela court-circuitait la vérification de
+    // suspension manuelle ci-dessous : une police à la fois "en retard mais dans le délai de
+    // grâce" ET "suspendue manuellement" était évaluée à tort comme Active par le serveur, alors
+    // que le moteur client la bloque correctement.
     const graceDays = policy.gracePeriodDays ?? 15;
+    let daysPastDue = 0;
+    let isInGracePeriod = false;
     if (policy.nextPaymentDueDate) {
         const dueDate = new Date(policy.nextPaymentDueDate).getTime();
         if (!isNaN(dueDate)) {
             const diffPastDue = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
             if (diffPastDue > 0) {
-                if (diffPastDue > graceDays) {
+                if (diffPastDue > graceDays && (policy.outstandingAmount ?? 0) > 0) {
                     return {
                         status: 'Suspended (Non-payment)',
                         coverageBlocked: true,
@@ -38,16 +49,8 @@ function evaluatePolicyServer(policy, asOfDate = new Date()) {
                         isInGracePeriod: false,
                     };
                 }
-                else {
-                    return {
-                        status: 'Active',
-                        coverageBlocked: false,
-                        reason: `Premium payment is ${diffPastDue} days past due, but within the ${graceDays}-day grace period.`,
-                        daysUntilExpiration: 999,
-                        daysPastDue: diffPastDue,
-                        isInGracePeriod: true,
-                    };
-                }
+                daysPastDue = diffPastDue;
+                isInGracePeriod = true;
             }
         }
     }
@@ -58,8 +61,8 @@ function evaluatePolicyServer(policy, asOfDate = new Date()) {
             coverageBlocked: true,
             reason: policy.suspensionReason || 'Manually suspended by administrator.',
             daysUntilExpiration: 999,
-            daysPastDue: 0,
-            isInGracePeriod: false,
+            daysPastDue,
+            isInGracePeriod,
         };
     }
     // 4. Check warning expiration
@@ -74,8 +77,8 @@ function evaluatePolicyServer(policy, asOfDate = new Date()) {
                     coverageBlocked: false,
                     reason: `Policy will expire in ${diffDays} days (${policy.expirationDate}). Renewal required.`,
                     daysUntilExpiration: diffDays,
-                    daysPastDue: 0,
-                    isInGracePeriod: false,
+                    daysPastDue,
+                    isInGracePeriod,
                 };
             }
         }
@@ -83,10 +86,12 @@ function evaluatePolicyServer(policy, asOfDate = new Date()) {
     return {
         status: 'Active',
         coverageBlocked: false,
-        reason: 'Policy is active and all premiums are in good standing.',
+        reason: isInGracePeriod
+            ? `Premium payment is ${daysPastDue} days past due, but within the ${graceDays}-day grace period.`
+            : 'Policy is active and all premiums are in good standing.',
         daysUntilExpiration: 999,
-        daysPastDue: 0,
-        isInGracePeriod: false,
+        daysPastDue,
+        isInGracePeriod,
     };
 }
 async function syncPolicyStatusServer(db, orgId) {
