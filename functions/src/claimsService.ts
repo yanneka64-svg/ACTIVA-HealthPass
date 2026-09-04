@@ -18,7 +18,7 @@ export async function processClaimDecisionServer(
 ): Promise<{ success: boolean; invoiceId?: string }> {
   const claimRef = db.doc(`claims/${payload.claimId}`);
 
-  return db.runTransaction(async (tx) => {
+  return db.runTransaction(async (tx: admin.firestore.Transaction) => {
     const claimSnap = await tx.get(claimRef);
     if (!claimSnap.exists) {
       throw new Error(`Claim ${payload.claimId} does not exist.`);
@@ -69,11 +69,11 @@ export async function processClaimDecisionServer(
         claimId: payload.claimId,
         invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
         memberId: claim.memberId || '',
-        principalName: claim.principalName || '',
-        cardNo: claim.cardNo || '',
+        principalName: claim.principalName || claim.memberName || '',
+        cardNo: claim.cardNo || claim.memberCardNo || '',
         organization: claim.organization || '',
         provider: claim.provider || '',
-        amountUSD: payload.approvedAmountUSD ?? claim.amountUSD ?? 0,
+        amountUSD: payload.approvedAmountUSD ?? claim.amountUSD ?? claim.amount ?? 0,
         amountLRD: payload.approvedAmountLRD ?? claim.amountLRD ?? 0,
         status: 'PAID',
         generatedAt: new Date().toISOString(),
@@ -98,6 +98,26 @@ export async function processClaimDecisionServer(
       entityType: 'claim',
       details: `Claim ${payload.claimId} was ${payload.decision} by ${payload.approverName} (${payload.approverRole}).`,
     });
+
+    // 6. Notify the agent who submitted
+    if (claim.createdBy) {
+      const notifRef = db.collection('notifications').doc();
+      tx.set(notifRef, {
+        id: notifRef.id,
+        recipientRole: 'Agent',
+        recipientId: claim.createdBy,
+        recipientEmail: claim.creatorEmail || null,
+        title: payload.decision === 'approved' ? 'Medical Claim Approved ✓' : 'Medical Claim Rejected ✗',
+        message: payload.decision === 'approved'
+          ? `Claim #${claim.reference || payload.claimId} for ${claim.memberName || 'patient'} ($${claim.amount || 0}) was approved.`
+          : `Claim #${claim.reference || payload.claimId} for ${claim.memberName || 'patient'} was rejected: ${payload.rejectionReason || 'Criteria not met.'}`,
+        timestamp: new Date().toISOString(),
+        unread: true,
+        type: 'claim',
+        targetSection: 'claims',
+        entityId: payload.claimId,
+      });
+    }
 
     return { success: true, invoiceId: generatedInvoiceId };
   });
