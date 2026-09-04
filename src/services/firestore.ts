@@ -40,11 +40,29 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   console.warn('Firestore Error Context:', JSON.stringify(errInfo));
 }
 
+// === AMÉLIORATION AJOUTÉE : sécurité/robustesse (Phase 1.3 — isolation par organisation) —
+// contrepartie côté lecture du cloisonnement ajouté dans firestore.rules (accounts.
+// assignedOrganizations / hasOrgAccess()). Une règle Firestore qui dépend d'un champ du
+// document (ici `organization`/`organizationId`) refuse la requête ENTIÈRE si elle n'est pas
+// elle-même filtrée sur ce même champ — sans ce filtre côté client, un compte auquel un Admin
+// aurait assigné un périmètre d'organisations se verrait purement et simplement bloqué (écran
+// vide ou données de démo) au lieu de voir ses propres organisations. `orgScope` est optionnel
+// et vaut `undefined`/`null` par défaut : dans ce cas, la requête reste EXACTEMENT celle
+// d'avant (aucune régression pour les comptes sans périmètre assigné, soit 100% des comptes
+// à ce jour). La limite `in` de Firestore (30 valeurs) est documentée ici : un compte assigné
+// à plus de 30 organisations verrait sa liste tronquée aux 30 premières — cas non rencontré
+// en pratique aujourd'hui (aucune UI ne permet encore de renseigner ce champ).
+function scopedQuery(collectionName: string, field: 'organization' | 'organizationId', orgScope?: string[] | null) {
+  const base = collection(db, collectionName);
+  if (!orgScope || orgScope.length === 0) return base;
+  return query(base, where(field, 'in', orgScope.slice(0, 30)));
+}
+
 export const FirestoreService = {
   // Listeners with explicit error callbacks and demo fallback
-  subscribeToMembers: (cb: (data: Member[]) => void) =>
+  subscribeToMembers: (cb: (data: Member[]) => void, orgScope?: string[] | null) =>
     onSnapshot(
-      collection(db, 'members'),
+      scopedQuery('members', 'organization', orgScope),
       (snap) => {
         if (!snap.empty) {
           const map = new Map<string, Member>();
@@ -105,9 +123,9 @@ export const FirestoreService = {
       }
     ),
 
-  subscribeToClaims: (cb: (data: Claim[]) => void) =>
+  subscribeToClaims: (cb: (data: Claim[]) => void, orgScope?: string[] | null) =>
     onSnapshot(
-      collection(db, 'claims'),
+      scopedQuery('claims', 'organization', orgScope),
       (snap) => {
         if (!snap.empty) {
           const map = new Map<string, Claim>();
@@ -126,9 +144,9 @@ export const FirestoreService = {
       }
     ),
 
-  subscribeToInvoices: (cb: (data: InvoiceItem[]) => void) =>
+  subscribeToInvoices: (cb: (data: InvoiceItem[]) => void, orgScope?: string[] | null) =>
     onSnapshot(
-      collection(db, 'invoices'),
+      scopedQuery('invoices', 'organization', orgScope),
       (snap) => {
         if (!snap.empty) {
           const map = new Map<string, InvoiceItem>();
@@ -147,9 +165,9 @@ export const FirestoreService = {
       }
     ),
 
-  subscribeToEnrollments: (cb: (data: Enrollment[]) => void) =>
+  subscribeToEnrollments: (cb: (data: Enrollment[]) => void, orgScope?: string[] | null) =>
     onSnapshot(
-      collection(db, 'enrollments'),
+      scopedQuery('enrollments', 'organization', orgScope),
       (snap) => {
         if (!snap.empty) {
           const map = new Map<string, Enrollment>();
@@ -215,9 +233,9 @@ export const FirestoreService = {
       }
     ),
 
-  subscribeToMedicalForms: (cb: (data: MedicalForm[]) => void) =>
+  subscribeToMedicalForms: (cb: (data: MedicalForm[]) => void, orgScope?: string[] | null) =>
     onSnapshot(
-      collection(db, 'medicalForms'),
+      scopedQuery('medicalForms', 'organization', orgScope),
       (snap) => {
         if (!snap.empty) {
           const map = new Map<string, MedicalForm>();
@@ -261,9 +279,9 @@ export const FirestoreService = {
       (err) => handleFirestoreError(err, OperationType.GET, 'healthPolicies')
     ),
 
-  subscribeToPolicyPayments: (cb: (data: PolicyPayment[]) => void) =>
+  subscribeToPolicyPayments: (cb: (data: PolicyPayment[]) => void, orgScope?: string[] | null) =>
     onSnapshot(
-      collection(db, 'policyPayments'),
+      scopedQuery('policyPayments', 'organizationId', orgScope),
       (snap) => {
         const map = new Map<string, PolicyPayment>();
         snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as PolicyPayment));

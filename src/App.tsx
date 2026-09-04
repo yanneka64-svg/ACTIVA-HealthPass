@@ -327,23 +327,35 @@ export default function App() {
   const [healthPolicies, setHealthPolicies] = useState<HealthPolicy[]>([]);
   const [policyPayments, setPolicyPayments] = useState<PolicyPayment[]>([]);
 
+  // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3 — isolation par organisation) — périmètre
+  // d'organisations assigné au compte courant (accounts.assignedOrganizations, absent par
+  // défaut). Réduit à une clé de chaîne stable (pas le tableau lui-même, ni currentUser, qui
+  // change de référence à chaque snapshot de compte) pour ne réabonner les listeners
+  // ci-dessous que si le PÉRIMÈTRE change réellement, jamais à chaque re-rendu.
+  const assignedOrgs: string[] | null =
+    Array.isArray((currentUser as any)?.assignedOrganizations) && (currentUser as any).assignedOrganizations.length > 0
+      ? (currentUser as any).assignedOrganizations
+      : null;
+  const orgScopeKey = assignedOrgs ? assignedOrgs.slice().sort().join(' ') : '';
+
   useEffect(() => {
     localStorage.setItem('activa_lang', 'en');
 
     if (authStatus === 'authenticated' && userRole) {
       seedInitialDemoDataIfEmpty();
-      // Set up Firestore data listeners
-      const unsubMembers = FirestoreService.subscribeToMembers(setMembers);
+      // Set up Firestore data listeners — `assignedOrgs` (null par défaut = comportement
+      // inchangé) scope les collections concernées par la Phase 1.3.
+      const unsubMembers = FirestoreService.subscribeToMembers(setMembers, assignedOrgs);
       const unsubOrgs = FirestoreService.subscribeToOrganizations(setOrganizations);
       const unsubProviders = FirestoreService.subscribeToProviders(setProviders);
-      const unsubClaims = FirestoreService.subscribeToClaims(setClaims);
-      const unsubInvoices = FirestoreService.subscribeToInvoices(setInvoices);
-      const unsubEnrollments = FirestoreService.subscribeToEnrollments(setEnrollments);
+      const unsubClaims = FirestoreService.subscribeToClaims(setClaims, assignedOrgs);
+      const unsubInvoices = FirestoreService.subscribeToInvoices(setInvoices, assignedOrgs);
+      const unsubEnrollments = FirestoreService.subscribeToEnrollments(setEnrollments, assignedOrgs);
       const unsubCeilings = FirestoreService.subscribeToCeilings(setCeilings);
-      const unsubMedicalForms = FirestoreService.subscribeToMedicalForms(setMedicalForms);
+      const unsubMedicalForms = FirestoreService.subscribeToMedicalForms(setMedicalForms, assignedOrgs);
       const unsubNotifications = FirestoreService.subscribeToNotifications(setNotifications);
       const unsubHealthPolicies = FirestoreService.subscribeToHealthPolicies(setHealthPolicies);
-      const unsubPolicyPayments = FirestoreService.subscribeToPolicyPayments(setPolicyPayments);
+      const unsubPolicyPayments = FirestoreService.subscribeToPolicyPayments(setPolicyPayments, assignedOrgs);
 
       let unsubLogs: (() => void) | undefined;
       if (userRole === 'Admin') {
@@ -365,7 +377,8 @@ export default function App() {
         if (unsubLogs) unsubLogs();
       };
     }
-  }, [authStatus, userRole]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authStatus, userRole, orgScopeKey]);
 
   // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring —
   // recalcul automatique du statut de chaque police (expiration, dépassement du délai de

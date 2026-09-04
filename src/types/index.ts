@@ -59,6 +59,15 @@ export interface UserAccount {
   tempPassword?: string;
   passwordHash?: string;
   passwordSalt?: string;
+  // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3 — isolation par organisation) — champ
+  // optionnel, additif, absent par défaut sur tous les comptes existants. Quand il est
+  // renseigné par un Admin, restreint la lecture/écriture Firestore de ce compte (via
+  // firestore.rules hasOrgAccess()) aux organisations clientes listées (Organization.name /
+  // Member.organization / Claim.organization, etc. — un concept distinct de `entity`/
+  // `country` ci-dessus, qui désignent la filiale ACTIVA employant l'agent). Absent ou vide =
+  // aucune restriction (comportement identique à avant ce correctif). Voir
+  // docs/security/CODE_AUDIT_MAP.md section 11 pour le contexte de cette décision.
+  assignedOrganizations?: string[];
 }
 
 export type RelationshipType = 'Primary' | 'Principal' | 'Spouse' | 'Conjoint' | 'Child' | 'Enfant' | 'Ascendant' | 'Dependent';

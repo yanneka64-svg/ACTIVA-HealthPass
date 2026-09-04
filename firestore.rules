@@ -40,6 +40,38 @@ service cloud.firestore {
       return isAdmin() || isSupervisor();
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3 — isolation par organisation) ===
+    // Problème : jusqu'ici, `members`/`claims`/`medicalForms`/`enrollments`/`invoices`/
+    // `policyPayments` n'imposaient aucune restriction liée à l'organisation cliente — un
+    // Agent authentifié pouvait lire/écrire les dossiers de N'IMPORTE QUELLE organisation via
+    // le SDK Firestore, indépendamment de ce que l'interface lui affiche (voir
+    // docs/security/CODE_AUDIT_MAP.md, section 1 et 11).
+    // Preuve dans le code existant : `accounts` ne portait aucun champ de rattachement à une
+    // organisation cliente (vérifié sur UserAccount, src/types/index.ts) — la Phase 0 s'est
+    // arrêtée sur ce point précis avant toute modification, conformément à la règle absolue
+    // du brief ; l'utilisateur a tranché pour l'option "champ additif rétrocompatible".
+    // Pourquoi aucun usage légitime n'est cassé : `assignedOrganizations` est un nouveau champ
+    // OPTIONNEL sur `accounts`, absent par défaut sur tous les comptes existants. Tant qu'il
+    // n'est pas explicitement renseigné par un Admin pour un compte donné, `hasOrgAccess()`
+    // retourne systématiquement `true` (accès inchangé, identique à avant ce correctif). La
+    // restriction ne prend effet que pour un compte auquel un Admin a explicitement assigné une
+    // liste d'organisations. Un Admin garde toujours un accès total (isAdmin() prioritaire),
+    // et un Custom Claim `orgs` (Phase 1.2, pas encore posé par le code à ce jour) est lu en
+    // priorité s'il existe un jour, pour rester cohérent avec isActiveUser()/userProfile().
+    // Ce qui est désormais empêché : un compte Agent/Supervisor auquel un Admin a assigné un
+    // périmètre d'organisations ne peut plus lire ni écrire de document appartenant à une
+    // organisation hors de ce périmètre, y compris via un appel direct au SDK Firestore
+    // contournant l'interface.
+    function assignedOrganizations() {
+      return ('orgs' in request.auth.token)
+        ? request.auth.token.orgs
+        : (hasAccount() && ('assignedOrganizations' in getUserData()) ? getUserData().assignedOrganizations : null);
+    }
+
+    function hasOrgAccess(orgName) {
+      return isAdmin() || assignedOrganizations() == null || (orgName in assignedOrganizations());
+    }
+
     // accounts collection
     match /accounts/{userId} {
       allow read: if true;
@@ -47,21 +79,33 @@ service cloud.firestore {
         isAdmin() ||
         (request.auth.uid == userId && request.resource.data.profile != 'Admin')
       );
+      // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — un utilisateur ne doit jamais
+      // pouvoir s'auto-assigner ou s'auto-élargir un périmètre d'organisations via une
+      // écriture directe sur son propre compte (élévation de privilège). Ajouté à la liste
+      // des champs figés par le self-update, au même titre que profile/isActive/permissions
+      // déjà protégés ci-dessous. Comparaison tolérante à l'absence du champ des deux côtés
+      // (cas normal : la plupart des comptes n'ont pas encore ce champ).
       allow update: if isSignedIn() && (
         isAdmin() ||
         (request.auth.uid == userId &&
          request.resource.data.profile == resource.data.profile &&
          request.resource.data.isActive == resource.data.isActive &&
-         request.resource.data.permissions == resource.data.permissions)
+         request.resource.data.permissions == resource.data.permissions &&
+         (
+           (!('assignedOrganizations' in resource.data) && !('assignedOrganizations' in request.resource.data)) ||
+           request.resource.data.assignedOrganizations == resource.data.assignedOrganizations
+         ))
       );
       allow delete: if isAdmin();
     }
 
     // members collection
     match /members/{memberId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isActiveUser();
-      allow update: if isSignedIn() && isActiveUser();
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      allow create: if isSignedIn() && isActiveUser() && hasOrgAccess(request.resource.data.organization);
+      allow update: if isSignedIn() && isActiveUser() &&
+        hasOrgAccess(resource.data.organization) &&
+        (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
       allow delete: if isAdmin();
     }
 
@@ -126,8 +170,11 @@ service cloud.firestore {
     }
 
     // policyPayments collection (financial transactions restricted to Admin)
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — lecture désormais cloisonnée par
+    // organisation via hasOrgAccess() (voir définition plus haut) ; écriture inchangée
+    // (déjà réservée à isAdmin(), qui passe toujours hasOrgAccess()).
     match /policyPayments/{paymentId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.organizationId);
       allow write: if isAdmin();
     }
 
@@ -139,10 +186,16 @@ service cloud.firestore {
     // ("Admin... sauf s'il en est lui-même l'auteur direct") et à ce qu'applique la Cloud
     // Function processClaimDecisionServer (qui bloque l'auto-approbation pour TOUT rôle).
     // Corrigé pour que Admin soit soumis au même test d'auto-approbation que Supervisor.
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — read/create/update cloisonnés par
+    // organisation via hasOrgAccess() ; empêche aussi de "déplacer" un claim vers une
+    // organisation hors périmètre lors d'une mise à jour.
     match /claims/{claimId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization);
-      allow update: if isSignedIn() && isActiveUser() && (
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization) &&
+        hasOrgAccess(request.resource.data.organization);
+      allow update: if isSignedIn() && isActiveUser() &&
+        hasOrgAccess(resource.data.organization) &&
+        (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
         ((isAdmin() || isSupervisor()) && (!('createdBy' in resource.data) || resource.data.createdBy != request.auth.uid))
       );
@@ -157,20 +210,29 @@ service cloud.firestore {
     // supprime TOUTE la collection en un seul lot, quel que soit l'auteur ou l'organisation.
     // Restreint à isAdmin(), cohérent avec claims/enrollments ci-dessus et avec la matrice de
     // permissions (permissions.ts : suppression réservée à Admin, jamais Agent/Supervisor).
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — read/create/update cloisonnés par
+    // organisation via hasOrgAccess().
     match /medicalForms/{formId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization);
-      allow update: if isSignedIn() && isActiveUser();
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization) &&
+        hasOrgAccess(request.resource.data.organization);
+      allow update: if isSignedIn() && isActiveUser() &&
+        hasOrgAccess(resource.data.organization) &&
+        (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
       allow delete: if isAdmin();
     }
 
     // enrollments collection (with SoD validation enforcement)
     // === AMÉLIORATION AJOUTÉE : sécurité (correctif LOW) — même correctif que /claims
     // ci-dessus : Admin soumis au même test d'auto-approbation que Supervisor.
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — read/create/update cloisonnés par
+    // organisation via hasOrgAccess().
     match /enrollments/{enrollmentId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isActiveUser();
-      allow update: if isSignedIn() && isActiveUser() && (
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      allow create: if isSignedIn() && isActiveUser() && hasOrgAccess(request.resource.data.organization);
+      allow update: if isSignedIn() && isActiveUser() &&
+        hasOrgAccess(resource.data.organization) &&
+        (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
         ((isAdmin() || isSupervisor()) && (!('createdBy' in resource.data) || resource.data.createdBy != request.auth.uid))
       );
@@ -178,9 +240,15 @@ service cloud.firestore {
     }
 
     // invoices collection (issued receipts upon claim approval)
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — read/create/update cloisonnés par
+    // organisation via hasOrgAccess(). Séparé en deux règles (create/update) car `resource`
+    // n'existe pas encore lors d'une création.
     match /invoices/{invoiceId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && isActiveUser() && canValidate();
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      allow create: if isSignedIn() && isActiveUser() && canValidate() && hasOrgAccess(request.resource.data.organization);
+      allow update: if isSignedIn() && isActiveUser() && canValidate() &&
+        hasOrgAccess(resource.data.organization) &&
+        (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
       allow delete: if isAdmin();
     }
 
