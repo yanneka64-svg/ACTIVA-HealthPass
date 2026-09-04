@@ -205,7 +205,10 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       inpatientBalanceUSD: selectedMember.inpatientBalanceUSD ?? 8500,
       issueDate: new Date().toISOString().split('T')[0],
       status: 'issued',
-      doctorName: doctorName || (practitionerType === 'Generalist' ? 'Dr. General Practitioner' : `Dr. Specialist (${effectiveSpecialty})`),
+      // === AMÉLIORATION AJOUTÉE : sur demande explicite — pour un praticien Généraliste, ne
+      // plus préremplir "Dr. General Practitioner" quand l'agent ne saisit pas de nom : la
+      // place reste vide, réservée au médecin traitant qui la complètera lui-même à la main.
+      doctorName: doctorName || (practitionerType === 'Specialist' ? `Dr. Specialist (${effectiveSpecialty})` : undefined),
       doctorPrescription: {
         presumedDiagnosis: presumedDiagnosis || undefined,
         requestedExams: requestedExams || undefined,

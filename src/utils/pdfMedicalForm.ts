@@ -144,14 +144,18 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.setTextColor(15, 23, 42);
   doc.text(form.providerName || 'N/A', 55, currentY + 14);
 
-  // === AMÉLIORATION AJOUTÉE : restauration du préremplissage du champ "Attending Physician"
-  // (nom saisi par l'agent, ou repli par défaut) tel qu'il existait avant, sur demande explicite.
+  // === AMÉLIORATION AJOUTÉE : sur demande explicite, la mention "Dr. General Practitioner"
+  // (ou tout autre repli fictif) n'est plus imprimée quand aucun nom n'a été saisi — l'espace
+  // reste entièrement vierge, réservé à l'identification manuscrite du médecin traitant. Le
+  // nom reste imprimé normalement si l'agent (ou le praticien spécialiste) en a renseigné un.
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
   doc.text('Attending Physician :', 18, currentY + 21);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(form.doctorName || 'Dr. _______________________', 55, currentY + 21);
+  if (form.doctorName) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(form.doctorName, 55, currentY + 21);
+  }
 
   // Practitioner Type: Generalist or Specialist
   doc.setTextColor(71, 85, 105);
