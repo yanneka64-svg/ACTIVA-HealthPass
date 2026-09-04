@@ -97,6 +97,16 @@ export const LoginView: React.FC<LoginViewProps> = ({
       // 1. Search Firestore accounts collection to find the registered account
       let matchingAccountDoc: any = null;
       let matchingAccountId: string | null = null;
+      // === AMÉLIORATION AJOUTÉE : robustesse/diagnostic — cette recherche échouait
+      // auparavant de façon totalement silencieuse (un simple console.warn). Or si cette
+      // requête pré-authentification échoue (règles Firestore non déployées/différentes de
+      // celles du dépôt, hors-ligne, quota...), le code retombait sur les mêmes suppositions
+      // de domaine d'email par défaut ET affichait EXACTEMENT le même message que pour un
+      // "compte inexistant" ("Invalid username or password"), rendant ce cas impossible à
+      // distinguer d'un véritable mauvais identifiant. On garde le même comportement de repli
+      // (aucune régression), mais on retient l'échec pour affiner le message d'erreur final si
+      // aucune tentative de connexion Firebase Auth n'aboutit non plus (voir étape 5 plus bas).
+      let accountsLookupFailed = false;
 
       try {
         const accountsSnap = await getDocs(collection(db, 'accounts'));
@@ -121,6 +131,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
           }
         }
       } catch (e) {
+        accountsLookupFailed = true;
         console.warn('Could not query accounts collection ahead of auth:', e);
       }
 
@@ -265,6 +276,20 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
 
       // 5. If no account matches in Firestore and no Firebase Auth user exists:
+      // === AMÉLIORATION AJOUTÉE : diagnostic — voir le commentaire à l'étape 1. Si la
+      // recherche du compte a elle-même échoué (plutôt que de simplement ne rien trouver), on
+      // le signale distinctement au lieu du message générique, pour ne plus confondre "mauvais
+      // identifiants" et "impossible de vérifier le compte" lors du diagnostic d'un incident.
+      if (accountsLookupFailed) {
+        console.error(
+          'Login failed: could not verify account against Firestore (accounts lookup errored) and no Firebase Auth credential matched any candidate email for "' +
+            cleanUsername +
+            '".'
+        );
+        setError('Unable to verify your account right now. Please check your connection and try again, or contact your administrator.');
+        setIsLoggingIn(false);
+        return false;
+      }
       setError('Invalid username or password. Please verify your credentials.');
       setIsLoggingIn(false);
       return false;

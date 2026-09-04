@@ -1,0 +1,27 @@
+{
+  "$comment": "AMÉLIORATION AJOUTÉE (diagnostic incident connexion) : ce fichier n'existait pas dans le dépôt — voir docs/security/LOGIN_INCIDENT_2026-09-04.md. Sans lui, `firebase deploy --only firestore:rules` n'a jamais pu cibler correctement ce projet ni, surtout, la base Firestore NOMMÉE réellement utilisée par l'application (voir 'database' ci-dessous, tirée de firebase-applet-config.json) : une commande de déploiement lancée sans ce fichier viserait par défaut la base '(default)', qui n'est PAS celle que l'app utilise, laissant la base réelle sur des règles jamais mises à jour par ce dépôt.",
+  "firestore": [
+    {
+      "database": "ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b",
+      "rules": "firestore.rules"
+    }
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}
