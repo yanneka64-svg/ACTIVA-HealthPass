@@ -113,17 +113,37 @@ service cloud.firestore {
         get(/databases/$(database)/documents/healthPolicies/$(orgName)).data.coverageBlocked == true;
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1 — durcissement) ===
+    // `healthPolicies`/`policyPayments` n'étaient auparavant protégés que par `isSignedIn()`,
+    // alors que dans l'interface (App.tsx), les gestionnaires `onSaveHealthPolicy` /
+    // `onAddPolicyPayment` / `onDeletePolicyPayment` ne sont transmis QU'à OrganizationsView,
+    // affichée uniquement pour la section "organizations" — réservée au rôle Admin
+    // (src/utils/authUtils.ts, ROLE_ALLOWED_SECTIONS). Aucun composant Agent/Superviseur n'a de
+    // chemin d'écriture vers ces deux collections (vérifié par recherche exhaustive dans
+    // src/views et src/components). Aligner leur règle d'écriture sur `isAdmin()` — déjà en
+    // place pour organizations/providers/ceilings, qui suivent exactement le même modèle
+    // d'accès dans l'UI — ne change donc rien pour l'application, mais empêche un Agent de
+    // suspendre une police ou de modifier un paiement de prime en contournant l'interface.
     match /healthPolicies/{organizationName} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /policyPayments/{paymentId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /claims/{claimId} {
       allow read: if isSignedIn();
-      allow update, delete: if isSignedIn();
+      allow update: if isSignedIn();
+      // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1) — `deleteClaim` (services/firestore.ts)
+      // n'est appelé depuis AUCUNE vue (vérifié par recherche exhaustive dans src/views) ; la
+      // matrice de permissions (permissions.ts) réserve d'ailleurs explicitement la
+      // suppression à Admin ("Supprimer un enregistrement" : Admin seul). Restreindre à
+      // isAdmin() ne change donc rien pour l'application, tout en empêchant un Agent/
+      // Superviseur de supprimer une réclamation en contournant l'interface.
+      allow delete: if isAdmin();
       // === AMÉLIORATION AJOUTÉE : la restriction d'accès aux soins (member/organisation dont
       // la police est Expired/Suspended) est appliquée ici aussi, pas seulement dans
       // l'interface Agent — un utilisateur ne peut pas la contourner en appelant directement
@@ -135,12 +155,18 @@ service cloud.firestore {
 
     match /medicalForms/{formId} {
       allow read: if isSignedIn();
-      allow update, delete: if isSignedIn();
+      allow update: if isSignedIn();
+      // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1) — même raisonnement que pour /claims
+      // ci-dessus : `deleteMedicalForm` n'a aucun appelant dans src/views.
+      allow delete: if isAdmin();
       allow create: if isSignedIn() && !policyBlocksCoverage(request.resource.data.organization);
     }
 
     match /enrollments/{enrollmentId} {
-      allow read, write: if isSignedIn();
+      allow read, create, update: if isSignedIn();
+      // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1) — même raisonnement : `deleteEnrollment`
+      // n'a aucun appelant dans src/views.
+      allow delete: if isAdmin();
     }
 
     match /invoices/{invoiceId} {
