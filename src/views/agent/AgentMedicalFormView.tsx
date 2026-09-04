@@ -1180,20 +1180,25 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       {previewModalForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden my-8 animate-in zoom-in-95">
-            <div className={`${isSupervisorView ? 'bg-[#0F766E]' : 'bg-[#0A347B]'} p-4 text-white flex items-center justify-between`}>
+            {/* === AMÉLIORATION AJOUTÉE : bande de couleur pleine (navy/teal) remplacée par un
+                en-tête blanc, sur demande explicite — cohérent avec la suppression de la bande
+                bleue faite plus haut sur le formulaire de création. Contenu (titre, bénéficiaire,
+                boutons Print/PDF/Fermer) strictement inchangé, seules les couleurs de fond/texte
+                sont adaptées à un fond blanc. */}
+            <div className="bg-white border-b border-slate-200 p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-emerald-400">
+                <div className={`w-8 h-8 rounded-lg ${isSupervisorView ? 'bg-teal-50 text-[#0F766E]' : 'bg-[var(--brand-50)] text-[var(--brand-900)]'} flex items-center justify-center`}>
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm">Medical Form — {previewModalForm.securityNumber}</h3>
-                  <p className={`text-[10px] ${isSupervisorView ? 'text-teal-100' : 'text-blue-100'}`}>Beneficiary: {previewModalForm.memberName}</p>
+                  <h3 className="font-bold text-sm text-slate-900">Medical Form — {previewModalForm.securityNumber}</h3>
+                  <p className="text-[10px] text-slate-500">Beneficiary: {previewModalForm.memberName}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handlePrint(previewModalForm)}
-                  className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print</span>
@@ -1207,7 +1212,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 </button>
                 <button
                   onClick={() => setPreviewModalForm(null)}
-                  className="p-1 text-white/80 hover:text-white rounded-lg cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
                 >
                   ✕
                 </button>
