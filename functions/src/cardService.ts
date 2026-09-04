@@ -55,7 +55,7 @@ export async function generateNextCardNumberServer(
 ): Promise<string> {
   const countersRef = db.doc('counters/cardNumbers');
 
-  return db.runTransaction(async (tx) => {
+  return db.runTransaction(async (tx: admin.firestore.Transaction) => {
     const countersSnap = await tx.get(countersRef);
     const counters = countersSnap.exists ? countersSnap.data() || {} : {};
     const nextAssured = ((counters.lastAssuredNumber as number) || 0) + 1;
@@ -107,7 +107,7 @@ export async function batchGenerateCardNumbersServer(
   if (count <= 0) return [];
   const countersRef = db.doc('counters/cardNumbers');
 
-  return db.runTransaction(async (tx) => {
+  return db.runTransaction(async (tx: admin.firestore.Transaction) => {
     const countersSnap = await tx.get(countersRef);
     const counters = countersSnap.exists ? countersSnap.data() || {} : {};
     let currentAssured = ((counters.lastAssuredNumber as number) || 0);
@@ -154,4 +154,64 @@ export async function batchGenerateCardNumbersServer(
 
     return generated;
   });
+}
+
+/**
+ * Case A: Register an existing card number (manual entry, existing excel row, admin entry).
+ * 1. Validates strict format (AMID-YYMMDD-NNNNN with valid calendar date)
+ * 2. Verifies it is not already assigned to another insured member
+ * 3. Records it in cardNumberRegistry if not already present
+ * 4. Raises the global counter if parsed.assuredNumber > currentAssured (never lowers it)
+ */
+export async function registerExistingCardNumberServer(
+  db: admin.firestore.Firestore,
+  cardNumber: string,
+  ctx: AssignmentContext
+): Promise<{ success: boolean; cardNumber: string }> {
+  const parsed = parseCardNumber(cardNumber);
+  if (!parsed) {
+    throw new Error(`Invalid card number format: "${cardNumber}". Expected AMID-YYMMDD-NNNNN with valid calendar date.`);
+  }
+
+  const countersRef = db.doc('counters/cardNumbers');
+  const regRef = db.doc(`cardNumberRegistry/${cardNumber}`);
+
+  await db.runTransaction(async (tx: admin.firestore.Transaction) => {
+    const regSnap = await tx.get(regRef);
+    if (regSnap.exists) {
+      throw new Error(`Card number ${cardNumber} is already assigned to another insured member.`);
+    }
+
+    const countersSnap = await tx.get(countersRef);
+    const counters = countersSnap.exists ? countersSnap.data() || {} : {};
+    const currentAssured = ((counters.lastAssuredNumber as number) || 0);
+
+    tx.set(regRef, {
+      id: cardNumber,
+      cardNumber,
+      issueDate: parsed.issueDate,
+      assuredNumber: pad(parsed.assuredNumber, 5),
+      organization: ctx.organization ?? null,
+      memberId: ctx.memberId ?? null,
+      insuredName: ctx.insuredName ?? null,
+      assignedBy: ctx.assignedBy ?? null,
+      assignedByName: ctx.assignedByName ?? null,
+      assignedAt: new Date().toISOString(),
+      method: ctx.method || 'MANUAL',
+    });
+
+    if (parsed.assuredNumber > currentAssured) {
+      tx.set(
+        countersRef,
+        {
+          lastAssuredNumber: parsed.assuredNumber,
+          formatVersion: 'v2',
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    }
+  });
+
+  return { success: true, cardNumber };
 }
