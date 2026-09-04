@@ -1,9 +1,10 @@
 import jsPDF from 'jspdf';
 import { MedicalForm } from '../types';
-import { drawPdfLogoStrip, drawRefinedHeaderTitle, PDF_LOGO_STRIP_HEIGHT } from './pdfBranding';
-// === AMÉLIORATION AJOUTÉE : logo Globus (pied de page, en plus du bandeau ACTIVA+Globus déjà
-// dessiné par drawPdfLogoStrip) sur la fiche médicale PDF ===
-import { GLOBUS_LOGO_BASE64, GLOBUS_LOGO_ASPECT } from '../assets/logos';
+import { drawRefinedHeaderTitle } from './pdfBranding';
+// === AMÉLIORATION AJOUTÉE : restauration du logo Activa blanc directement sur le bandeau
+// (à la place du bandeau "IN PARTNERSHIP WITH" + logo Globus, retiré ci-dessous), sur demande
+// explicite — le document généré doit correspondre exactement au modèle attendu.
+import { ACTIVA_LOGO_WHITE_BASE64, ACTIVA_LOGO_ASPECT } from '../assets/logos';
 
 export const generateMedicalFormPDF = (form: MedicalForm) => {
   const doc = new jsPDF({
@@ -13,7 +14,6 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   });
 
   const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
-  const pageHeight = doc.internal.pageSize.getHeight(); // 297mm
 
   // Header Background bar - ACTIVA Blue #0A347B
   doc.setFillColor(10, 52, 123);
@@ -24,14 +24,14 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.rect(0, 28, pageWidth, 2.5, 'F');
 
   // Header Title
-  // === AMÉLIORATION AJOUTÉE : léger espacement des lettres (setCharSpace via
-  // drawRefinedHeaderTitle) sur le titre principal pour un rendu plus soigné/typographié
-  // qu'une capitale grasse compacte par défaut.
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  drawRefinedHeaderTitle(doc, 'ACTIVA HealthPass', 14, 12, { charSpace: 0.2 });
+  // === AMÉLIORATION AJOUTÉE : restauration du logo Activa (blanc, silhouette) posé directement
+  // sur le bandeau navy, à la place de la mention texte "ACTIVA HealthPass", tel qu'il existait
+  // avant et sur demande explicite.
+  const activaLogoHeight = 9.5;
+  const activaLogoWidth = activaLogoHeight * ACTIVA_LOGO_ASPECT;
+  doc.addImage(ACTIVA_LOGO_WHITE_BASE64, 'PNG', 14, 4, activaLogoWidth, activaLogoHeight);
 
+  doc.setTextColor(255, 255, 255);
   doc.setFontSize(9.5);
   doc.setFont('helvetica', 'normal');
   drawRefinedHeaderTitle(doc, 'HEALTHCARE AUTHORIZATION & MEDICAL PRESCRIPTION VOUCHER', 14, 18);
@@ -53,13 +53,10 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   // Reset text color
   doc.setTextColor(30, 41, 59);
 
-  // === AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus sous le bandeau de couleur
-  // existant (aucune ligne de texte positionnée en dur ci-dessus n'a été déplacée) — voir
-  // pdfBranding.ts. Le curseur vertical qui alimente le reste du document est décalé
-  // d'autant (38 -> 38 + PDF_LOGO_STRIP_HEIGHT).
-  drawPdfLogoStrip(doc, pageWidth, 31);
-
-  let currentY = 38 + PDF_LOGO_STRIP_HEIGHT;
+  // === AMÉLIORATION AJOUTÉE : bandeau "IN PARTNERSHIP WITH" + logo Globus retiré (sur demande
+  // explicite) — le logo Activa est déjà visible directement sur le bandeau de couleur
+  // ci-dessus, ce bandeau supplémentaire ne correspondait plus au document attendu.
+  let currentY = 38;
 
   // 1. SECTION: BENEFICIARY & COVERAGE IDENTIFICATION
   doc.setFillColor(248, 250, 252);
@@ -183,9 +180,7 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   // 3. SECTION: MEDICAL DIAGNOSIS & PRESCRIPTIONS (PHYSICIAN SECTION)
   doc.setDrawColor(10, 52, 123);
   doc.setLineWidth(0.4);
-  // === AMÉLIORATION AJOUTÉE : box height reduced 98→88 (reclaims unused bottom padding) to
-  // offset the +PDF_LOGO_STRIP_HEIGHT added earlier, keeping the document within the A4 page.
-  doc.roundedRect(14, currentY, pageWidth - 28, 88, 2, 2, 'S');
+  doc.roundedRect(14, currentY, pageWidth - 28, 98, 2, 2, 'S');
 
   doc.setFillColor(10, 52, 123);
   doc.rect(14, currentY, pageWidth - 28, 7.5, 'F');
@@ -248,7 +243,7 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.text('4. _______________________________________________________________________________________________', 18, currentY + 77.5);
   doc.text('5. _______________________________________________________________________________________________', 18, currentY + 83.5);
 
-  currentY += 94;
+  currentY += 104;
 
   // 4. SIGNATURES (INSURED & DOCTOR)
   const sigBoxWidth = (pageWidth - 33) / 2;
@@ -335,16 +330,8 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
     { align: 'center' }
   );
 
-  // === AMÉLIORATION AJOUTÉE : logo Globus en bas de page, légèrement agrandi et positionné
-  // sous le bandeau "mandatory notice" (au lieu d'être calculé depuis le bas de la page, ce
-  // qui le faisait chevaucher le bandeau) — repère relatif à currentY + hauteur du bandeau,
-  // avec une marge de sécurité pour ne jamais dépasser le bas de la page. ===
-  const globusLogoHeight = 11; // agrandi (auparavant 9)
-  const globusLogoWidth = globusLogoHeight * GLOBUS_LOGO_ASPECT;
-  const globusLogoX = (pageWidth - globusLogoWidth) / 2;
-  const mandatoryBannerBottomY = currentY + 11;
-  const globusLogoY = Math.min(mandatoryBannerBottomY + 2, pageHeight - globusLogoHeight - 1);
-  doc.addImage(GLOBUS_LOGO_BASE64, 'PNG', globusLogoX, globusLogoY, globusLogoWidth, globusLogoHeight);
+  // === AMÉLIORATION AJOUTÉE : logo Globus en pied de page retiré (sur demande explicite) —
+  // le document généré ne comportait pas ce logo dans la version attendue.
 
   return doc;
 };
