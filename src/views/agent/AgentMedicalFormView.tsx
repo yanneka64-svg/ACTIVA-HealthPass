@@ -20,6 +20,7 @@ import {
   Copy,
   Eye,
   Check,
+  Lock,
   Sparkles,
   Activity,
   BedDouble,
@@ -236,40 +237,57 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   };
 
   // Share Handler
+  // === AMÉLIORATION AJOUTÉE : sécurité/fiabilité — ce bouton "partager" envoyait auparavant
+  // un texte résumé + `url: window.location.href` (le lien de l'application elle-même) via
+  // navigator.share(), jamais le PDF. Sur mobile, cela se traduisait par un partage d'un
+  // simple lien vers la plateforme au lieu du document réellement attendu par le prestataire
+  // de soins. On génère maintenant le PDF (comme pour le téléchargement) et on le partage en
+  // tant que FICHIER via l'API Web Share (niveau 2, `files`), supportée par la plupart des
+  // navigateurs mobiles. Si l'appareil ne supporte pas le partage de fichiers (ex: certains
+  // navigateurs de bureau), on retombe sur un téléchargement direct du PDF — jamais sur le
+  // partage d'un lien vers l'application, qui n'est pas ce que l'utilisateur demande.
   const handleShare = async (form: MedicalForm) => {
-    const pType = form.practitionerType === 'Specialist' 
-      ? `Specialist Physician (${form.doctorSpecialty || 'Specialized'})` 
+    const pType = form.practitionerType === 'Specialist'
+      ? `Specialist Physician (${form.doctorSpecialty || 'Specialized'})`
       : 'General Practitioner';
     const cType = form.coverageType === 'Outpatient' ? 'Outpatient Care' : 'Inpatient Admission';
 
     const shareText = `ACTIVA INSURANCE Healthcare Authorization Voucher\nSecurity No: ${form.securityNumber}\nInsured: ${form.memberName} (${form.memberCardNo})\nFacility: ${form.providerName}\nConsultation: ${pType}\nTreatment Modality: ${cType}`;
-    
-    if (navigator.share) {
+    const fileName = `Medical_Form_ACTIVA_${form.securityNumber}.pdf`;
+
+    let pdfFile: File | null = null;
+    try {
+      const doc = generateMedicalFormPDF(form);
+      const pdfBlob = doc.output('blob');
+      pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    } catch (err) {
+      console.warn('Could not generate the PDF for sharing:', err);
+    }
+
+    if (pdfFile && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
       try {
         await navigator.share({
           title: `ACTIVA Medical Voucher - ${form.securityNumber}`,
           text: shareText,
-          url: window.location.href,
+          files: [pdfFile],
         });
-        setShareFeedback('Medical form shared successfully!');
+        setShareFeedback('Medical form PDF shared successfully!');
         setTimeout(() => setShareFeedback(null), 3000);
         return;
       } catch (err) {
+        // The native share sheet was canceled by the user, or failed silently — nothing more
+        // to do (do not fall back to downloading, which would be an unexpected surprise
+        // right after dismissing a share dialog).
         console.log('Share canceled or failed', err);
+        return;
       }
     }
 
-    try {
-      await navigator.clipboard.writeText(shareText);
-      setCopiedLink(true);
-      setShareFeedback('Form details copied to clipboard!');
-      setTimeout(() => {
-        setCopiedLink(false);
-        setShareFeedback(null);
-      }, 3000);
-    } catch (e) {
-      alert('Please use the direct PDF download instead.');
-    }
+    // This device/browser cannot share files directly — download the PDF instead so the
+    // person still gets the actual document, which they can then share manually.
+    handleDownloadPDF(form);
+    setShareFeedback('Direct file sharing is not supported on this device — the PDF was downloaded instead.');
+    setTimeout(() => setShareFeedback(null), 4000);
   };
 
   // Toggle status in history
@@ -304,6 +322,27 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* === AMÉLIORATION AJOUTÉE : bannière d'en-tête (icône + titre + sous-titre à gauche,
+          badge "Cryptographic Security Active" à droite), sur demande explicite — purement
+          visuelle, ajoutée au-dessus du contenu existant (onglets, formulaire, historique)
+          sans le modifier. Le sous-titre reflète une fonctionnalité déjà réelle du PDF généré
+          (code-barres + numéro de sécurité unique — voir pdfMedicalForm.ts / QrCode plus bas). */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[var(--brand-50)] flex items-center justify-center shrink-0">
+            <FileText className="w-5 h-5 text-[var(--brand-900)]" />
+          </div>
+          <div>
+            <h2 className="font-bold text-sm sm:text-base text-slate-900">Issue Medical Form / Coverage Form</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Secure generation with official ACTIVA Barcode and Unique Security Number</p>
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold shrink-0">
+          <Lock className="w-3.5 h-3.5" />
+          <span>Cryptographic Security Active</span>
+        </span>
+      </div>
+
       {/* Top Tab Navigation */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs">
