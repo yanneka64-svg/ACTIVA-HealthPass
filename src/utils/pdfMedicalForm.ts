@@ -40,12 +40,11 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
 
   // Badge Top Right
   // === AMÉLIORATION AJOUTÉE : sur demande explicite, seul le mot "Security" est retiré du
-  // libellé — le numéro lui-même reste affiché, désormais sous la mention "N°" (au lieu de
-  // "Security No:"). Issue Date / Status inchangés, la ligne reprend sa place d'origine.
+  // libellé — "No:" et le numéro restent affichés tels quels. Issue Date / Status inchangés.
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(8.5);
   doc.setFont('courier', 'bold');
-  doc.text(`N° ${form.securityNumber}`, pageWidth - 14, 10.5, { align: 'right' });
+  doc.text(`No: ${form.securityNumber}`, pageWidth - 14, 10.5, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.text(`Issue Date: ${form.issueDate}`, pageWidth - 14, 16, { align: 'right' });
