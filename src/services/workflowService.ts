@@ -2,6 +2,9 @@ import { Enrollment, Claim, Member, Organization, InvoiceItem, AppNotification, 
 import { FirestoreService } from './firestore';
 import { getPolicyCoverageStatus } from './policyEngine';
 import { generateNextCardNumber } from './cardNumberService';
+// === AMÉLIORATION AJOUTÉE : câblage des Cloud Functions (Phase 3/5), sur demande explicite.
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../lib/firebase';
 
 /**
  * Service to execute end-to-end multi-role workflows and keep Firestore records,
@@ -353,28 +356,76 @@ export const WorkflowService = {
       );
     }
 
-    const updated: Claim = {
-      ...claim,
-      status: 'approved',
-      decisionDate: new Date().toISOString().split('T')[0],
-      approvedBy: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Medical Supervisor',
-      comments: claim.comments || 'Direct billing approval confirmed.',
-    };
-    await FirestoreService.updateClaim(updated);
+    // === AMÉLIORATION AJOUTÉE : câblage de la Cloud Function `processClaimDecision`
+    // (Phase 3/5), sur demande explicite, avec repli automatique. Cette fonction applique
+    // déjà, de façon atomique et côté serveur, la mise à jour du statut, la génération de la
+    // quittance/facture, et la journalisation d'audit — si elle réussit, on ne refait donc PAS
+    // ces trois écritures côté client (cela créerait notamment une facture en double). Seule
+    // la notification (qui n'a pas d'équivalent serveur) reste envoyée dans tous les cas.
+    let handledByServer = false;
+    try {
+      const callProcessClaimDecision = httpsCallable<
+        { claimId: string; decision: 'approved' | 'rejected' | 'returned'; approverId?: string; approverName?: string; approverRole?: string },
+        { success: boolean; invoiceId?: string }
+      >(functions, 'processClaimDecision');
+      const result = await callProcessClaimDecision({
+        claimId: claim.id,
+        decision: 'approved',
+        approverId: currentUser?.uid,
+        approverName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+        approverRole: currentUser?.profile,
+      });
+      handledByServer = !!result.data?.success;
+    } catch (err) {
+      console.warn('Cloud Function "processClaimDecision" unavailable — falling back to client-side approval:', err);
+    }
 
-    // Enriched audit log
-    await FirestoreService.addLog({
-      userId: currentUser?.uid || 'supervisor',
-      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
-      userRole: currentUser?.role || 'Supervisor',
-      action: 'CLAIM_APPROVED',
-      category: 'Claims Management',
-      entityId: claim.id,
-      entityType: 'claim',
-      details: `Claim #${claim.reference} for ${claim.memberName} ($${claim.amount}) approved by ${currentUser?.fullName || 'Supervisor'}.`,
-    });
+    if (!handledByServer) {
+      const updated: Claim = {
+        ...claim,
+        status: 'approved',
+        decisionDate: new Date().toISOString().split('T')[0],
+        approvedBy: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Medical Supervisor',
+        comments: claim.comments || 'Direct billing approval confirmed.',
+      };
+      await FirestoreService.updateClaim(updated);
 
-    // Notify submitting Agent
+      // Enriched audit log
+      await FirestoreService.addLog({
+        userId: currentUser?.uid || 'supervisor',
+        userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
+        userRole: currentUser?.profile || currentUser?.role || 'Supervisor',
+        action: 'CLAIM_APPROVED',
+        category: 'Claims Management',
+        entityId: claim.id,
+        entityType: 'claim',
+        details: `Claim #${claim.reference} for ${claim.memberName} ($${claim.amount}) approved by ${currentUser?.fullName || 'Supervisor'}.`,
+      });
+
+      // Generate the settlement invoice/receipt from the approved claim
+      const member = members.find((m) => m.cardNo.toLowerCase().trim() === claim.memberCardNo.toLowerCase().trim());
+      const isPrincipal = !member || member.principalName.toLowerCase().trim() === claim.memberName.toLowerCase().trim();
+      const familyHead = isPrincipal ? claim.memberName : (member?.principalName || claim.memberName);
+      const org = organizations.find((o) => o.name.toLowerCase().trim() === claim.organization.toLowerCase().trim());
+
+      const newInvoice: Partial<InvoiceItem> = {
+        reference: claim.reference ? claim.reference.replace(/^CLM/i, 'INV') : `INV-${Date.now()}`,
+        patientName: claim.memberName,
+        familyHead,
+        cardNo: claim.memberCardNo,
+        organization: claim.organization,
+        provider: claim.provider,
+        amount: claim.amount,
+        serviceDate: claim.serviceDate,
+        status: 'valid',
+        careType: claim.careType,
+        prescribingDoctor: claim.doctorName,
+        coveragePercentage: org?.coverageRate ?? 80,
+      };
+      await FirestoreService.addInvoice(newInvoice);
+    }
+
+    // Notify submitting Agent (no server-side equivalent — always runs)
     await FirestoreService.addNotification({
       recipientRole: 'Agent',
       recipientEmail: claim.creatorEmail,
@@ -387,28 +438,6 @@ export const WorkflowService = {
       targetSection: 'claims',
       entityId: claim.id,
     });
-
-    // Generate the settlement invoice/receipt from the approved claim
-    const member = members.find((m) => m.cardNo.toLowerCase().trim() === claim.memberCardNo.toLowerCase().trim());
-    const isPrincipal = !member || member.principalName.toLowerCase().trim() === claim.memberName.toLowerCase().trim();
-    const familyHead = isPrincipal ? claim.memberName : (member?.principalName || claim.memberName);
-    const org = organizations.find((o) => o.name.toLowerCase().trim() === claim.organization.toLowerCase().trim());
-
-    const newInvoice: Partial<InvoiceItem> = {
-      reference: claim.reference ? claim.reference.replace(/^CLM/i, 'INV') : `INV-${Date.now()}`,
-      patientName: claim.memberName,
-      familyHead,
-      cardNo: claim.memberCardNo,
-      organization: claim.organization,
-      provider: claim.provider,
-      amount: claim.amount,
-      serviceDate: claim.serviceDate,
-      status: 'valid',
-      careType: claim.careType,
-      prescribingDoctor: claim.doctorName,
-      coveragePercentage: org?.coverageRate ?? 80,
-    };
-    await FirestoreService.addInvoice(newInvoice);
   },
 
   /**
@@ -426,28 +455,51 @@ export const WorkflowService = {
       );
     }
 
-    const updated: Claim = {
-      ...claim,
-      status: 'rejected',
-      decisionDate: new Date().toISOString().split('T')[0],
-      rejectionReason: reason,
-      comments: comments || 'Medical justification not met.',
-    };
-    await FirestoreService.updateClaim(updated);
+    // === AMÉLIORATION AJOUTÉE : câblage de la Cloud Function `processClaimDecision`, même
+    // logique de repli que approveClaim ci-dessus.
+    let handledByServer = false;
+    try {
+      const callProcessClaimDecision = httpsCallable<
+        { claimId: string; decision: 'approved' | 'rejected' | 'returned'; approverId?: string; approverName?: string; approverRole?: string; rejectionReason?: string },
+        { success: boolean }
+      >(functions, 'processClaimDecision');
+      const result = await callProcessClaimDecision({
+        claimId: claim.id,
+        decision: 'rejected',
+        approverId: currentUser?.uid,
+        approverName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+        approverRole: currentUser?.profile,
+        rejectionReason: reason,
+      });
+      handledByServer = !!result.data?.success;
+    } catch (err) {
+      console.warn('Cloud Function "processClaimDecision" unavailable — falling back to client-side rejection:', err);
+    }
 
-    // Enriched audit log
-    await FirestoreService.addLog({
-      userId: currentUser?.uid || 'supervisor',
-      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
-      userRole: currentUser?.role || 'Supervisor',
-      action: 'CLAIM_REJECTED',
-      category: 'Claims Management',
-      entityId: claim.id,
-      entityType: 'claim',
-      details: `Claim #${claim.reference} for ${claim.memberName} rejected by ${currentUser?.fullName || 'Supervisor'}. Reason: ${reason}`,
-    });
+    if (!handledByServer) {
+      const updated: Claim = {
+        ...claim,
+        status: 'rejected',
+        decisionDate: new Date().toISOString().split('T')[0],
+        rejectionReason: reason,
+        comments: comments || 'Medical justification not met.',
+      };
+      await FirestoreService.updateClaim(updated);
 
-    // Notify submitting Agent
+      // Enriched audit log
+      await FirestoreService.addLog({
+        userId: currentUser?.uid || 'supervisor',
+        userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
+        userRole: currentUser?.profile || currentUser?.role || 'Supervisor',
+        action: 'CLAIM_REJECTED',
+        category: 'Claims Management',
+        entityId: claim.id,
+        entityType: 'claim',
+        details: `Claim #${claim.reference} for ${claim.memberName} rejected by ${currentUser?.fullName || 'Supervisor'}. Reason: ${reason}`,
+      });
+    }
+
+    // Notify submitting Agent (no server-side equivalent — always runs)
     await FirestoreService.addNotification({
       recipientRole: 'Agent',
       recipientEmail: claim.creatorEmail,
@@ -518,17 +570,36 @@ export const WorkflowService = {
       const wasBlocked = policy.coverageBlocked;
       const nowBlocked = computed.coverageBlocked;
 
-      await FirestoreService.upsertHealthPolicy(policy.organizationId, {
-        status: computed.status,
-        coverageBlocked: computed.coverageBlocked,
-        suspensionReason: computed.suspensionReason,
-        suspensionDate:
-          !wasBlocked && nowBlocked && (computed.status === 'Suspended')
-            ? new Date().toISOString().split('T')[0]
-            : policy.suspensionDate,
-        reactivationDate:
-          wasBlocked && !nowBlocked ? new Date().toISOString().split('T')[0] : policy.reactivationDate,
-      });
+      // === AMÉLIORATION AJOUTÉE : câblage de la Cloud Function `syncPolicy` (Phase 3/5), sur
+      // demande explicite, avec repli automatique. Cette fonction relit la police et applique
+      // le MÊME moteur (désormais aligné, voir functions/src/policyService.ts) avec les
+      // privilèges admin du SDK serveur — c'est en particulier le seul chemin qui peut
+      // réactiver une police (lever coverageBlocked) depuis une session Agent, la règle
+      // Firestore réservant ce sens à Admin/Supervisor pour l'écriture cliente directe (voir
+      // firestore.rules). En cas d'échec (fonction non déployée...), on retombe sur
+      // l'écriture cliente ci-dessous, strictement inchangée.
+      let syncedByServer = false;
+      try {
+        const callSyncPolicy = httpsCallable<{ organizationId: string }, { success: boolean }>(functions, 'syncPolicy');
+        const result = await callSyncPolicy({ organizationId: policy.organizationId });
+        syncedByServer = !!result.data?.success;
+      } catch (err) {
+        console.warn('Cloud Function "syncPolicy" unavailable — falling back to client-side sync:', err);
+      }
+
+      if (!syncedByServer) {
+        await FirestoreService.upsertHealthPolicy(policy.organizationId, {
+          status: computed.status,
+          coverageBlocked: computed.coverageBlocked,
+          suspensionReason: computed.suspensionReason,
+          suspensionDate:
+            !wasBlocked && nowBlocked && (computed.status === 'Suspended')
+              ? new Date().toISOString().split('T')[0]
+              : policy.suspensionDate,
+          reactivationDate:
+            wasBlocked && !nowBlocked ? new Date().toISOString().split('T')[0] : policy.reactivationDate,
+        });
+      }
 
       const orgMembers = members.filter(
         (m) => m.organization?.toLowerCase().trim() === policy.organizationId.toLowerCase().trim()

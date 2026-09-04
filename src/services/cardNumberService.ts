@@ -26,7 +26,8 @@
 //     interdisent update/delete sur cette collection : un numéro consommé est immuable et
 //     n'est jamais réattribué (section 15), même si l'assuré est ensuite supprimé.
 import { collection, doc, getDoc, getDocs, query, runTransaction, setDoc, where, writeBatch } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../lib/firebase';
 import {
   CardAssignmentMethod,
   CardNumberAssignment,
@@ -153,8 +154,37 @@ function buildAssignmentDoc(cardNumber: string, issueDateSegment: string, assure
  * atomically generates the next AMID-YYMMDD-NNNNN (today's date + the next assured number),
  * reserves it in the uniqueness registry, and advances the counter. The date segment is
  * always today's date at the moment of issuance — never manually entered (section 5).
+ *
+ * === AMÉLIORATION AJOUTÉE : câblage de la Cloud Function `generateCardNumber` (Phase 3/5),
+ * sur demande explicite, avec repli automatique. On essaie d'abord la génération côté serveur
+ * (source de vérité cible) ; en cas d'échec pour QUELQUE RAISON QUE CE SOIT (fonction non
+ * déployée, hors-ligne, erreur interne...), on retombe silencieusement sur la transaction
+ * cliente ci-dessous, strictement inchangée — jamais de blocage de l'émission d'une carte à
+ * cause de l'indisponibilité de la Cloud Function. L'interface appelante (cardNumberService)
+ * ne change pas : c'est exactement l'architecture demandée par la Phase 5 du brief
+ * ("l'interface ne doit pas avoir besoin de connaître les détails de la nouvelle
+ * architecture").
  */
 export async function generateNextCardNumber(ctx: AssignmentContext): Promise<string> {
+  try {
+    const callGenerateCardNumber = httpsCallable<
+      { organization?: string | null; memberId?: string | null; insuredName?: string | null; assignedByName?: string | null; method: string },
+      { success: boolean; cardNumber: string }
+    >(functions, 'generateCardNumber');
+    const result = await callGenerateCardNumber({
+      organization: ctx.organization,
+      memberId: ctx.memberId,
+      insuredName: ctx.insuredName,
+      assignedByName: ctx.assignedByName,
+      method: ctx.method,
+    });
+    if (result.data?.success && result.data.cardNumber) {
+      return result.data.cardNumber;
+    }
+  } catch (err) {
+    console.warn('Cloud Function "generateCardNumber" unavailable — falling back to client-side generation:', err);
+  }
+
   return runTransaction(db, async (tx) => {
     const countersSnap = await tx.get(COUNTERS_REF);
     const counters: CardNumberCounters = countersSnap.exists()
