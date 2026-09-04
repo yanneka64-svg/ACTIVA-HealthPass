@@ -1,5 +1,5 @@
 import * as admin from 'firebase-admin';
-import { formatCardNumber, parseCardNumber, toIssueDateSegment, CARD_NUMBER_REGEX } from './cardService';
+import { formatCardNumber, parseCardNumber, toIssueDateSegment } from './cardService';
 
 export interface ImportRowInput {
   principalName: string;
@@ -29,6 +29,25 @@ export interface ImportExecutionResult {
   report: ImportReportItem[];
 }
 
+interface PlannedRow {
+  rowIndex: number;
+  name: string;
+  org: string;
+  row: ImportRowInput;
+  finalCardNo: string;
+}
+
+// === AMÉLIORATION AJOUTÉE : correctif LOW (revue de code du 3e3bea9) ===
+// L'incrément du compteur de cartes se faisait auparavant hors transaction (une lecture, puis
+// à la toute fin un `set()` séparé après tous les lots d'écriture) : deux imports concurrents
+// (ou un import concurrent à generateNextCardNumberServer) pouvaient lire le même compteur de
+// départ et produire des numéros de carte en double — précisément le scénario que le brief
+// demande explicitement d'empêcher ("empêcher les doublons en cas de... import concurrent").
+// La réservation de la plage de numéros est désormais atomique (une seule transaction), et les
+// numéros de carte SAISIS MANUELLEMENT dans le fichier sont maintenant aussi vérifiés contre
+// le VRAI registre Firestore (pas seulement contre les doublons internes au fichier importé) —
+// auparavant, un numéro déjà consommé lors d'un import précédent aurait été silencieusement
+// écrasé, en violation du principe d'immuabilité du registre.
 export async function processBulkMemberImportServer(
   db: admin.firestore.Firestore,
   rows: ImportRowInput[],
@@ -36,117 +55,146 @@ export async function processBulkMemberImportServer(
 ): Promise<ImportExecutionResult> {
   const report: ImportReportItem[] = [];
   const seenCardNumbers = new Set<string>();
-
-  // 1. Fetch current counters
-  const countersRef = db.doc('counters/cardNumbers');
-  const countersSnap = await countersRef.get();
-  const counters = countersSnap.exists ? countersSnap.data() || {} : {};
-  let lastAssuredNumber = (counters.lastAssuredNumber as number) || 0;
-
   const today = new Date();
-  const membersToCreate: any[] = [];
-  const registryDocsToCreate: any[] = [];
+  const countersRef = db.doc('counters/cardNumbers');
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const name = (row.principalName || '').trim();
-    const org = (row.organization || '').trim();
+  const { plannedRows } = await db.runTransaction(async (tx) => {
+    const countersSnap = await tx.get(countersRef);
+    const counters = countersSnap.exists ? countersSnap.data() || {} : {};
+    let currentAssured = (counters.lastAssuredNumber as number) || 0;
 
-    if (!name || !org) {
-      report.push({
-        rowIndex: i,
-        principalName: name || 'Unknown',
-        organization: org || 'Unknown',
-        cardNo: '—',
-        status: 'FAILED',
-        reason: 'Missing required principal name or organization',
-      });
-      continue;
-    }
+    const planned: PlannedRow[] = [];
 
-    let finalCardNo = (row.cardNoRaw || '').trim();
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const name = (row.principalName || '').trim();
+      const org = (row.organization || '').trim();
 
-    if (!finalCardNo) {
-      // Generate next sequential number
-      lastAssuredNumber += 1;
-      finalCardNo = formatCardNumber(today, lastAssuredNumber);
-    } else {
-      // Validate provided number
-      const parsed = parseCardNumber(finalCardNo);
-      if (!parsed) {
+      if (!name || !org) {
         report.push({
           rowIndex: i,
-          principalName: name,
-          organization: org,
-          cardNo: finalCardNo,
+          principalName: name || 'Unknown',
+          organization: org || 'Unknown',
+          cardNo: '—',
           status: 'FAILED',
-          reason: 'Invalid card number format (expected AMID-YYMMDD-NNNNN)',
-        });
-        continue;
-      }
-      if (seenCardNumbers.has(finalCardNo)) {
-        report.push({
-          rowIndex: i,
-          principalName: name,
-          organization: org,
-          cardNo: finalCardNo,
-          status: 'FAILED',
-          reason: 'Duplicate card number within import dataset',
+          reason: 'Missing required principal name or organization',
         });
         continue;
       }
 
-      // Bump sequential counter if historical number exceeds running sequence
-      if (parsed.assuredNumber > lastAssuredNumber) {
-        lastAssuredNumber = parsed.assuredNumber;
+      let finalCardNo = (row.cardNoRaw || '').trim();
+
+      if (!finalCardNo) {
+        // Generate next sequential number (reserved atomically within this transaction).
+        currentAssured += 1;
+        finalCardNo = formatCardNumber(today, currentAssured);
+      } else {
+        // Validate provided number
+        const parsed = parseCardNumber(finalCardNo);
+        if (!parsed) {
+          report.push({
+            rowIndex: i,
+            principalName: name,
+            organization: org,
+            cardNo: finalCardNo,
+            status: 'FAILED',
+            reason: 'Invalid card number format (expected AMID-YYMMDD-NNNNN)',
+          });
+          continue;
+        }
+        if (seenCardNumbers.has(finalCardNo)) {
+          report.push({
+            rowIndex: i,
+            principalName: name,
+            organization: org,
+            cardNo: finalCardNo,
+            status: 'FAILED',
+            reason: 'Duplicate card number within import dataset',
+          });
+          continue;
+        }
+        // Verify against the REAL registry — a provided number could already be consumed by
+        // an earlier import or enrollment, not just duplicated within this file.
+        const existingSnap = await tx.get(db.doc(`cardNumberRegistry/${finalCardNo}`));
+        if (existingSnap.exists) {
+          report.push({
+            rowIndex: i,
+            principalName: name,
+            organization: org,
+            cardNo: finalCardNo,
+            status: 'FAILED',
+            reason: 'Card number already assigned to another insured member',
+          });
+          continue;
+        }
+
+        // Bump sequential counter if historical number exceeds running sequence
+        if (parsed.assuredNumber > currentAssured) {
+          currentAssured = parsed.assuredNumber;
+        }
       }
+
+      seenCardNumbers.add(finalCardNo);
+      planned.push({ rowIndex: i, name, org, row, finalCardNo });
     }
 
-    seenCardNumbers.add(finalCardNo);
+    tx.set(
+      countersRef,
+      {
+        lastAssuredNumber: currentAssured,
+        formatVersion: 'v2',
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
 
-    // Prepare member document
-    const memberDocId = `MEM-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`;
-    membersToCreate.push({
-      id: memberDocId,
-      cardNo: finalCardNo,
-      principalName: name,
-      organization: org,
-      status: 'Active',
-      relationship: row.relationship || 'Primary',
-      birthDate: row.birthDate || '1990-01-01',
-      gender: row.gender || 'M',
-      phone: row.phone || '',
-      email: row.email || '',
-      hasPhoto: false,
-      hasBiometrics: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      importedBy: performedBy.uid,
-    });
+    return { plannedRows: planned };
+  });
 
-    registryDocsToCreate.push({
-      id: finalCardNo,
-      cardNumber: finalCardNo,
-      issueDate: toIssueDateSegment(today),
-      assuredNumber: finalCardNo.slice(-5),
-      organization: org,
-      insuredName: name,
-      assignedBy: performedBy.uid,
-      assignedByName: performedBy.name,
-      assignedAt: new Date().toISOString(),
-      method: 'EXCEL_IMPORT',
-    });
+  const membersToCreate = plannedRows.map((p) => ({
+    id: `MEM-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`,
+    cardNo: p.finalCardNo,
+    principalName: p.name,
+    organization: p.org,
+    status: 'Active',
+    relationship: p.row.relationship || 'Primary',
+    birthDate: p.row.birthDate || '1990-01-01',
+    gender: p.row.gender || 'M',
+    phone: p.row.phone || '',
+    email: p.row.email || '',
+    hasPhoto: false,
+    hasBiometrics: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    importedBy: performedBy.uid,
+  }));
 
+  const registryDocsToCreate = plannedRows.map((p) => ({
+    id: p.finalCardNo,
+    cardNumber: p.finalCardNo,
+    issueDate: toIssueDateSegment(today),
+    assuredNumber: p.finalCardNo.slice(-5),
+    organization: p.org,
+    insuredName: p.name,
+    assignedBy: performedBy.uid,
+    assignedByName: performedBy.name,
+    assignedAt: new Date().toISOString(),
+    method: 'EXCEL_IMPORT',
+  }));
+
+  for (const p of plannedRows) {
     report.push({
-      rowIndex: i,
-      principalName: name,
-      organization: org,
-      cardNo: finalCardNo,
+      rowIndex: p.rowIndex,
+      principalName: p.name,
+      organization: p.org,
+      cardNo: p.finalCardNo,
       status: 'SUCCESS',
     });
   }
+  report.sort((a, b) => a.rowIndex - b.rowIndex);
 
-  // Commit writes in chunks (Firestore 500 limit)
+  // Commit writes in chunks (Firestore 500 limit) — the counter and every card number are
+  // already atomically reserved above, so this part can safely run outside a transaction.
   const CHUNK_SIZE = 400;
   for (let c = 0; c < membersToCreate.length; c += CHUNK_SIZE) {
     const batch = db.batch();
@@ -162,16 +210,6 @@ export async function processBulkMemberImportServer(
 
     await batch.commit();
   }
-
-  // Update counter
-  await countersRef.set(
-    {
-      lastAssuredNumber,
-      formatVersion: 'v2',
-      updatedAt: new Date().toISOString(),
-    },
-    { merge: true }
-  );
 
   return {
     totalProcessed: rows.length,

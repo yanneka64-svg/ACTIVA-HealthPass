@@ -2,8 +2,12 @@
 
 Revue demandée explicitement avant tout déploiement. Périmètre : `firestore.rules`,
 `functions/src/*.ts`, `server.ts`, `src/lib/firebase.ts`, et vérification de ce qui est
-réellement câblé au frontend. Aucune correction appliquée à ce stade — constats uniquement,
-classés par sévérité.
+réellement câblé au frontend. Constats classés par sévérité ci-dessous.
+
+> **Mise à jour — toutes les corrections ont été appliquées** (commit suivant). Voir le
+> tableau récapitulatif en fin de document pour le détail de chaque correctif. `tsc --noEmit`
+> et `npm run build` (app principale) restent propres, ainsi que `tsc --noEmit` du sous-projet
+> `functions/`.
 
 ---
 
@@ -218,9 +222,20 @@ générant un appel réseau et une entrée d'erreur Firestore inutiles à chaque
 - Les changements dans `ExcelImportModal.tsx` (remplacement d'un `alert()` par une bannière
   d'erreur inline) sont une amélioration UX correcte et sans risque.
 
-## Prochaine étape proposée
+## Corrections appliquées (commit suivant)
 
-Confirmer lesquels de ces constats corriger et dans quel ordre — je recommande de traiter les
-deux 🔴 HIGH en priorité (contournement réel du blocage de couverture, et compteur de cartes non
-protégé), puisqu'ils sont exploitables **dès aujourd'hui**, indépendamment de tout déploiement
-de Cloud Functions.
+| # | Constat | Fichier(s) | Correctif |
+|---|---|---|---|
+| 🔴 HIGH | `healthPolicies.update` contournait le blocage de couverture | `firestore.rules` | Le passage `coverageBlocked: true → false` ("déblocage") est désormais réservé à Admin/Supervisor ; le sens inverse (bloquer) reste ouvert à tout utilisateur actif, nécessaire à la synchronisation cliente automatique. |
+| 🔴 HIGH | Garde anti-régression du compteur de cartes inopérante (typo de champ) | `firestore.rules` | `lastInsuredNumber` → `lastAssuredNumber` (vrai nom de champ partout ailleurs dans le code). |
+| 🟠 MEDIUM | `medicalForms.delete` ouvert à tout utilisateur actif, sans notion de propriétaire (y compris "Clear All") | `firestore.rules` | Restreint à `isAdmin()`, cohérent avec claims/enrollments et la matrice de permissions (suppression réservée à Admin). |
+| 🟠 MEDIUM | Logique de police divergente entre client et serveur (grâce de paiement + suspension manuelle ; `outstandingAmount` non vérifié) | `functions/src/policyService.ts` | Réalignée sur l'ordre de règles et les conditions exactes de `policyEngine.ts` ; ajout du champ `outstandingAmount` à l'interface locale. |
+| 🟡 LOW | `isAdmin()` court-circuitait le test d'auto-approbation (SoD) sur claims/enrollments | `firestore.rules` | Admin soumis au même test d'auto-approbation que Supervisor, cohérent avec `AUDIT_AND_HARDENING_REPORT.md` et `processClaimDecisionServer`. |
+| 🟡 LOW | Import massif : compteur incrémenté hors transaction (risque de doublon en cas d'import concurrent) ; numéros fournis manuellement non vérifiés contre le registre réel | `functions/src/importService.ts` | Réservation de la plage de numéros + vérification d'existence dans une seule transaction Firestore, avant toute écriture des documents. |
+| 🟡 LOW | `testConnection()` échouait systématiquement (collection sans règle dédiée), bruit inutile | `src/lib/firebase.ts` | Retiré (n'accomplissait jamais ce pour quoi il était prévu). |
+
+**Non traité par cette passe** (documenté, hors périmètre du correctif de vulnérabilités
+demandé) : les Cloud Functions et l'API `server.ts` restent non câblées au frontend, et
+`server.ts` reste sans chemin de déploiement connu sur Netlify — voir les constats MEDIUM
+correspondants ci-dessus, qui restent d'actualité en tant que limitations architecturales
+plutôt que failles de sécurité actives.

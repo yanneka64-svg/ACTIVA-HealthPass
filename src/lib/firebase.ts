@@ -6,8 +6,6 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
   memoryLocalCache,
-  doc,
-  getDocFromServer,
 } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
@@ -62,17 +60,11 @@ export const secondaryApp = getApps().some((a) => a.name === "Secondary")
   : initializeApp(firebaseConfig, "Secondary");
 export const secondaryAuth = getAuth(secondaryApp);
 
-// Validate Connection to Firestore as prescribed in Firebase integration guidelines
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, "test", "connection"));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("the client is offline")) {
-      console.warn("Firestore offline notice: Local cache will be used until connection resumes.");
-    }
-  }
-}
-testConnection();
-
-
+// === AMÉLIORATION AJOUTÉE : correctif LOW (revue de code du 3e3bea9) — l'appel
+// testConnection() ci-avant ciblait `test/connection`, une collection sans aucune règle dédiée
+// dans firestore.rules (donc refusée par défaut, "permission-denied", pour tout le monde, tout
+// le temps — y compris un Admin connecté). Il n'accomplissait donc jamais ce pour quoi il était
+// prévu (détecter un état hors-ligne) et générait un appel réseau et une entrée d'erreur
+// Firestore inutiles à chaque chargement de page. Retiré plutôt que de créer une règle
+// supplémentaire pour une collection qui n'a aucun autre usage réel dans l'application.
 

@@ -66,13 +66,21 @@ service cloud.firestore {
     }
 
     // counters collection (card number sequence preservation)
+    // === AMÉLIORATION AJOUTÉE : sécurité (correctif HIGH) — la garde anti-régression
+    // vérifiait un champ nommé "lastInsuredNumber", qui n'existe nulle part dans le code réel
+    // (client cardNumberService.ts, Cloud Functions cardService.ts/importService.ts, type
+    // CardNumberCounters) : le champ s'appelle partout "lastAssuredNumber". Comme ce champ
+    // n'existait donc jamais sous l'ancien nom, la condition `!('lastInsuredNumber' in
+    // resource.data)` était toujours vraie et la garde ne protégeait rien — n'importe quel
+    // utilisateur actif pouvait faire reculer le compteur, ouvrant la voie à une
+    // réattribution de numéro déjà consommé. Corrigé en utilisant le vrai nom de champ.
     match /counters/{counterId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isActiveUser();
       allow update: if isSignedIn() && isActiveUser() && (
-        !('lastInsuredNumber' in resource.data) ||
-        !('lastInsuredNumber' in request.resource.data) ||
-        request.resource.data.lastInsuredNumber >= resource.data.lastInsuredNumber
+        !('lastAssuredNumber' in resource.data) ||
+        !('lastAssuredNumber' in request.resource.data) ||
+        request.resource.data.lastAssuredNumber >= resource.data.lastAssuredNumber
       );
       allow delete: if false;
     }
@@ -91,12 +99,29 @@ service cloud.firestore {
     }
 
     // healthPolicies collection
+    // === AMÉLIORATION AJOUTÉE : sécurité (correctif HIGH) — la règle précédente autorisait
+    // n'importe quel utilisateur actif (y compris Agent) à écrire n'importe quelle valeur
+    // dans `coverageBlocked`/`status`, du moment qu'il ne touchait à aucun autre champ. Elle
+    // ne vérifiait QUELS champs changent, jamais QUELLE VALEUR est écrite : un Agent pouvait
+    // donc lever lui-même un blocage de couverture (coverageBlocked: false) sur une police
+    // Suspendue/Expirée en appelant directement le SDK Firestore, contournant entièrement
+    // policyBlocksCoverage() (qui bloque claims/medicalForms sur ce même champ). Corrigé en
+    // n'autorisant le passage true -> false ("déblocage") qu'à Admin/Supervisor ; le sens
+    // inverse (marquer une police bloquée) reste ouvert à tout utilisateur actif, car c'est
+    // le sens utilisé par la synchronisation automatique cliente
+    // (WorkflowService.syncPolicyStatuses, exécutée pour CHAQUE session authentifiée, faute
+    // de Cloud Function planifiée pour détecter les transitions basées sur la date) et il
+    // n'introduit aucun risque : rendre une police PLUS restrictive n'est jamais une
+    // élévation de privilège.
     match /healthPolicies/{organizationName} {
       allow read: if isSignedIn();
       allow create, delete: if isAdmin();
       allow update: if isSignedIn() && isActiveUser() && (
-        isAdmin() ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'coverageBlocked', 'updatedAt', 'lastEvaluatedAt'])
+        isAdmin() || isSupervisor() ||
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'coverageBlocked', 'updatedAt', 'lastEvaluatedAt']) &&
+          !(resource.data.coverageBlocked == true && request.resource.data.coverageBlocked != true)
+        )
       );
     }
 
@@ -107,33 +132,47 @@ service cloud.firestore {
     }
 
     // claims collection (with SoD validation enforcement)
+    // === AMÉLIORATION AJOUTÉE : sécurité (correctif LOW) — `isAdmin() ||` en tête de la
+    // condition court-circuitait le test d'auto-approbation pour un Admin : un Admin qui aurait
+    // créé sa propre réclamation (autorisé par la matrice de permissions) pouvait se
+    // l'approuver lui-même, contrairement à ce que documente AUDIT_AND_HARDENING_REPORT.md
+    // ("Admin... sauf s'il en est lui-même l'auteur direct") et à ce qu'applique la Cloud
+    // Function processClaimDecisionServer (qui bloque l'auto-approbation pour TOUT rôle).
+    // Corrigé pour que Admin soit soumis au même test d'auto-approbation que Supervisor.
     match /claims/{claimId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization);
       allow update: if isSignedIn() && isActiveUser() && (
-        isAdmin() ||
-        (!('status' in request.resource.data && request.resource.data.status != resource.data.status)) ||
-        (isSupervisor() && (!('createdBy' in resource.data) || resource.data.createdBy != request.auth.uid))
+        (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
+        ((isAdmin() || isSupervisor()) && (!('createdBy' in resource.data) || resource.data.createdBy != request.auth.uid))
       );
       allow delete: if isAdmin();
     }
 
     // medicalForms collection
+    // === AMÉLIORATION AJOUTÉE : sécurité (correctif MEDIUM) — la suppression était ouverte à
+    // tout utilisateur actif, sans notion de propriétaire (le type MedicalForm ne porte aucun
+    // champ createdBy) : n'importe quel Agent pouvait donc supprimer la fiche médicale de
+    // n'importe quel autre Agent, y compris via le nouveau bouton "Clear All History" qui
+    // supprime TOUTE la collection en un seul lot, quel que soit l'auteur ou l'organisation.
+    // Restreint à isAdmin(), cohérent avec claims/enrollments ci-dessus et avec la matrice de
+    // permissions (permissions.ts : suppression réservée à Admin, jamais Agent/Supervisor).
     match /medicalForms/{formId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization);
       allow update: if isSignedIn() && isActiveUser();
-      allow delete: if isSignedIn() && isActiveUser();
+      allow delete: if isAdmin();
     }
 
     // enrollments collection (with SoD validation enforcement)
+    // === AMÉLIORATION AJOUTÉE : sécurité (correctif LOW) — même correctif que /claims
+    // ci-dessus : Admin soumis au même test d'auto-approbation que Supervisor.
     match /enrollments/{enrollmentId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isActiveUser();
       allow update: if isSignedIn() && isActiveUser() && (
-        isAdmin() ||
-        (!('status' in request.resource.data && request.resource.data.status != resource.data.status)) ||
-        (isSupervisor() && (!('createdBy' in resource.data) || resource.data.createdBy != request.auth.uid))
+        (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
+        ((isAdmin() || isSupervisor()) && (!('createdBy' in resource.data) || resource.data.createdBy != request.auth.uid))
       );
       allow delete: if isAdmin();
     }
