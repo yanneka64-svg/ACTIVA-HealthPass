@@ -39,17 +39,19 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.text('Direct-Billing Healthcare Network • Official ACTIVA Insurance Document', 14, 23);
 
   // Badge Top Right
-  // === AMÉLIORATION AJOUTÉE : ligne "Security No: ..." retirée du bandeau (sur demande
-  // explicite) — le reste (Issue Date, Status) inchangé, seulement recentré verticalement
-  // dans l'espace laissé libre. Le numéro de sécurité reste visible plus bas, au niveau du
-  // code-barres, où il conserve son rôle d'identifiant de sécurité du document.
+  // === AMÉLIORATION AJOUTÉE : sur demande explicite, seul le mot "Security" est retiré du
+  // libellé — le numéro lui-même reste affiché, désormais sous la mention "N°" (au lieu de
+  // "Security No:"). Issue Date / Status inchangés, la ligne reprend sa place d'origine.
   doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8.5);
+  doc.setFont('courier', 'bold');
+  doc.text(`N° ${form.securityNumber}`, pageWidth - 14, 10.5, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text(`Issue Date: ${form.issueDate}`, pageWidth - 14, 13, { align: 'right' });
+  doc.text(`Issue Date: ${form.issueDate}`, pageWidth - 14, 16, { align: 'right' });
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(110, 231, 183); // emerald 300
-  doc.text(`STATUS: VALIDATED / ACTIVE`, pageWidth - 14, 19, { align: 'right' });
+  doc.text(`STATUS: VALIDATED / ACTIVE`, pageWidth - 14, 22, { align: 'right' });
 
   // Reset text color
   doc.setTextColor(30, 41, 59);
