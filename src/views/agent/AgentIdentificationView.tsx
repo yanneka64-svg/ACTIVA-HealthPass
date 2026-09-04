@@ -495,7 +495,13 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-2.5 mt-3">
+                    {/* === AMÉLIORATION AJOUTÉE : colonnes de largeurs inégales (au lieu de tiers
+                        stricts) — Card Number/Affiliated Organization (souvent les valeurs les
+                        plus longues) reçoivent plus de place, Policy Number/Age & Gender/Date of
+                        Birth se décalent légèrement vers la droite en conséquence ; espacement
+                        horizontal réduit (gap-x-8 → gap-x-5) pour libérer encore un peu de
+                        largeur utile, sur demande explicite. === */}
+                    <div className="grid grid-cols-2 sm:grid-cols-[1.5fr_1fr_0.85fr] gap-x-5 gap-y-2.5 mt-3">
                       {/* === AMÉLIORATION AJOUTÉE : "truncate" (au lieu du retour à la ligne par
                           défaut) sur les identifiants — même traitement que "Affiliated
                           Organization" ci-dessous — pour que la ligne reste alignée avec les
@@ -532,7 +538,9 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
 
                 {/* === AMÉLIORATION AJOUTÉE : les boutons passent en pleine largeur et empilés
                     sur mobile (au lieu d'une rangée serrée qui pouvait déborder), pour rester
-                    faciles à toucher et lisibles. === */}
+                    faciles à toucher et lisibles. Rembourrage/icônes légèrement réduits (sur
+                    demande explicite) pour libérer de la place à gauche pour les informations
+                    de l'assuré, sans changer le texte, la couleur ni la fonction des boutons. === */}
                 <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row gap-2.5 shrink-0 w-full sm:w-auto">
                   {onGenerateMedicalForm && (
                     <button
@@ -552,9 +560,9 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         // poursuivre vers le flux de soin, cf. policyCoverage plus haut.
                         guardHealthcareAction('medical_form', () => onGenerateMedicalForm(memberPayload));
                       }}
-                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white whitespace-nowrap"
+                      className="w-full sm:w-auto px-3.5 py-2 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white whitespace-nowrap"
                     >
-                      <FileCheck className="w-4 h-4" />
+                      <FileCheck className="w-3.5 h-3.5" />
                       <span>Generate Medical Form</span>
                     </button>
                   )}
@@ -569,9 +577,9 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         };
                         guardHealthcareAction('new_claim', () => onNewClaim(memberPayload));
                       }}
-                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#0A347B] hover:bg-[#08285e] text-white whitespace-nowrap"
+                      className="w-full sm:w-auto px-3.5 py-2 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer bg-[#0A347B] hover:bg-[#08285e] text-white whitespace-nowrap"
                     >
-                      <Receipt className="w-4 h-4" />
+                      <Receipt className="w-3.5 h-3.5" />
                       <span>New Claim</span>
                     </button>
                   )}
