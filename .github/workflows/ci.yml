@@ -1,0 +1,57 @@
+# === AMÉLIORATION AJOUTÉE : Phase 4 du brief de durcissement (pipeline CI) ===
+# Exécute à chaque Pull Request : install, lint (tsc --noEmit), build Vite, tests unitaires,
+# et tests des règles Firestore sur émulateur. Fait échouer la PR si l'une de ces étapes
+# échoue. La politique de qui a le droit de merger/déployer (branch protection, required
+# reviewers) est une décision de gouvernance humaine à configurer côté GitHub — hors périmètre
+# de ce fichier, qui ne fait qu'exécuter les vérifications elles-mêmes.
+name: CI
+
+on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies (app)
+        run: npm ci
+
+      - name: Install dependencies (functions)
+        run: npm ci
+        working-directory: functions
+
+      - name: Lint / type-check (app + server.ts + tests)
+        run: npm run lint
+
+      - name: Lint / type-check (functions)
+        run: npx tsc --noEmit --project tsconfig.json
+        working-directory: functions
+
+      - name: Build (Vite + server bundle)
+        run: npm run build
+
+      - name: Build (functions)
+        run: npm run build
+        working-directory: functions
+
+      - name: Unit tests (app — policyEngine, permissions)
+        run: npm test
+
+      - name: Unit tests (functions — validation)
+        run: npm test
+        working-directory: functions
+
+      - name: Firestore rules tests (emulator)
+        run: |
+          npm install -g firebase-tools
+          firebase emulators:exec --only firestore --project demo-activa-ci "npm run test:rules"
