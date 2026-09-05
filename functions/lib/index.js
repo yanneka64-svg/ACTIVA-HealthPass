@@ -10,6 +10,7 @@ const claimsService_1 = require("./claimsService");
 const enrollmentsService_1 = require("./enrollmentsService");
 const auditService_1 = require("./auditService");
 const importService_1 = require("./importService");
+const validation_1 = require("./validation");
 if (!admin.apps.length) {
     admin.initializeApp();
 }
@@ -106,6 +107,13 @@ exports.generateCardNumber = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
+    (0, validation_1.validatePayload)(data, {
+        organization: { type: 'string', required: true, maxLength: 200 },
+        memberId: { type: 'string', maxLength: 200 },
+        insuredName: { type: 'string', maxLength: 200 },
+        assignedByName: { type: 'string', maxLength: 200 },
+        method: { type: 'string', enum: ['AUTO_ENROLLMENT', 'ADMIN_CREATION', 'EXCEL_IMPORT', 'MANUAL', 'MIGRATION'] },
+    });
     const { name } = await resolveUserRole(context.auth.uid, context.auth.token.role);
     const ctx = {
         organization: data.organization,
@@ -130,10 +138,15 @@ exports.registerCardNumber = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
+    (0, validation_1.validatePayload)(data, {
+        cardNumber: { type: 'string', required: true, maxLength: 20 },
+        organization: { type: 'string', maxLength: 200 },
+        memberId: { type: 'string', maxLength: 200 },
+        insuredName: { type: 'string', maxLength: 200 },
+        assignedByName: { type: 'string', maxLength: 200 },
+        method: { type: 'string', enum: ['AUTO_ENROLLMENT', 'ADMIN_CREATION', 'EXCEL_IMPORT', 'MANUAL', 'MIGRATION'] },
+    });
     const cardNumber = data.cardNumber;
-    if (!cardNumber || typeof cardNumber !== 'string') {
-        throw new functions.https.HttpsError('invalid-argument', 'cardNumber string is required.');
-    }
     const { name } = await resolveUserRole(context.auth.uid, context.auth.token.role);
     const ctx = {
         organization: data.organization,
@@ -158,6 +171,10 @@ exports.batchGenerateCardNumbers = functions.https.onCall(async (data, context) 
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
+    (0, validation_1.validatePayload)(data, {
+        count: { type: 'number', min: 1, max: 500 },
+        ctxList: { type: 'array', maxItems: 500 },
+    });
     const count = data.count || 1;
     const ctxList = data.ctxList || [];
     try {
@@ -175,6 +192,15 @@ exports.processClaimDecision = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
+    (0, validation_1.validatePayload)(data, {
+        claimId: { type: 'string', required: true, maxLength: 200 },
+        decision: { type: 'string', required: true, enum: ['approved', 'rejected', 'returned'] },
+        approverName: { type: 'string', maxLength: 200 },
+        approverRole: { type: 'string', enum: ['Admin', 'Supervisor', 'Superviseur'] },
+        rejectionReason: { type: 'string', maxLength: 2000 },
+        approvedAmountUSD: { type: 'number', min: 0, max: 10_000_000 },
+        approvedAmountLRD: { type: 'number', min: 0, max: 2_000_000_000 },
+    });
     const { role, name } = await resolveUserRole(context.auth.uid, context.auth.token.role);
     const payload = {
         claimId: data.claimId,
@@ -201,6 +227,13 @@ exports.processEnrollmentDecision = functions.https.onCall(async (data, context)
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
+    (0, validation_1.validatePayload)(data, {
+        enrollmentId: { type: 'string', required: true, maxLength: 200 },
+        decision: { type: 'string', required: true, enum: ['approved', 'rejected'] },
+        approverName: { type: 'string', maxLength: 200 },
+        approverRole: { type: 'string', enum: ['Admin', 'Supervisor', 'Superviseur'] },
+        rejectionReason: { type: 'string', maxLength: 2000 },
+    });
     const { role, name } = await resolveUserRole(context.auth.uid, context.auth.token.role);
     const payload = {
         enrollmentId: data.enrollmentId,
@@ -225,6 +258,9 @@ exports.bulkImportMembers = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
+    (0, validation_1.validatePayload)(data, {
+        rows: { type: 'array', required: true, maxItems: 5000 },
+    });
     const { role, name } = await resolveUserRole(context.auth.uid, context.auth.token.role);
     if (role !== 'Admin' && role !== 'Supervisor') {
         throw new functions.https.HttpsError('permission-denied', 'Only Admins or Supervisors can perform bulk import.');
@@ -245,16 +281,27 @@ exports.bulkImportMembers = functions.https.onCall(async (data, context) => {
 });
 /**
  * Cloud Function: Evaluate Policy Status
+ * === AMÉLIORATION AJOUTÉE : sécurité (Phase 2.2) — recevait auparavant l'objet `policy`
+ * ENTIER fourni par le client et l'évaluait tel quel (`evaluatePolicyServer(data.policy)`),
+ * exactement la même faille que celle corrigée dans server.ts (voir CODE_AUDIT_MAP.md section
+ * 3.2) : un client pouvait fabriquer n'importe quelle date/montant pour obtenir le statut de
+ * son choix. Lit désormais la police RÉELLE en base par nom d'organisation, comme
+ * validateCoverage (validateHealthcareAccessServer) le fait déjà correctement. Aucun appelant
+ * existant (voir CODE_AUDIT_MAP.md section 3.1) — aucune régression possible.
  */
 exports.evaluatePolicy = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
-    const policy = data.policy;
-    if (!policy) {
-        throw new functions.https.HttpsError('invalid-argument', 'Policy data is required.');
+    (0, validation_1.validatePayload)(data, {
+        organizationName: { type: 'string', required: true, maxLength: 200 },
+    });
+    const organizationName = data.organizationName;
+    const policySnap = await db.doc(`healthPolicies/${organizationName}`).get();
+    if (!policySnap.exists) {
+        return { success: true, result: { status: 'Active', coverageBlocked: false } };
     }
-    const result = (0, policyService_1.evaluatePolicyServer)(policy);
+    const result = (0, policyService_1.evaluatePolicyServer)(policySnap.data());
     return { success: true, result };
 });
 /**
@@ -264,10 +311,10 @@ exports.syncPolicy = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
+    (0, validation_1.validatePayload)(data, {
+        organizationId: { type: 'string', required: true, maxLength: 200 },
+    });
     const orgId = data.organizationId;
-    if (!orgId) {
-        throw new functions.https.HttpsError('invalid-argument', 'organizationId is required.');
-    }
     try {
         const result = await (0, policyService_1.syncPolicyStatusServer)(db, orgId);
         return { success: true, result };
@@ -283,6 +330,9 @@ exports.validateCoverage = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
+    (0, validation_1.validatePayload)(data, {
+        organization: { type: 'string', maxLength: 200 },
+    });
     const orgName = data.organization;
     const result = await (0, claimsService_1.validateHealthcareAccessServer)(db, orgName);
     return result;
@@ -291,6 +341,19 @@ exports.validateCoverage = functions.https.onCall(async (data, context) => {
  * Cloud Function: Log Audit Event
  */
 exports.logAuditEvent = functions.https.onCall(async (data, context) => {
+    (0, validation_1.validatePayload)(data, {
+        userId: { type: 'string', maxLength: 200 },
+        userName: { type: 'string', maxLength: 200 },
+        userRole: { type: 'string', maxLength: 100 },
+        action: { type: 'string', maxLength: 100 },
+        category: { type: 'string', maxLength: 100 },
+        entityId: { type: 'string', maxLength: 200 },
+        entityType: { type: 'string', maxLength: 100 },
+        details: { type: 'string', maxLength: 5000 },
+        ip: { type: 'string', maxLength: 100 },
+        userAgent: { type: 'string', maxLength: 500 },
+        severity: { type: 'string', enum: ['INFO', 'WARNING', 'ERROR', 'CRITICAL'] },
+    });
     const entry = {
         userId: context.auth?.uid || data.userId || 'anonymous',
         userName: data.userName || context.auth?.token?.name || 'Anonymous User',
@@ -331,8 +394,12 @@ exports.getSignedFileUrl = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
+    (0, validation_1.validatePayload)(data, {
+        path: { type: 'string', required: true, maxLength: 1000 },
+        expiresInMinutes: { type: 'number', min: 1, max: 60 },
+    });
     const filePath = data.path;
-    if (!filePath || typeof filePath !== 'string' || filePath.includes('..')) {
+    if (filePath.includes('..')) {
         throw new functions.https.HttpsError('invalid-argument', 'A valid, non-traversal file path is required.');
     }
     // Verify the account is active (mirrors isActiveUser() in firestore.rules) — a deactivated
