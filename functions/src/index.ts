@@ -126,8 +126,17 @@ async function resolveUserRole(uid: string, tokenRole?: string): Promise<{ role:
 /**
  * Cloud Function: Generate Next Card Number (Atomic, Server-Side)
  */
+// === AMÉLIORATION AJOUTÉE : compatibilité firebase-functions v7 (CI) ===
+// `functions.https.onCall` n'accepte plus la signature à deux arguments `(data, context)`
+// (le type `CallableContext` a été retiré de la bibliothèque) : elle exige désormais un
+// unique argument `CallableRequest<T>`, qui porte les mêmes champs qu'avant (`.data`, `.auth`,
+// `.rawRequest`, ...). Migration purement mécanique dans tout ce fichier : `data`/`context`
+// restent utilisés tels quels dans le corps de chaque fonction, dérivés de `request` en tête —
+// aucun changement de comportement, uniquement de signature/typage.
 export const generateCardNumber = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
@@ -163,7 +172,9 @@ export const generateCardNumber = functions.https.onCall(
  * Cloud Function: Register Existing Card Number (Case A)
  */
 export const registerCardNumber = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
@@ -203,7 +214,9 @@ export const registerCardNumber = functions.https.onCall(
  * Cloud Function: Batch Generate Card Numbers
  */
 export const batchGenerateCardNumbers = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
@@ -229,7 +242,9 @@ export const batchGenerateCardNumbers = functions.https.onCall(
  * Cloud Function: Process Claim Decision (Separation of Duties enforced server-side)
  */
 export const processClaimDecision = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
@@ -270,7 +285,9 @@ export const processClaimDecision = functions.https.onCall(
  * Cloud Function: Process Enrollment Decision (Separation of Duties enforced server-side)
  */
 export const processEnrollmentDecision = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
@@ -307,7 +324,9 @@ export const processEnrollmentDecision = functions.https.onCall(
  * Cloud Function: Bulk Member Import
  */
 export const bulkImportMembers = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
@@ -348,7 +367,9 @@ export const bulkImportMembers = functions.https.onCall(
  * existant (voir CODE_AUDIT_MAP.md section 3.1) — aucune régression possible.
  */
 export const evaluatePolicy = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
@@ -372,7 +393,9 @@ export const evaluatePolicy = functions.https.onCall(
  * Cloud Function: Sync Policy Status
  */
 export const syncPolicy = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
@@ -395,7 +418,9 @@ export const syncPolicy = functions.https.onCall(
  * Cloud Function: Validate Coverage
  */
 export const validateCoverage = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
@@ -413,7 +438,9 @@ export const validateCoverage = functions.https.onCall(
  * Cloud Function: Log Audit Event
  */
 export const logAuditEvent = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     validatePayload(data, {
       userId: { type: 'string', maxLength: 200 },
       userName: { type: 'string', maxLength: 200 },
@@ -468,7 +495,9 @@ export const logAuditEvent = functions.https.onCall(
  * du possible (voir rapport final) ; le câblage UI est documenté comme prochaine étape.
  */
 export const getSignedFileUrl = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (request: functions.https.CallableRequest<any>) => {
+    const { data } = request;
+    const context = request;
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
     }
@@ -637,7 +666,7 @@ async function checkAndApplyRateLimit(
  */
 async function handleResolveLogin(
   data: { identifier?: string; password?: string },
-  context: functions.https.CallableContext
+  context: functions.https.CallableRequest<any>
 ) {
   const rawIdentifier = (data?.identifier || '').trim();
   const identifier = rawIdentifier.toLowerCase();
@@ -792,8 +821,8 @@ async function handleResolveLogin(
 }
 
 export const resolveLoginIdentifier = functions.https.onCall(
-  async (data: { identifier?: string; password?: string }, context) => {
-    return handleResolveLogin(data, context);
+  async (request: functions.https.CallableRequest<{ identifier?: string; password?: string }>) => {
+    return handleResolveLogin(request.data, request);
   }
 );
 
@@ -801,8 +830,8 @@ export const resolveLoginIdentifier = functions.https.onCall(
  * === AMÉLIORATION AJOUTÉE : alias rétro-compatible pour lookupAccountAuthEmail ===
  */
 export const lookupAccountAuthEmail = functions.https.onCall(
-  async (data: { identifier?: string; password?: string }, context) => {
-    return handleResolveLogin(data, context);
+  async (request: functions.https.CallableRequest<{ identifier?: string; password?: string }>) => {
+    return handleResolveLogin(request.data, request);
   }
 );
 
@@ -813,8 +842,9 @@ export const lookupAccountAuthEmail = functions.https.onCall(
  * associe son compte de manière sécurisée côté serveur sans exiger une lecture publique de `accounts`.
  */
 export const ensureUserAccount = functions.https.onCall(
-  async (data: { identifier?: string }, context) => {
-    const auth = context.auth;
+  async (request: functions.https.CallableRequest<{ identifier?: string }>) => {
+    const { data } = request;
+    const auth = request.auth;
     if (!auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
