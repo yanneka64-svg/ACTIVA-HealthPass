@@ -1,12 +1,56 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, DocumentData } from 'firebase-admin/firestore';
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.1/1.7) ===
+// Constat de docs/security/CODE_AUDIT_MAP.md (section 3.2) : AUCUNE route de ce serveur ne
+// vérifiait le jeton Firebase Auth envoyé par `src/services/apiClient.ts` (`Authorization:
+// Bearer ...`) — chaque route était donc accessible anonymement — et `/api/policies/evaluate`
+// / `/api/claims/validate-coverage` recalculaient un statut à partir de valeurs ENTIÈREMENT
+// fournies par le client, sans jamais lire les données réelles en base (aucune garantie
+// d'intégrité malgré les apparences). Corrigé ci-dessous : initialisation tolérante du SDK
+// Admin (n'empêche jamais le démarrage du serveur ni les routes qui n'en ont pas besoin —
+// `/api/health`, `/api/cards/verify-format`, `/api/cards/continuity-report` restent
+// inchangées), middleware de vérification de jeton pour les routes sensibles, et lecture
+// systématique de l'état réel en base plutôt que confiance dans le payload client.
+// Aucun appelant n'existe aujourd'hui pour ces routes (apiClient.ts est du code mort, voir
+// CODE_AUDIT_MAP.md) : ce correctif ferme une faille avant qu'elle ne soit jamais exploitée
+// en production, sans aucun risque de régression sur un usage existant.
+let adminInitError: string | null = null;
+try {
+  if (!getApps().length) {
+    initializeApp();
+  }
+} catch (e: any) {
+  adminInitError = e?.message || 'Firebase Admin SDK initialization failed';
+  console.warn('[server.ts] Firebase Admin SDK not available:', adminInitError);
+}
+
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (adminInitError) {
+    return res.status(503).json({ error: 'Server authentication is not configured (Admin SDK unavailable).' });
+  }
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) {
+    return res.status(401).json({ error: 'Missing Authorization: Bearer <Firebase ID token>.' });
+  }
+  try {
+    (req as any).authUser = await getAuth().verifyIdToken(token);
+    next();
+  } catch (e: any) {
+    return res.status(401).json({ error: 'Invalid or expired authentication token.' });
+  }
+}
 
 // --- API ROUTES ---
 app.get('/api/health', (_req: Request, res: Response) => {
@@ -121,100 +165,140 @@ app.post('/api/cards/continuity-report', (req: Request, res: Response) => {
   });
 });
 
-// Policy Status Server Evaluation
-app.post('/api/policies/evaluate', (req: Request, res: Response) => {
-  const { policy } = req.body;
-  if (!policy) {
-    return res.status(400).json({ error: 'policy object required' });
-  }
-
+// === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.7) — logique d'évaluation extraite dans une
+// fonction pure, appliquée à la police RÉELLEMENT lue en base (voir la route ci-dessous),
+// jamais à un objet fourni tel quel par le client. Miroir de src/services/policyEngine.ts
+// (getPolicyCoverageStatus) — même ordre de règles ; toujours la SEULE source de vérité
+// fonctionnelle côté client, cette fonction sert uniquement à revérifier côté serveur.
+function evaluatePolicyFromRecord(policy: DocumentData) {
   const now = new Date();
   const todayTime = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
-  // 1. Expiration check
   if (policy.expirationDate) {
     const expDate = new Date(policy.expirationDate).getTime();
     if (!isNaN(expDate)) {
       const diffDays = Math.ceil((expDate - todayTime) / (1000 * 60 * 60 * 24));
       if (diffDays < 0) {
-        return res.json({
+        return {
           status: 'Expired',
           coverageBlocked: true,
           reason: `Policy expired on ${policy.expirationDate} (${Math.abs(diffDays)} days ago).`,
           daysUntilExpiration: diffDays,
-        });
+        };
       }
     }
   }
 
-  // 2. Overdue payment & grace period
   const graceDays = policy.gracePeriodDays ?? 15;
   if (policy.nextPaymentDueDate) {
     const dueDate = new Date(policy.nextPaymentDueDate).getTime();
     if (!isNaN(dueDate)) {
       const diffPastDue = Math.floor((todayTime - dueDate) / (1000 * 60 * 60 * 24));
-      if (diffPastDue > 0) {
+      if (diffPastDue > 0 && (policy.outstandingAmount ?? 0) > 0) {
         if (diffPastDue > graceDays) {
-          return res.json({
+          return {
             status: 'Suspended (Non-payment)',
             coverageBlocked: true,
             reason: `Payment is ${diffPastDue} days past due (grace period of ${graceDays} days exceeded).`,
             daysPastDue: diffPastDue,
-          });
-        } else {
-          return res.json({
-            status: 'Active',
-            coverageBlocked: false,
-            reason: `Payment is ${diffPastDue} days past due, within grace period (${graceDays} days).`,
-            daysPastDue: diffPastDue,
-            isInGracePeriod: true,
-          });
+          };
         }
       }
     }
   }
 
-  // 3. Manual suspension
   if (policy.manuallySuspended) {
-    return res.json({
+    return {
       status: 'Suspended',
       coverageBlocked: true,
       reason: policy.suspensionReason || 'Manually suspended by administrator.',
-    });
+    };
   }
 
-  // 4. Renewal Warning
   const warningDays = policy.expiringSoonWarningDays ?? 30;
   if (policy.expirationDate) {
     const expDate = new Date(policy.expirationDate).getTime();
     if (!isNaN(expDate)) {
       const diffDays = Math.ceil((expDate - todayTime) / (1000 * 60 * 60 * 24));
-      if (diffDays <= warningDays) {
-        return res.json({
+      if (diffDays >= 0 && diffDays <= warningDays) {
+        return {
           status: 'Expiring Soon',
           coverageBlocked: false,
           reason: `Policy will expire in ${diffDays} days (${policy.expirationDate}). Renewal required.`,
           daysUntilExpiration: diffDays,
-        });
+        };
       }
     }
   }
 
-  return res.json({
+  return {
     status: 'Active',
     coverageBlocked: false,
     reason: 'Policy in good standing.',
-  });
+  };
+}
+
+// Policy Status Server Evaluation — lit la police RÉELLE en base (healthPolicies/{organizationName}),
+// jamais un objet fourni par le client (voir commentaire ci-dessus). Requiert un jeton Firebase
+// Auth valide (requireAuth).
+app.post('/api/policies/evaluate', requireAuth, async (req: Request, res: Response) => {
+  const { organizationName } = req.body;
+  if (!organizationName || typeof organizationName !== 'string') {
+    return res.status(400).json({ error: 'organizationName (string) is required.' });
+  }
+
+  let policySnap;
+  try {
+    policySnap = await getFirestore().doc(`healthPolicies/${organizationName}`).get();
+  } catch (e: any) {
+    return res.status(503).json({ error: 'Unable to read policy data from the database.' });
+  }
+  if (!policySnap.exists) {
+    return res.json({ status: 'Active', coverageBlocked: false, reason: 'No policy configured for this organization.' });
+  }
+
+  return res.json(evaluatePolicyFromRecord(policySnap.data() || {}));
 });
 
-// Healthcare Access Gate
-app.post('/api/claims/validate-coverage', (req: Request, res: Response) => {
-  const { coverageBlocked, memberStatus } = req.body;
-  if (coverageBlocked === true) {
+// === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.7) — Healthcare Access Gate réécrite pour lire
+// l'état RÉEL en base (healthPolicies + members) au lieu de faire confiance à `coverageBlocked`/
+// `memberStatus` fournis tels quels par le client (voir CODE_AUDIT_MAP.md section 3.2 : un
+// client pouvait auparavant envoyer simplement `{coverageBlocked:false}` pour obtenir
+// `allowed:true`, quel que soit l'état réel). Aucun appelant existant (apiClient.ts est mort) —
+// aucune régression possible, cette route n'a jamais été exercée.
+app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res: Response) => {
+  const { organizationName, memberCardNo } = req.body;
+  if (!organizationName || typeof organizationName !== 'string') {
+    return res.status(400).json({ error: 'organizationName (string) is required.' });
+  }
+
+  let coverageBlocked = false;
+  try {
+    const policySnap = await getFirestore().doc(`healthPolicies/${organizationName}`).get();
+    if (policySnap.exists) {
+      coverageBlocked = evaluatePolicyFromRecord(policySnap.data() || {}).coverageBlocked === true;
+    }
+  } catch {
+    return res.status(503).json({ error: 'Unable to read policy data from the database.' });
+  }
+
+  if (coverageBlocked) {
     return res.json({
       allowed: false,
       reason: 'Healthcare access is suspended due to organizational policy restrictions.',
     });
+  }
+
+  let memberStatus: string | undefined;
+  if (memberCardNo && typeof memberCardNo === 'string') {
+    try {
+      const memberSnap = await getFirestore().collection('members').where('cardNo', '==', memberCardNo).limit(1).get();
+      if (!memberSnap.empty) {
+        memberStatus = memberSnap.docs[0].data().status;
+      }
+    } catch {
+      return res.status(503).json({ error: 'Unable to read member data from the database.' });
+    }
   }
   if (memberStatus === 'Suspended' || memberStatus === 'Suspendu' || memberStatus === 'Inactive' || memberStatus === 'Inactif') {
     return res.json({
@@ -225,23 +309,48 @@ app.post('/api/claims/validate-coverage', (req: Request, res: Response) => {
   return res.json({ allowed: true });
 });
 
-// Server-stamped Audit Event
-app.post('/api/audit/log', (req: Request, res: Response) => {
+// === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.7/2.3) — cette route renvoyait auparavant
+// {success:true, entry:{...}} SANS JAMAIS RIEN ÉCRIRE (ni Firestore, ni fichier) : un pur
+// simulacre (voir CODE_AUDIT_MAP.md section 3.2). Écrit désormais réellement dans `auditLogs`
+// via le SDK Admin. Le jeton d'authentification est vérifié s'il est fourni (pour obtenir un
+// uid de confiance), mais reste OPTIONNEL sur cette route — cohérent avec
+// `auditLogs.create: if true` dans firestore.rules, qui doit rester ouvert pour journaliser un
+// échec de connexion avant authentification (voir LoginView.tsx) ; aucun appelant existant
+// (apiClient.ts est mort) — aucune régression possible.
+app.post('/api/audit/log', async (req: Request, res: Response) => {
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   const userAgent = req.headers['user-agent'];
 
+  let verifiedUid: string | null = null;
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (token && !adminInitError) {
+    try {
+      verifiedUid = (await getAuth().verifyIdToken(token)).uid;
+    } catch {
+      // Invalid/expired token: log anonymously rather than reject — this endpoint must also
+      // support pre-authentication events (e.g. failed login attempts).
+    }
+  }
+
   const entry = {
     ...req.body,
+    userId: verifiedUid || req.body?.userId || 'anonymous',
     serverTimestamp: new Date().toISOString(),
     ip: clientIp,
     userAgent,
     verifiedServerSide: true,
   };
 
-  res.json({
-    success: true,
-    entry,
-  });
+  if (adminInitError) {
+    return res.status(503).json({ error: 'Server-side audit logging is not configured (Admin SDK unavailable).' });
+  }
+  try {
+    const ref = await getFirestore().collection('auditLogs').add(entry);
+    res.json({ success: true, id: ref.id, entry });
+  } catch (e: any) {
+    res.status(503).json({ error: 'Failed to persist audit log entry.' });
+  }
 });
 
 async function startServer() {

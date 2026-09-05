@@ -139,10 +139,18 @@ export async function evaluatePolicyWithServer(
   referenceDate: Date = new Date()
 ): Promise<PolicyCoverageResult> {
   try {
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.7) — la route serveur lit désormais la
+    // police réelle en base par nom d'organisation (voir server.ts) au lieu de recevoir
+    // l'objet `policy` fourni par le client tel quel ; jeton d'authentification requis.
+    const { auth } = await import('../lib/firebase');
+    const token = await auth.currentUser?.getIdToken().catch(() => undefined);
     const res = await fetch('/api/policies/evaluate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ policy }),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ organizationName: policy.organizationId }),
     });
     if (res.ok) {
       const data = await res.json();

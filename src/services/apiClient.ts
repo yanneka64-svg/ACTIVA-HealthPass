@@ -4,7 +4,6 @@ import { ClaimDecisionPayload } from '../../functions/src/claimsService';
 import { EnrollmentDecisionPayload } from '../../functions/src/enrollmentsService';
 import { ImportRowInput, ImportExecutionResult } from '../../functions/src/importService';
 import { AuditLogEntry } from '../../functions/src/auditService';
-import { HealthPolicy } from '../../functions/src/policyService';
 
 /**
  * Helper to get current user authorization header
@@ -168,14 +167,17 @@ export const ApiClient = {
   },
 
   /**
-   * Evaluates organization health policy on the server
+   * Evaluates organization health policy on the server.
+   * === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.7) — la route lit désormais la police réelle
+   * en base par nom d'organisation, jamais l'objet `policy` fourni par le client (voir
+   * server.ts) ; jeton d'authentification requis (déjà géré par getAuthHeaders() ci-dessus).
    */
-  async evaluatePolicy(policy: HealthPolicy): Promise<any> {
+  async evaluatePolicy(organizationName: string): Promise<any> {
     const headers = await getAuthHeaders();
     const res = await fetch('/api/policies/evaluate', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ policy }),
+      body: JSON.stringify({ organizationName }),
     });
 
     if (!res.ok) {
@@ -187,9 +189,11 @@ export const ApiClient = {
   },
 
   /**
-   * Validates healthcare access for a given organization or member
+   * Validates healthcare access for a given organization/member, based on data read from the
+   * database server-side — the client no longer dictates `coverageBlocked`/`memberStatus`
+   * directly (Phase 1.7 — see server.ts).
    */
-  async validateHealthcareAccess(params: { organization?: string; coverageBlocked?: boolean; memberStatus?: string }): Promise<{ allowed: boolean; reason?: string }> {
+  async validateHealthcareAccess(params: { organizationName: string; memberCardNo?: string }): Promise<{ allowed: boolean; reason?: string }> {
     const headers = await getAuthHeaders();
     const res = await fetch('/api/claims/validate-coverage', {
       method: 'POST',
