@@ -53,7 +53,7 @@ interface AgentMedicalFormViewProps {
   onCreateMedicalForm?: (form: Partial<MedicalForm>) => void;
   onUpdateMedicalForm?: (form: MedicalForm) => void;
   onDeleteMedicalForm?: (id: string) => Promise<void> | void;
-  onClearAllMedicalForms?: () => Promise<void> | void;
+  onClearAllMedicalForms?: (reason: string) => Promise<void> | void;
   initialMemberCardNo?: string | null;
   onConsumedInitialMember?: () => void;
 }
@@ -95,6 +95,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   const [formToDelete, setFormToDelete] = useState<MedicalForm | null>(null);
   const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
+  // — CRITIQUE) — confirmation renforcée (saisie d'une phrase exacte) et motif obligatoire
+  // avant toute suppression en masse de l'historique médical. Voir handleConfirmClearAll.
+  const CLEAR_ALL_CONFIRM_PHRASE = 'DELETE ALL';
+  const [clearAllConfirmText, setClearAllConfirmText] = useState('');
+  const [clearAllReason, setClearAllReason] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
   // === AMÉLIORATION AJOUTÉE : la Fiche Médicale doit rester bleue côté Agent (branding Agent inchangé)
@@ -361,10 +367,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // Clear all medical forms history
   const handleConfirmClearAll = async () => {
     if (!onClearAllMedicalForms) return;
+    if (clearAllConfirmText.trim().toUpperCase() !== CLEAR_ALL_CONFIRM_PHRASE) return;
+    if (!clearAllReason.trim()) return;
     setIsDeleting(true);
     try {
-      await onClearAllMedicalForms();
+      await onClearAllMedicalForms(clearAllReason.trim());
       setIsClearAllModalOpen(false);
+      setClearAllConfirmText('');
+      setClearAllReason('');
     } catch (e) {
       console.error('Error clearing medical forms history:', e);
     } finally {
@@ -1516,14 +1526,52 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 Are you sure you want to delete all {normalizedForms.length} medical forms from history?
               </p>
               <p className="text-[11px] text-rose-600 leading-relaxed">
-                This will purge all issued coverage vouchers from the database. This action is irreversible.
+                Each record is archived (full content, who, when, why) before deletion — see Admin
+                audit trail — but this removes it from active history permanently.
               </p>
+            </div>
+
+            {/* === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05,
+                section 2.5) — motif obligatoire et phrase de confirmation exacte avant toute
+                suppression en masse. === */}
+            <div className="space-y-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Reason for this deletion (required, kept in the audit trail)
+                </label>
+                <textarea
+                  value={clearAllReason}
+                  onChange={(e) => setClearAllReason(e.target.value)}
+                  disabled={isDeleting}
+                  rows={2}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  placeholder="e.g. End-of-period cleanup approved by..."
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Type <span className="font-mono text-rose-700">{CLEAR_ALL_CONFIRM_PHRASE}</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={clearAllConfirmText}
+                  onChange={(e) => setClearAllConfirmText(e.target.value)}
+                  disabled={isDeleting}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  placeholder={CLEAR_ALL_CONFIRM_PHRASE}
+                  autoComplete="off"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setIsClearAllModalOpen(false)}
+                onClick={() => {
+                  setIsClearAllModalOpen(false);
+                  setClearAllConfirmText('');
+                  setClearAllReason('');
+                }}
                 disabled={isDeleting}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
@@ -1532,8 +1580,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               <button
                 type="button"
                 onClick={handleConfirmClearAll}
-                disabled={isDeleting}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                disabled={isDeleting || clearAllConfirmText.trim().toUpperCase() !== CLEAR_ALL_CONFIRM_PHRASE || !clearAllReason.trim()}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 {isDeleting ? (
                   <>

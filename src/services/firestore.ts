@@ -1,8 +1,13 @@
-import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, writeBatch, DocumentReference } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, writeBatch, DocumentReference } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, AuditLog, MedicalForm, AppNotification, HealthPolicy, PolicyPayment } from '../types';
 import { getFullDemoData, seedInitialDemoDataIfEmpty } from './seedData';
 import { isNewSecurityNumberFormat, normalizeMedicalFormSecurityNumber } from '../utils/medicalFormUtils';
+
+// === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5) —
+// voir deleteMedicalForm/deleteAllMedicalForms ci-dessous.
+const MEDICAL_FORMS_ARCHIVE_COLLECTION = 'medicalFormsDeletionArchive';
+const MEDICAL_FORMS_ARCHIVE_BATCH_SIZE = 200;
 
 export enum OperationType {
   CREATE = 'create',
@@ -580,23 +585,75 @@ export const FirestoreService = {
       throw err;
     }
   },
-  deleteMedicalForm: async (id: string) => {
+  // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
+  // — CRITIQUE) ===
+  // Avant ce correctif, ces deux fonctions supprimaient physiquement et IRRÉVERSIBLEMENT un ou
+  // tous les formulaires médicaux, sans aucune trace de ce qui a été supprimé — pour
+  // `deleteAllMedicalForms`, cela signifiait l'effacement complet et silencieux de l'historique
+  // médical de toutes les organisations en une seule opération. Correctif : chaque document
+  // est désormais archivé (contenu intégral + qui/quand/pourquoi) dans la collection immuable
+  // `medicalFormsDeletionArchive` AVANT sa suppression — jamais perdu, jamais visible ailleurs
+  // que par un Admin (voir firestore.rules). La suppression en masse écrit en plus une entrée
+  // d'audit métier structurée (voir DATA-03) dans `auditLogs`, et traite les documents par lots
+  // de 200 pour rester sous la limite de 500 écritures par batch Firestore (chaque document
+  // produit désormais 2 écritures : l'archive + la suppression).
+  deleteMedicalForm: async (id: string, reason?: string) => {
     try {
-      return await deleteDoc(doc(db, 'medicalForms', id));
+      const ref = doc(db, 'medicalForms', id);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        await setDoc(doc(db, MEDICAL_FORMS_ARCHIVE_COLLECTION, id), {
+          originalId: id,
+          data: snap.data(),
+          deletedBy: auth.currentUser?.uid || 'unknown',
+          deletedByEmail: auth.currentUser?.email || null,
+          deletedAt: new Date().toISOString(),
+          reason: reason || null,
+          scope: 'single',
+        });
+      }
+      return await deleteDoc(ref);
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `medicalForms/${id}`);
       throw err;
     }
   },
-  deleteAllMedicalForms: async () => {
+  deleteAllMedicalForms: async (reason?: string) => {
     try {
       const snap = await getDocs(collection(db, 'medicalForms'));
       if (snap.empty) return;
-      const batch = writeBatch(db);
-      snap.docs.forEach((d) => {
-        batch.delete(d.ref);
+      const docs = snap.docs;
+      const deletedBy = auth.currentUser?.uid || 'unknown';
+      const deletedByEmail = auth.currentUser?.email || null;
+      const deletedAt = new Date().toISOString();
+
+      for (let i = 0; i < docs.length; i += MEDICAL_FORMS_ARCHIVE_BATCH_SIZE) {
+        const chunk = docs.slice(i, i + MEDICAL_FORMS_ARCHIVE_BATCH_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((d) => {
+          batch.set(doc(db, MEDICAL_FORMS_ARCHIVE_COLLECTION, d.id), {
+            originalId: d.id,
+            data: d.data(),
+            deletedBy,
+            deletedByEmail,
+            deletedAt,
+            reason: reason || null,
+            scope: 'bulk',
+          });
+          batch.delete(d.ref);
+        });
+        await batch.commit();
+      }
+
+      await FirestoreService.addLog({
+        userId: deletedBy,
+        userName: deletedByEmail || 'Admin',
+        userRole: 'Admin',
+        action: 'MEDICAL_FORMS_BULK_DELETE',
+        category: 'MedicalForms',
+        entityType: 'medicalForms',
+        details: `Bulk-deleted ${docs.length} medical form(s), archived to ${MEDICAL_FORMS_ARCHIVE_COLLECTION} beforehand.${reason ? ` Reason: ${reason}` : ''}`,
       });
-      await batch.commit();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'medicalForms');
       throw err;

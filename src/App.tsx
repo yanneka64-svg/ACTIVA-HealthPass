@@ -419,19 +419,22 @@ export default function App() {
     });
   }, [authStatus, members]);
 
-  // === AMÉLIORATION AJOUTÉE : purge unique de l'historique des formulaires médicaux sur demande explicite ===
-  const medicalFormsPurgedRef = useRef(false);
-  useEffect(() => {
-    if (authStatus !== 'authenticated' || medicalFormsPurgedRef.current) return;
-    medicalFormsPurgedRef.current = true;
-    FirestoreService.deleteAllMedicalForms()
-      .then(() => {
-        setMedicalForms([]);
-      })
-      .catch((err) => {
-        console.warn('Initial cleanup of medical forms history notice:', err);
-      });
-  }, [authStatus]);
+  // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
+  // — CRITIQUE) ===
+  // SUPPRIMÉ : cet effet déclenchait `FirestoreService.deleteAllMedicalForms()` — un effacement
+  // PHYSIQUE et IRRÉVERSIBLE de l'intégralité de l'historique médical, toutes organisations
+  // confondues — automatiquement, sans confirmation, dès qu'une session authentifiée chargeait
+  // l'application. Le commentaire d'origine ("purge unique... sur demande explicite")
+  // documentait une intention ponctuelle, mais son garde-fou (`useRef(false)`) est un état
+  // React en mémoire qui ne survit PAS à un rechargement de page : à chaque nouveau chargement
+  // de l'app par un compte Admin (le seul dont `firestore.rules` autorise réellement la
+  // suppression), l'intégralité des dossiers médicaux était de nouveau détruite silencieusement
+  // (seul un `console.warn` en cas d'échec, aucune trace en cas de succès). Retiré entièrement :
+  // la purge ponctuelle qui a pu être nécessaire à l'origine est un acte volontaire, déclenché
+  // une fois manuellement — jamais un comportement permanent au démarrage. La suppression
+  // manuelle (bouton "Clear All History", voir AgentMedicalFormView.tsx) reste disponible pour
+  // un Admin qui le souhaiterait explicitement, désormais avec archivage et confirmation
+  // renforcée (voir FirestoreService.deleteAllMedicalForms).
 
   const handleLoginSuccess = (user: any) => {
     // Son de bienvenue sur connexion utilisateur réussie (exécute un déblocage AudioContext dans le geste utilisateur)
@@ -1052,9 +1055,9 @@ export default function App() {
     }
   };
 
-  const handleClearAllMedicalForms = async () => {
+  const handleClearAllMedicalForms = async (reason: string) => {
     try {
-      await FirestoreService.deleteAllMedicalForms();
+      await FirestoreService.deleteAllMedicalForms(reason);
       setMedicalForms([]);
     } catch (e) {
       console.error('Failed to clear medical forms history:', e);

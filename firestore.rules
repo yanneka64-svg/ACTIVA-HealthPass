@@ -318,6 +318,19 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
+    // — CRITIQUE) — archive immuable écrite par FirestoreService.deleteMedicalForm/
+    // deleteAllMedicalForms (src/services/firestore.ts) juste avant toute suppression physique
+    // d'un formulaire médical : conserve le contenu intégral du document supprimé, qui l'a
+    // supprimé, quand, et pourquoi. Jamais modifiable ni supprimable une fois écrite (comme
+    // auditLogs) ; lecture réservée à l'Admin, cohérent avec le fait que la suppression
+    // elle-même (medicalForms.delete ci-dessus) est déjà strictement Admin-only.
+    match /medicalFormsDeletionArchive/{archiveId} {
+      allow read: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn() && isAdmin();
+      allow update, delete: if false;
+    }
+
     // enrollments collection (with SoD validation enforcement)
     // === AMÉLIORATION AJOUTÉE : sécurité (correctif LOW) — même correctif que /claims
     // ci-dessus : Admin soumis au même test d'auto-approbation que Supervisor.
