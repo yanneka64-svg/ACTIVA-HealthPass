@@ -40,6 +40,23 @@ service cloud.firestore {
       return isAdmin() || isSupervisor();
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.5 — workflow d'état serveur) ===
+    // Problème : une fois qu'un claim/enrollment passe à 'approved' (ce qui déclenche déjà,
+    // côté client, la génération d'une facture — voir WorkflowService.approveClaim — et
+    // l'inscription définitive d'un membre pour un enrollment), rien n'empêchait de faire
+    // reculer son statut vers 'pending'/'rejected'/'returned' par la suite (via un appel
+    // direct au SDK, la règle ne contrôlant QUE qui peut changer le statut, jamais VERS quoi).
+    // Vérifié dans le code existant : aucun flux applicatif ne réécrit jamais `status` sur un
+    // document déjà 'approved' (recherche exhaustive de `status: 'approved'` — uniquement en
+    // écriture initiale d'approbation, jamais en modification ultérieure ; permissions.ts
+    // traite déjà 'approved' comme terminal pour l'édition, mais seulement côté affichage).
+    // Correctif : une fois 'approved', le statut devient immuable au niveau des règles —
+    // aucun usage légitime observé n'est cassé, puisqu'aucun ne dépendait de pouvoir revenir
+    // en arrière depuis 'approved'.
+    function statusChangeAllowed(oldStatus, newStatus) {
+      return oldStatus != 'approved' || newStatus == 'approved';
+    }
+
     // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3 — isolation par organisation) ===
     // Problème : jusqu'ici, `members`/`claims`/`medicalForms`/`enrollments`/`invoices`/
     // `policyPayments` n'imposaient aucune restriction liée à l'organisation cliente — un
@@ -224,7 +241,8 @@ service cloud.firestore {
         hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
         hasOrgAccess(resource.data.organization) &&
-        (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) && (
+        (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) &&
+        (!('status' in request.resource.data) || statusChangeAllowed(resource.data.status, request.resource.data.status)) && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
         ((isAdmin() || isSupervisor()) && !isSelfCreated(resource.data))
       );
@@ -261,7 +279,8 @@ service cloud.firestore {
       allow create: if isSignedIn() && isActiveUser() && hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
         hasOrgAccess(resource.data.organization) &&
-        (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) && (
+        (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) &&
+        (!('status' in request.resource.data) || statusChangeAllowed(resource.data.status, request.resource.data.status)) && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
         ((isAdmin() || isSupervisor()) && !isSelfCreated(resource.data))
       );

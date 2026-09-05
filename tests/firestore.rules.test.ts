@@ -223,6 +223,36 @@ describe('Phase 1.4 — SoD via createdByUid déterminé serveur', () => {
   });
 });
 
+describe('Phase 1.5 — workflow d\'état serveur (statut immuable une fois "approved")', () => {
+  it('un Supervisor ne peut pas faire revenir un claim approuvé à "pending" (REFUS)', async () => {
+    await seedAccount('supRevert', { profile: 'Supervisor' });
+    await seedDoc('claims', 'cApproved', { organization: 'OrgA', status: 'approved', createdByUid: 'someoneElse' });
+
+    await assertFails(asUser('supRevert').doc('claims/cApproved').update({ status: 'pending' }));
+  });
+
+  it('un Admin ne peut pas non plus faire reculer un claim approuvé (REFUS)', async () => {
+    await seedAccount('adminRevert', { profile: 'Admin' });
+    await seedDoc('claims', 'cApproved2', { organization: 'OrgA', status: 'approved', createdByUid: 'someoneElse' });
+
+    await assertFails(asUser('adminRevert').doc('claims/cApproved2').update({ status: 'rejected' }));
+  });
+
+  it('une mise à jour qui ne touche pas au statut reste possible sur un claim approuvé', async () => {
+    await seedAccount('adminTouch', { profile: 'Admin' });
+    await seedDoc('claims', 'cApproved3', { organization: 'OrgA', status: 'approved', createdByUid: 'someoneElse' });
+
+    await assertSucceeds(asUser('adminTouch').doc('claims/cApproved3').update({ comments: 'note interne' }));
+  });
+
+  it('un enrollment approuvé ne peut pas non plus être ramené à "pending" (REFUS)', async () => {
+    await seedAccount('supRevertEnr', { profile: 'Supervisor' });
+    await seedDoc('enrollments', 'eApproved', { organization: 'OrgA', status: 'approved', createdByUid: 'someoneElse' });
+
+    await assertFails(asUser('supRevertEnr').doc('enrollments/eApproved').update({ status: 'pending' }));
+  });
+});
+
 describe('Cartes — immuabilité du registre (comportement pré-existant, non modifié ici)', () => {
   it('cardNumberRegistry est immuable : mise à jour refusée (REFUS)', async () => {
     await seedAccount('agentCard', { profile: 'Agent' });
