@@ -1,5 +1,5 @@
 import { collection, getDocs, doc, writeBatch } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { Member, Organization, Provider, Claim, MedicalForm, UserAccount, InvoiceItem, Ceiling } from '../types';
 
 export const getFullDemoData = () => {
@@ -446,12 +446,20 @@ export const forceReloadDemoData = async () => {
       batch.set(doc(db, 'members', m.id!), m);
     });
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4 — SoD, createdByUid déterminé serveur)
+    // — firestore.rules exige désormais que `claims.createdByUid`, s'il est fourni, soit
+    // exactement request.auth.uid (voir plus bas). Les fixtures de démonstration n'ont pas de
+    // notion de "créateur" propre : on horodate l'action de seeding elle-même avec l'uid de
+    // l'utilisateur authentifié qui la déclenche (n'importe quel rôle peut déclencher ce
+    // seeding depuis App.tsx), ce qui reste une valeur honnête (c'est bien cette session qui a
+    // créé le document) et satisfait la règle sans changer le comportement observable du
+    // seeding.
     data.forms.forEach(f => {
-      batch.set(doc(db, 'medicalForms', f.id!), f);
+      batch.set(doc(db, 'medicalForms', f.id!), { ...f, createdByUid: auth.currentUser?.uid });
     });
 
     data.sampleClaims.forEach(c => {
-      batch.set(doc(db, 'claims', c.id!), c);
+      batch.set(doc(db, 'claims', c.id!), { ...c, createdByUid: auth.currentUser?.uid });
     });
 
     data.sampleInvoices.forEach(i => {
@@ -516,7 +524,8 @@ export const seedInitialDemoDataIfEmpty = async () => {
       const snap = await getDocs(collection(db, 'claims'));
       if (snap.empty) {
         const batch = writeBatch(db);
-        data.sampleClaims.forEach((c) => batch.set(doc(db, 'claims', c.id!), c));
+        // AMÉLIORATION AJOUTÉE (Phase 1.4) : voir forceReloadDemoData ci-dessus.
+        data.sampleClaims.forEach((c) => batch.set(doc(db, 'claims', c.id!), { ...c, createdByUid: auth.currentUser?.uid }));
         await batch.commit();
       }
     } catch (e) {
@@ -553,7 +562,8 @@ export const seedInitialDemoDataIfEmpty = async () => {
         const snap = await getDocs(collection(db, 'medicalForms'));
         if (snap.empty) {
           const batch = writeBatch(db);
-          data.forms.forEach((f) => batch.set(doc(db, 'medicalForms', f.id!), f));
+          // AMÉLIORATION AJOUTÉE (Phase 1.4) : voir forceReloadDemoData ci-dessus.
+          data.forms.forEach((f) => batch.set(doc(db, 'medicalForms', f.id!), { ...f, createdByUid: auth.currentUser?.uid }));
           await batch.commit();
         }
       }

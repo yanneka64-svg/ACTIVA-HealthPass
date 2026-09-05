@@ -23,6 +23,13 @@ export const WorkflowService = {
       status: 'pending',
       submissionDate: enrData.submissionDate || new Date().toISOString().split('T')[0],
       createdBy: enrData.createdBy || currentUser?.uid || 'user_id',
+      // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4 — SoD, createdByUid déterminé serveur)
+      // — TOUJOURS `currentUser?.uid`, jamais une valeur fournie par l'appelant (contrairement
+      // à `createdBy` ci-dessus, conservé tel quel pour ne rien changer à son usage existant).
+      // firestore.rules vérifie que cette valeur correspond bien à request.auth.uid : un appel
+      // direct au SDK Firestore ne peut donc plus usurper l'identité du créateur pour
+      // contourner la séparation des tâches à l'approbation.
+      createdByUid: currentUser?.uid,
       creatorEmail: enrData.creatorEmail || currentUser?.email || 'agent@activa.lr',
       creatorName:
         enrData.creatorName ||
@@ -309,6 +316,8 @@ export const WorkflowService = {
       status: 'pending',
       submissionDate: claimData.submissionDate || new Date().toISOString().split('T')[0],
       createdBy: claimData.createdBy || currentUser?.uid || 'user_id',
+      // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4) — voir submitEnrollment ci-dessus.
+      createdByUid: currentUser?.uid,
       creatorEmail: claimData.creatorEmail || currentUser?.email || 'agent@activa.lr',
       creatorName:
         claimData.creatorName ||

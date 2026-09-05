@@ -176,6 +176,53 @@ describe('Séparation des tâches (SoD) — comportement pré-existant, non modi
   });
 });
 
+describe('Phase 1.4 — SoD via createdByUid déterminé serveur', () => {
+  it('createdByUid ne peut pas usurper un autre uid à la création (REFUS)', async () => {
+    await seedAccount('spoofer', { profile: 'Agent' });
+
+    await assertFails(
+      asUser('spoofer').doc('claims/spoofClaim').set({
+        organization: 'OrgA',
+        status: 'pending',
+        createdByUid: 'someoneElseUid',
+      })
+    );
+  });
+
+  it('createdByUid == auth.uid est accepté à la création', async () => {
+    await seedAccount('honest', { profile: 'Agent' });
+
+    await assertSucceeds(
+      asUser('honest').doc('claims/honestClaim').set({
+        organization: 'OrgA',
+        status: 'pending',
+        createdByUid: 'honest',
+      })
+    );
+  });
+
+  it('un Supervisor ne peut pas approuver un claim dont il est l\'auteur via createdByUid, même si createdBy pointe vers quelqu\'un d\'autre (REFUS)', async () => {
+    await seedAccount('supSpoof', { profile: 'Supervisor' });
+    // createdBy (ancien champ, jamais vérifié) prétend que c'est quelqu'un d'autre ; mais
+    // createdByUid (vérifié à la création, priorisé au test SoD) dit la vérité.
+    await seedDoc('claims', 'c8', {
+      organization: 'OrgA',
+      status: 'pending',
+      createdBy: 'someoneElse',
+      createdByUid: 'supSpoof',
+    });
+
+    await assertFails(asUser('supSpoof').doc('claims/c8').update({ status: 'approved' }));
+  });
+
+  it('un document legacy sans createdByUid retombe sur le test createdBy existant (non-régression)', async () => {
+    await seedAccount('supLegacy', { profile: 'Supervisor' });
+    await seedDoc('claims', 'c9', { organization: 'OrgA', status: 'pending', createdBy: 'supLegacy' });
+
+    await assertFails(asUser('supLegacy').doc('claims/c9').update({ status: 'approved' }));
+  });
+});
+
 describe('Cartes — immuabilité du registre (comportement pré-existant, non modifié ici)', () => {
   it('cardNumberRegistry est immuable : mise à jour refusée (REFUS)', async () => {
     await seedAccount('agentCard', { profile: 'Agent' });

@@ -24,7 +24,12 @@ export async function processEnrollmentDecisionServer(
     const enrollment = enrollmentSnap.data() || {};
 
     // 1. Enforce Separation of Duties (approver cannot be submitter)
-    if (enrollment.createdBy && enrollment.createdBy === payload.approverId) {
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4) — voir claimsService.ts pour le détail :
+    // createdByUid (vérifié serveur) préféré à createdBy (hérité, non vérifié) quand présent.
+    const selfCreated = 'createdByUid' in enrollment
+      ? enrollment.createdByUid === payload.approverId
+      : enrollment.createdBy === payload.approverId;
+    if (selfCreated) {
       throw new Error('Separation of Duties violation: A user cannot approve or reject an enrollment they submitted.');
     }
 

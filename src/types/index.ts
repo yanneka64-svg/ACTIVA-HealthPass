@@ -164,6 +164,12 @@ export interface Claim {
   fingerprintSampleUrl?: string;
   fingerprintScore?: number;
   createdBy?: string;
+  // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4 — SoD, createdByUid déterminé serveur) —
+  // distinct de `createdBy` ci-dessus (fourni par le client, jamais vérifié) : ce champ est
+  // vérifié par firestore.rules (doit être égal à request.auth.uid quand il est présent), et
+  // c'est lui qui gouverne désormais le test de non-auto-approbation à la mise à jour. Voir
+  // firestore.rules et src/services/workflowService.ts.
+  createdByUid?: string;
   creatorEmail?: string;
   creatorName?: string;
   assignedTo?: string;
@@ -216,6 +222,8 @@ export interface Enrollment {
   decisionDate?: string;
   approvedBy?: string;
   createdBy?: string;
+  // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4) — voir Claim.createdByUid ci-dessus.
+  createdByUid?: string;
   creatorEmail?: string;
   creatorName?: string;
   assignedTo?: string;
@@ -263,6 +271,11 @@ export interface MedicalForm {
   doctorSignatureDate?: string;
   memberSignatureDate?: string;
   createdAt: string;
+  // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4) — voir Claim.createdByUid. Ajouté ici pour
+  // cohérence/traçabilité (audit) ; aucune règle de SoD n'est appliquée sur ce champ pour
+  // medicalForms, cette collection n'ayant pas de notion de transition d'approbation
+  // (status: issued/used/pending_return/completed — voir docs/security/CODE_AUDIT_MAP.md).
+  createdByUid?: string;
 }
 
 export type OrgStatus = 'Active' | 'Actif' | 'Expired' | 'Expiré' | 'Suspended' | 'Suspendu';

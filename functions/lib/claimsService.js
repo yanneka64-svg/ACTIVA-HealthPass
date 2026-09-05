@@ -12,7 +12,14 @@ async function processClaimDecisionServer(db, payload) {
         }
         const claim = claimSnap.data() || {};
         // 1. Enforce SoD (Separation of Duties)
-        if (claim.createdBy && claim.createdBy === payload.approverId) {
+        // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4) — `createdByUid` (server-verified at
+        // creation, see firestore.rules createdByUidValid()) is preferred when present; falls back
+        // to the legacy `createdBy` (client-provided, unverified) for documents created before this
+        // field existed — identical behavior to before for those, no regression.
+        const selfCreated = 'createdByUid' in claim
+            ? claim.createdByUid === payload.approverId
+            : claim.createdBy === payload.approverId;
+        if (selfCreated) {
             throw new Error('Separation of Duties violation: A user cannot approve or reject a claim they submitted.');
         }
         // 2. Validate approver role

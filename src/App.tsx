@@ -1313,7 +1313,10 @@ export default function App() {
               userRole={activeRole}
               lang={lang}
               preselectedMember={selectedMemberForMedicalForm}
-              onCreateMedicalForm={(form) => FirestoreService.addMedicalForm(form)}
+              // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4) — createdByUid toujours dérivé
+              // de la session authentifiée courante, jamais du formulaire lui-même. Voir
+              // Claim.createdByUid / firestore.rules pour la vérification côté serveur.
+              onCreateMedicalForm={(form) => FirestoreService.addMedicalForm({ ...form, createdByUid: currentUser?.uid })}
               onUpdateMedicalForm={(form) => FirestoreService.updateMedicalForm(form)}
               onDeleteMedicalForm={handleDeleteMedicalForm}
               onClearAllMedicalForms={handleClearAllMedicalForms}

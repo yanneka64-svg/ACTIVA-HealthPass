@@ -72,6 +72,35 @@ service cloud.firestore {
       return isAdmin() || assignedOrganizations() == null || (orgName in assignedOrganizations());
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4 — SoD, createdByUid déterminé serveur) ===
+    // Problème : le test de non-auto-approbation existant se basait uniquement sur `createdBy`,
+    // un champ ENTIÈREMENT fourni par le client (voir src/services/workflowService.ts avant ce
+    // correctif : `createdBy: claimData.createdBy || currentUser?.uid || 'user_id'` — la valeur
+    // du client, si fournie, prenait le pas). Un appel direct au SDK Firestore (hors de
+    // l'application) pouvait donc créer un claim/enrollment SANS `createdBy`, ou avec une
+    // valeur arbitraire, pour ensuite se l'auto-approuver en contournant la séparation des
+    // tâches — la garde `!('createdBy' in resource.data)` ci-dessous existait justement pour
+    // ne jamais bloquer un document légitimement dépourvu de créateur (ex. données de
+    // démonstration), mais elle profitait alors aussi à un contournement délibéré.
+    // Correctif : `createdByUid`, quand il est fourni à la création, DOIT être exactement
+    // request.auth.uid (vérifié ci-dessous dans chaque `allow create`) — un client ne peut
+    // donc plus usurper l'identité d'un tiers dans ce champ. `isSelfCreated()` privilégie ce
+    // champ vérifié quand il existe ; à défaut (documents créés avant ce correctif, ou
+    // données de démonstration sans notion de créateur), le comportement retombe EXACTEMENT
+    // sur l'ancien test par `createdBy`, sans aucune régression.
+    // Ce que ce correctif empêche désormais : un utilisateur ne peut plus se faire passer pour
+    // quelqu'un d'autre dans `createdByUid` pour later revendiquer ne pas être l'auteur réel
+    // d'un dossier qu'il a lui-même soumis.
+    function isSelfCreated(data) {
+      return ('createdByUid' in data)
+        ? data.createdByUid == request.auth.uid
+        : (('createdBy' in data) && data.createdBy == request.auth.uid);
+    }
+
+    function createdByUidValid() {
+      return !('createdByUid' in request.resource.data) || request.resource.data.createdByUid == request.auth.uid;
+    }
+
     // accounts collection
     match /accounts/{userId} {
       allow read: if true;
@@ -192,12 +221,12 @@ service cloud.firestore {
     match /claims/{claimId} {
       allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
       allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization) &&
-        hasOrgAccess(request.resource.data.organization);
+        hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
         hasOrgAccess(resource.data.organization) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
-        ((isAdmin() || isSupervisor()) && (!('createdBy' in resource.data) || resource.data.createdBy != request.auth.uid))
+        ((isAdmin() || isSupervisor()) && !isSelfCreated(resource.data))
       );
       allow delete: if isAdmin();
     }
@@ -215,7 +244,7 @@ service cloud.firestore {
     match /medicalForms/{formId} {
       allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
       allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization) &&
-        hasOrgAccess(request.resource.data.organization);
+        hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
         hasOrgAccess(resource.data.organization) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
@@ -229,12 +258,12 @@ service cloud.firestore {
     // organisation via hasOrgAccess().
     match /enrollments/{enrollmentId} {
       allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
-      allow create: if isSignedIn() && isActiveUser() && hasOrgAccess(request.resource.data.organization);
+      allow create: if isSignedIn() && isActiveUser() && hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
         hasOrgAccess(resource.data.organization) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
-        ((isAdmin() || isSupervisor()) && (!('createdBy' in resource.data) || resource.data.createdBy != request.auth.uid))
+        ((isAdmin() || isSupervisor()) && !isSelfCreated(resource.data))
       );
       allow delete: if isAdmin();
     }
