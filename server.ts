@@ -4,10 +4,6 @@ import { createServer as createViteServer } from 'vite';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, DocumentData } from 'firebase-admin/firestore';
-import { initializeApp as initializeClientApp, getApps as getClientApps } from 'firebase/app';
-import { getAuth as getClientAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore as getClientFirestore, collection as getClientCollection, getDocs as getClientDocs } from 'firebase/firestore';
-import { verifyPassword } from './src/utils/passwordUtils';
 
 const app = express();
 const PORT = 3000;
@@ -66,199 +62,20 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
-// === AMÉLIORATION AJOUTÉE : sécurité (audit) — Résolution username -> candidate emails sécurisée
-// 1. Rate-limiting par IP (max 10 req/min) et par identifiant (max 5 req/min) côté serveur
-// 2. Évite d'exposer la collection Firestore `accounts` en lecture publique
-// 3. Ne renvoie AUCUN hash, sel, mot de passe ni privilège vers le client
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
-const authRateLimits = new Map<string, RateLimitEntry>();
-
-function checkServerRateLimit(key: string, maxAttempts = 5, windowMs = 60_000): { allowed: boolean; retryAfterSec: number } {
-  const now = Date.now();
-  const entry = authRateLimits.get(key);
-  if (!entry || now > entry.resetAt) {
-    authRateLimits.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, retryAfterSec: 0 };
-  }
-  if (entry.count >= maxAttempts) {
-    return { allowed: false, retryAfterSec: Math.ceil((entry.resetAt - now) / 1000) };
-  }
-  entry.count++;
-  return { allowed: true, retryAfterSec: 0 };
-}
-
-const FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyDfN_rZOwrcmVuJHzymswFpoNl6zBuaRXk',
-  projectId: 'gen-lang-client-0957905786',
-  authDomain: 'gen-lang-client-0957905786.firebaseapp.com'
-};
-const NAMED_DB_ID = 'ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b';
-
-let clientAppInstance: any = null;
-function getNamedDb() {
-  if (!clientAppInstance) {
-    const existing = getClientApps().find(a => a.name === 'server-auth-lookup');
-    clientAppInstance = existing || initializeClientApp(FIREBASE_CONFIG, 'server-auth-lookup');
-  }
-  return getClientFirestore(clientAppInstance, NAMED_DB_ID);
-}
-
-async function ensureServerServiceAuth() {
-  const auth = getClientAuth(clientAppInstance);
-  if (auth.currentUser) return auth.currentUser;
-  try {
-    const cred = await signInWithEmailAndPassword(auth, 'yannick.ekani_test@activa.local', 'ActivaJKC8Q@!2025');
-    return cred.user;
-  } catch (err: any) {
-    console.warn('[server.ts] Server service auth note:', err?.message || err);
-    return null;
-  }
-}
-
-app.post('/api/auth/lookup-account', async (req: Request, res: Response) => {
-  const { identifier } = req.body;
-  if (!identifier || typeof identifier !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid identifier parameter' });
-  }
-
-  const cleanId = identifier.trim().toLowerCase();
-  const sanitizedId = cleanId.replace(/[^a-z0-9_.]/g, '');
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
-
-  // Rate limiting check
-  const ipCheck = checkServerRateLimit(`ip:${clientIp}`, 10, 60_000);
-  if (!ipCheck.allowed) {
-    return res.status(429).json({
-      error: `Too many lookup attempts. Please wait ${ipCheck.retryAfterSec} seconds.`,
-      retryAfterSec: ipCheck.retryAfterSec
-    });
-  }
-
-  const idCheck = checkServerRateLimit(`id:${cleanId}`, 5, 60_000);
-  if (!idCheck.allowed) {
-    return res.status(429).json({
-      error: `Too many login attempts for this account. Please wait ${idCheck.retryAfterSec} seconds.`,
-      retryAfterSec: idCheck.retryAfterSec
-    });
-  }
-
-  try {
-    const db = getNamedDb();
-    await ensureServerServiceAuth();
-    const snap = await getClientDocs(getClientCollection(db, 'accounts'));
-
-    let matchedData: any = null;
-    for (const docSnap of snap.docs) {
-      const data = docSnap.data();
-      const docEmail = (data.email || '').toLowerCase().trim();
-      const docUsername = (data.username || '').toLowerCase().trim();
-      const docAuthEmail = (data.authEmail || '').toLowerCase().trim();
-
-      if (
-        docEmail === cleanId ||
-        docUsername === cleanId ||
-        docUsername === sanitizedId ||
-        docAuthEmail === cleanId ||
-        (docEmail && cleanId.includes('@') && docEmail === cleanId) ||
-        (docEmail.split('@')[0] && docEmail.split('@')[0] === cleanId) ||
-        (docAuthEmail.split('@')[0] && docAuthEmail.split('@')[0] === cleanId)
-      ) {
-        matchedData = data;
-        break;
-      }
-    }
-
-    if (!matchedData) {
-      return res.json({
-        found: false,
-        candidateEmails: [
-          `${sanitizedId}@activa.local`,
-          `${sanitizedId}@activa-assurance.com`
-        ]
-      });
-    }
-
-    const candidateEmails = Array.from(new Set([
-      matchedData.authEmail,
-      matchedData.email,
-      `${matchedData.username || sanitizedId}@activa.local`,
-      `${matchedData.username || sanitizedId}@activa-assurance.com`
-    ].filter(Boolean)));
-
-    return res.json({
-      found: true,
-      isActive: matchedData.isActive !== false,
-      candidateEmails,
-      username: matchedData.username || sanitizedId,
-      hasPasswordHash: !!(matchedData.passwordHash && matchedData.passwordSalt)
-    });
-  } catch (err: any) {
-    console.error('[server.ts] Error during account lookup:', err);
-    return res.status(500).json({ error: 'Internal lookup failure' });
-  }
-});
-
-app.post('/api/auth/verify-legacy-credentials', async (req: Request, res: Response) => {
-  const { identifier, password } = req.body;
-  if (!identifier || !password) {
-    return res.status(400).json({ error: 'Missing identifier or password' });
-  }
-
-  const cleanId = String(identifier).trim().toLowerCase();
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
-
-  const check = checkServerRateLimit(`verify:${clientIp}:${cleanId}`, 5, 60_000);
-  if (!check.allowed) {
-    return res.status(429).json({
-      error: `Too many attempts. Please wait ${check.retryAfterSec} seconds.`,
-      retryAfterSec: check.retryAfterSec
-    });
-  }
-
-  try {
-    const db = getNamedDb();
-    await ensureServerServiceAuth();
-    const snap = await getClientDocs(getClientCollection(db, 'accounts'));
-
-    let matchedData: any = null;
-    for (const docSnap of snap.docs) {
-      const data = docSnap.data();
-      const docEmail = (data.email || '').toLowerCase().trim();
-      const docUsername = (data.username || '').toLowerCase().trim();
-      const docAuthEmail = (data.authEmail || '').toLowerCase().trim();
-
-      if (
-        docEmail === cleanId ||
-        docUsername === cleanId ||
-        docAuthEmail === cleanId
-      ) {
-        matchedData = data;
-        break;
-      }
-    }
-
-    if (!matchedData || !matchedData.passwordHash || !matchedData.passwordSalt) {
-      return res.status(401).json({ valid: false, error: 'Invalid credentials' });
-    }
-
-    const isValid = await verifyPassword(password, matchedData.passwordHash, matchedData.passwordSalt);
-    if (!isValid) {
-      return res.status(401).json({ valid: false, error: 'Invalid credentials' });
-    }
-
-    return res.json({
-      valid: true,
-      primaryAuthEmail: matchedData.authEmail || matchedData.email || `${matchedData.username}@activa.local`,
-      username: matchedData.username
-    });
-  } catch (err: any) {
-    console.error('[server.ts] Error during credential verification:', err);
-    return res.status(500).json({ error: 'Verification error' });
-  }
-});
+// === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-01/SEC-05) ===
+// Les routes /api/auth/lookup-account et /api/auth/verify-legacy-credentials qui existaient
+// ici ont été SUPPRIMÉES. Elles dupliquaient — avec un niveau de sécurité inférieur — ce que
+// la Cloud Function callable `resolveLoginIdentifier` (functions/src/index.ts) fait déjà
+// correctement (rate limiting persistant dans Firestore au lieu d'un Map en mémoire perdu à
+// chaque redémarrage, vérification PBKDF2 via l'Admin SDK, jamais de hash/sel renvoyé).
+// Constat critique lors de cet audit : la fonction `getNamedDb()`/`ensureServerServiceAuth()`
+// que ces deux routes utilisaient authentifiait le serveur avec un e-mail ET UN MOT DE PASSE
+// CODÉS EN DUR directement dans ce fichier source ('yannick.ekani_test@activa.local' /
+// 'ActivaJKC8Q@!2025'), donc versionnés dans l'historique Git. Ce secret doit être considéré
+// comme compromis : un administrateur doit changer ce mot de passe dans Firebase Auth
+// indépendamment de cette suppression de code. Aucun appelant n'existe pour ces deux routes
+// dans src/ (apiClient.ts, seul appelant historique, a également été retiré — voir
+// docs/security/CODE_AUDIT_MAP.md section 3.2 et STRUCT-02) : suppression sans régression.
 
 // Card Continuity & Format Verifier
 const CARD_REGEX = /^AMID-(\d{2})(\d{2})(\d{2})-(\d{5})$/;

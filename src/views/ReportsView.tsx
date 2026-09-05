@@ -23,6 +23,9 @@ import { getRoleTheme } from '../theme/roleTheme';
 import { ExportDropdown } from '../components/ExportDropdown'; // === AMÉLIORATION AJOUTÉE : bouton Export unique (PDF + Excel) ===
 import { getPolicyCoverageStatus } from '../services/policyEngine';
 import { dedupeMembersByCardNo } from '../utils/memberUtils';
+// === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-07) — voir usage de
+// `canExportData` ci-dessous.
+import { canExportData } from '../services/permissions';
 
 interface ReportsViewProps {
   lang: Language;
@@ -55,6 +58,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   // === AMÉLIORATION AJOUTÉE : couleurs alignées sur le rôle connecté (gris Admin / teal
   // Supervisor) au lieu du bleu marine Agent affiché en dur auparavant.
   const roleTheme = getRoleTheme(userRole);
+  // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-07) ===
+  // Constat : la matrice de permissions (permissions.ts) réserve l'export de données à
+  // Supervisor/Admin (Agent: export = false), mais `canExportData()` n'était jamais appelée
+  // dans cet écran — seul le menu latéral (Sidebar.tsx) masquait l'ONGLET "Reports" pour un
+  // Agent, sans empêcher le rendu de ce composant ni de ses boutons d'export si la section
+  // active était atteinte par un autre chemin (état React, navigation programmatique). Défense
+  // en profondeur : les boutons d'export ne sont désormais rendus QUE pour un rôle autorisé.
+  const canExport = canExportData(userRole);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
@@ -341,13 +352,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           {/* === AMÉLIORATION AJOUTÉE : "Export to PDF" et "Export to Excel (.xlsx)" fusionnés
               en un seul bouton "Export" (menu déroulant), coloré par rôle — gris Admin /
               vert Superviseur, alignés sur la couleur de la bande de menu (roleTheme.palette.primaryColor) === */}
-          <ExportDropdown
-            lang={lang}
-            label="Export"
-            accentButtonClass={roleTheme.palette.primaryColor}
-            onExportPDF={handleExportPDF}
-            onExportExcel={handleExportExcel}
-          />
+          {canExport && (
+            <ExportDropdown
+              lang={lang}
+              label="Export"
+              accentButtonClass={roleTheme.palette.primaryColor}
+              onExportPDF={handleExportPDF}
+              onExportExcel={handleExportExcel}
+            />
+          )}
         </div>
       </div>
 
@@ -548,12 +561,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Policy & Premium Monitoring</h2>
               <p className="text-xs text-slate-500 mt-0.5">Automatic policy status, premium schedules, and payment tracking across all organizations</p>
             </div>
-            <ExportDropdown
-              lang={lang}
-              label="Export"
-              accentButtonClass={roleTheme.palette.primaryColor}
-              onExportExcel={() => exportPoliciesToExcel(filteredPolicies.map((p) => p.policy))}
-            />
+            {canExport && (
+              <ExportDropdown
+                lang={lang}
+                label="Export"
+                accentButtonClass={roleTheme.palette.primaryColor}
+                onExportExcel={() => exportPoliciesToExcel(filteredPolicies.map((p) => p.policy))}
+              />
+            )}
           </div>
 
           {/* KPI Cards */}
@@ -743,12 +758,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
 
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2.5 shrink-0">
-              <ExportDropdown
-                lang={lang}
-                label="Export"
-                onExportExcel={() => exportPoliciesToExcel([selectedPolicyDetail])}
-                onExportPDF={() => exportPolicyDetailToPDF(selectedPolicyDetail, detailPayments, detailCoveredMembers.principals, detailCoveredMembers.dependents)}
-              />
+              {canExport && (
+                <ExportDropdown
+                  lang={lang}
+                  label="Export"
+                  onExportExcel={() => exportPoliciesToExcel([selectedPolicyDetail])}
+                  onExportPDF={() => exportPolicyDetailToPDF(selectedPolicyDetail, detailPayments, detailCoveredMembers.principals, detailCoveredMembers.dependents)}
+                />
+              )}
               <button onClick={() => setSelectedPolicyDetail(null)} className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold cursor-pointer">Close</button>
             </div>
           </div>

@@ -119,12 +119,23 @@ service cloud.firestore {
     }
 
     // accounts collection
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-01 — CRITIQUE) ===
+    // Avant ce correctif : `allow read: if true` exposait l'INTÉGRALITÉ de la collection
+    // `accounts` — identifiant, e-mail, rôle, permissions, périmètre d'organisations et,
+    // point le plus grave, `passwordHash`/`passwordSalt` (voire un mot de passe en clair pour
+    // les comptes non encore migrés) — à quiconque, sans authentification, via le SDK
+    // Firestore côté client (la configuration Firebase publique suffit). Cette règle n'existait
+    // que pour permettre à LoginView.tsx de résoudre un nom d'utilisateur en adresse e-mail
+    // avant authentification. Ce besoin est désormais couvert par la Cloud Function callable
+    // `resolveLoginIdentifier` (functions/src/index.ts), qui utilise le SDK Admin (donc ignore
+    // ces règles) et ne renvoie JAMAIS de hash/sel/mot de passe au client — voir aussi
+    // LoginView.tsx, qui n'effectue plus de lecture directe de cette collection.
+    // Correctif : lecture réservée au propriétaire du compte et à l'Admin, exactement comme
+    // la collection `users` ci-dessous. Aucune régression fonctionnelle : tout écran de
+    // l'application authentifié (AccountsView, Sidebar, permissions...) lit son propre compte
+    // ou celui d'un tiers uniquement en tant qu'Admin.
     match /accounts/{userId} {
-      // Lecture ouverte pour permettre la résolution pré-authentification identifiant -> email
-      // dans LoginView.tsx (HealthPass authentifie par nom d'utilisateur alors que Firebase Auth
-      // requiert une adresse e-mail). Les écritures, créations et suppressions restent strictement
-      // protégées (RBAC, intégrité du rôle et interdiction d'élévation de privilège).
-      allow read: if true;
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn() && (
         isAdmin() ||
         (request.auth.uid == userId && request.resource.data.profile != 'Admin')
@@ -389,9 +400,33 @@ service cloud.firestore {
         'status' in data && (data.status == 'success' || data.status == 'failed');
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, DATA-03) ===
+    // Constat : `allow create: if isSignedIn()` acceptait auparavant N'IMPORTE QUEL champ et
+    // N'IMPORTE QUELLE valeur de la part d'un utilisateur authentifié, sans schéma imposé — un
+    // journal qui se veut pourtant un "suivi de sécurité immuable" (voir LogsView.tsx).
+    // Vérification exhaustive du code existant (WorkflowService.addLog, tous appels) : les
+    // écritures authentifiées suivent TOUJOURS l'une de deux formes exactes :
+    //  1. Journal de connexion (succès ou échec) — même forme que isPreAuthLoginLogValid()
+    //     ci-dessus, réutilisée telle quelle (voir App.tsx `handleLoginSuccess` et
+    //     LoginView.tsx, qui journalisent des connexions réussies APRÈS authentification avec
+    //     exactement cette forme).
+    //  2. Journal d'action métier — `{userId, userName, userRole, action, category, entityId,
+    //     entityType, details}` (voir WorkflowService.logAction, ENROLLMENT_APPROVED/REJECTED,
+    //     CLAIM_APPROVED/REJECTED...).
+    // Correctif : impose que toute écriture authentifiée corresponde à l'une de ces deux formes
+    // connues — sans changer aucun appelant existant, qui les respecte déjà tous. Empêche
+    // désormais qu'un client falsifie un événement d'audit sous une forme arbitraire.
+    function isBusinessAuditLogValid(data) {
+      return data.keys().hasAll(['userId', 'action', 'category']) &&
+        data.userId is string &&
+        data.action is string && data.action.size() > 0 &&
+        data.category is string && data.category.size() > 0;
+    }
+
     match /auditLogs/{logId} {
       allow read: if isSignedIn() && (isAdmin() || isSupervisor());
-      allow create: if isSignedIn() || isPreAuthLoginLogValid(request.resource.data);
+      allow create: if isPreAuthLoginLogValid(request.resource.data) ||
+        (isSignedIn() && isBusinessAuditLogValid(request.resource.data));
       allow update, delete: if false;
     }
 
@@ -405,6 +440,13 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // === AMÉLIORATION AJOUTÉE : documentation (audit 2026-09-05, STRUCT-03) — `accounts` est
+    // l'UNIQUE source de vérité active pour l'identité/le rôle utilisateur (voir
+    // onAuthStateChanged dans App.tsx, qui écoute exclusivement `accounts/{uid}`). `users` n'est
+    // plus alimentée en écriture par le code applicatif courant ; elle n'est encore lue qu'en
+    // filet de secours (voir `ensureUserAccount`, functions/src/index.ts, étape 3) pour
+    // d'anciennes données de démonstration. À supprimer une fois cette dépendance résiduelle
+    // confirmée nulle en production — non fait ici pour éviter toute régression sans certitude.
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow write: if isAdmin();

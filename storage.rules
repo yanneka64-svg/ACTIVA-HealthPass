@@ -1,20 +1,74 @@
-// === AMÉLIORATION AJOUTÉE : sécurité (audit) ===
-// Firebase Storage est utilisé sur cette branche par src/utils/storageUtils.ts
-// (uploadString/getDownloadURL — photos des assurés). Sans ce fichier, un bucket Firebase
-// Storage nouvellement activé pour ce projet retomberait sur les règles par défaut de
-// Firebase (souvent permissives en mode test), exposant les photos déposées à un accès
-// public non désiré. Ce fichier applique le même principe que firestore.rules : accès
-// réservé aux utilisateurs connectés via Firebase Auth — aligné sur le fichier équivalent
-// harmonisé avec la branche main (voir firestore.rules), sans changer le comportement
-// observé de l'upload/affichage des photos.
-// IMPORTANT (déploiement) : ce fichier doit être déployé sur le projet Firebase via
-// `firebase deploy --only storage` pour prendre effet ; cette session n'a pas d'accès de
-// déploiement au projet réel.
+// === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-04 — CRITIQUE) ===
+// Avant ce correctif : `allow read, write: if request.auth != null` s'appliquait à TOUS les
+// chemins (`allPaths=**`), sans distinction de rôle, d'organisation ni de propriétaire. Tout
+// compte authentifié — y compris un Agent d'une autre organisation cliente — pouvait lire ou
+// écraser n'importe quel fichier déposé par n'importe quel autre utilisateur ou assuré dès
+// lors qu'il devinait/énumérait le chemin (photos d'assurés, pièces d'identité scannées).
+//
+// Correctif : les nouveaux chemins `member-photos/{orgId}/...` et `enrollment-photos/{orgId}/...`
+// (voir src/utils/storageUtils.ts) sont cloisonnés par organisation, en miroir de
+// `hasOrgAccess()` dans firestore.rules — mais évalués ici via les CUSTOM CLAIMS Firebase Auth
+// (`request.auth.token.orgs`/`.role`/`.isActive`, posés par la Cloud Function `syncAccountClaims`,
+// functions/src/index.ts) plutôt que via une lecture croisée de Firestore : Cloud Storage ne
+// peut interroger que la base Firestore "(default)" via `firestore.get()`, alors que ce projet
+// utilise une base NOMMÉE (voir firebase.json) — s'appuyer sur cette fonctionnalité produirait
+// une règle qui échoue silencieusement ou vise la mauvaise base, un faux sentiment de sécurité
+// pire que l'absence de règle (voir SEC-05 dans le rapport d'audit). Les custom claims, eux,
+// font partie du jeton Firebase Auth et sont donc utilisables sans dépendance externe.
+//
+// Compatibilité : les fichiers déjà déposés AVANT ce correctif suivent l'ancien format plat
+// (`member-photos/{fichier}`, sans segment d'organisation — voir commentaire historique dans
+// storageUtils.ts). Ils restent accessibles à tout utilisateur actif authentifié exactement
+// comme avant (règle `legacy` ci-dessous) : aucune régression sur les photos déjà en place.
+// Seuls les NOUVEAUX chemins, désormais toujours préfixés par l'organisation côté client,
+// bénéficient du cloisonnement réel. Limite documentée : un compte dont les custom claims
+// n'ont pas encore été synchronisés (`orgs` absent du jeton) reste traité comme non restreint
+// (comportement identique à hasOrgAccess() dans firestore.rules quand `assignedOrganizations`
+// est absent) — cohérent avec le choix produit déjà documenté pour DATA-01/MODEL-02.
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isActiveUser() {
+      return isSignedIn() &&
+        (!('isActive' in request.auth.token) || request.auth.token.isActive != false);
+    }
+
+    function isAdmin() {
+      return isSignedIn() && ('role' in request.auth.token) && request.auth.token.role == 'Admin';
+    }
+
+    function hasOrgAccess(orgId) {
+      return isAdmin() ||
+        !('orgs' in request.auth.token) ||
+        (orgId in request.auth.token.orgs);
+    }
+
+    // Chemins cloisonnés par organisation (convention utilisée pour tout nouvel upload).
+    match /member-photos/{orgId}/{fileName} {
+      allow read, write: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId);
+    }
+    match /enrollment-photos/{orgId}/{fileName} {
+      allow read, write: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId);
+    }
+
+    // Chemins plats historiques (pré-existants avant ce correctif, sans segment d'organisation)
+    // — comportement inchangé : authentifié + compte actif uniquement.
+    match /member-photos/{fileName} {
+      allow read, write: if isSignedIn() && isActiveUser();
+    }
+    match /enrollment-photos/{fileName} {
+      allow read, write: if isSignedIn() && isActiveUser();
+    }
+
+    // Filet de sécurité pour tout autre chemin (captures biométriques, préfixes futurs non
+    // encore cloisonnés) — comportement inchangé par rapport à avant ce correctif : authentifié
+    // + compte actif uniquement (jamais public, jamais ouvert à un compte désactivé).
     match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn() && isActiveUser();
     }
   }
 }

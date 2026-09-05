@@ -234,7 +234,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
     // === ADDED IMPROVEMENT: upload to Firebase Storage with an automatic fallback to the
     // existing base64 storage on failure (see storageUtils.ts / MembersView.tsx).
     const resolvedPhotoUrl = newEnrForm.photoUrl
-      ? await uploadPhotoOrFallback(newEnrForm.photoUrl, 'enrollment-photos', cardNo)
+      ? await uploadPhotoOrFallback(newEnrForm.photoUrl, 'enrollment-photos', cardNo, organization)
       : newEnrForm.photoUrl;
 
     onCreateEnrollment({

@@ -531,7 +531,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     // Automatic, transparent fallback to the existing behavior (inline base64) if the
     // upload fails — see storageUtils.ts.
     const resolvedPhotoUrl = photoData
-      ? await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim())
+      ? await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim(), formOrg)
       : editingMember?.photoUrl;
 
     if (editingMember) {

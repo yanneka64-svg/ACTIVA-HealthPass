@@ -258,53 +258,16 @@ export default function App() {
                 console.warn('ensureUserAccount callable notice:', cfErr);
               }
 
-              // Vérifie d'abord si un document de compte avec cet e-mail existe déjà dans la collection accounts
-              // (compte créé par un administrateur sous un identifiant distinct ou avec un e-mail conventionnel)
-              try {
-                const { collection, getDocs, setDoc, doc: firestoreDoc } = await import('firebase/firestore');
-                const accountsSnap = await getDocs(collection(db, 'accounts'));
-                const userEmailLower = (firebaseUser.email || '').toLowerCase().trim();
-                const emailUserPart = userEmailLower.split('@')[0];
-                // Gère les e-mails conventionnels ou générés avec timestamp (ex: "yannick.ekani_1788602379256" -> "yannick.ekani")
-                const cleanUsername = emailUserPart.split('_')[0].replace(/[^a-z0-9.]/g, '');
-
-                const matchedDoc = accountsSnap.docs.find((d) => {
-                  const acc = d.data();
-                  const accEmail = (acc.email || '').toLowerCase().trim();
-                  const accAuthEmail = (acc.authEmail || '').toLowerCase().trim();
-                  const accUsername = (acc.username || '').toLowerCase().trim();
-                  return (
-                    accEmail === userEmailLower ||
-                    accAuthEmail === userEmailLower ||
-                    (accUsername && (
-                      accUsername === emailUserPart ||
-                      accUsername === cleanUsername ||
-                      emailUserPart.startsWith(accUsername)
-                    ))
-                  );
-                });
-
-                if (matchedDoc) {
-                  const matchedData = matchedDoc.data();
-                  const accountToSave: Record<string, any> = {
-                    ...matchedData,
-                    id: firebaseUser.uid,
-                    authEmail: firebaseUser.email,
-                    updatedAt: new Date().toISOString(),
-                  };
-                  delete accountToSave.password;
-                  delete accountToSave.tempPassword;
-
-                  await setDoc(
-                    firestoreDoc(db, 'accounts', firebaseUser.uid),
-                    accountToSave,
-                    { merge: true }
-                  );
-                  return;
-                }
-              } catch (lookupErr) {
-                console.warn('Account email linkage lookup notice:', lookupErr);
-              }
+              // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-01) ===
+              // Le repli qui existait ici (`getDocs(collection(db,'accounts'))`, un scan complet
+              // de la collection pour retrouver un compte pré-provisionné sous un identifiant
+              // différent de l'uid Firebase Auth) a été retiré : il ne peut plus fonctionner
+              // maintenant que `accounts` n'est plus lisible en intégralité (voir
+              // firestore.rules) et duplique EXACTEMENT ce que la Cloud Function
+              // `ensureUserAccount` — déjà appelée juste au-dessus — effectue via le SDK Admin,
+              // qui ignore ces règles. Si `ensureUserAccount` n'a pas trouvé de correspondance,
+              // il n'y en a réellement pas ; inutile de retenter la même recherche côté client
+              // avec un accès désormais refusé.
 
               try {
                 // Check fallback users/{uid} document
@@ -1132,46 +1095,25 @@ export default function App() {
 
   // 4. Invalid or missing operational role screen
   if (authStatus === 'invalid_role' || !userRole) {
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-01) — remplace le scan complet
+    // de `collection(db,'accounts')` qui existait ici (devenu impossible : cette collection
+    // n'est plus lisible en intégralité, voir firestore.rules) par un appel à la Cloud Function
+    // `ensureUserAccount` (SDK Admin, même logique de correspondance identifiant/e-mail,
+    // exécutée déjà de la même façon dans le listener onAuthStateChanged ci-dessus).
     const handleRetrySync = async () => {
       if (!auth.currentUser) return;
       setAuthStatus('loading');
       try {
-        const { collection, getDocs, setDoc, doc: firestoreDoc } = await import('firebase/firestore');
-        const accountsSnap = await getDocs(collection(db, 'accounts'));
-        const userEmailLower = (auth.currentUser.email || '').toLowerCase().trim();
-        const emailUserPart = userEmailLower.split('@')[0];
-        const cleanUsername = emailUserPart.split('_')[0].replace(/[^a-z0-9.]/g, '');
-
-        const matchedDoc = accountsSnap.docs.find((d) => {
-          const acc = d.data();
-          const accEmail = (acc.email || '').toLowerCase().trim();
-          const accAuthEmail = (acc.authEmail || '').toLowerCase().trim();
-          const accUsername = (acc.username || '').toLowerCase().trim();
-          return (
-            accEmail === userEmailLower ||
-            accAuthEmail === userEmailLower ||
-            (accUsername && (
-              accUsername === emailUserPart ||
-              accUsername === cleanUsername ||
-              emailUserPart.startsWith(accUsername)
-            ))
-          );
-        });
-
-        if (matchedDoc) {
-          const matchedData = matchedDoc.data();
-          const accountToSave: Record<string, any> = {
-            ...matchedData,
-            id: auth.currentUser.uid,
-            authEmail: auth.currentUser.email,
-            updatedAt: new Date().toISOString(),
-          };
-          delete accountToSave.password;
-          delete accountToSave.tempPassword;
-
-          await setDoc(firestoreDoc(db, 'accounts', auth.currentUser.uid), accountToSave, { merge: true });
-          return;
-        }
+        const { httpsCallable } = await import('firebase/functions');
+        const { functions } = await import('./lib/firebase');
+        const ensureFn = httpsCallable<{ identifier?: string }, { success: boolean; linked: boolean }>(
+          functions,
+          'ensureUserAccount'
+        );
+        await ensureFn({});
+        // Le listener onSnapshot(doc(db,'accounts', uid)) déjà actif se déclenchera
+        // automatiquement si un document a été lié — pas besoin de relire ici.
+        return;
       } catch (err) {
         console.warn('Manual retry sync notice:', err);
       }
