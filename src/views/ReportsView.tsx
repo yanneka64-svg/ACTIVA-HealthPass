@@ -26,6 +26,10 @@ import { dedupeMembersByCardNo } from '../utils/memberUtils';
 // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-07) — voir usage de
 // `canExportData` ci-dessous.
 import { canExportData } from '../services/permissions';
+// === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.6) — voir
+// logExportEvent ci-dessous.
+import { auth } from '../lib/firebase';
+import { FirestoreService } from '../services/firestore';
 
 interface ReportsViewProps {
   lang: Language;
@@ -66,6 +70,25 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   // active était atteinte par un autre chemin (état React, navigation programmatique). Défense
   // en profondeur : les boutons d'export ne sont désormais rendus QUE pour un rôle autorisé.
   const canExport = canExportData(userRole);
+  // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.6) ===
+  // Constat : les exports en masse (Excel/PDF) ne laissaient aucune trace de qui a exporté
+  // quoi ni quand — seul le fait qu'un export ait eu lieu pouvait, au mieux, être déduit
+  // indirectement. Journalise désormais chaque export dans `auditLogs` (même schéma métier
+  // que les autres actions, voir DATA-03), en tâche de fond, sans jamais bloquer ni ralentir
+  // l'export lui-même en cas d'échec de la journalisation.
+  const logExportEvent = (format: 'Excel' | 'PDF', reportName: string, recordCount?: number) => {
+    FirestoreService.addLog({
+      userId: auth.currentUser?.uid || 'unknown',
+      userName: auth.currentUser?.displayName || auth.currentUser?.email || 'Unknown',
+      userRole: userRole || 'Unknown',
+      action: 'DATA_EXPORTED',
+      category: 'Reports',
+      entityType: reportName,
+      details: `Exported "${reportName}" as ${format}${recordCount !== undefined ? ` (${recordCount} record(s))` : ''}.`,
+    }).catch(() => {
+      // Non-fatal: telemetry must never block or fail the export itself.
+    });
+  };
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
@@ -259,6 +282,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         orgDistribution,
         lang
       );
+      logExportEvent('PDF', 'Analytical Reports');
     } finally {
       setIsExportingPdf(false);
     }
@@ -270,6 +294,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     try {
       await new Promise((r) => setTimeout(r, 300));
       exportReportsToExcel(providerDistribution, orgDistribution, lang);
+      logExportEvent('Excel', 'Analytical Reports');
     } finally {
       setIsExportingExcel(false);
     }
@@ -566,7 +591,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 lang={lang}
                 label="Export"
                 accentButtonClass={roleTheme.palette.primaryColor}
-                onExportExcel={() => exportPoliciesToExcel(filteredPolicies.map((p) => p.policy))}
+                onExportExcel={() => {
+                  exportPoliciesToExcel(filteredPolicies.map((p) => p.policy));
+                  logExportEvent('Excel', 'Health Policies', filteredPolicies.length);
+                }}
               />
             )}
           </div>
@@ -762,8 +790,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <ExportDropdown
                   lang={lang}
                   label="Export"
-                  onExportExcel={() => exportPoliciesToExcel([selectedPolicyDetail])}
-                  onExportPDF={() => exportPolicyDetailToPDF(selectedPolicyDetail, detailPayments, detailCoveredMembers.principals, detailCoveredMembers.dependents)}
+                  onExportExcel={() => {
+                    exportPoliciesToExcel([selectedPolicyDetail]);
+                    logExportEvent('Excel', `Policy Detail (${selectedPolicyDetail.organizationId})`);
+                  }}
+                  onExportPDF={() => {
+                    exportPolicyDetailToPDF(selectedPolicyDetail, detailPayments, detailCoveredMembers.principals, detailCoveredMembers.dependents);
+                    logExportEvent('PDF', `Policy Detail (${selectedPolicyDetail.organizationId})`);
+                  }}
                 />
               )}
               <button onClick={() => setSelectedPolicyDetail(null)} className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold cursor-pointer">Close</button>
