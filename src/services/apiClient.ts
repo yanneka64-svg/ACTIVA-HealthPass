@@ -1,9 +1,12 @@
 import { auth } from '../lib/firebase';
-import { AssignmentContext } from '../../functions/src/cardService';
-import { ClaimDecisionPayload } from '../../functions/src/claimsService';
-import { EnrollmentDecisionPayload } from '../../functions/src/enrollmentsService';
-import { ImportRowInput, ImportExecutionResult } from '../../functions/src/importService';
-import { AuditLogEntry } from '../../functions/src/auditService';
+import type {
+  AssignmentContext,
+  ClaimDecisionPayload,
+  EnrollmentDecisionPayload,
+  ImportRowInput,
+  ImportExecutionResult,
+  AuditLogEntry,
+} from '../types';
 
 /**
  * Helper to get current user authorization header

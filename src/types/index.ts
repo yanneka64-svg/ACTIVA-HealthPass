@@ -572,3 +572,75 @@ export interface CardNumberPreviewRow {
   reason?: string;
 }
 
+export interface AssignmentContext {
+  organization?: string | null;
+  memberId?: string | null;
+  insuredName?: string | null;
+  assignedBy?: string | null;
+  assignedByName?: string | null;
+}
+
+export interface ClaimDecisionPayload {
+  claimId: string;
+  decision: 'approved' | 'rejected' | 'returned';
+  approverId: string;
+  approverName: string;
+  approverRole: string;
+  rejectionReason?: string;
+  approvedAmountUSD?: number;
+  approvedAmountLRD?: number;
+}
+
+export interface EnrollmentDecisionPayload {
+  enrollmentId: string;
+  decision: 'approved' | 'rejected';
+  approverId: string;
+  approverName: string;
+  approverRole: string;
+  rejectionReason?: string;
+}
+
+export interface ImportRowInput {
+  principalName: string;
+  cardNoRaw?: string;
+  organization: string;
+  birthDate?: string;
+  gender?: string;
+  relationship?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface ImportReportItem {
+  rowIndex: number;
+  principalName: string;
+  organization: string;
+  cardNo: string;
+  status: 'SUCCESS' | 'SKIPPED' | 'FAILED';
+  reason?: string;
+}
+
+export interface ImportExecutionResult {
+  totalProcessed: number;
+  successCount: number;
+  failureCount: number;
+  skippedCount: number;
+  report: ImportReportItem[];
+}
+
+export interface AuditLogEntry {
+  id?: string;
+  timestamp: string;
+  userId: string;
+  userName?: string;
+  userRole: string;
+  action: string;
+  category: string;
+  entityId?: string;
+  entityType?: string;
+  details: string;
+  ip?: string;
+  userAgent?: string;
+  severity?: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+}
+
