@@ -164,6 +164,12 @@ service cloud.firestore {
     // resource.data)` était toujours vraie et la garde ne protégeait rien — n'importe quel
     // utilisateur actif pouvait faire reculer le compteur, ouvrant la voie à une
     // réattribution de numéro déjà consommé. Corrigé en utilisant le vrai nom de champ.
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 2.9 — justification "default deny") — lecture
+    // ouverte à tout utilisateur actif car ce document ne contient qu'un compteur numérique
+    // sans donnée personnelle/métier (`lastAssuredNumber`), lu par l'UI pour prévisualiser le
+    // prochain numéro de carte avant génération (CardNumberManagementModal.tsx) — un contrôle
+    // plus fin (par rôle/organisation) n'apporterait aucune protection supplémentaire ici,
+    // l'écriture étant déjà strictement gardée (monotonicité) ci-dessous.
     match /counters/{counterId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isActiveUser();
@@ -176,6 +182,13 @@ service cloud.firestore {
     }
 
     // cardNumberRegistry collection (strictly immutable)
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 2.9 — justification "default deny") —
+    // lecture ouverte à tout utilisateur actif : chaque document n'atteste que l'existence
+    // d'un numéro de carte déjà attribué (utilisé par CardNumberManagementModal.tsx pour la
+    // vérification de disponibilité/doublon avant saisie manuelle) ; un cloisonnement par
+    // organisation romprait cette vérification d'unicité GLOBALE (un numéro doit être unique
+    // tous assurés confondus, pas seulement au sein d'une organisation) sans réduire de risque
+    // réel — l'écriture, elle, est strictement immuable (update/delete: if false ci-dessous).
     match /cardNumberRegistry/{cardNumber} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isActiveUser();
@@ -203,6 +216,13 @@ service cloud.firestore {
     // de Cloud Function planifiée pour détecter les transitions basées sur la date) et il
     // n'introduit aucun risque : rendre une police PLUS restrictive n'est jamais une
     // élévation de privilège.
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 2.9 — justification "default deny") —
+    // lecture ouverte à tout utilisateur actif, volontairement non cloisonnée par
+    // organisation (contrairement à claims/medicalForms/enrollments/invoices/policyPayments/
+    // members en Phase 1.3) : `policyBlocksCoverage()` ci-dessus lit CETTE collection pour
+    // décider si un Agent d'une AUTRE organisation peut créer un claim/formulaire médical — un
+    // cloisonnement ici casserait cette vérification transversale sans bénéfice de sécurité
+    // réel (le contenu d'une police — statut, échéances — n'est pas une donnée personnelle).
     match /healthPolicies/{organizationName} {
       allow read: if isSignedIn();
       allow create, delete: if isAdmin();
@@ -301,16 +321,26 @@ service cloud.firestore {
     }
 
     // organizations, providers, ceilings (administrative masters)
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 2.9 — justification "default deny") —
+    // référentiel maître non sensible (nom, police, dates, taux de couverture) nécessaire à
+    // TOUT rôle pour peupler les listes déroulantes/filtres (Agent créant un claim pour son
+    // organisation, Supervisor validant, etc.) ; écriture déjà strictement Admin-only.
     match /organizations/{orgId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 2.9) — référentiel maître non sensible (nom,
+    // réseau de soins), nécessaire à tout rôle pour la saisie de claims/formulaires médicaux ;
+    // écriture déjà strictement Admin-only.
     match /providers/{providerId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 2.9) — plafonds de couverture par
+    // organisation, nécessaires à l'affichage/au calcul côté Agent lors de la saisie ;
+    // écriture déjà strictement Admin-only.
     match /ceilings/{ceilingId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
@@ -323,12 +353,36 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 2.3 — audit trail structuré) ===
+    // Problème : `create: if true` sans aucune autre condition acceptait N'IMPORTE QUEL champ
+    // et N'IMPORTE QUELLE valeur de la part d'un utilisateur non authentifié — y compris se
+    // faire passer pour une action métier privilégiée (ex. {action:'CLAIM_APPROVED',
+    // userRole:'Admin', ...} sans jamais s'être connecté), polluant un journal qui se veut
+    // "Immutable security tracking" (voir LogsView.tsx). Ce create ouvert reste nécessaire
+    // (voir commentaire ci-dessous) pour un seul cas d'usage documenté : journaliser un échec
+    // de connexion AVANT authentification (LoginView.tsx). Restreint désormais ce cas
+    // précisément aux champs et à la forme réellement utilisés par ce flux — un utilisateur
+    // authentifié garde l'écriture libre déjà en vigueur (aucune régression sur les actions
+    // métier authentifiées : ENROLLMENT_APPROVED, CLAIM_APPROVED, etc. — voir
+    // WorkflowService.logAction, dont la forme `{userId,userName,userRole,action,category,
+    // entityId,entityType,details}` ne recoupe jamais celle d'un journal de connexion).
+    function isPreAuthLoginLogValid(data) {
+      return data.keys().hasOnly(['userEmail', 'ipAddress', 'status', 'userAgent', 'browser', 'location', 'timestamp']) &&
+        'status' in data && (data.status == 'success' || data.status == 'failed');
+    }
+
     match /auditLogs/{logId} {
       allow read: if isSignedIn() && (isAdmin() || isSupervisor());
-      allow create: if true;
+      allow create: if isSignedIn() || isPreAuthLoginLogValid(request.resource.data);
       allow update, delete: if false;
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Phase 2.9) — notifications applicatives internes
+    // (ex. "Enrollment submitted for review"), sans donnée personnelle/médicale au-delà d'un
+    // nom déjà visible par le destinataire dans l'écran d'origine ; read/write ouverts à tout
+    // utilisateur actif pour rester cohérent avec l'absence de ciblage par uid dans le modèle
+    // actuel (recipientRole, pas recipientUid) — resserrer nécessiterait d'abord d'ajouter ce
+    // champ, hors périmètre de ce lot.
     match /notifications/{notificationId} {
       allow read, write: if isSignedIn();
     }

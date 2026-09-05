@@ -12,7 +12,7 @@ import {
   initializeTestEnvironment,
   RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, runTransaction } from 'firebase/firestore';
+import { addDoc, collection, doc, runTransaction } from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
 
@@ -399,6 +399,66 @@ describe('Polices — blocage de couverture asymétrique (comportement pré-exis
 
     await assertSucceeds(
       asUser('supPolicy').doc('healthPolicies/OrgC').update({ coverageBlocked: false, status: 'Active' })
+    );
+  });
+});
+
+describe('Phase 2.3 — audit trail : create pré-authentification restreint à la forme "login"', () => {
+  function anon() {
+    return testEnv.unauthenticatedContext().firestore();
+  }
+
+  it('un utilisateur non authentifié PEUT journaliser un échec de connexion (forme attendue)', async () => {
+    await assertSucceeds(
+      addDoc(collection(anon(), 'auditLogs'), {
+        userEmail: 'someone@example.com',
+        ipAddress: '203.0.113.5',
+        status: 'failed',
+        userAgent: 'Mozilla/5.0',
+        browser: 'Chrome',
+        location: 'Unknown',
+      })
+    );
+  });
+
+  it('un utilisateur non authentifié NE PEUT PAS forger une action métier privilégiée (REFUS)', async () => {
+    await assertFails(
+      addDoc(collection(anon(), 'auditLogs'), {
+        userId: 'attacker',
+        userName: 'Attacker',
+        userRole: 'Admin',
+        action: 'CLAIM_APPROVED',
+        category: 'Claims Management',
+        entityId: 'c1',
+        entityType: 'claim',
+        details: 'Forged entry',
+      })
+    );
+  });
+
+  it('un utilisateur non authentifié NE PEUT PAS ajouter un champ hors de la forme "login" (REFUS)', async () => {
+    await assertFails(
+      addDoc(collection(anon(), 'auditLogs'), {
+        status: 'failed',
+        userEmail: 'someone@example.com',
+        extraField: 'not allowed',
+      })
+    );
+  });
+
+  it('un utilisateur authentifié garde l\'écriture libre pour une action métier (non-régression)', async () => {
+    await seedAccount('supAudit', { profile: 'Supervisor' });
+    await assertSucceeds(
+      addDoc(collection(asUser('supAudit'), 'auditLogs'), {
+        userId: 'supAudit',
+        userName: 'Supervisor Name',
+        userRole: 'Supervisor',
+        action: 'CLAIM_APPROVED',
+        category: 'Claims Management',
+        entityId: 'c1',
+        entityType: 'claim',
+        details: 'Claim approved.',
+      })
     );
   });
 });
