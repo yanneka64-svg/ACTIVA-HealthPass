@@ -149,11 +149,100 @@ describe('Phase 1.3 — isolation par organisation (accounts.assignedOrganizatio
     await assertFails(asUser('agentMembers').doc('members/m1').get());
   });
 
+  it('medicalForms : lecture non autorisée hors périmètre = REFUS', async () => {
+    await seedAccount('agentForms', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'f1', { organization: 'OrgB', memberName: 'X' });
+
+    await assertFails(asUser('agentForms').doc('medicalForms/f1').get());
+  });
+
+  it('enrollments : lecture non autorisée hors périmètre = REFUS', async () => {
+    await seedAccount('agentEnr', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('enrollments', 'e7', { organization: 'OrgB', fullName: 'X', status: 'pending' });
+
+    await assertFails(asUser('agentEnr').doc('enrollments/e7').get());
+  });
+
+  it('invoices : lecture non autorisée hors périmètre = REFUS', async () => {
+    await seedAccount('agentInv', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('invoices', 'i1', { organization: 'OrgB', amount: 50 });
+
+    await assertFails(asUser('agentInv').doc('invoices/i1').get());
+  });
+
   it('policyPayments : lecture cloisonnée par organizationId', async () => {
     await seedAccount('agentPayments', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
     await seedDoc('policyPayments', 'p1', { organizationId: 'OrgB', amountDue: 100 });
 
     await assertFails(asUser('agentPayments').doc('policyPayments/p1').get());
+  });
+
+  it('Superviseur → accéder à une autre organisation = REFUS (claims)', async () => {
+    await seedAccount('supOrgA', { profile: 'Supervisor', assignedOrganizations: ['OrgA'] });
+    await seedDoc('claims', 'cSupOrg', { organization: 'OrgB', status: 'pending', createdByUid: 'x' });
+
+    await assertFails(asUser('supOrgA').doc('claims/cSupOrg').get());
+  });
+
+  it('auto-élévation de privilège : un utilisateur ne peut pas s\'auto-promouvoir Admin via self-update (REFUS)', async () => {
+    await seedAccount('selfPromote', { profile: 'Agent', isActive: true, permissions: [] });
+
+    await assertFails(
+      asUser('selfPromote')
+        .doc('accounts/selfPromote')
+        .set({ profile: 'Admin', isActive: true, permissions: [] }, { merge: true })
+    );
+  });
+
+  it('auto-élévation de privilège : un utilisateur ne peut pas se réactiver lui-même après désactivation par un Admin (REFUS)', async () => {
+    await seedAccount('selfReactivate', { profile: 'Agent', isActive: false, permissions: [] });
+
+    await assertFails(
+      asUser('selfReactivate')
+        .doc('accounts/selfReactivate')
+        .set({ profile: 'Agent', isActive: true, permissions: [] }, { merge: true })
+    );
+  });
+});
+
+describe('Administration & paiements — contrôles non liés à l\'organisation', () => {
+  it('Agent → modifier un paiement = REFUS', async () => {
+    await seedAccount('agentPayWrite', { profile: 'Agent' });
+    await seedDoc('policyPayments', 'p2', { organizationId: 'OrgA', amountDue: 100, status: 'Pending' });
+
+    await assertFails(asUser('agentPayWrite').doc('policyPayments/p2').update({ status: 'Paid' }));
+  });
+
+  it('Supervisor → modifier un paiement = REFUS', async () => {
+    await seedAccount('supPayWrite', { profile: 'Supervisor' });
+    await seedDoc('policyPayments', 'p3', { organizationId: 'OrgA', amountDue: 100, status: 'Pending' });
+
+    await assertFails(asUser('supPayWrite').doc('policyPayments/p3').update({ status: 'Paid' }));
+  });
+
+  it('Admin PEUT modifier un paiement', async () => {
+    await seedAccount('adminPayWrite', { profile: 'Admin' });
+    await seedDoc('policyPayments', 'p4', { organizationId: 'OrgA', amountDue: 100, status: 'Pending' });
+
+    await assertSucceeds(asUser('adminPayWrite').doc('policyPayments/p4').update({ status: 'Paid' }));
+  });
+
+  it('Superviseur → modifier le rôle d\'un autre compte = REFUS', async () => {
+    await seedAccount('supRoleWrite', { profile: 'Supervisor' });
+    await seedAccount('targetAccount', { profile: 'Agent', permissions: [] });
+
+    await assertFails(
+      asUser('supRoleWrite').doc('accounts/targetAccount').update({ profile: 'Admin' })
+    );
+  });
+
+  it('Admin PEUT modifier le rôle d\'un autre compte', async () => {
+    await seedAccount('adminRoleWrite', { profile: 'Admin' });
+    await seedAccount('targetAccount2', { profile: 'Agent', permissions: [] });
+
+    await assertSucceeds(
+      asUser('adminRoleWrite').doc('accounts/targetAccount2').update({ profile: 'Supervisor' })
+    );
   });
 });
 
@@ -186,6 +275,28 @@ describe('Séparation des tâches (SoD) — comportement pré-existant, non modi
       asUser('supOther').doc('claims/c7').update({ status: 'approved' })
     );
   });
+
+  it('un auteur ne peut pas approuver son propre enrollment (REFUS)', async () => {
+    await seedAccount('supSelfEnr', { profile: 'Supervisor' });
+    await seedDoc('enrollments', 'e5', { organization: 'OrgA', status: 'pending', createdBy: 'supSelfEnr' });
+
+    await assertFails(asUser('supSelfEnr').doc('enrollments/e5').update({ status: 'approved' }));
+  });
+
+  it('un Supervisor PEUT approuver un enrollment soumis par un autre utilisateur', async () => {
+    await seedAccount('supOtherEnr', { profile: 'Supervisor' });
+    await seedDoc('enrollments', 'e6', { organization: 'OrgA', status: 'pending', createdBy: 'someAgent' });
+
+    await assertSucceeds(asUser('supOtherEnr').doc('enrollments/e6').update({ status: 'approved' }));
+  });
+
+  // NOTE : "un auteur approuve son propre formulaire médical = REFUS" (item explicitement
+  // demandé) n'est PAS testable ici, et documenté comme tel plutôt que silencieusement omis :
+  // `medicalForms` n'a ni champ createdBy/createdByUid dans son modèle de données réel
+  // (src/types/index.ts) ni notion de transition d'approbation (son `status` — issued/used/
+  // pending_return/completed — ne représente pas un cycle de validation par un tiers). Voir
+  // docs/security/CODE_AUDIT_MAP.md section 11 et 1.4 pour le contexte de cette limitation
+  // structurelle, distincte d'un oubli de test.
 });
 
 describe('Phase 1.4 — SoD via createdByUid déterminé serveur', () => {
@@ -280,6 +391,22 @@ describe('Cartes — immuabilité du registre (comportement pré-existant, non m
     await seedDoc('cardNumberRegistry', 'AMID-260101-00002', { organization: 'OrgA' });
 
     await assertFails(asUser('agentCard2').doc('cardNumberRegistry/AMID-260101-00002').delete());
+  });
+
+  it('numéro dupliqué : re-créer un cardNumberRegistry déjà existant = REFUS (traité comme une update, if false)', async () => {
+    await seedAccount('agentCard3', { profile: 'Agent' });
+    await seedDoc('cardNumberRegistry', 'AMID-260101-00003', { organization: 'OrgA' });
+
+    await assertFails(
+      asUser('agentCard3').doc('cardNumberRegistry/AMID-260101-00003').set({ organization: 'OrgA' })
+    );
+  });
+
+  it('réutilisation d\'un numéro : même un Admin ne peut pas supprimer une entrée du registre (REFUS)', async () => {
+    await seedAccount('adminCard', { profile: 'Admin' });
+    await seedDoc('cardNumberRegistry', 'AMID-260101-00004', { organization: 'OrgA' });
+
+    await assertFails(asUser('adminCard').doc('cardNumberRegistry/AMID-260101-00004').delete());
   });
 });
 
