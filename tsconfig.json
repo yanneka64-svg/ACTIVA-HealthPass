@@ -25,7 +25,8 @@
   },
   "include": [
     "src",
-    "server.ts"
+    "server.ts",
+    "tests"
   ],
   "exclude": [
     "functions",
