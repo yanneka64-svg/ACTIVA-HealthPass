@@ -24,7 +24,7 @@ sont classées comme **catégories particulières** appelant une protection renf
 |---|---|---|
 | **Données de santé** | `MedicalForm.doctorPrescription.{presumedDiagnosis, requestedExams, treatmentOrder}`, `coverageType`, `doctorSpecialty` | Donnée de santé au sens strict — diagnostic présumé, examens demandés, traitement prescrit |
 | **Données biométriques** | `Member.fingerprintScore/fingerprintSensor/fingerprintDate/nfiqQuality`, `Enrollment.fingerprintScore`, `Claim.fingerprintSampleUrl/fingerprintScore` | Empreinte digitale — donnée biométrique identifiante |
-| **Identifiant national potentiel** | `MedicalForm.securityNumber` | Selon le pays, équivalent d'un numéro de sécurité sociale/national — souvent lui-même sous régime juridique spécifique (ex. NIR en droit français, soumis à autorisation CNIL) |
+| ~~Identifiant national potentiel~~ | ~~`MedicalForm.securityNumber`~~ | **Correction post-vérification (implémentation section 3.1)** : `securityNumber` est en réalité un code-barres interne au document (format `AMID-YY-DD-XXXX`, dérivé de la date d'impression et des 4 derniers chiffres du numéro de carte — voir `medicalFormUtils.ts`), pas un identifiant national de la personne. Ligne conservée à titre de trace de la correction ; ce champ n'a pas été chiffré, cela aurait cassé la recherche et la validation de format sans bénéfice de confidentialité réel. |
 | **Pièces d'identité / photos** | `Member.photoUrl`, `Enrollment.photoUrl/idDocumentUrl` | Identification visuelle, document officiel |
 | **PII directe** | `birthDate`, `gender`, `phone`, `email`, `principalName`/`memberName`/`fullName`, `cardNo` | Identifiants directs |
 | **Données financières liées à la santé** | `Claim.amount`, `HealthPolicy.annualPremium`, `PolicyPayment.*` | Révèlent indirectement des informations de santé (montant d'un acte = nature de l'acte) |
@@ -213,30 +213,40 @@ données d'assurés.
 
 ## 5. Priorisation des recommandations
 
+*Mise à jour au fil de l'implémentation — voir l'historique git de ce fichier pour le détail des
+correctifs appliqués.*
+
 ### Critique — à traiter avant toute extension de la base d'utilisateurs
-1. **Sécuriser la suppression de masse des dossiers médicaux** (2.5) : retirer/protéger
-   `deleteAllMedicalForms` derrière une confirmation renforcée + conservation d'une trace
-   d'audit immuable de ce qui a été supprimé (au minimum les identifiants des documents, avant
-   suppression, dans une collection d'archive séparée) — jamais de suppression physique
-   silencieuse d'un historique médical complet.
+1. ✅ **CORRIGÉ** (commit `d5646fc`) — **Sécuriser la suppression de masse des dossiers
+   médicaux** (2.5). Découverte plus grave que documentée initialement : un `useEffect` dans
+   `App.tsx` déclenchait `deleteAllMedicalForms()` automatiquement à CHAQUE chargement de
+   l'application pour tout compte Admin (garde-fou `useRef` ne survivant pas à un rechargement
+   de page) — retiré entièrement. `deleteMedicalForm`/`deleteAllMedicalForms` archivent
+   désormais chaque document (contenu intégral + qui/quand/pourquoi) dans la collection
+   immuable `medicalFormsDeletionArchive` avant toute suppression physique, avec traitement par
+   lots et audit structuré. La suppression en masse côté UI exige un motif et la saisie exacte
+   d'une phrase de confirmation.
 
 ### Élevée
-2. **Séparer identité et contenu clinique** dans `medicalForms` (2.1) — a minima, cloisonner
-   l'accès en lecture aux champs cliniques par une sous-collection ou un document distinct avec
-   ses propres règles Firestore.
-3. **Introduire un champ de classification** (2.2) sur chaque type sensible, pour rendre les
-   contrôles futurs (chiffrement, rétention, journalisation) vérifiables automatiquement plutôt
-   qu'implicites.
-4. **Chiffrement applicatif des champs les plus sensibles** (3.1) : diagnostic, numéro de
-   sécurité, gabarit/score biométrique — au minimum pour les nouvelles écritures, avec migration
-   des données existantes en tâche de fond.
-5. **Politique de rétention et de purge programmée** (2.4) — définir la durée réglementaire
-   applicable par pays d'opération, l'implémenter comme un job planifié (Cloud Function
-   schedulée), documenter l'archivage/l'anonymisation en fin de durée plutôt que la conservation
-   indéfinie actuelle.
-6. **Encadrer les exports en masse** (2.6) : journaliser précisément quoi/qui/quand pour chaque
-   export contenant des données sensibles, envisager une limite de volume et/ou un filigrane
-   nominatif sur les documents exportés.
+2. ⏸️ **REPORTÉ** (décision explicite du 2026-09-05) — **Séparer identité et contenu clinique**
+   dans `medicalForms` (2.1) : restructuration de schéma à risque de régression réel (création,
+   affichage, historique, PDF), nécessite un créneau de validation visuelle dédié.
+3. ⏸️ Non traité — **Champ de classification** (2.2) sur chaque type sensible.
+4. ✅ **CORRIGÉ** (commit `5868cab`) — **Chiffrement applicatif des champs les plus sensibles**
+   (3.1), avec clé exclusivement côté serveur (Cloud Function, jamais dans le navigateur) :
+   `presumedDiagnosis`/`requestedExams`/`treatmentOrder` de `medicalForms`. Correction
+   importante par rapport au constat initial : `securityNumber` s'est avéré, après vérification,
+   être un code-barres interne au document (pas un identifiant national) — volontairement exclu
+   du chiffrement, qui aurait cassé la recherche/le scan sans bénéfice réel (voir section 1,
+   note de correction). Nécessite le déploiement de la Cloud Function et la configuration du
+   secret pour prendre effet.
+5. ⏸️ **REPORTÉ** (décision explicite du 2026-09-05, vu la découverte du point 1) — **Politique
+   de rétention et de purge programmée** (2.4) : aucun nouveau mécanisme de suppression
+   automatisée ne sera construit sans un point dédié sur les durées réglementaires par pays et
+   les garde-fous exigés.
+6. ✅ **CORRIGÉ** (commit `5d44ca5`) — **Encadrer les exports en masse** (2.6) : chaque export
+   (rapports, polices, claims, membres) écrit désormais une entrée d'audit structurée
+   (qui/quoi/quand) dans `auditLogs`.
 
 ### Moyenne
 7. Activer Firebase App Check (3.4).
