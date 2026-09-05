@@ -217,11 +217,27 @@ export async function generateNextCardNumber(ctx: AssignmentContext): Promise<st
  * Atomically generates N consecutive card numbers in a single transaction,
  * guaranteeing no gaps and recording each number in the uniqueness registry.
  */
+// === AMÉLIORATION AJOUTÉE : câblage Cloud Function avec repli automatique ("tout câbler").
+// Même patron que generateNextCardNumber/reserveExistingCardNumber ci-dessus.
 export async function batchGenerateCardNumbers(
   count: number,
   ctxList: AssignmentContext[] = []
 ): Promise<string[]> {
   if (count <= 0) return [];
+
+  try {
+    const callBatchGenerate = httpsCallable<
+      { count: number; ctxList: AssignmentContext[] },
+      { success: boolean; cardNumbers: string[] }
+    >(functions, 'batchGenerateCardNumbers');
+    const result = await callBatchGenerate({ count, ctxList });
+    if (result.data?.success && Array.isArray(result.data.cardNumbers) && result.data.cardNumbers.length === count) {
+      return result.data.cardNumbers;
+    }
+  } catch (err) {
+    console.warn('Cloud Function "batchGenerateCardNumbers" unavailable — falling back to client-side generation:', err);
+  }
+
   return runTransaction(db, async (tx) => {
     const countersSnap = await tx.get(COUNTERS_REF);
     const counters: CardNumberCounters = countersSnap.exists()
@@ -361,10 +377,38 @@ export async function getCardContinuityReport(members: Member[]): Promise<CardCo
  * least this number (never lowers it — historical/explicit numbers always take priority over
  * the running counter, section 32).
  */
+// === AMÉLIORATION AJOUTÉE : câblage Cloud Function avec repli automatique (sur demande
+// explicite, "tout câbler"). Même patron que generateNextCardNumber ci-dessus : essaie
+// d'abord `registerCardNumber` (Cloud Function, transaction atomique côté serveur — Admin
+// SDK, contourne les règles Firestore par conception) ; en cas d'échec pour QUELQUE RAISON
+// QUE CE SOIT (fonction non déployée, hors-ligne, numéro déjà pris...), retombe silencieusement
+// sur la transaction cliente ci-dessous, strictement inchangée. Aucune fonction n'étant
+// déployée aujourd'hui, ce câblage n'a aucun effet observable tant que
+// `firebase deploy --only functions` n'a pas été exécuté.
 export async function reserveExistingCardNumber(cardNumber: string, ctx: AssignmentContext): Promise<void> {
   const parsed = parseCardNumber(cardNumber);
   if (!parsed) {
     throw new Error(`Invalid card number format: "${cardNumber}". Expected AMID-YYMMDD-NNNNN.`);
+  }
+
+  try {
+    const callRegisterCardNumber = httpsCallable<
+      { cardNumber: string; organization?: string | null; memberId?: string | null; insuredName?: string | null; assignedByName?: string | null; method?: string },
+      { success: boolean; cardNumber: string }
+    >(functions, 'registerCardNumber');
+    const result = await callRegisterCardNumber({
+      cardNumber,
+      organization: ctx.organization,
+      memberId: ctx.memberId,
+      insuredName: ctx.insuredName,
+      assignedByName: ctx.assignedByName,
+      method: ctx.method,
+    });
+    if (result.data?.success) {
+      return;
+    }
+  } catch (err) {
+    console.warn('Cloud Function "registerCardNumber" unavailable — falling back to client-side reservation:', err);
   }
 
   await runTransaction(db, async (tx) => {

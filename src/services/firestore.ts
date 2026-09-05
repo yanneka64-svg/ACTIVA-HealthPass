@@ -1,5 +1,6 @@
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, writeBatch, DocumentReference } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, auth, functions } from '../lib/firebase';
 import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, AuditLog, MedicalForm, AppNotification, HealthPolicy, PolicyPayment } from '../types';
 import { getFullDemoData, seedInitialDemoDataIfEmpty } from './seedData';
 import { isNewSecurityNumberFormat, normalizeMedicalFormSecurityNumber } from '../utils/medicalFormUtils';
@@ -517,7 +518,32 @@ export const FirestoreService = {
   },
 
   // Logs & Audit Trail
+  // === AMÉLIORATION AJOUTÉE : câblage de la Cloud Function `logAuditEvent` ("tout câbler",
+  // sur demande explicite), avec repli automatique — UNIQUEMENT pour la forme "action métier"
+  // (présence du champ `action`). La Cloud Function `logAuditEvent`
+  // (functions/src/index.ts) ne connaît que les champs userId/userName/userRole/action/
+  // category/entityId/entityType/details/ip/userAgent/severity : lui envoyer un journal de
+  // connexion (forme LoginLog : userEmail/ipAddress/status/browser/location) ferait
+  // silencieusement disparaître ces champs précis (aucun d'eux n'est repris par
+  // logAuditEventServer), cassant l'affichage/le filtrage de LogsView.tsx pour ces entrées.
+  // La forme LoginLog continue donc d'écrire directement dans Firestore, strictement
+  // inchangée ; seule la forme "action métier" tente d'abord la Cloud Function.
   addLog: async (data: Partial<AuditLog> | Partial<LoginLog>) => {
+    if ('action' in data && data.action) {
+      try {
+        const callLogAuditEvent = httpsCallable<
+          Partial<AuditLog>,
+          { success: boolean; id: string }
+        >(functions, 'logAuditEvent');
+        const result = await callLogAuditEvent(data as Partial<AuditLog>);
+        if (result.data?.success) {
+          return result;
+        }
+      } catch (err) {
+        console.warn('Cloud Function "logAuditEvent" unavailable — falling back to direct Firestore write:', err);
+      }
+    }
+
     try {
       return await addDoc(collection(db, 'auditLogs'), {
         ...data,

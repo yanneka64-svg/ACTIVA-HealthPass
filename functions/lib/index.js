@@ -15,6 +15,18 @@ if (!admin.apps.length) {
     admin.initializeApp();
 }
 const db = admin.firestore();
+// === AMÉLIORATION AJOUTÉE : robustesse (câblage "tout câbler") — trouvé en écrivant le test
+// functions/src/enrollmentsService.emulator.test.ts : le SDK Admin refuse par défaut toute
+// valeur `undefined` dans un update()/set() ("Cannot use 'undefined' as a Firestore value"),
+// alors que plusieurs champs construits avec un repli `a || b` (ex.
+// syncApprovedEnrollmentToMembersServer) peuvent légitimement valoir `undefined` si ni la
+// nouvelle valeur ni l'ancienne n'existent — un cas normal (champ jamais renseigné), pas une
+// erreur applicative. Sans ce réglage, l'écriture entière échoue avec une exception peu
+// explicite au lieu d'omettre simplement le champ. Actif globalement (comme le client
+// `initializeFirestore(..., { ignoreUndefinedProperties: true })` dans src/lib/firebase.ts) :
+// n'affecte aucune écriture qui réussissait déjà, ne fait qu'accepter celles qui échouaient
+// à cause d'un champ optionnel absent.
+db.settings({ ignoreUndefinedProperties: true });
 /**
  * === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.2 — RBAC via Custom Claims) ===
  * Constat (docs/security/CODE_AUDIT_MAP.md, section 5) : aucun Custom Claim Firebase n'est
