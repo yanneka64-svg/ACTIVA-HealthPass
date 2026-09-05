@@ -15,6 +15,7 @@ import { processEnrollmentDecisionServer, EnrollmentDecisionPayload } from './en
 import { logAuditEventServer, AuditLogEntry } from './auditService';
 import { processBulkMemberImportServer, ImportRowInput } from './importService';
 import { validatePayload } from './validation';
+import { MEDICAL_FIELD_ENCRYPTION_KEY, encryptFieldMap, decryptFieldMap } from './encryptionService';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -914,6 +915,53 @@ export const ensureUserAccount = functions.https.onCall(
     }
 
     return { success: false, linked: false };
+  }
+);
+
+/**
+ * === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+ * Chiffre un lot de champs texte (ex. le contenu clinique d'un formulaire médical) avec une clé
+ * qui ne quitte jamais le serveur — voir encryptionService.ts pour le choix architectural.
+ * Générique par construction (`fields: Record<string,string>`) pour rester réutilisable au-delà
+ * de `medicalForms` si d'autres champs sensibles devaient être chiffrés plus tard.
+ */
+export const encryptSensitiveFields = functions.https.onCall(
+  { secrets: [MEDICAL_FIELD_ENCRYPTION_KEY] },
+  async (request: functions.https.CallableRequest<{ fields?: Record<string, unknown> }>) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+    }
+    validatePayload(request.data, { fields: { type: 'object', required: true } });
+
+    try {
+      const encrypted = encryptFieldMap(request.data.fields || {});
+      return { success: true, fields: encrypted };
+    } catch (error: any) {
+      throw new functions.https.HttpsError('invalid-argument', error?.message || 'Failed to encrypt fields.');
+    }
+  }
+);
+
+/**
+ * === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+ * Déchiffre un lot de champs — voir encryptSensitiveFields ci-dessus. Les valeurs qui ne
+ * portent pas le préfixe de chiffrement (documents créés avant ce correctif) sont renvoyées
+ * telles quelles : aucune régression sur les formulaires médicaux existants.
+ */
+export const decryptSensitiveFields = functions.https.onCall(
+  { secrets: [MEDICAL_FIELD_ENCRYPTION_KEY] },
+  async (request: functions.https.CallableRequest<{ fields?: Record<string, unknown> }>) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+    }
+    validatePayload(request.data, { fields: { type: 'object', required: true } });
+
+    try {
+      const decrypted = decryptFieldMap(request.data.fields || {});
+      return { success: true, fields: decrypted };
+    } catch (error: any) {
+      throw new functions.https.HttpsError('internal', error?.message || 'Failed to decrypt fields.');
+    }
   }
 );
 

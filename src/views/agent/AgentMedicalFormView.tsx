@@ -41,6 +41,8 @@ import {
   isNewSecurityNumberFormat,
   matchesSecurityNumberSearch,
 } from '../../utils/medicalFormUtils';
+// === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+import { encryptMedicalFormPrescription, decryptMedicalFormPrescription } from '../../utils/sensitiveData';
 
 interface AgentMedicalFormViewProps {
   providers: Provider[];
@@ -201,7 +203,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   }, [practitionerType, doctorSpecialty, customSpecialty]);
 
   // Handle Form Generation
-  const handleGenerateForm = (e: React.FormEvent) => {
+  const handleGenerateForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     if (!selectedMember || !selectedProvider) {
@@ -249,22 +251,34 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       createdAt: new Date().toISOString(),
     };
 
+    // `generatedForm` reste la version en clair pour l'aperçu immédiat affiché dans cette même
+    // session (voir plus bas) — inutile de la déchiffrer, elle n'a jamais été chiffrée.
     setGeneratedForm(newForm);
 
     if (onCreateMedicalForm) {
-      onCreateMedicalForm(newForm);
+      // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) —
+      // seule la copie envoyée à Firestore est chiffrée ; `newForm`/`generatedForm` ci-dessus
+      // restent en clair pour l'affichage local immédiat, sans aller-retour de déchiffrement.
+      const formToPersist = await encryptMedicalFormPrescription(newForm);
+      onCreateMedicalForm(formToPersist);
     }
   };
 
   // PDF Download Handler
-  const handleDownloadPDF = (form: MedicalForm) => {
-    const doc = generateMedicalFormPDF(form);
+  // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) —
+  // déchiffre le contenu clinique (s'il est chiffré ; sinon aucun appel réseau, voir
+  // sensitiveData.ts) avant de générer le PDF, quel que soit le point d'entrée (aperçu
+  // immédiat après création, historique, modale de prévisualisation).
+  const handleDownloadPDF = async (form: MedicalForm) => {
+    const decrypted = await decryptMedicalFormPrescription(form);
+    const doc = generateMedicalFormPDF(decrypted);
     doc.save(`Medical_Form_ACTIVA_${form.securityNumber}.pdf`);
   };
 
   // Print Handler
-  const handlePrint = (form: MedicalForm) => {
-    const doc = generateMedicalFormPDF(form);
+  const handlePrint = async (form: MedicalForm) => {
+    const decrypted = await decryptMedicalFormPrescription(form);
+    const doc = generateMedicalFormPDF(decrypted);
     doc.autoPrint();
     const pdfBlob = doc.output('bloburl');
     window.open(pdfBlob, '_blank');
@@ -280,7 +294,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // navigateurs mobiles. Si l'appareil ne supporte pas le partage de fichiers (ex: certains
   // navigateurs de bureau), on retombe sur un téléchargement direct du PDF — jamais sur le
   // partage d'un lien vers l'application, qui n'est pas ce que l'utilisateur demande.
-  const handleShare = async (form: MedicalForm) => {
+  const handleShare = async (rawForm: MedicalForm) => {
+    // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+    const form = await decryptMedicalFormPrescription(rawForm);
     const pType = form.practitionerType === 'Specialist'
       ? `Specialist Physician (${form.doctorSpecialty || 'Specialized'})`
       : 'General Practitioner';
@@ -346,7 +362,16 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // Toggle status in history
   const handleToggleStatus = (form: MedicalForm, newStatus: 'issued' | 'used' | 'pending_return' | 'completed') => {
     if (onUpdateMedicalForm) {
-      onUpdateMedicalForm({ ...form, status: newStatus });
+      // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+      // `form` peut être `previewModalForm`, dont le contenu clinique a été DÉCHIFFRÉ pour
+      // l'affichage à l'écran (voir plus haut). Le renvoyer tel quel écraserait la version
+      // chiffrée stockée dans Firestore par du texte en clair au moindre changement de statut.
+      // `doctorPrescription` est un champ optionnel : l'omettre entièrement du payload
+      // d'update laisse la valeur déjà en base totalement inchangée (updateDoc ne touche que
+      // les clés fournies) — un simple changement de statut n'a de toute façon aucune raison
+      // de modifier le contenu clinique.
+      const { doctorPrescription, ...formWithoutPrescription } = form;
+      onUpdateMedicalForm({ ...formWithoutPrescription, status: newStatus });
     }
   };
 
@@ -1249,7 +1274,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={() => setPreviewModalForm(form)}
+                              onClick={async () => {
+                                // === AMÉLIORATION AJOUTÉE : protection des données (revue
+                                // 2026-09-05, section 3.1) — déchiffre le contenu clinique
+                                // avant affichage à l'écran (pas seulement pour le PDF).
+                                setPreviewModalForm(await decryptMedicalFormPrescription(form));
+                              }}
                               className={`p-1.5 text-slate-500 ${isSupervisorView ? 'hover:text-[#0F766E]' : 'hover:text-[#0A347B]'} ${isSupervisorView ? 'hover:bg-teal-50' : 'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
                               title="Preview"
                             >

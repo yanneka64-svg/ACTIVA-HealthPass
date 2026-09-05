@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ensureUserAccount = exports.lookupAccountAuthEmail = exports.resolveLoginIdentifier = exports.getSignedFileUrl = exports.logAuditEvent = exports.validateCoverage = exports.syncPolicy = exports.evaluatePolicy = exports.bulkImportMembers = exports.processEnrollmentDecision = exports.processClaimDecision = exports.batchGenerateCardNumbers = exports.registerCardNumber = exports.generateCardNumber = exports.syncAccountClaims = void 0;
+exports.decryptSensitiveFields = exports.encryptSensitiveFields = exports.ensureUserAccount = exports.lookupAccountAuthEmail = exports.resolveLoginIdentifier = exports.getSignedFileUrl = exports.logAuditEvent = exports.validateCoverage = exports.syncPolicy = exports.evaluatePolicy = exports.bulkImportMembers = exports.processEnrollmentDecision = exports.processClaimDecision = exports.batchGenerateCardNumbers = exports.registerCardNumber = exports.generateCardNumber = exports.syncAccountClaims = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
@@ -13,6 +13,7 @@ const enrollmentsService_1 = require("./enrollmentsService");
 const auditService_1 = require("./auditService");
 const importService_1 = require("./importService");
 const validation_1 = require("./validation");
+const encryptionService_1 = require("./encryptionService");
 if (!admin.apps.length) {
     admin.initializeApp();
 }
@@ -777,5 +778,44 @@ exports.ensureUserAccount = functions.https.onCall(async (request) => {
         return { success: true, linked: true, profile: accountToSave.profile };
     }
     return { success: false, linked: false };
+});
+/**
+ * === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+ * Chiffre un lot de champs texte (ex. le contenu clinique d'un formulaire médical) avec une clé
+ * qui ne quitte jamais le serveur — voir encryptionService.ts pour le choix architectural.
+ * Générique par construction (`fields: Record<string,string>`) pour rester réutilisable au-delà
+ * de `medicalForms` si d'autres champs sensibles devaient être chiffrés plus tard.
+ */
+exports.encryptSensitiveFields = functions.https.onCall({ secrets: [encryptionService_1.MEDICAL_FIELD_ENCRYPTION_KEY] }, async (request) => {
+    if (!request.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+    }
+    (0, validation_1.validatePayload)(request.data, { fields: { type: 'object', required: true } });
+    try {
+        const encrypted = (0, encryptionService_1.encryptFieldMap)(request.data.fields || {});
+        return { success: true, fields: encrypted };
+    }
+    catch (error) {
+        throw new functions.https.HttpsError('invalid-argument', error?.message || 'Failed to encrypt fields.');
+    }
+});
+/**
+ * === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+ * Déchiffre un lot de champs — voir encryptSensitiveFields ci-dessus. Les valeurs qui ne
+ * portent pas le préfixe de chiffrement (documents créés avant ce correctif) sont renvoyées
+ * telles quelles : aucune régression sur les formulaires médicaux existants.
+ */
+exports.decryptSensitiveFields = functions.https.onCall({ secrets: [encryptionService_1.MEDICAL_FIELD_ENCRYPTION_KEY] }, async (request) => {
+    if (!request.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+    }
+    (0, validation_1.validatePayload)(request.data, { fields: { type: 'object', required: true } });
+    try {
+        const decrypted = (0, encryptionService_1.decryptFieldMap)(request.data.fields || {});
+        return { success: true, fields: decrypted };
+    }
+    catch (error) {
+        throw new functions.https.HttpsError('internal', error?.message || 'Failed to decrypt fields.');
+    }
 });
 //# sourceMappingURL=index.js.map
