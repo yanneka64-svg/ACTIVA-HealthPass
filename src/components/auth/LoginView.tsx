@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, User, ArrowRight, AlertCircle, Globe, Shield } from 'lucide-react';
+import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff } from 'lucide-react';
 import { Language } from '../../types';
 import { Logo } from '../Logo';
-import { auth, db } from '../../lib/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs, deleteField } from 'firebase/firestore';
-import { verifyPassword, hashPassword } from '../../utils/passwordUtils';
+import { auth, functions, db } from '../../lib/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { collection, getDocs, doc, updateDoc, deleteField, setDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { getClientLocationInfo, parseUserAgent } from '../../utils/geoUtils';
 import { FirestoreService } from '../../services/firestore';
+import { verifyPassword } from '../../utils/passwordUtils';
 
 interface LoginViewProps {
   onLoginSuccess: (user: any, accountData?: any) => void;
@@ -72,6 +73,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [lockoutRemainingSec, setLockoutRemainingSec] = useState(0);
@@ -94,67 +96,102 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const inputSanitized = inputLower.replace(/[^a-z0-9_.]/g, '');
 
     try {
-      // 1. Search Firestore accounts collection to find the registered account
-      let matchingAccountDoc: any = null;
-      let matchingAccountId: string | null = null;
-      // === AMÉLIORATION AJOUTÉE : robustesse/diagnostic — cette recherche échouait
-      // auparavant de façon totalement silencieuse (un simple console.warn). Or si cette
-      // requête pré-authentification échoue (règles Firestore non déployées/différentes de
-      // celles du dépôt, hors-ligne, quota...), le code retombait sur les mêmes suppositions
-      // de domaine d'email par défaut ET affichait EXACTEMENT le même message que pour un
-      // "compte inexistant" ("Invalid username or password"), rendant ce cas impossible à
-      // distinguer d'un véritable mauvais identifiant. On garde le même comportement de repli
-      // (aucune régression), mais on retient l'échec pour affiner le message d'erreur final si
-      // aucune tentative de connexion Firebase Auth n'aboutit non plus (voir étape 5 plus bas).
-      let accountsLookupFailed = false;
+      // 1. Résolution de l'identifiant d'entreprise via la Cloud Function sécurisée
+      // `resolveLoginIdentifier` si disponible (SDK Admin, rate limiting serveur dans Firestore).
+      let resolveResult: {
+        found: boolean;
+        isActive?: boolean;
+        authEmail?: string | null;
+        candidateEmails?: string[];
+        username?: string;
+        legacyVerification?: {
+          checked: boolean;
+          valid: boolean;
+        };
+        rateLimited?: boolean;
+        retryAfterSec?: number;
+        error?: string;
+      } | null = null;
+      let fnError: any = null;
 
       try {
-        const accountsSnap = await getDocs(collection(db, 'accounts'));
-        for (const docSnap of accountsSnap.docs) {
-          const data = docSnap.data();
-          const docEmail = (data.email || '').toLowerCase().trim();
-          const docUsername = (data.username || '').toLowerCase().trim();
-          const docAuthEmail = (data.authEmail || '').toLowerCase().trim();
-
-          if (
-            docEmail === inputLower ||
-            docUsername === inputLower ||
-            docUsername === inputSanitized ||
-            docAuthEmail === inputLower ||
-            (docEmail && inputLower.includes('@') && docEmail === inputLower) ||
-            (docEmail.split('@')[0] && docEmail.split('@')[0] === inputLower) ||
-            (docAuthEmail.split('@')[0] && docAuthEmail.split('@')[0] === inputLower)
-          ) {
-            matchingAccountDoc = data;
-            matchingAccountId = docSnap.id;
-            break;
-          }
-        }
-      } catch (e) {
-        accountsLookupFailed = true;
-        console.warn('Could not query accounts collection ahead of auth:', e);
+        const resolveFn = httpsCallable<
+          { identifier: string; password?: string },
+          any
+        >(functions, 'resolveLoginIdentifier');
+        const res = await resolveFn({ identifier: cleanUsername, password });
+        resolveResult = res.data;
+      } catch (err: any) {
+        fnError = err;
+        console.warn('resolveLoginIdentifier warning:', err);
       }
 
-      // Check if matched account is deactivated
-      if (matchingAccountDoc && matchingAccountDoc.isActive === false) {
+      // Si le rate limiting serveur (Cloud Function) s'est déclenché
+      if (resolveResult?.rateLimited || fnError?.code === 'resource-exhausted') {
+        const remaining = resolveResult?.retryAfterSec || 60;
+        setError(`Too many login attempts. Please wait ${remaining} seconds.`);
+        setIsLoggingIn(false);
+        return false;
+      }
+
+      // Si le compte est désactivé côté Cloud Function
+      if (resolveResult && resolveResult.isActive === false) {
         setError('This account has been deactivated. Please contact your administrator.');
         setIsLoggingIn(false);
         return false;
       }
 
-      // Build candidate emails to try with Firebase Auth
-      const candidateEmails: string[] = [];
-      if (matchingAccountDoc) {
-        if (matchingAccountDoc.authEmail) candidateEmails.push(matchingAccountDoc.authEmail.toLowerCase().trim());
-        if (matchingAccountDoc.email && matchingAccountDoc.email.includes('@')) {
-          candidateEmails.push(matchingAccountDoc.email.toLowerCase().trim());
+      // 2. Recherche directe dans la collection Firestore `accounts` (lecture autorisée)
+      // pour garantir la résolution instantanée de l'identifiant vers son adresse e-mail d'authentification réelle
+      let firestoreAccount: any = null;
+      try {
+        const snap = await getDocs(collection(db, 'accounts'));
+        for (const docSnap of snap.docs) {
+          const acc = docSnap.data();
+          const accUsername = (acc.username || '').toLowerCase().trim();
+          const accEmail = (acc.email || '').toLowerCase().trim();
+          const accAuthEmail = (acc.authEmail || '').toLowerCase().trim();
+          if (
+            accUsername === inputLower ||
+            accUsername === inputSanitized ||
+            accEmail === inputLower ||
+            accAuthEmail === inputLower
+          ) {
+            firestoreAccount = { id: docSnap.id, ...acc };
+            break;
+          }
         }
-        if (matchingAccountDoc.username) {
-          candidateEmails.push(`${matchingAccountDoc.username.toLowerCase()}@activa.local`);
-          candidateEmails.push(`${matchingAccountDoc.username.toLowerCase()}@activa-assurance.com`);
-        }
+      } catch (dbErr) {
+        console.warn('Direct accounts lookup warning:', dbErr);
       }
 
+      // Vérification du statut actif depuis Firestore
+      if (firestoreAccount && firestoreAccount.isActive === false) {
+        setError('This account has been deactivated. Please contact your administrator.');
+        setIsLoggingIn(false);
+        return false;
+      }
+
+      // Construire la liste exhaustive des emails candidats pour Firebase Auth
+      const candidateEmails: string[] = [];
+
+      // Priorité 1 : Email d'authentification trouvé dans le document de compte Firestore
+      if (firestoreAccount?.authEmail) {
+        candidateEmails.push(firestoreAccount.authEmail.toLowerCase().trim());
+      }
+      if (firestoreAccount?.email) {
+        candidateEmails.push(firestoreAccount.email.toLowerCase().trim());
+      }
+
+      // Priorité 2 : Résultat retourné par la Cloud Function
+      if (resolveResult?.authEmail) {
+        candidateEmails.push(resolveResult.authEmail.toLowerCase().trim());
+      }
+      if (resolveResult?.candidateEmails && resolveResult.candidateEmails.length > 0) {
+        candidateEmails.push(...resolveResult.candidateEmails.map((e) => e.toLowerCase().trim()));
+      }
+
+      // Priorité 3 : Domaines institutionnels ACTIVA conventionnels
       if (cleanUsername.includes('@')) {
         candidateEmails.push(inputLower);
         const userPart = inputLower.split('@')[0].replace(/[^a-z0-9_.]/g, '');
@@ -171,125 +208,155 @@ export const LoginView: React.FC<LoginViewProps> = ({
       let userCredential: any = null;
       let lastSignInErr: any = null;
 
-      // 2. Try signing in with candidate emails in Firebase Auth
+      // 3. Tentative de connexion standard via Firebase Auth sur chaque e-mail candidat
       for (const email of uniqueCandidateEmails) {
         try {
           userCredential = await signInWithEmailAndPassword(auth, email, password);
           if (userCredential?.user) break;
         } catch (err: any) {
           lastSignInErr = err;
-          if (err.code === 'auth/wrong-password' || err.code === 'auth/too-many-requests') {
+          // Si trop de tentatives consécutives sur Firebase Auth
+          if (err.code === 'auth/too-many-requests') {
             break;
           }
         }
       }
 
-      // 3. If standard sign-in succeeded:
+      // 4. Si la connexion standard a réussi :
       if (userCredential?.user) {
-        const userDocRef = doc(db, 'accounts', userCredential.user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-
-        if (!userDocSnap.exists() && matchingAccountDoc) {
-          // Associate the existing account record with the authenticated UID
-          await setDoc(userDocRef, { ...matchingAccountDoc, id: userCredential.user.uid }, { merge: true });
+        if (firestoreAccount && userCredential.user.uid !== firestoreAccount.id) {
+          try {
+            const accountToSync = {
+              ...firestoreAccount,
+              id: userCredential.user.uid,
+              authEmail: userCredential.user.email,
+              updatedAt: new Date().toISOString(),
+            };
+            delete (accountToSync as any).password;
+            delete (accountToSync as any).tempPassword;
+            await setDoc(doc(db, 'accounts', userCredential.user.uid), accountToSync, { merge: true });
+          } catch (syncErr) {
+            console.warn('Account sync notice on standard login:', syncErr);
+          }
         }
-
-        // === AMÉLIORATION AJOUTÉE : sécurité (audit) — nettoyage paresseux. Cet utilisateur
-        // vient de s'authentifier via Firebase Auth (le chemin normal, désormais utilisé à
-        // chaque connexion) : le mot de passe en clair encore présent depuis la création du
-        // compte (avant ce correctif) n'a donc plus aucune utilité — Firebase Auth fait
-        // désormais foi. Effacé silencieusement, sans jamais bloquer la connexion en cours.
-        const existingData = userDocSnap.exists() ? userDocSnap.data() : matchingAccountDoc;
-        if (existingData && (existingData.password || existingData.tempPassword)) {
-          setDoc(userDocRef, { password: deleteField(), tempPassword: deleteField() }, { merge: true }).catch(() => {
-            // Best-effort only — never block a successful login on this cleanup.
-          });
-        }
-
-        onLoginSuccess(userCredential.user);
+        onLoginSuccess(userCredential.user, firestoreAccount);
         return true;
       }
 
-      // 4. If sign in did not find user in Firebase Auth, but matching account was created by Admin in Firestore:
-      if (matchingAccountDoc) {
-        // === AMÉLIORATION AJOUTÉE : sécurité (audit) — le mot de passe n'est plus jamais
-        // comparé ni stocké en clair. Les comptes créés/réinitialisés après ce correctif
-        // portent passwordHash/passwordSalt (voir src/utils/passwordUtils.ts), vérifiés ici.
-        // Les comptes plus anciens (créés avant ce correctif) n'ont encore que
-        // password/tempPassword en clair : la comparaison historique reste acceptée pour ne
-        // jamais bloquer un utilisateur légitime, mais dès que la connexion réussit ainsi, le
-        // compte est immédiatement converti en hash et le mot de passe en clair est effacé
-        // (migration paresseuse, transparente, sans action requise de l'utilisateur).
-        let migratedHash: { passwordHash: string; passwordSalt: string } | null = null;
-        if (matchingAccountDoc.passwordHash && matchingAccountDoc.passwordSalt) {
-          const ok = await verifyPassword(password, matchingAccountDoc.passwordHash, matchingAccountDoc.passwordSalt);
-          if (!ok) {
-            setError('Incorrect password. Please verify the credentials provided by your administrator.');
-            setIsLoggingIn(false);
-            return false;
-          }
-        } else {
-          const storedPwd = matchingAccountDoc.password || matchingAccountDoc.tempPassword;
-          if (storedPwd && storedPwd !== password) {
-            setError('Incorrect password. Please verify the credentials provided by your administrator.');
-            setIsLoggingIn(false);
-            return false;
-          }
-          if (storedPwd) {
-            migratedHash = await hashPassword(password);
-          }
+      // 5. Si la connexion standard n'a pas trouvé l'utilisateur dans Firebase Auth,
+      // mais que le compte d'entreprise est bien présent dans Firestore :
+      // Vérification du mot de passe sécurisé (hash PBKDF2 ou mot de passe initial)
+      if (firestoreAccount) {
+        let isPasswordValid = false;
+        if (firestoreAccount.passwordHash && firestoreAccount.passwordSalt) {
+          isPasswordValid = await verifyPassword(password, firestoreAccount.passwordHash, firestoreAccount.passwordSalt);
+        } else if (firestoreAccount.password || firestoreAccount.tempPassword) {
+          isPasswordValid = (firestoreAccount.password === password || firestoreAccount.tempPassword === password);
         }
 
-        // Auto-provision Firebase Auth credential for this registered corporate account
-        const primaryAuthEmail = uniqueCandidateEmails[0] || `${matchingAccountDoc.username || inputSanitized}@activa.local`;
-        try {
-          userCredential = await createUserWithEmailAndPassword(auth, primaryAuthEmail, password);
-        } catch (createErr: any) {
-          if (createErr.code === 'auth/email-already-in-use') {
-            const fallbackEmail = `${(matchingAccountDoc.username || inputSanitized).toLowerCase()}_${Date.now()}@activa.local`;
-            try {
-              userCredential = await createUserWithEmailAndPassword(auth, fallbackEmail, password);
-            } catch {
+        if (isPasswordValid) {
+          const primaryEmail =
+            firestoreAccount.authEmail ||
+            firestoreAccount.email ||
+            `${(firestoreAccount.username || inputSanitized).toLowerCase()}@activa.local`;
+
+          // Auto-provisionne ou connecte les identifiants Firebase Auth pour ce compte vérifié
+          try {
+            userCredential = await createUserWithEmailAndPassword(auth, primaryEmail, password);
+          } catch (createErr: any) {
+            if (createErr.code === 'auth/email-already-in-use') {
+              try {
+                userCredential = await signInWithEmailAndPassword(auth, primaryEmail, password);
+              } catch {
+                const fallbackEmail = `${(firestoreAccount.username || inputSanitized).toLowerCase()}_${Date.now()}@activa.local`;
+                userCredential = await createUserWithEmailAndPassword(auth, fallbackEmail, password);
+              }
+            } else {
               throw lastSignInErr || createErr;
             }
-          } else {
-            throw lastSignInErr || createErr;
           }
-        }
 
-        if (userCredential?.user) {
-          const userDocRef = doc(db, 'accounts', userCredential.user.uid);
-          const mergedData: any = { ...matchingAccountDoc, id: userCredential.user.uid };
-          if (migratedHash) {
-            // === AMÉLIORATION AJOUTÉE : sécurité (audit) — voir commentaire plus haut : ce
-            // compte vient de passer la vérification par mot de passe en clair (ancien
-            // format) ; converti en hash et le clair effacé, dans cette même écriture.
-            mergedData.passwordHash = migratedHash.passwordHash;
-            mergedData.passwordSalt = migratedHash.passwordSalt;
-            mergedData.password = deleteField();
-            mergedData.tempPassword = deleteField();
+          if (userCredential?.user) {
+            const authUid = userCredential.user.uid;
+            const currentEmail = userCredential.user.email || primaryEmail;
+
+            // Assure la synchronisation immédiate du document accounts/{authUid}
+            // avec son rôle opérationnel (Admin, Supervisor, Agent) et ses permissions
+            const accountToSync = {
+              ...firestoreAccount,
+              id: authUid,
+              authEmail: currentEmail,
+              updatedAt: new Date().toISOString(),
+            };
+            delete (accountToSync as any).password;
+            delete (accountToSync as any).tempPassword;
+
+            try {
+              await setDoc(doc(db, 'accounts', authUid), accountToSync, { merge: true });
+            } catch (syncErr) {
+              console.warn('Account doc sync to Auth UID notice:', syncErr);
+            }
+
+            // Nettoie les champs de mot de passe en clair s'il en subsistait
+            if (firestoreAccount.password || firestoreAccount.tempPassword) {
+              try {
+                await updateDoc(doc(db, 'accounts', firestoreAccount.id), {
+                  password: deleteField(),
+                  tempPassword: deleteField(),
+                  authEmail: currentEmail,
+                });
+              } catch (cleanErr) {
+                console.warn('Account password cleanup notice:', cleanErr);
+              }
+            }
+            onLoginSuccess(userCredential.user, accountToSync);
+            return true;
           }
-          await setDoc(userDocRef, mergedData, { merge: true });
-          onLoginSuccess(userCredential.user);
-          return true;
+        } else {
+          // Mot de passe incorrect pour ce compte existant
+          setError('Invalid username or password. Please verify your credentials.');
+          setIsLoggingIn(false);
+          return false;
         }
       }
 
-      // 5. If no account matches in Firestore and no Firebase Auth user exists:
-      // === AMÉLIORATION AJOUTÉE : diagnostic — voir le commentaire à l'étape 1. Si la
-      // recherche du compte a elle-même échoué (plutôt que de simplement ne rien trouver), on
-      // le signale distinctement au lieu du message générique, pour ne plus confondre "mauvais
-      // identifiants" et "impossible de vérifier le compte" lors du diagnostic d'un incident.
-      if (accountsLookupFailed) {
-        console.error(
-          'Login failed: could not verify account against Firestore (accounts lookup errored) and no Firebase Auth credential matched any candidate email for "' +
-            cleanUsername +
-            '".'
-        );
-        setError('Unable to verify your account right now. Please check your connection and try again, or contact your administrator.');
-        setIsLoggingIn(false);
-        return false;
+      // 6. Vérification legacy via Cloud Function si applicable
+      if (resolveResult?.found && resolveResult?.legacyVerification) {
+        if (resolveResult.legacyVerification.checked && !resolveResult.legacyVerification.valid) {
+          setError('Invalid username or password. Please verify your credentials.');
+          setIsLoggingIn(false);
+          return false;
+        }
+
+        if (resolveResult.legacyVerification.valid) {
+          const primaryEmail =
+            resolveResult.authEmail ||
+            uniqueCandidateEmails[0] ||
+            `${resolveResult.username || inputSanitized}@activa.local`;
+
+          try {
+            userCredential = await createUserWithEmailAndPassword(auth, primaryEmail, password);
+          } catch (createErr: any) {
+            if (createErr.code === 'auth/email-already-in-use') {
+              const fallbackEmail = `${(resolveResult.username || inputSanitized).toLowerCase()}_${Date.now()}@activa.local`;
+              try {
+                userCredential = await createUserWithEmailAndPassword(auth, fallbackEmail, password);
+              } catch {
+                throw lastSignInErr || createErr;
+              }
+            } else {
+              throw lastSignInErr || createErr;
+            }
+          }
+
+          if (userCredential?.user) {
+            onLoginSuccess(userCredential.user);
+            return true;
+          }
+        }
       }
+
+      // 7. En cas d'échec
       setError('Invalid username or password. Please verify your credentials.');
       setIsLoggingIn(false);
       return false;
@@ -478,10 +545,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </div>
 
               {/* Password */}
-              {/* === AMÉLIORATION AJOUTÉE : l'icône de cadenas ("illustration") a été retirée de
-                  l'intérieur du champ mot de passe, sur demande explicite — le champ conserve
-                  exactement le même comportement, seul le padding gauche est réajusté (pl-10 ->
-                  pl-4) puisqu'il n'y a plus d'icône à laisser de la place. === */}
               <div>
                 <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
                   Password
@@ -489,14 +552,32 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <div className="relative">
                   <input
                     id="login-password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder=""
-                    className="w-full pl-4 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                    className="w-full pl-4 pr-12 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
                     autoComplete="current-password"
                     required
                   />
+                  <button
+                    id="login-toggle-password"
+                    type="button"
+                    tabIndex={-1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowPassword((prev) => !prev);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#778FAF] hover:text-[#0D2B63] focus:outline-none transition rounded-lg hover:bg-slate-200/50 cursor-pointer select-none"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               </div>
 

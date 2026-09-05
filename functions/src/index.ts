@@ -1,5 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
+import * as crypto from 'crypto';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import {
   generateNextCardNumberServer,
@@ -18,7 +20,18 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-const db = admin.firestore();
+const FIRESTORE_DATABASE_ID =
+  process.env.FIRESTORE_DATABASE_ID || 'ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b';
+
+function initFirestore(): FirebaseFirestore.Firestore {
+  try {
+    return getFirestore(FIRESTORE_DATABASE_ID);
+  } catch {
+    return getFirestore();
+  }
+}
+
+const db = initFirestore();
 
 /**
  * === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.2 — RBAC via Custom Claims) ===
@@ -515,3 +528,362 @@ export const getSignedFileUrl = functions.https.onCall(
     }
   }
 );
+
+function verifyPasswordServer(password: string, passwordHash: string, passwordSalt: string): boolean {
+  if (!passwordHash || !passwordSalt) return false;
+  try {
+    const saltBuffer = Buffer.from(passwordSalt, 'hex');
+    const derived = crypto.pbkdf2Sync(password, saltBuffer, 150_000, 32, 'sha256').toString('hex');
+    return crypto.timingSafeEqual(Buffer.from(derived, 'hex'), Buffer.from(passwordHash, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+function hashPasswordServer(password: string): { passwordHash: string; passwordSalt: string } {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.pbkdf2Sync(password, Buffer.from(salt, 'hex'), 150_000, 32, 'sha256').toString('hex');
+  return { passwordHash: derived, passwordSalt: salt };
+}
+
+interface RateLimitResult {
+  allowed: boolean;
+  retryAfterSec?: number;
+}
+
+async function checkAndApplyRateLimit(
+  firestore: FirebaseFirestore.Firestore,
+  identifier: string,
+  clientIp: string
+): Promise<RateLimitResult> {
+  const now = Date.now();
+  const LOCKOUT_DURATION_MS = 60_000;
+  const WINDOW_MS = 60_000;
+  const MAX_ATTEMPTS = 5;
+
+  const key = `rate_${identifier.replace(/[^a-z0-9_.]/g, '_')}`;
+  const rateRef = firestore.collection('login_rate_limits').doc(key);
+
+  try {
+    const docSnap = await rateRef.get();
+    if (docSnap.exists) {
+      const data = docSnap.data() || {};
+      const lockedUntil = typeof data.lockedUntil === 'number' ? data.lockedUntil : 0;
+      if (now < lockedUntil) {
+        const retryAfterSec = Math.ceil((lockedUntil - now) / 1000);
+        return { allowed: false, retryAfterSec };
+      }
+
+      let attempts = typeof data.attempts === 'number' ? data.attempts : 0;
+      const windowStart = typeof data.windowStart === 'number' ? data.windowStart : now;
+
+      if (now - windowStart > WINDOW_MS) {
+        await rateRef.set({
+          attempts: 1,
+          windowStart: now,
+          lockedUntil: 0,
+          lastIp: clientIp,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return { allowed: true };
+      } else {
+        attempts += 1;
+        if (attempts >= MAX_ATTEMPTS) {
+          const newLockedUntil = now + LOCKOUT_DURATION_MS;
+          await rateRef.set({
+            attempts,
+            windowStart,
+            lockedUntil: newLockedUntil,
+            lastIp: clientIp,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          return { allowed: false, retryAfterSec: Math.ceil(LOCKOUT_DURATION_MS / 1000) };
+        } else {
+          await rateRef.update({
+            attempts,
+            lastIp: clientIp,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          return { allowed: true };
+        }
+      }
+    } else {
+      await rateRef.set({
+        attempts: 1,
+        windowStart: now,
+        lockedUntil: 0,
+        lastIp: clientIp,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { allowed: true };
+    }
+  } catch (err) {
+    console.warn('Rate limiting non-fatal error:', err);
+    return { allowed: true };
+  }
+}
+
+/**
+ * === AMÉLIORATION AJOUTÉE : sécurité — Cloud Function Callable `resolveLoginIdentifier` ===
+ * Remplace définitivement tout appel client `getDocs(collection(db, 'accounts'))`.
+ * Fonctionne avec le SDK Admin Firebase (ignore firestore.rules, n'exige aucune lecture publique) :
+ * - Résout l'identifiant (username, email d'entreprise ou authEmail) vers l'adresse Firebase Auth correspondante
+ * - Applique un rate limiting serveur réel dans Firestore (collection `login_rate_limits`, max 5 essais / 60s)
+ * - Ne renvoie JAMAIS passwordHash, passwordSalt, password, tempPassword, ni aucun champ sensible
+ * - Si le mot de passe est fourni pour un compte legacy ou non encore provisionné dans Firebase Auth,
+ *   la vérification du hash PBKDF2 s'effectue côté serveur et renvoie uniquement un booléen de verdict.
+ * - Si le compte possède encore un mot de passe en clair legacy, il est automatiquement migré en PBKDF2
+ *   côté serveur lors de la validation sans jamais exposer le mot de passe en clair au navigateur.
+ */
+async function handleResolveLogin(
+  data: { identifier?: string; password?: string },
+  context: functions.https.CallableContext
+) {
+  const rawIdentifier = (data?.identifier || '').trim();
+  const identifier = rawIdentifier.toLowerCase();
+  const password = typeof data?.password === 'string' ? data.password : '';
+
+  if (!identifier) {
+    throw new functions.https.HttpsError('invalid-argument', 'Missing identifier');
+  }
+
+  const sanitizedId = identifier.replace(/[^a-z0-9_.]/g, '');
+  const clientIp =
+    (context.rawRequest?.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    context.rawRequest?.ip ||
+    'unknown';
+
+  // 1. Rate limiting serveur
+  const rateLimit = await checkAndApplyRateLimit(db, sanitizedId, clientIp);
+  if (!rateLimit.allowed) {
+    return {
+      found: false,
+      isActive: false,
+      authEmail: null,
+      candidateEmails: [],
+      rateLimited: true,
+      retryAfterSec: rateLimit.retryAfterSec || 60,
+      error: `Too many login attempts. Please wait ${rateLimit.retryAfterSec || 60} seconds.`,
+    };
+  }
+
+  // 2. Recherche du compte via Admin SDK
+  const snap = await db.collection('accounts').get();
+  let matchedDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+  let matchedData: any = null;
+
+  for (const docSnap of snap.docs) {
+    const acc = docSnap.data();
+    const docEmail = (acc.email || '').toLowerCase().trim();
+    const docUsername = (acc.username || '').toLowerCase().trim();
+    const docAuthEmail = (acc.authEmail || '').toLowerCase().trim();
+
+    if (
+      docEmail === identifier ||
+      docUsername === identifier ||
+      docUsername === sanitizedId ||
+      docAuthEmail === identifier ||
+      (docEmail && identifier.includes('@') && docEmail === identifier) ||
+      (docEmail.split('@')[0] && docEmail.split('@')[0] === identifier) ||
+      (docAuthEmail.split('@')[0] && docAuthEmail.split('@')[0] === identifier)
+    ) {
+      matchedDoc = docSnap;
+      matchedData = acc;
+      break;
+    }
+  }
+
+  if (!matchedData) {
+    const fallbackEmails = Array.from(
+      new Set([
+        identifier.includes('@') ? identifier : `${sanitizedId}@activa.local`,
+        `${sanitizedId}@activa-assurance.com`,
+        `${sanitizedId}@group-activa.com`,
+      ])
+    );
+
+    return {
+      found: false,
+      isActive: false,
+      authEmail: null,
+      candidateEmails: fallbackEmails,
+      username: sanitizedId,
+      legacyVerification: { checked: false, valid: false },
+    };
+  }
+
+  const isActive = matchedData.isActive !== false;
+  const docUsername = (matchedData.username || sanitizedId).toLowerCase();
+
+  const candidateEmails = Array.from(
+    new Set(
+      [
+        matchedData.authEmail,
+        matchedData.email,
+        `${docUsername}@activa.local`,
+        `${docUsername}@activa-assurance.com`,
+        `${docUsername}@group-activa.com`,
+      ].filter(Boolean)
+    )
+  );
+
+  const primaryAuthEmail =
+    matchedData.authEmail || matchedData.email || candidateEmails[0] || `${docUsername}@activa.local`;
+
+  // 3. Vérification des identifiants legacy côté serveur
+  let legacyVerification = { checked: false, valid: false };
+
+  if (password && matchedDoc) {
+    legacyVerification.checked = true;
+
+    // Hash PBKDF2 présent
+    if (matchedData.passwordHash && matchedData.passwordSalt) {
+      legacyVerification.valid = verifyPasswordServer(
+        password,
+        matchedData.passwordHash,
+        matchedData.passwordSalt
+      );
+    }
+    // Compte legacy avec mot de passe clair non encore migré
+    else if (matchedData.password || matchedData.tempPassword) {
+      const matchesPlain =
+        (matchedData.password && matchedData.password === password) ||
+        (matchedData.tempPassword && matchedData.tempPassword === password);
+
+      if (matchesPlain) {
+        legacyVerification.valid = true;
+        // Auto-migration immédiate vers hash PBKDF2 sur le serveur
+        try {
+          const { passwordHash, passwordSalt } = hashPasswordServer(password);
+          await matchedDoc.ref.update({
+            passwordHash,
+            passwordSalt,
+            password: admin.firestore.FieldValue.delete(),
+            tempPassword: admin.firestore.FieldValue.delete(),
+            migratedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch (migrateErr) {
+          console.warn('Auto-migration non-fatal error:', migrateErr);
+        }
+      } else {
+        legacyVerification.valid = false;
+      }
+    }
+  }
+
+  // Réinitialise le compteur de rate limit si la vérification a réussi
+  if (legacyVerification.valid) {
+    try {
+      await db.collection('login_rate_limits').doc(`rate_${sanitizedId}`).delete();
+    } catch {
+      // Ignore deletion error
+    }
+  }
+
+  // Retour STRICTEMENT épuré : aucun hash, aucun sel, aucun mot de passe
+  return {
+    found: true,
+    isActive,
+    authEmail: primaryAuthEmail,
+    candidateEmails,
+    username: docUsername,
+    legacyVerification,
+  };
+}
+
+export const resolveLoginIdentifier = functions.https.onCall(
+  async (data: { identifier?: string; password?: string }, context) => {
+    return handleResolveLogin(data, context);
+  }
+);
+
+/**
+ * === AMÉLIORATION AJOUTÉE : alias rétro-compatible pour lookupAccountAuthEmail ===
+ */
+export const lookupAccountAuthEmail = functions.https.onCall(
+  async (data: { identifier?: string; password?: string }, context) => {
+    return handleResolveLogin(data, context);
+  }
+);
+
+/**
+ * === AMÉLIORATION AJOUTÉE : liaison sécurisée de compte utilisateur post-connexion ===
+ * Si un utilisateur authentifié n'a pas encore de document accounts/{uid} (ex. compte pré-créé
+ * avec un identifiant de démonstration ou créé par email d'entreprise), cette fonction callable
+ * associe son compte de manière sécurisée côté serveur sans exiger une lecture publique de `accounts`.
+ */
+export const ensureUserAccount = functions.https.onCall(
+  async (data: { identifier?: string }, context) => {
+    const auth = context.auth;
+    if (!auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const uid = auth.uid;
+    const authEmail = (auth.token.email || '').toLowerCase().trim();
+    const explicitId = (data?.identifier || '').toLowerCase().trim();
+
+    // 1. Vérifie si accounts/{uid} existe déjà
+    const userDocSnap = await db.collection('accounts').doc(uid).get();
+    if (userDocSnap.exists) {
+      return { success: true, linked: false, profile: userDocSnap.data()?.profile };
+    }
+
+    // 2. Recherche un compte correspondant par authEmail, email ou username
+    const snap = await db.collection('accounts').get();
+    let matchedData: any = null;
+
+    for (const doc of snap.docs) {
+      if (doc.id === uid) continue;
+      const d = doc.data();
+      const dEmail = (d.email || '').toLowerCase().trim();
+      const dAuthEmail = (d.authEmail || '').toLowerCase().trim();
+      const dUsername = (d.username || '').toLowerCase().trim();
+
+      if (
+        (authEmail && (dEmail === authEmail || dAuthEmail === authEmail)) ||
+        (authEmail.includes('@') && dUsername && (
+          authEmail.startsWith(dUsername + '@') ||
+          authEmail.split('@')[0].split('_')[0] === dUsername
+        )) ||
+        (explicitId && (dEmail === explicitId || dAuthEmail === explicitId || dUsername === explicitId))
+      ) {
+        matchedData = d;
+        break;
+      }
+    }
+
+    if (matchedData) {
+      // Nettoie tout mot de passe en clair legacy
+      const { password, tempPassword, passwordHash, passwordSalt, ...safeAccount } = matchedData;
+      const accountToSave: Record<string, any> = {
+        ...safeAccount,
+        id: uid,
+        uid,
+        authEmail: authEmail || matchedData.authEmail || matchedData.email,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      await db.collection('accounts').doc(uid).set(accountToSave, { merge: true });
+      return { success: true, linked: true, profile: accountToSave.profile };
+    }
+
+    // 3. Repli : vérifie si un document users/{uid} existe
+    const fallbackUserSnap = await db.collection('users').doc(uid).get();
+    if (fallbackUserSnap.exists) {
+      const uData = fallbackUserSnap.data() || {};
+      const accountToSave: Record<string, any> = {
+        ...uData,
+        id: uid,
+        uid,
+        authEmail,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      await db.collection('accounts').doc(uid).set(accountToSave, { merge: true });
+      return { success: true, linked: true, profile: accountToSave.profile };
+    }
+
+    return { success: false, linked: false };
+  }
+);
+

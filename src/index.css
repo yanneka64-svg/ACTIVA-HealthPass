@@ -42,6 +42,13 @@
     user-select: text;
   }
 
+  /* Disable native browser password reveal and clear buttons (Edge/Chromium/IE)
+     so they do not conflict with custom eye icons or cause unwanted blinking carets */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none !important;
+  }
+
   /* Checkboxes/radios/date & file pickers keep the normal pointer, not the text I-beam */
   input[type="checkbox"], input[type="radio"], input[type="date"], input[type="file"],
   input[type="submit"], input[type="button"], select {

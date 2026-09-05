@@ -55,7 +55,13 @@ import { AgentMedicalFormView } from './views/agent/AgentMedicalFormView';
 import { AgentClaimsView } from './views/agent/AgentClaimsView';
 import { AgentEnrollmentsView } from './views/agent/AgentEnrollmentsView';
 import { InactivityWarningModal } from './components/InactivityWarningModal';
-import { playSuccessSound, playNotificationSound } from './utils/sound'; // === AMÉLIORATION AJOUTÉE : sons de confirmation & notification ===
+import {
+  playSuccessSound,
+  playNotificationSound,
+  playLoginSound,
+  playErrorSound,
+  playLogoutSound,
+} from './utils/sound'; // === AMÉLIORATION AJOUTÉE : sons Web Audio API (succès, notification, connexion, erreur, déconnexion) ===
 import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon, Users, FileCheck } from 'lucide-react';
 
 export type AuthStateStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'inactive' | 'invalid_role';
@@ -147,6 +153,8 @@ export default function App() {
         setUserRole(null);
         setForcedFirstLogin(false);
         setForcedPasswordExpiry(false);
+        setChangePasswordModalOpen(false);
+        setToastMessage(null);
         sessionStorage.removeItem('activa_current_section');
         return;
       }
@@ -235,35 +243,70 @@ export default function App() {
               setUserRole(resolvedRole);
               setAuthStatus('authenticated');
             } else {
-              // Document accounts/{uid} does not exist yet. Check if an account was pre-seeded or created by email
+              // Document accounts/{uid} does not exist yet. Ensure account linkage via callable Cloud Function
+              // (executes via Admin SDK, bypassing restricted read rules on accounts collection).
               try {
-                const accountsSnap = await getDocs(collection(db, 'accounts'));
-                const userEmail = (firebaseUser.email || '').toLowerCase().trim();
-                let matchedAccount: any = null;
-
-                for (const aDoc of accountsSnap.docs) {
-                  const aData = aDoc.data();
-                  const aEmail = (aData.email || '').toLowerCase().trim();
-                  const aAuthEmail = (aData.authEmail || '').toLowerCase().trim();
-                  const aUsername = (aData.username || '').toLowerCase().trim();
-
-                  if (
-                    aEmail === userEmail ||
-                    aAuthEmail === userEmail ||
-                    (userEmail.includes('@') && aUsername && userEmail.startsWith(aUsername + '@'))
-                  ) {
-                    matchedAccount = { ...aData, id: firebaseUser.uid };
-                    break;
-                  }
-                }
-
-                if (matchedAccount) {
-                  // Link account to the UID
-                  await setDoc(doc(db, 'accounts', firebaseUser.uid), matchedAccount, { merge: true });
-                  // The onSnapshot will automatically fire with the updated document
+                const { functions } = await import('./lib/firebase');
+                const { httpsCallable } = await import('firebase/functions');
+                const ensureFn = httpsCallable<{ identifier?: string }, any>(functions, 'ensureUserAccount');
+                const ensureRes = await ensureFn({});
+                if (ensureRes.data?.linked) {
+                  // The onSnapshot listener on accounts/{uid} will automatically fire with the linked document
                   return;
                 }
+              } catch (cfErr) {
+                console.warn('ensureUserAccount callable notice:', cfErr);
+              }
 
+              // Vérifie d'abord si un document de compte avec cet e-mail existe déjà dans la collection accounts
+              // (compte créé par un administrateur sous un identifiant distinct ou avec un e-mail conventionnel)
+              try {
+                const { collection, getDocs, setDoc, doc: firestoreDoc } = await import('firebase/firestore');
+                const accountsSnap = await getDocs(collection(db, 'accounts'));
+                const userEmailLower = (firebaseUser.email || '').toLowerCase().trim();
+                const emailUserPart = userEmailLower.split('@')[0];
+                // Gère les e-mails conventionnels ou générés avec timestamp (ex: "yannick.ekani_1788602379256" -> "yannick.ekani")
+                const cleanUsername = emailUserPart.split('_')[0].replace(/[^a-z0-9.]/g, '');
+
+                const matchedDoc = accountsSnap.docs.find((d) => {
+                  const acc = d.data();
+                  const accEmail = (acc.email || '').toLowerCase().trim();
+                  const accAuthEmail = (acc.authEmail || '').toLowerCase().trim();
+                  const accUsername = (acc.username || '').toLowerCase().trim();
+                  return (
+                    accEmail === userEmailLower ||
+                    accAuthEmail === userEmailLower ||
+                    (accUsername && (
+                      accUsername === emailUserPart ||
+                      accUsername === cleanUsername ||
+                      emailUserPart.startsWith(accUsername)
+                    ))
+                  );
+                });
+
+                if (matchedDoc) {
+                  const matchedData = matchedDoc.data();
+                  const accountToSave: Record<string, any> = {
+                    ...matchedData,
+                    id: firebaseUser.uid,
+                    authEmail: firebaseUser.email,
+                    updatedAt: new Date().toISOString(),
+                  };
+                  delete accountToSave.password;
+                  delete accountToSave.tempPassword;
+
+                  await setDoc(
+                    firestoreDoc(db, 'accounts', firebaseUser.uid),
+                    accountToSave,
+                    { merge: true }
+                  );
+                  return;
+                }
+              } catch (lookupErr) {
+                console.warn('Account email linkage lookup notice:', lookupErr);
+              }
+
+              try {
                 // Check fallback users/{uid} document
                 const usersDocSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
                 if (usersDocSnap.exists()) {
@@ -428,6 +471,9 @@ export default function App() {
   }, [authStatus]);
 
   const handleLoginSuccess = (user: any) => {
+    // Son de bienvenue sur connexion utilisateur réussie (exécute un déblocage AudioContext dans le geste utilisateur)
+    playLoginSound();
+
     // onAuthStateChanged will handle atomic role resolution
     // === AMÉLIORATION AJOUTÉE : sécurité (audit) — ipAddress/location étaient auparavant
     // TOUJOURS 'Unknown' (valeurs codées en dur), rendant la page Audit & Access Logs
@@ -458,6 +504,10 @@ export default function App() {
       sessionStorage.clear();
       setCurrentUser(null);
       setUserRole(null);
+      setForcedFirstLogin(false);
+      setForcedPasswordExpiry(false);
+      setChangePasswordModalOpen(false);
+      setToastMessage(null);
       setCurrentSection('dashboard');
       setShowInactivityModal(false);
       setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
@@ -502,6 +552,7 @@ export default function App() {
       if (remaining <= 0) {
         loggedOut = true;
         setShowInactivityModal(false);
+        playLogoutSound();
         handleLogout();
       }
     }, 1000);
@@ -526,13 +577,25 @@ export default function App() {
   // code (hooks/useIdleLogout.ts) si besoin.
 
   // === AMÉLIORATION AJOUTÉE : jouer un son de confirmation à chaque opération validée
-  // (approbation, sauvegarde, soumission, import, etc.), matérialisée ici par l'apparition
-  // d'un toast de succès. Les toasts d'erreur (message contenant "Error"/"error") sont
-  // exclus pour ne pas jouer un son de succès sur un échec.
+  // (approbation, sauvegarde, soumission, import, etc.) ou un son d'erreur sur échec
   useEffect(() => {
-    if (toastMessage && !/error/i.test(toastMessage)) {
-      playSuccessSound();
+    if (toastMessage) {
+      if (!/error/i.test(toastMessage)) {
+        playSuccessSound();
+      } else {
+        playErrorSound();
+      }
     }
+  }, [toastMessage]);
+
+  // Disparition automatique de tous les toasts globaux après 4.5 secondes pour éviter
+  // qu'une notification de mise à jour de mot de passe ou autre ne reste figée à l'écran
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => {
+      setToastMessage(null);
+    }, 4500);
+    return () => clearTimeout(timer);
   }, [toastMessage]);
 
   // === AMÉLIORATION AJOUTÉE : jouer un son dès qu'une nouvelle notification arrive
@@ -1069,11 +1132,58 @@ export default function App() {
 
   // 4. Invalid or missing operational role screen
   if (authStatus === 'invalid_role' || !userRole) {
+    const handleRetrySync = async () => {
+      if (!auth.currentUser) return;
+      setAuthStatus('loading');
+      try {
+        const { collection, getDocs, setDoc, doc: firestoreDoc } = await import('firebase/firestore');
+        const accountsSnap = await getDocs(collection(db, 'accounts'));
+        const userEmailLower = (auth.currentUser.email || '').toLowerCase().trim();
+        const emailUserPart = userEmailLower.split('@')[0];
+        const cleanUsername = emailUserPart.split('_')[0].replace(/[^a-z0-9.]/g, '');
+
+        const matchedDoc = accountsSnap.docs.find((d) => {
+          const acc = d.data();
+          const accEmail = (acc.email || '').toLowerCase().trim();
+          const accAuthEmail = (acc.authEmail || '').toLowerCase().trim();
+          const accUsername = (acc.username || '').toLowerCase().trim();
+          return (
+            accEmail === userEmailLower ||
+            accAuthEmail === userEmailLower ||
+            (accUsername && (
+              accUsername === emailUserPart ||
+              accUsername === cleanUsername ||
+              emailUserPart.startsWith(accUsername)
+            ))
+          );
+        });
+
+        if (matchedDoc) {
+          const matchedData = matchedDoc.data();
+          const accountToSave: Record<string, any> = {
+            ...matchedData,
+            id: auth.currentUser.uid,
+            authEmail: auth.currentUser.email,
+            updatedAt: new Date().toISOString(),
+          };
+          delete accountToSave.password;
+          delete accountToSave.tempPassword;
+
+          await setDoc(firestoreDoc(db, 'accounts', auth.currentUser.uid), accountToSave, { merge: true });
+          return;
+        }
+      } catch (err) {
+        console.warn('Manual retry sync notice:', err);
+      }
+      setAuthStatus('invalid_role');
+    };
+
     return (
       <AuthBlockedScreen
         reason="invalid_role"
         userEmail={currentUser?.email}
         onLogout={handleLogout}
+        onRetry={handleRetrySync}
       />
     );
   }
@@ -1541,11 +1651,14 @@ export default function App() {
               setForcedPasswordExpiry(false);
               setChangePasswordModalOpen(false);
               setToastMessage(lang === 'fr' ? "Mot de passe mis à jour avec succès." : "Password updated successfully.");
+              setTimeout(() => setToastMessage(null), 4000);
             } catch (error: any) {
               if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                 setToastMessage(lang === 'fr' ? "Le mot de passe actuel est incorrect." : "The current password you entered is incorrect.");
+                setTimeout(() => setToastMessage(null), 5000);
               } else {
                 setToastMessage((lang === 'fr' ? "Erreur de mise à jour du mot de passe : " : "Error updating password: ") + (error.message || 'Error'));
+                setTimeout(() => setToastMessage(null), 5000);
               }
             }
           }

@@ -15,12 +15,15 @@ import {
   RefreshCw,
   UserCheck,
   ShieldAlert,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { Language, NavSection, AppNotification } from '../types';
 import { useTranslation } from '../i18n/translations';
 import { MiniLogo } from './Logo';
 import { normalizeRole } from '../utils/authUtils';
 import { getRoleTheme } from '../theme/roleTheme';
+import { isSoundEnabled, toggleSound } from '../utils/sound';
 
 interface TopbarProps {
   currentUser?: any;
@@ -52,8 +55,26 @@ export const Topbar: React.FC<TopbarProps> = ({
   const t = useTranslation('en');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => isSoundEnabled());
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleSoundToggle = (e: any) => {
+      if (e?.detail && typeof e.detail.enabled === 'boolean') {
+        setSoundEnabledState(e.detail.enabled);
+      } else {
+        setSoundEnabledState(isSoundEnabled());
+      }
+    };
+    window.addEventListener('activa_sound_toggle', handleSoundToggle);
+    return () => window.removeEventListener('activa_sound_toggle', handleSoundToggle);
+  }, []);
+
+  const handleToggleSound = () => {
+    const next = toggleSound();
+    setSoundEnabledState(next);
+  };
 
   const role = normalizeRole(userRole || currentUser?.profile || currentUser?.role);
   const theme = getRoleTheme(role);
@@ -238,6 +259,26 @@ export const Topbar: React.FC<TopbarProps> = ({
           <Globe className={`w-3.5 h-3.5 ${theme.palette.primaryText}`} />
           <span>English</span>
         </div>
+
+        {/* Audio Feedback Toggle (Audio ON / MUTE) */}
+        <button
+          id="sound-toggle-button"
+          type="button"
+          onClick={handleToggleSound}
+          className={`p-2 rounded-xl transition cursor-pointer ${
+            soundEnabled
+              ? 'text-[#64748B] hover:text-slate-900 hover:bg-slate-50'
+              : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+          }`}
+          title={soundEnabled ? 'Sound enabled (Click to mute)' : 'Sound muted (Click to enable)'}
+          aria-label={soundEnabled ? 'Mute sound' : 'Enable sound'}
+        >
+          {soundEnabled ? (
+            <Volume2 className="w-4 h-4 text-slate-700" />
+          ) : (
+            <VolumeX className="w-4 h-4 text-slate-400" />
+          )}
+        </button>
 
         {/* Notification Bell with Badge & Dropdown */}
         <div className="relative" ref={notifRef}>

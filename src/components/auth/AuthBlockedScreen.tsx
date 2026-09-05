@@ -1,17 +1,19 @@
 import React from 'react';
 import { Logo } from '../Logo';
-import { ShieldAlert, LogOut, UserX, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, LogOut, UserX, AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface AuthBlockedScreenProps {
   reason: 'inactive' | 'invalid_role' | 'not_found';
   userEmail?: string;
   onLogout: () => void;
+  onRetry?: () => void;
 }
 
 export const AuthBlockedScreen: React.FC<AuthBlockedScreenProps> = ({
   reason,
   userEmail,
   onLogout,
+  onRetry,
 }) => {
   const getTitleAndMessage = () => {
     switch (reason) {
@@ -90,13 +92,29 @@ export const AuthBlockedScreen: React.FC<AuthBlockedScreenProps> = ({
             {detail}
           </p>
 
-          {/* Sign Out Button */}
-          <div className="mt-6 w-full pt-4 border-t border-[#E8EDF2]">
+          {/* Action Buttons */}
+          <div className="mt-6 w-full pt-4 border-t border-[#E8EDF2] flex flex-col gap-2.5">
+            {onRetry && (
+              <button
+                id="blocked-retry-button"
+                type="button"
+                onClick={onRetry}
+                className="w-full py-3 px-4 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] active:bg-[#07214f] text-white text-xs sm:text-[13px] font-bold shadow-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Synchronize & Access Dashboard</span>
+              </button>
+            )}
+
             <button
               id="blocked-logout-button"
               type="button"
               onClick={onLogout}
-              className="w-full py-3 px-4 rounded-xl bg-[#0a2e6b] hover:bg-[#07214f] active:bg-[#07214f] text-white text-xs sm:text-[13px] font-bold shadow-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+              className={`w-full py-3 px-4 rounded-xl text-xs sm:text-[13px] font-bold shadow-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
+                onRetry
+                  ? 'bg-slate-100 hover:bg-slate-200 active:bg-slate-200 text-slate-700'
+                  : 'bg-[#0a2e6b] hover:bg-[#07214f] active:bg-[#07214f] text-white'
+              }`}
             >
               <LogOut className="w-4 h-4" />
               <span>Return to Login</span>

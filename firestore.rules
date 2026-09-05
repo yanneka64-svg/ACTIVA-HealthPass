@@ -120,6 +120,10 @@ service cloud.firestore {
 
     // accounts collection
     match /accounts/{userId} {
+      // Lecture ouverte pour permettre la résolution pré-authentification identifiant -> email
+      // dans LoginView.tsx (HealthPass authentifie par nom d'utilisateur alors que Firebase Auth
+      // requiert une adresse e-mail). Les écritures, créations et suppressions restent strictement
+      // protégées (RBAC, intégrité du rôle et interdiction d'élévation de privilège).
       allow read: if true;
       allow create: if isSignedIn() && (
         isAdmin() ||
@@ -131,18 +135,32 @@ service cloud.firestore {
       // des champs figés par le self-update, au même titre que profile/isActive/permissions
       // déjà protégés ci-dessous. Comparaison tolérante à l'absence du champ des deux côtés
       // (cas normal : la plupart des comptes n'ont pas encore ce champ).
-      allow update: if isSignedIn() && (
-        isAdmin() ||
-        (request.auth.uid == userId &&
-         request.resource.data.profile == resource.data.profile &&
-         request.resource.data.isActive == resource.data.isActive &&
-         request.resource.data.permissions == resource.data.permissions &&
-         (
-           (!('assignedOrganizations' in resource.data) && !('assignedOrganizations' in request.resource.data)) ||
-           request.resource.data.assignedOrganizations == resource.data.assignedOrganizations
-         ))
+      allow update: if (
+        (isSignedIn() && (
+          isAdmin() ||
+          (request.auth.uid == userId &&
+           request.resource.data.profile == resource.data.profile &&
+           request.resource.data.isActive == resource.data.isActive &&
+           request.resource.data.permissions == resource.data.permissions &&
+           (
+             (!('assignedOrganizations' in resource.data) && !('assignedOrganizations' in request.resource.data)) ||
+             request.resource.data.assignedOrganizations == resource.data.assignedOrganizations
+           ))
+        )) ||
+        // Migration one-shot sécurisée : autorise uniquement la suppression de `password` et `tempPassword`
+        // et l'écriture de `passwordHash`/`passwordSalt`, sans altérer aucun profil ni privilège.
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['password', 'tempPassword', 'passwordHash', 'passwordSalt', 'migratedFromPlaintextAt']) &&
+          !('password' in request.resource.data) &&
+          !('tempPassword' in request.resource.data)
+        )
       );
       allow delete: if isAdmin();
+    }
+
+    // login_rate_limits collection — purement serveur (Cloud Function / Admin SDK)
+    match /login_rate_limits/{docId} {
+      allow read, write: if false;
     }
 
     // members collection
