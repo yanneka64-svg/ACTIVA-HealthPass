@@ -1,13 +1,17 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { InvoiceItem, Language } from '../types';
-import { drawPdfLogoStrip, PDF_LOGO_STRIP_HEIGHT } from './pdfBranding';
+// === AMÉLIORATION AJOUTÉE : sur demande explicite — retire le bandeau logos ACTIVA+Globus
+// (auparavant sous l'en-tête via drawPdfLogoStrip/pdfBranding.ts), remplace le texte
+// "ACTIVA HealthPass" de l'en-tête par le logo ACTIVA (comme sur la fiche médicale, voir
+// pdfMedicalForm.ts) et ajoute le logo Globus en pied de page plutôt qu'en haut de document.
 import {
-  ACTIVA_LOGO_PNG_BASE64,
-  ACTIVA_LOGO_ASPECT_RATIO,
-  GLOBUS_LOGO_PNG_BASE64,
-  GLOBUS_LOGO_ASPECT_RATIO,
-} from '../assets/logoAssets';
+  ACTIVA_LOGO_BASE64,
+  ACTIVA_LOGO_WHITE_BASE64,
+  ACTIVA_LOGO_ASPECT,
+  GLOBUS_LOGO_BASE64,
+  GLOBUS_LOGO_ASPECT,
+} from '../assets/logos';
 
 /**
  * Formatter for monetary values according to active currency mode (USD / LRD / DUAL)
@@ -78,16 +82,13 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   doc.setFillColor(0, 168, 89); // #00A859
   doc.rect(0, 26, 210, 3, 'F');
 
-  // Header Titles
+  // Header: logo ACTIVA (blanc) à la place du texte "ACTIVA HealthPass", comme sur la fiche
+  // médicale (voir pdfMedicalForm.ts).
+  const headerLogoHeight = 9.5;
+  const headerLogoWidth = headerLogoHeight * ACTIVA_LOGO_ASPECT;
+  doc.addImage(ACTIVA_LOGO_WHITE_BASE64, 'PNG', 14, 8, headerLogoWidth, headerLogoHeight);
+
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ACTIVA HealthPass', 14, 13);
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Health • Safety • Serenity — Healthcare Insurance', 14, 19);
-
   doc.setFontSize(9.5);
   doc.setFont('helvetica', 'bold');
   doc.text(
@@ -102,14 +103,6 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   doc.text(`Voucher Ref: ${invoice.reference}`, 196, 17, { align: 'right' });
   doc.text(`Claim Ref: ${getSlipClaimRef(invoice)}`, 196, 21, { align: 'right' });
 
-  // === AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus sous le bandeau de couleur
-  // existant (voir pdfBranding.ts). Comme ce document utilise des coordonnées Y fixes
-  // (pas de "currentY" cumulatif), seuls les DEUX repères qui suivent immédiatement le
-  // bandeau (38 et 42) sont décalés de PDF_LOGO_STRIP_HEIGHT ; tout le reste du document
-  // est déjà positionné de façon relative (finalY1/finalY2 issus d'autoTable), donc il
-  // se décale automatiquement sans qu'aucune autre ligne n'ait besoin d'être touchée.
-  drawPdfLogoStrip(doc, 210, 29);
-
   // === AMÉLIORATION AJOUTÉE : cachet "APPROVED & COVERED" (maquette fournie par
   // l'utilisateur) — jsPDF ne gère pas nativement l'opacité, une teinte vert clair rotative
   // approche visuellement l'effet de tampon semi-transparent de l'aperçu écran/impression.
@@ -117,11 +110,11 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
     doc.setTextColor(190, 227, 205);
     doc.setFontSize(21);
     doc.setFont('helvetica', 'bold');
-    doc.text('APPROVED & COVERED', 105, 58 + PDF_LOGO_STRIP_HEIGHT, { align: 'center', angle: 18 });
+    doc.text('APPROVED & COVERED', 105, 54, { align: 'center', angle: 18 });
   }
 
   // Section: Beneficiary & Coverage Identification (nouveaux libellés, maquette fournie)
-  const infoY = 40 + PDF_LOGO_STRIP_HEIGHT;
+  const infoY = 36;
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.3);
   doc.line(14, infoY, 196, infoY);
@@ -143,7 +136,7 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   infoRow('HealthPass Card No.', invoice.cardNo || invoice.patientPolicyNumber || 'N/A', 'Date of Service', invoice.serviceDate, infoY + 22);
   infoRow('Organization', invoice.organization, 'Prescriber / Practitioner', invoice.prescribingDoctor || 'Medical Staff', infoY + 36);
 
-  const infoEndY = infoY + 46;
+  const infoEndY = infoY + 50;
 
   // Section: Medical Benefits Coverage Breakdown (une ligne par acte médical)
   doc.setTextColor(10, 46, 107);
@@ -233,6 +226,12 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   doc.text('ACTIVA Medical Visa', 145, sigY);
   doc.text('Approved & Certified', 145, sigY + 20);
 
+  // === AMÉLIORATION AJOUTÉE : logo Globus en pied de page (sur demande explicite), comme sur
+  // la fiche médicale (voir pdfMedicalForm.ts) — remplace le bandeau logos retiré de l'en-tête.
+  const footerLogoHeight = 8;
+  const footerLogoWidth = footerLogoHeight * GLOBUS_LOGO_ASPECT;
+  doc.addImage(GLOBUS_LOGO_BASE64, 'PNG', (210 - footerLogoWidth) / 2, 272, footerLogoWidth, footerLogoHeight);
+
   // Footer
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
@@ -292,51 +291,13 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             padding-bottom: 16px;
             margin-bottom: 24px;
           }
-          /* === AMÉLIORATION AJOUTÉE : bandeau logos (ACTIVA + partenaire Globus), miroir de
-             la version PDF (pdfBranding.ts). Nouvelle règle CSS indépendante — ne modifie
-             en rien la disposition flex existante de .header ci-dessus. */
-          .letterhead-logos {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0 14px 0;
-            margin-bottom: 4px;
-            border-bottom: 1px solid #e2e8f0;
-          }
-          .letterhead-logos img {
-            height: 26px;
+          /* === AMÉLIORATION AJOUTÉE : logo ACTIVA dans l'en-tête (remplace le texte
+             "ACTIVA HealthPass" + bandeau logos, sur demande explicite — voir Globus en pied
+             de page, règle .footer-logo plus bas). */
+          .brand-logo {
+            height: 34px;
             width: auto;
             display: block;
-          }
-          .letterhead-partner {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-          }
-          .letterhead-partner .label {
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.6px;
-            text-transform: uppercase;
-            color: #94a3b8;
-          }
-          .brand-title {
-            font-size: 24px;
-            font-weight: 900;
-            color: #0a2e6b;
-            letter-spacing: -0.5px;
-            margin: 0;
-          }
-          .brand-title span {
-            color: #00A859;
-          }
-          .brand-tagline {
-            font-size: 10px;
-            color: #64748b;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-top: 3px;
           }
           .doc-badge {
             text-align: right;
@@ -476,6 +437,14 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             border-top: 1px solid #e2e8f0;
             padding-top: 12px;
           }
+          /* === AMÉLIORATION AJOUTÉE : logo Globus en pied de page (sur demande explicite),
+             comme sur la fiche médicale — voir pdfMedicalForm.ts. */
+          .footer-logo {
+            height: 22px;
+            width: auto;
+            display: block;
+            margin: 0 auto 8px auto;
+          }
           .stamp {
             display: inline-block;
             border: 2px solid #00A859;
@@ -513,11 +482,13 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             border-radius: 10px;
             white-space: nowrap;
             pointer-events: none;
-            z-index: 0;
-          }
-          .voucher-top > *:not(.watermark) {
-            position: relative;
-            z-index: 1;
+            /* === AMÉLIORATION AJOUTÉE : le cachet est maintenant rendu PAR-DESSUS l'en-tête
+               et la grille d'identification (z-index le plus élevé de la carte), comme un
+               vrai tampon encreur appliqué sur un document déjà imprimé — sa transparence
+               (rgba 0.25) suffit à garder le texte dessous lisible. Auparavant positionné
+               DERRIÈRE via un z-index inversé, ce qui le faisait disparaître partiellement
+               chaque fois qu'il croisait un élément opaque de l'en-tête (ex. le logo). */
+            z-index: 5;
           }
         </style>
       </head>
@@ -527,10 +498,11 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             ${isSlipApproved(invoice) ? '<div class="watermark">Approved &amp; Covered</div>' : ''}
 
             <div class="header">
-              <div>
-                <h1 class="brand-title">ACTIVA <span>HealthPass</span></h1>
-                <div class="brand-tagline">Health • Safety • Serenity — Healthcare Insurance</div>
-              </div>
+              <!-- AMÉLIORATION AJOUTÉE : sur demande explicite — le logo ACTIVA remplace le
+                   texte "ACTIVA HealthPass" (comme sur la fiche médicale, voir
+                   pdfMedicalForm.ts) ; le bandeau logos ACTIVA + Globus qui suivait l'entête
+                   est retiré (le logo Globus est désormais en pied de page). -->
+              <img class="brand-logo" src="${ACTIVA_LOGO_BASE64}" alt="ACTIVA" style="aspect-ratio: ${ACTIVA_LOGO_ASPECT};" />
               <div class="doc-badge">
                 <h2>Settlement Slip &amp; Direct Billing Voucher</h2>
                 <div class="ref">Voucher Reference: ${invoice.reference}</div>
@@ -540,16 +512,6 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
                 <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
                   Date: ${currentDate}
                 </div>
-              </div>
-            </div>
-
-            <!-- AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus, juste sous l'entête
-                 existant — nouveau bloc, la structure/flex du .header ci-dessus est intacte. -->
-            <div class="letterhead-logos">
-              <img src="${ACTIVA_LOGO_PNG_BASE64}" alt="ACTIVA" style="aspect-ratio: ${ACTIVA_LOGO_ASPECT_RATIO};" />
-              <div class="letterhead-partner">
-                <span class="label">In partnership with</span>
-                <img src="${GLOBUS_LOGO_PNG_BASE64}" alt="Globus" style="aspect-ratio: ${GLOBUS_LOGO_ASPECT_RATIO};" />
               </div>
             </div>
 
@@ -644,6 +606,7 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
         </div>
 
         <div class="footer">
+          <img class="footer-logo" src="${GLOBUS_LOGO_BASE64}" alt="Globus" style="aspect-ratio: ${GLOBUS_LOGO_ASPECT};" />
           ACTIVA Insurance — HealthPass Official Direct-Settlement Document — Digitally verified via Biometrics & Policy Registry
         </div>
       </body>
