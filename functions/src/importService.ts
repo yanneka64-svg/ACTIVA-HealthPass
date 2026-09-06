@@ -151,8 +151,20 @@ export async function processBulkMemberImportServer(
     return { plannedRows: planned };
   });
 
+  // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (Revue complète 2026-09-06, finding B — HAUTE) ===
+  // Problème : l'ancien ID `MEM-${Date.now().toString().slice(-6)}-${Math.random()...}` ne
+  // couvre qu'environ 1,68 million de combinaisons (6 chiffres d'horodatage x 4 caractères
+  // aléatoires en base36). Avec jusqu'à 5000 lignes par import (voir la limite validée dans
+  // index.ts), le paradoxe des anniversaires donne plusieurs collisions attendues par import
+  // maximal — un `batch.set` sur un ID déjà pris écrase silencieusement le membre existant, sans
+  // aucune erreur (Firestore `set()` sans options remplace le document entier). Correctif :
+  // `db.collection('members').doc().id`, l'ID auto-généré Firestore (aléatoire cryptographique
+  // sur ~1.3×10^36 combinaisons), utilisé partout ailleurs dans le code pour ce même besoin
+  // (voir par ex. l'ID de facture généré dans claimsService.ts). Aucune régression : le format
+  // de l'ID de membre n'est contractuel nulle part dans le code — seul `cardNo` (le numéro de
+  // carte affiché à l'utilisateur, inchangé par ce correctif) a un format garanti.
   const membersToCreate = plannedRows.map((p) => ({
-    id: `MEM-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`,
+    id: db.collection('members').doc().id,
     cardNo: p.finalCardNo,
     principalName: p.name,
     organization: p.org,
