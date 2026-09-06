@@ -266,6 +266,35 @@ l'environnement GitHub `staging` (et `production`) dispose bien de reviewers req
 | A4 | Whitelist `healthPolicies.update` incomplète (champs de synchro) | `b63d76f` |
 | D1 | Tests : authUtils, passwordUtils, eligibilityService, cardService | `b7c8325` |
 | D1 | Tests : policyService.ts (copie serveur du moteur de polices) | `3705c61` |
+| — | Cachet "Approved & Covered" ne doit plus toucher la bande bleue de l'en-tête | `7987415` |
+| #5 | Isolation organisation : deny-by-default préparé en opt-in (non activé) | `506fd98` |
+| #6 | **CRITIQUE** — Données de démo exclues du repli en production (gaté par env, bannière d'incident) | `6719439` |
+| #7 | Fail-closed sur l'upload photo, retrait du repli base64 (garde-fou de secours conservé) | `b18059f` |
+
+### Constats d'un audit externe (2026-09-06, second avis) — décisions prises
+
+- **#3 SoD legacy (`createdBy` vs `createdByUid`)** : constat valide, mais une migration complète
+  nécessite un accès Firestore de production (script déjà existant : `scripts/migratePlaintextPasswords.ts`
+  pourrait servir de modèle) — non traité dans ce lot, nécessite une session dédiée avec accès prod.
+- **#4 Intégrité de l'audit trail (SHA-256 sans HMAC/signature)** : constat valide (🟠 MEDIUM/HIGH).
+  Nécessite une clé secrète (Secret Manager) et une refonte du schéma de logs (chaîne de hash) —
+  changement structurant, non traité dans ce lot, à planifier séparément.
+- **#8 Version Cloud Functions (`^5.0.0` déclaré vs `/v2/https` utilisé)** : déjà documenté comme
+  fragile (voir commit du fix de compatibilité) ; un pin de version explicite reste à faire lors
+  du prochain cycle de maintenance des dépendances.
+- **#9 `resolveLoginIdentifier` (scan complet de `accounts`)** : dette de performance connue, non
+  bloquante à l'échelle actuelle ; nécessiterait une collection d'index dédiée
+  (`accountIdentifiers/{normalizedIdentifier}`), non traitée dans ce lot.
+- **#10 Chemins Storage legacy sans cloisonnement organisation** : rétrocompatibilité déjà
+  documentée dans `storage.rules` ; une migration réelle des fichiers déjà déposés nécessite un
+  accès Storage de production, hors de portée de cette session.
+- **#11/#12 Rétention automatisée / conformité RGPD 72h** : constats de gouvernance/juridiques,
+  pas des défauts de code — nécessitent une décision et une action humaines (Cloud Scheduler,
+  registre des traitements, avis juridique), pas un correctif de ce dépôt.
+- **#13 Preuve de déploiement réel** : confirmé à nouveau — cette session n'a aucun accès Firebase
+  CLI authentifié et ne peut donc ni déployer, ni certifier l'état réel du projet Firebase de
+  production. Reste une action humaine requise (voir la liste consolidée plus haut dans ce
+  document et dans `BACKEND_AUDIT_2026-09-06_REMEDIATION.md`).
 
 Restent ouverts : le reste des constats C/D (qualité/performance frontend et backend, hors
 urgence sécurité), et le finding B5 (divergence client/serveur sur l'expiration le jour même —
