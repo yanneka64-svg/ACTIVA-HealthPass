@@ -269,10 +269,22 @@ service cloud.firestore {
     match /healthPolicies/{organizationName} {
       allow read: if isSignedIn();
       allow create, delete: if isAdmin();
+      // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding A4 — HAUTE) ===
+      // Problème : `syncPolicyStatuses` (src/services/workflowService.ts, chemin de secours
+      // client de la Cloud Function `syncPolicy`, exécuté pour TOUT rôle authentifié toutes les
+      // 5 minutes — voir App.tsx) écrit aussi `suspensionReason`/`suspensionDate`/
+      // `reactivationDate` lors d'une vraie transition de statut, en plus des 4 champs déjà
+      // couverts ici. Si la Cloud Function est indisponible, cet appel de secours échouait donc
+      // en `permission-denied` pour toute session non-Admin/Supervisor (ex. Agent) — le statut de
+      // police n'était alors jamais persisté pour cette session, sans que cela soit visible.
+      // Correctif : ces 3 champs ajoutés à la liste autorisée, avec la même portée que les 4
+      // déjà présents (dérivés automatiquement de l'état de la police, jamais saisis
+      // arbitrairement par l'utilisateur). Le garde-fou anti-déblocage de couverture
+      // (`coverageBlocked`) reste inchangé.
       allow update: if isSignedIn() && isActiveUser() && (
         isAdmin() || isSupervisor() ||
         (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'coverageBlocked', 'updatedAt', 'lastEvaluatedAt']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'coverageBlocked', 'updatedAt', 'lastEvaluatedAt', 'suspensionReason', 'suspensionDate', 'reactivationDate']) &&
           !(resource.data.coverageBlocked == true && request.resource.data.coverageBlocked != true)
         )
       );
@@ -494,8 +506,40 @@ service cloud.firestore {
     // utilisateur actif pour rester cohérent avec l'absence de ciblage par uid dans le modèle
     // actuel (recipientRole, pas recipientUid) — resserrer nécessiterait d'abord d'ajouter ce
     // champ, hors périmètre de ce lot.
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding A3 — HAUTE) ===
+    // Problème : `allow read: if isSignedIn()` exposait l'INTÉGRALITÉ de la collection
+    // `notifications` à tout utilisateur authentifié, quel que soit son rôle ou son organisation
+    // — alors que le champ `message` contient déjà, en clair, des données sensibles (nom de
+    // patient, montant du sinistre, numéro de carte : voir WorkflowService, claimsService.ts,
+    // enrollmentsService.ts). Cette règle datait d'avant l'introduction de
+    // `recipientId`/`recipientEmail`/`recipientRole` (voir src/types/index.ts) — champs
+    // désormais peuplés partout où une notification est créée.
+    // Correctif : lecture restreinte au destinataire réel. Deux formes de ciblage coexistent
+    // légitimement dans le code existant et sont toutes deux préservées : une notification
+    // adressée à un utilisateur précis (`recipientId`) et une notification "diffusée" à tout un
+    // rôle (`recipientRole`, ex. "tout Superviseur" — voir Topbar.tsx, qui filtre déjà côté
+    // client exactement selon cette même logique). Une notification legacy dépourvue des deux
+    // champs (créée avant leur introduction) reste lisible par tout utilisateur actif, pour ne
+    // créer aucune régression sur les données existantes. `allow write` n'est volontairement pas
+    // restreint ici : une notification est, par nature, créée par un utilisateur POUR un autre
+    // (l'auteur n'est jamais le destinataire) — le restreindre reviendrait à casser la fonction
+    // même des notifications, ce qui dépasse le périmètre de ce correctif (exposition en lecture).
     match /notifications/{notificationId} {
-      allow read, write: if isSignedIn();
+      allow read: if isActiveUser() && (
+        isAdmin() ||
+        resource.data.recipientId == request.auth.uid ||
+        (('recipientRole' in resource.data) && (
+          resource.data.recipientRole == userProfile() ||
+          // 'Supervisor'/'Superviseur' sont des alias équivalents ailleurs dans ce fichier
+          // (voir isSupervisor()) et côté client (voir src/utils/authUtils.ts normalizeRole) —
+          // préservés ici pour ne pas priver un Superviseur des notifications qui lui sont
+          // adressées sous l'autre graphie.
+          (userProfile() == 'Superviseur' && resource.data.recipientRole == 'Supervisor') ||
+          (userProfile() == 'Supervisor' && resource.data.recipientRole == 'Superviseur')
+        )) ||
+        (!('recipientId' in resource.data) && !('recipientRole' in resource.data))
+      );
+      allow write: if isSignedIn();
     }
 
     // === AMÉLIORATION AJOUTÉE : documentation (audit 2026-09-05, STRUCT-03) — `accounts` est
