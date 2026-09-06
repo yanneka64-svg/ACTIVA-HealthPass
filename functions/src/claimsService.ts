@@ -26,6 +26,24 @@ export async function processClaimDecisionServer(
 
     const claim = claimSnap.data() || {};
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding A2 — CRITIQUE) ===
+    // Problème : cette transaction appliquait `payload.decision` sans jamais vérifier le statut
+    // courant du claim. Un second appel (double-clic, retry réseau après timeout, deux
+    // superviseurs concurrents sur le même claim) régénérait une facture (étape 4 ci-dessous)
+    // ou écrasait silencieusement une décision déjà prise, sans annuler ses effets déjà produits
+    // (facture déjà émise, notification déjà envoyée). La règle Firestore équivalente
+    // (`statusChangeAllowed()`, firestore.rules) protège déjà le chemin de secours client, mais
+    // `WorkflowService.approveClaim`/`rejectClaim` appellent CETTE fonction en priorité — c'est
+    // donc bien ici que le garde-fou doit exister en premier lieu.
+    // Un claim sans champ `status` (document créé avant son introduction) est traité comme
+    // 'pending' pour ne créer aucune régression sur les données existantes.
+    const currentStatus = claim.status || 'pending';
+    if (currentStatus !== 'pending') {
+      throw new Error(
+        `This claim has already been decided (current status: '${currentStatus}') and cannot be decided again.`
+      );
+    }
+
     // 1. Enforce SoD (Separation of Duties)
     // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4) — `createdByUid` (server-verified at
     // creation, see firestore.rules createdByUidValid()) is preferred when present; falls back
