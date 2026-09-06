@@ -254,6 +254,20 @@ l'environnement GitHub `staging` (et `production`) dispose bien de reviewers req
 
 ---
 
+## Suivi des corrections appliquées
+
+| # | Constat | Commit |
+|---|---|---|
+| A1 | Auto-élévation de privilège via `accounts.create` | `8a2f783` |
+| A2 | Aucun garde-fou serveur contre la réouverture d'un claim/enrollment approuvé | `c0dfce6` |
+| B | Race condition sur le rate-limiting anti-brute-force | `3760bb3` |
+| B | Collision d'ID quasi garantie sur l'import de masse | `b1f3744` |
+| A3 | `notifications` lisible par tout utilisateur signé | `b63d76f` |
+| A4 | Whitelist `healthPolicies.update` incomplète (champs de synchro) | `b63d76f` |
+
+Restent ouverts : D1 (tests ciblés sur SoD/éligibilité/auth/cartes) et le reste des constats C/D
+(qualité/performance frontend et backend, hors urgence sécurité).
+
 ## Priorisation recommandée pour la suite
 
 Cette revue est volumineuse (60+ constats). Conformément aux règles déjà appliquées cette session (jamais casser
