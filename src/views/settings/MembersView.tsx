@@ -529,11 +529,19 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
 
     // === ADDED IMPROVEMENT: upload the captured/uploaded photo to Firebase Storage
     // (instead of saving it as base64 in the Firestore document) once, at save time.
-    // Automatic, transparent fallback to the existing behavior (inline base64) if the
-    // upload fails — see storageUtils.ts.
-    const resolvedPhotoUrl = photoData
-      ? await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim(), formOrg)
-      : editingMember?.photoUrl;
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #7) — l'upload
+    // échoue désormais explicitement (fail-closed, voir storageUtils.ts) au lieu de dégrader
+    // silencieusement vers un stockage base64 ; la sauvegarde du membre est bloquée avec un
+    // message clair plutôt que de continuer avec une photo mal stockée.
+    let resolvedPhotoUrl = editingMember?.photoUrl;
+    if (photoData) {
+      try {
+        resolvedPhotoUrl = await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim(), formOrg);
+      } catch (err: any) {
+        setFormError(err?.message || 'Could not save the photo. Please try again.');
+        return;
+      }
+    }
 
     if (editingMember) {
       onUpdateMember({

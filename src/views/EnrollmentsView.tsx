@@ -231,11 +231,19 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
     }
     setIsGeneratingEnrCard(false);
 
-    // === ADDED IMPROVEMENT: upload to Firebase Storage with an automatic fallback to the
-    // existing base64 storage on failure (see storageUtils.ts / MembersView.tsx).
-    const resolvedPhotoUrl = newEnrForm.photoUrl
-      ? await uploadPhotoOrFallback(newEnrForm.photoUrl, 'enrollment-photos', cardNo, organization)
-      : newEnrForm.photoUrl;
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #7) — l'upload
+    // échoue désormais explicitement (fail-closed, voir storageUtils.ts) au lieu de dégrader
+    // silencieusement vers un stockage base64 ; l'enrôlement est bloqué avec un message clair
+    // plutôt que de continuer avec une photo mal stockée.
+    let resolvedPhotoUrl = newEnrForm.photoUrl;
+    if (newEnrForm.photoUrl) {
+      try {
+        resolvedPhotoUrl = await uploadPhotoOrFallback(newEnrForm.photoUrl, 'enrollment-photos', cardNo, organization);
+      } catch (err: any) {
+        setNewEnrError(err?.message || 'Could not save the photo. Please try again.');
+        return;
+      }
+    }
 
     onCreateEnrollment({
       reference: `ENR-2026-${Math.floor(100 + Math.random() * 900)}`,
