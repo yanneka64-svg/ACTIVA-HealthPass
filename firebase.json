@@ -3,7 +3,8 @@
   "firestore": [
     {
       "database": "ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b",
-      "rules": "firestore.rules"
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
     }
   ],
   "storage": {

@@ -1,0 +1,177 @@
+name: CD — Déploiement Production (Sécurisé)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production:
+        description: 'Tapez "DEPLOY-PROD" pour confirmer le déploiement en production :'
+        required: true
+        type: string
+        default: ''
+      target_scope:
+        description: 'Périmètre à déployer :'
+        required: true
+        type: choice
+        options:
+          - 'all'
+          - 'rules-only'
+          - 'functions-only'
+          - 'indexes-only'
+        default: 'all'
+  release:
+    types: [published]
+
+# Principe du moindre privilège OIDC
+permissions:
+  contents: read
+  id-token: write
+
+# Empêche les déploiements concurrents destructeurs en production
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+jobs:
+  preflight-safety-check:
+    name: 🛡️ Contrôles de Sécurité Pré-Vol
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier la confirmation explicite
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          if [ "${{ github.event.inputs.confirm_production }}" != "DEPLOY-PROD" ]; then
+            echo "::error::Déploiement annulé : la chaîne de confirmation 'DEPLOY-PROD' est requise."
+            exit 1
+          fi
+          echo "Confirmation reçue par l'opérateur : ${{ github.actor }}"
+
+      - name: Valider la branche source
+        run: |
+          echo "Branche source : ${{ github.ref }}"
+          if [ "${{ github.ref }}" != "refs/heads/main" ] && [ "${{ github.event_name }}" != "release" ]; then
+            echo "::error::Le déploiement en production n'est autorisé que depuis la branche 'main' ou une release taggée."
+            exit 1
+          fi
+
+  audit-test-and-build:
+    name: 🧪 Validation Complète (Tests & Compilation)
+    needs: [preflight-safety-check]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies (app)
+        run: npm ci
+
+      - name: Install dependencies (functions)
+        run: npm ci
+        working-directory: functions
+
+      - name: Lint / Typecheck (app + server)
+        run: npm run lint
+
+      - name: Typecheck Cloud Functions
+        run: npx tsc --noEmit --project tsconfig.json
+        working-directory: functions
+
+      - name: Unit & Security Rules Tests
+        run: npm test
+
+      - name: Cloud Functions Unit Tests
+        run: npm test
+        working-directory: functions
+
+      - name: Emulator Security Rules Tests
+        run: |
+          npm install -g firebase-tools
+          firebase emulators:exec --only firestore --project demo-activa-ci "npm run test:rules"
+
+      - name: Build Application Bundle
+        run: npm run build
+
+      - name: Build Functions
+        run: npm run build
+        working-directory: functions
+
+  deploy-to-production:
+    name: 🚀 Déploiement Production (GCP / Firebase)
+    needs: [audit-test-and-build]
+    runs-on: ubuntu-latest
+    # Environnement GitHub avec approbation manuelle obligatoire et secrets isolés
+    environment:
+      name: production
+      url: https://gen-lang-client-0957905786.web.app
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies (functions)
+        run: npm ci
+        working-directory: functions
+
+      - name: Build functions bundle
+        run: npm run build
+        working-directory: functions
+
+      - name: Authentification GCP via Workload Identity Federation (Sans clé statique)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: 'access_token'
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Installer Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Déployer Firestore & Storage Rules
+        if: ${{ github.event_name == 'release' || github.event.inputs.target_scope == 'all' || github.event.inputs.target_scope == 'rules-only' }}
+        run: |
+          echo "=== Déploiement des Security Rules sur la base nommée Firestore & Storage ==="
+          firebase deploy \
+            --only firestore:rules,storage \
+            --project ${{ vars.FIREBASE_PROJECT_ID || 'gen-lang-client-0957905786' }} \
+            --non-interactive
+
+      - name: Déployer les Index Firestore
+        if: ${{ github.event_name == 'release' || github.event.inputs.target_scope == 'all' || github.event.inputs.target_scope == 'indexes-only' }}
+        run: |
+          echo "=== Déploiement des Index Composites Firestore ==="
+          firebase deploy \
+            --only firestore:indexes \
+            --project ${{ vars.FIREBASE_PROJECT_ID || 'gen-lang-client-0957905786' }} \
+            --non-interactive
+
+      - name: Déployer les Cloud Functions
+        if: ${{ github.event_name == 'release' || github.event.inputs.target_scope == 'all' || github.event.inputs.target_scope == 'functions-only' }}
+        run: |
+          echo "=== Déploiement des 15 Cloud Functions vers Firebase / Cloud Functions Gen 2 ==="
+          firebase deploy \
+            --only functions \
+            --project ${{ vars.FIREBASE_PROJECT_ID || 'gen-lang-client-0957905786' }} \
+            --non-interactive
+
+      - name: Traçabilité & Audit du Déploiement
+        if: always()
+        run: |
+          echo "================ DÉPLOIEMENT TERMINÉ ================"
+          echo "Opérateur      : ${{ github.actor }}"
+          echo "Commit SHA     : ${{ github.sha }}"
+          echo "Date/Heure UTC : $(date -u)"
+          echo "Statut du Job  : ${{ job.status }}"
+          echo "======================================================"

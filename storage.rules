@@ -1,20 +1,80 @@
-// === AMÉLIORATION AJOUTÉE : sécurité (audit) ===
-// Firebase Storage est utilisé sur cette branche par src/utils/storageUtils.ts
-// (uploadString/getDownloadURL — photos des assurés). Sans ce fichier, un bucket Firebase
-// Storage nouvellement activé pour ce projet retomberait sur les règles par défaut de
-// Firebase (souvent permissives en mode test), exposant les photos déposées à un accès
-// public non désiré. Ce fichier applique le même principe que firestore.rules : accès
-// réservé aux utilisateurs connectés via Firebase Auth — aligné sur le fichier équivalent
-// harmonisé avec la branche main (voir firestore.rules), sans changer le comportement
-// observé de l'upload/affichage des photos.
-// IMPORTANT (déploiement) : ce fichier doit être déployé sur le projet Firebase via
-// `firebase deploy --only storage` pour prendre effet ; cette session n'a pas d'accès de
-// déploiement au projet réel.
+// === SÉCURISATION HARDENED : Firebase Storage Security Rules ===
+// ACTIVA HealthPass — Contrôle strict des uploads, types MIME, tailles et isolation des chemins.
+//
+// Principes appliqués :
+// 1. Authentification obligatoire sur tous les flux opérationnels.
+// 2. Types MIME vérifiés à l'écriture (images JPEG/PNG/WebP pour photos, PDF/Images pour pièces jointes).
+// 3. Limitation stricte de taille : 5 Mo max pour les photos de profil/adhésion, 15 Mo pour sinistres/justificatifs.
+// 4. Protection contre la suppression accidentelle ou malveillante (réservée au rôle Admin).
+// 5. Fermeture par défaut (deny by default) sur tout chemin non explicitement déclaré.
+
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
+    // --- Helpers de sécurité ---
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'Admin' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/(jpeg|jpg|png|webp)');
+    }
+
+    function isPdfOrImage() {
+      return request.resource.contentType.matches('application/pdf') ||
+             request.resource.contentType.matches('image/(jpeg|jpg|png|webp)');
+    }
+
+    function isValidSize(maxMb) {
+      return request.resource.size > 0 && request.resource.size <= maxMb * 1024 * 1024;
+    }
+
+    // --- Photos des assurés (profils) ---
+    match /member-photos/{photoId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isImage() && isValidSize(5);
+      allow delete: if isAdmin();
+    }
+
+    // --- Photos prises lors de l'adhésion / onboarding ---
+    match /enrollment-photos/{photoId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isImage() && isValidSize(5);
+      allow delete: if isAdmin();
+    }
+
+    // --- Justificatifs et pièces jointes des sinistres (claims) ---
+    match /claims/{claimId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isPdfOrImage() && isValidSize(15);
+      allow delete: if isAdmin();
+    }
+
+    // --- Reçus de paiement et décomptes ---
+    match /receipts/{receiptId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isPdfOrImage() && isValidSize(15);
+      allow delete: if isAdmin();
+    }
+
+    // --- Documents légaux, attestations et contrats de police ---
+    match /documents/{docId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isPdfOrImage() && isValidSize(20);
+      allow delete: if isAdmin();
+    }
+
+    // --- Fermeture par défaut pour tout autre chemin ---
     match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }

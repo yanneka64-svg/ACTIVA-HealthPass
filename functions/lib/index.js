@@ -712,7 +712,8 @@ exports.ensureUserAccount = functions.https.onCall(async (data, context) => {
         const dAuthEmail = (d.authEmail || '').toLowerCase().trim();
         const dUsername = (d.username || '').toLowerCase().trim();
         if ((authEmail && (dEmail === authEmail || dAuthEmail === authEmail)) ||
-            (authEmail.includes('@') && dUsername && authEmail.startsWith(dUsername + '@')) ||
+            (authEmail.includes('@') && dUsername && (authEmail.startsWith(dUsername + '@') ||
+                authEmail.split('@')[0].split('_')[0] === dUsername)) ||
             (explicitId && (dEmail === explicitId || dAuthEmail === explicitId || dUsername === explicitId))) {
             matchedData = d;
             break;
