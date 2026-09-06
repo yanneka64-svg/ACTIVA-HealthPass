@@ -595,7 +595,19 @@ interface RateLimitResult {
   retryAfterSec?: number;
 }
 
-async function checkAndApplyRateLimit(
+// === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding B — HAUTE) ===
+// Problème : la lecture du compteur de tentatives (`rateRef.get()`) puis son écriture
+// (`.set()`/`.update()`) s'enchaînaient hors transaction. Deux requêtes concurrentes (onglets
+// multiples, script automatisé essayant plusieurs mots de passe en parallèle) pouvaient toutes
+// deux lire la même valeur `attempts` AVANT que l'une ou l'autre n'écrive sa mise à jour,
+// perdant ainsi des incréments et permettant de dépasser la limite de 5 tentatives/60s avant
+// déclenchement du verrouillage — contournant de fait la protection anti-brute-force.
+// Correctif : lecture + écriture englobées dans `firestore.runTransaction(...)`, qui garantit
+// que deux tentatives concurrentes sur le MÊME identifiant sont sérialisées par Firestore
+// (l'une des deux est automatiquement rejouée après que l'autre a validé son écriture). Aucune
+// régression : la logique métier (fenêtre glissante, seuil, durée de verrouillage) est
+// strictement identique, seule l'atomicité de la lecture+écriture change.
+export async function checkAndApplyRateLimit(
   firestore: FirebaseFirestore.Firestore,
   identifier: string,
   clientIp: string
@@ -609,20 +621,51 @@ async function checkAndApplyRateLimit(
   const rateRef = firestore.collection('login_rate_limits').doc(key);
 
   try {
-    const docSnap = await rateRef.get();
-    if (docSnap.exists) {
-      const data = docSnap.data() || {};
-      const lockedUntil = typeof data.lockedUntil === 'number' ? data.lockedUntil : 0;
-      if (now < lockedUntil) {
-        const retryAfterSec = Math.ceil((lockedUntil - now) / 1000);
-        return { allowed: false, retryAfterSec };
-      }
+    return await firestore.runTransaction(async (tx) => {
+      const docSnap = await tx.get(rateRef);
+      if (docSnap.exists) {
+        const data = docSnap.data() || {};
+        const lockedUntil = typeof data.lockedUntil === 'number' ? data.lockedUntil : 0;
+        if (now < lockedUntil) {
+          const retryAfterSec = Math.ceil((lockedUntil - now) / 1000);
+          return { allowed: false, retryAfterSec };
+        }
 
-      let attempts = typeof data.attempts === 'number' ? data.attempts : 0;
-      const windowStart = typeof data.windowStart === 'number' ? data.windowStart : now;
+        let attempts = typeof data.attempts === 'number' ? data.attempts : 0;
+        const windowStart = typeof data.windowStart === 'number' ? data.windowStart : now;
 
-      if (now - windowStart > WINDOW_MS) {
-        await rateRef.set({
+        if (now - windowStart > WINDOW_MS) {
+          tx.set(rateRef, {
+            attempts: 1,
+            windowStart: now,
+            lockedUntil: 0,
+            lastIp: clientIp,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          return { allowed: true };
+        } else {
+          attempts += 1;
+          if (attempts >= MAX_ATTEMPTS) {
+            const newLockedUntil = now + LOCKOUT_DURATION_MS;
+            tx.set(rateRef, {
+              attempts,
+              windowStart,
+              lockedUntil: newLockedUntil,
+              lastIp: clientIp,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            return { allowed: false, retryAfterSec: Math.ceil(LOCKOUT_DURATION_MS / 1000) };
+          } else {
+            tx.update(rateRef, {
+              attempts,
+              lastIp: clientIp,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            return { allowed: true };
+          }
+        }
+      } else {
+        tx.set(rateRef, {
           attempts: 1,
           windowStart: now,
           lockedUntil: 0,
@@ -630,37 +673,8 @@ async function checkAndApplyRateLimit(
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         return { allowed: true };
-      } else {
-        attempts += 1;
-        if (attempts >= MAX_ATTEMPTS) {
-          const newLockedUntil = now + LOCKOUT_DURATION_MS;
-          await rateRef.set({
-            attempts,
-            windowStart,
-            lockedUntil: newLockedUntil,
-            lastIp: clientIp,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-          return { allowed: false, retryAfterSec: Math.ceil(LOCKOUT_DURATION_MS / 1000) };
-        } else {
-          await rateRef.update({
-            attempts,
-            lastIp: clientIp,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-          return { allowed: true };
-        }
       }
-    } else {
-      await rateRef.set({
-        attempts: 1,
-        windowStart: now,
-        lockedUntil: 0,
-        lastIp: clientIp,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      return { allowed: true };
-    }
+    });
   } catch (err) {
     console.warn('Rate limiting non-fatal error:', err);
     return { allowed: true };
