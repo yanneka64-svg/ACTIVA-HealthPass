@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search,
-  Receipt,
   User,
   Users,
   Building,
@@ -20,6 +19,10 @@ import { InvoiceItem, Language } from '../types';
 import { useTranslation } from '../i18n/translations';
 import { useCurrency } from '../services/currency';
 import { printBordereauSlip, downloadBordereauPDF } from '../utils/printUtils';
+// === AMÉLIORATION AJOUTÉE : nouveau modèle de bordereau de règlement (Settlement Slip &
+// Direct Billing Voucher) — voir la modale "INVOICE SLIP MODAL" plus bas.
+import { LogoIcon } from '../components/Logo';
+import { ExportDropdown } from '../components/ExportDropdown';
 
 interface InvoicesViewProps {
   lang: Language;
@@ -48,6 +51,37 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
   const canDeleteInvoice = isAdmin || isSupervisor;
+
+  // === AMÉLIORATION AJOUTÉE : lignes du détail "Medical Benefits Coverage Breakdown" du
+  // nouveau bordereau de règlement — une ligne par acte médical (Claim.medicalActs, reporté sur
+  // la facture par workflowService.ts). Les factures antérieures à ce correctif n'ont pas ce
+  // détail : repli sur une ligne unique dérivée de careType/amount/coveredAmount, identique au
+  // montant déjà affiché partout ailleurs dans cet écran.
+  const slipBreakdownRows = useMemo(() => {
+    if (!viewSlipInvoice) return [];
+    if (viewSlipInvoice.medicalActs && viewSlipInvoice.medicalActs.length > 0) {
+      return viewSlipInvoice.medicalActs.map((act) => ({
+        description: act.name,
+        category: act.category || viewSlipInvoice.careType,
+        billed: act.amount,
+        covered: (act.amount * (viewSlipInvoice.coveragePercentage || 80)) / 100,
+      }));
+    }
+    return [
+      {
+        description: viewSlipInvoice.careType,
+        category: viewSlipInvoice.careType,
+        billed: viewSlipInvoice.amount,
+        covered:
+          viewSlipInvoice.coveredAmount !== undefined
+            ? viewSlipInvoice.coveredAmount
+            : (viewSlipInvoice.amount * (viewSlipInvoice.coveragePercentage || 80)) / 100,
+      },
+    ];
+  }, [viewSlipInvoice]);
+
+  const slipIsApproved = viewSlipInvoice ? viewSlipInvoice.status === 'valid' || (viewSlipInvoice.status as string) === 'approved' : false;
+  const slipClaimRef = viewSlipInvoice ? viewSlipInvoice.claimId || `SIN-${viewSlipInvoice.id.substring(0, 8)}` : '';
 
   // === AMÉLIORATION AJOUTÉE : gris de la barre latérale Admin (auparavant bg-slate-900,
   // un noir quasi-pur perçu comme "noir" plutôt que gris par l'utilisateur) ===
@@ -609,126 +643,161 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       )}
 
       {/* 5. INVOICE SLIP MODAL */}
+      {/* === AMÉLIORATION AJOUTÉE : nouveau modèle "Settlement Slip & Direct Billing Voucher"
+          (maquette fournie par l'utilisateur, sur demande explicite) — remplace l'ancien reçu
+          "Certified Medical Slip". Le contenu (patient, prestataire, montants, actions
+          suppression/impression/téléchargement) reste fonctionnellement identique ; seule la
+          présentation change, en écran comme à l'impression/PDF (voir printUtils.ts). */}
       {viewSlipInvoice && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-[#E8EDF2] max-h-[90vh] overflow-y-auto space-y-6">
-            <div className="flex items-center justify-between border-b border-[#E8EDF2] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-slate-100 rounded-xl text-slate-800">
-                  <Receipt className="w-5 h-5" />
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-[#E8EDF2] max-h-[90vh] overflow-y-auto">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between gap-3 border-b border-[#E8EDF2] p-4 sticky top-0 bg-white z-10">
+              <div className="flex items-center gap-2 min-w-0">
+                <LogoIcon className="w-6 h-6 shrink-0" />
+                <div className="min-w-0 leading-tight">
+                  <span className="font-bold text-[var(--brand-900)] text-sm">ACTIVA HealthPass</span>
+                  <span className="text-slate-300 mx-1.5 hidden sm:inline">|</span>
+                  <span className="font-extrabold text-slate-800 uppercase tracking-wide text-[10.5px] block sm:inline">
+                    Settlement Slip &amp; Direct Billing Voucher
+                  </span>
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-[var(--brand-900)]">
-                    Certified Medical Slip #{viewSlipInvoice.reference}
-                  </h3>
-                  <p className="text-xs text-[#778FAF]">Official ACTIVA HealthPass Disbursement Voucher</p>
-                </div>
               </div>
-              <button
-                onClick={() => setViewSlipInvoice(null)}
-                className="p-1.5 text-[#778FAF] hover:text-[#0D2B63] hover:bg-[#F8FAFC] rounded-lg transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Slip Details Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-xl border border-[#E8EDF2] text-xs">
-              <div>
-                <p className="text-[#778FAF] font-medium">Patient</p>
-                <p className="font-bold text-[#0D2B63] mt-0.5">{viewSlipInvoice.patientName}</p>
-                <p className="font-mono text-[10px] text-slate-700">
-                  {viewSlipInvoice.patientPolicyNumber || 'ACT-2025-0089'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[#778FAF] font-medium">Healthcare Provider</p>
-                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.provider}</p>
-              </div>
-              <div>
-                <p className="text-[#778FAF] font-medium">Organization</p>
-                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.organization}</p>
-              </div>
-              <div>
-                <p className="text-[#778FAF] font-medium">Care Category</p>
-                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.careType}</p>
-              </div>
-              <div>
-                <p className="text-[#778FAF] font-medium">Service Date</p>
-                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.serviceDate || '2025-08-18'}</p>
-              </div>
-              <div>
-                <p className="text-[#778FAF] font-medium">Validation Status</p>
-                <span className="inline-block mt-0.5 px-2 py-0.5 bg-[#DEFEEB] text-[#00A859] rounded-md font-bold text-[10px]">
-                  {viewSlipInvoice.status?.toUpperCase() || 'VALIDATED'}
-                </span>
-              </div>
-            </div>
-
-            {/* Financial Breakdown Box */}
-            <div className="border border-[#E8EDF2] rounded-xl p-4 space-y-2">
-              <div className="flex justify-between text-xs text-[#778FAF]">
-                <span>Total Invoiced Amount</span>
-                <span className="font-bold text-[var(--brand-900)]">{formatAmount(viewSlipInvoice.amount)}</span>
-              </div>
-              <div className="flex justify-between text-xs text-[#00A859] font-semibold">
-                <span>Covered by ACTIVA ({viewSlipInvoice.coveragePercentage || 80}%)</span>
-                <span>
-                  {formatAmount(
-                    viewSlipInvoice.coveredAmount !== undefined
-                      ? viewSlipInvoice.coveredAmount
-                      : (viewSlipInvoice.amount * (viewSlipInvoice.coveragePercentage || 80)) / 100
-                  )}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs text-[var(--brand-900)] pt-2 border-t border-[#E8EDF2] font-bold">
-                <span>Patient Direct Co-Pay</span>
-                <span>
-                  {formatAmount(
-                    Math.max(
-                      0,
-                      viewSlipInvoice.amount -
-                        (viewSlipInvoice.coveredAmount !== undefined
-                          ? viewSlipInvoice.coveredAmount
-                          : (viewSlipInvoice.amount * (viewSlipInvoice.coveragePercentage || 80)) / 100)
-                    )
-                  )}
-                </span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
-              <div>
-                {canDeleteInvoice && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInvoiceToDelete(viewSlipInvoice);
-                    }}
-                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                    <span>Delete Invoice</span>
-                  </button>
-                )}
-              </div>
-
-              <div className="flex gap-2.5">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <ExportDropdown onExportPDF={() => downloadBordereauPDF(viewSlipInvoice, lang)} />
                 <button
                   onClick={() => printBordereauSlip(viewSlipInvoice, lang)}
-                  className="px-4 py-2 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-[#0D2B63] rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+                  className="p-2 text-[#778FAF] hover:text-[#0D2B63] hover:bg-[#F8FAFC] rounded-lg transition cursor-pointer"
+                  title="Print"
                 >
-                  <Printer className="w-4 h-4 text-slate-700" />
-                  <span>Print Slip</span>
+                  <Printer className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => downloadBordereauPDF(viewSlipInvoice, lang)}
-                  className={`px-4 py-2 ${primaryBtnClass} rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer`}
+                  onClick={() => setViewSlipInvoice(null)}
+                  className="p-2 text-[#778FAF] hover:text-[#0D2B63] hover:bg-[#F8FAFC] rounded-lg transition cursor-pointer"
+                  title="Close"
                 >
-                  <Download className="w-4 h-4" />
-                  <span>Download PDF Voucher</span>
+                  <X className="w-5 h-5" />
                 </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Voucher card */}
+              <div className="relative overflow-hidden rounded-2xl border border-[#E8EDF2] p-6">
+                {slipIsApproved && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                    <span className="border-4 border-emerald-600/25 text-emerald-600/25 font-black text-2xl sm:text-3xl tracking-widest uppercase px-6 py-2 rounded-xl -rotate-[18deg] select-none">
+                      Approved &amp; Covered
+                    </span>
+                  </div>
+                )}
+
+                <div className="relative z-[1] flex items-start justify-between gap-4 pb-4 border-b-2 border-slate-900">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <LogoIcon className="w-7 h-7" />
+                      <span className="font-extrabold text-[var(--brand-900)]">ACTIVA HealthPass</span>
+                    </div>
+                    <p className="text-[10px] text-[#778FAF] mt-0.5">Health • Safety • Serenity</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-[#778FAF] font-bold uppercase tracking-wide">Voucher Reference</p>
+                    <p className="font-mono font-bold text-[var(--brand-900)]">{viewSlipInvoice.reference}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Claim Ref: {slipClaimRef}</p>
+                  </div>
+                </div>
+
+                <div className="relative z-[1] grid grid-cols-2 gap-x-6 gap-y-4 py-5 text-xs">
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">Beneficiary Name</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.patientName}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">Healthcare Facility</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.provider}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">HealthPass Card No.</p>
+                    <p className="font-mono font-bold text-[var(--brand-900)] mt-0.5">
+                      {viewSlipInvoice.cardNo || viewSlipInvoice.patientPolicyNumber || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">Date of Service</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.serviceDate || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">Organization</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.organization}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">Prescriber / Practitioner</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.prescribingDoctor || 'Medical Staff'}</p>
+                  </div>
+                </div>
+
+                <div className="relative z-[1] pt-4 border-t border-slate-100">
+                  <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px] mb-2">
+                    Medical Benefits Coverage Breakdown
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-[10px] text-[#778FAF] font-bold uppercase tracking-wide border-b border-slate-200">
+                          <th className="text-left py-2 pr-2">Act / Service Description</th>
+                          <th className="text-left py-2 pr-2">Category</th>
+                          <th className="text-right py-2 pr-2">Billed Amount</th>
+                          <th className="text-right py-2">Covered Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {slipBreakdownRows.map((row, idx) => (
+                          <tr key={idx} className="border-b border-slate-50 last:border-0">
+                            <td className="py-2 pr-2 font-semibold text-slate-800">{row.description}</td>
+                            <td className="py-2 pr-2 text-slate-500">{row.category}</td>
+                            <td className="py-2 pr-2 text-right text-slate-700">{formatAmount(row.billed)}</td>
+                            <td className="py-2 text-right font-bold text-[#00A859]">{formatAmount(row.covered)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <div>
+                  {canDeleteInvoice && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvoiceToDelete(viewSlipInvoice);
+                      }}
+                      className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Delete Invoice</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-2.5">
+                  <button
+                    onClick={() => downloadBordereauPDF(viewSlipInvoice, lang)}
+                    className={`px-4 py-2 ${primaryBtnClass} rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer`}
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download Voucher PDF</span>
+                  </button>
+                  <button
+                    onClick={() => setViewSlipInvoice(null)}
+                    className="px-4 py-2 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-[#0D2B63] rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>

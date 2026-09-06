@@ -28,6 +28,17 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      # === AMÉLIORATION AJOUTÉE : CI (correctif) ===
+      # firebase-tools (utilisé plus bas pour l'émulateur Firestore) exige désormais Java 21+ ;
+      # les runners ubuntu-latest n'exposent pas cette version sur le PATH par défaut. Sans
+      # cette étape, "Firestore rules tests (emulator)" échoue avec "firebase-tools no longer
+      # supports Java version before 21" — jamais détecté jusqu'ici car les étapes précédentes
+      # du pipeline échouaient toujours plus tôt (voir historique des runs CI sur main).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
       - name: Install dependencies (app)
         run: npm ci
 

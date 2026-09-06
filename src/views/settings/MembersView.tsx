@@ -34,6 +34,7 @@ import { Member, Language, Organization, RelationshipType, MemberStatus, Depende
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { exportMembersToCSV, exportMembersToExcel, parseMemberExcel, parseActivaMultiOrgExcel, generateMultiOrgTemplateExcel } from '../../utils/excelUtils';
+import { FirestoreService } from '../../services/firestore';
 import { uploadPhotoOrFallback } from '../../utils/storageUtils';
 import { dedupeMembersByCardNo } from '../../utils/memberUtils';
 import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
@@ -531,7 +532,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     // Automatic, transparent fallback to the existing behavior (inline base64) if the
     // upload fails — see storageUtils.ts.
     const resolvedPhotoUrl = photoData
-      ? await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim())
+      ? await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim(), formOrg)
       : editingMember?.photoUrl;
 
     if (editingMember) {
@@ -651,6 +652,17 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                   onClick={() => {
                     setExportMenuOpen(false);
                     exportMembersToExcel(filteredMembers, lang);
+                    // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05,
+                    // section 2.6) — voir ReportsView.tsx pour le même mécanisme.
+                    FirestoreService.addLog({
+                      userId: currentUser?.uid || 'unknown',
+                      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Unknown',
+                      userRole: userRole || 'Unknown',
+                      action: 'DATA_EXPORTED',
+                      category: 'Members',
+                      entityType: 'members',
+                      details: `Exported ${filteredMembers.length} member(s) as Excel.`,
+                    }).catch(() => {});
                   }}
                   className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 transition cursor-pointer"
                 >
@@ -662,6 +674,15 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                   onClick={() => {
                     setExportMenuOpen(false);
                     exportMembersToCSV(filteredMembers, lang);
+                    FirestoreService.addLog({
+                      userId: currentUser?.uid || 'unknown',
+                      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Unknown',
+                      userRole: userRole || 'Unknown',
+                      action: 'DATA_EXPORTED',
+                      category: 'Members',
+                      entityType: 'members',
+                      details: `Exported ${filteredMembers.length} member(s) as CSV.`,
+                    }).catch(() => {});
                   }}
                   className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-2 transition cursor-pointer"
                 >

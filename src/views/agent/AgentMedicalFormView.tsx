@@ -41,6 +41,10 @@ import {
   isNewSecurityNumberFormat,
   matchesSecurityNumberSearch,
 } from '../../utils/medicalFormUtils';
+// === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+import { encryptMedicalFormPrescription, decryptMedicalFormPrescription } from '../../utils/sensitiveData';
+// === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) ===
+import { DEFAULT_MEDICAL_FORM_RETENTION_YEARS, isPastRetention } from '../../config/dataRetention';
 
 interface AgentMedicalFormViewProps {
   providers: Provider[];
@@ -53,7 +57,7 @@ interface AgentMedicalFormViewProps {
   onCreateMedicalForm?: (form: Partial<MedicalForm>) => void;
   onUpdateMedicalForm?: (form: MedicalForm) => void;
   onDeleteMedicalForm?: (id: string) => Promise<void> | void;
-  onClearAllMedicalForms?: () => Promise<void> | void;
+  onClearAllMedicalForms?: (reason: string) => Promise<void> | void;
   initialMemberCardNo?: string | null;
   onConsumedInitialMember?: () => void;
 }
@@ -95,6 +99,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   const [formToDelete, setFormToDelete] = useState<MedicalForm | null>(null);
   const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
+  // — CRITIQUE) — confirmation renforcée (saisie d'une phrase exacte) et motif obligatoire
+  // avant toute suppression en masse de l'historique médical. Voir handleConfirmClearAll.
+  const CLEAR_ALL_CONFIRM_PHRASE = 'DELETE ALL';
+  const [clearAllConfirmText, setClearAllConfirmText] = useState('');
+  const [clearAllReason, setClearAllReason] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
   // === AMÉLIORATION AJOUTÉE : la Fiche Médicale doit rester bleue côté Agent (branding Agent inchangé)
@@ -195,7 +205,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   }, [practitionerType, doctorSpecialty, customSpecialty]);
 
   // Handle Form Generation
-  const handleGenerateForm = (e: React.FormEvent) => {
+  const handleGenerateForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     if (!selectedMember || !selectedProvider) {
@@ -231,10 +241,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       inpatientBalanceUSD: selectedMember.inpatientBalanceUSD ?? 8500,
       issueDate: new Date().toISOString().split('T')[0],
       status: 'issued',
-      // === AMÉLIORATION AJOUTÉE : sur demande explicite — pour un praticien Généraliste, ne
-      // plus préremplir "Dr. General Practitioner" quand l'agent ne saisit pas de nom : la
-      // place reste vide, réservée au médecin traitant qui la complètera lui-même à la main.
-      doctorName: doctorName || (practitionerType === 'Specialist' ? `Dr. Specialist (${effectiveSpecialty})` : undefined),
+      // === AMÉLIORATION AJOUTÉE : sur nouvelle demande explicite — pour un praticien
+      // Généraliste, préremplir "Dr. General Practitioner" quand l'agent ne saisit pas de nom
+      // (remplace le comportement précédent qui laissait le champ vide dans ce cas).
+      doctorName:
+        doctorName ||
+        (practitionerType === 'Specialist'
+          ? `Dr. Specialist (${effectiveSpecialty})`
+          : 'Dr. General Practitioner'),
       doctorPrescription: {
         presumedDiagnosis: presumedDiagnosis || undefined,
         requestedExams: requestedExams || undefined,
@@ -243,22 +257,34 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       createdAt: new Date().toISOString(),
     };
 
+    // `generatedForm` reste la version en clair pour l'aperçu immédiat affiché dans cette même
+    // session (voir plus bas) — inutile de la déchiffrer, elle n'a jamais été chiffrée.
     setGeneratedForm(newForm);
 
     if (onCreateMedicalForm) {
-      onCreateMedicalForm(newForm);
+      // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) —
+      // seule la copie envoyée à Firestore est chiffrée ; `newForm`/`generatedForm` ci-dessus
+      // restent en clair pour l'affichage local immédiat, sans aller-retour de déchiffrement.
+      const formToPersist = await encryptMedicalFormPrescription(newForm);
+      onCreateMedicalForm(formToPersist);
     }
   };
 
   // PDF Download Handler
-  const handleDownloadPDF = (form: MedicalForm) => {
-    const doc = generateMedicalFormPDF(form);
+  // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) —
+  // déchiffre le contenu clinique (s'il est chiffré ; sinon aucun appel réseau, voir
+  // sensitiveData.ts) avant de générer le PDF, quel que soit le point d'entrée (aperçu
+  // immédiat après création, historique, modale de prévisualisation).
+  const handleDownloadPDF = async (form: MedicalForm) => {
+    const decrypted = await decryptMedicalFormPrescription(form);
+    const doc = generateMedicalFormPDF(decrypted);
     doc.save(`Medical_Form_ACTIVA_${form.securityNumber}.pdf`);
   };
 
   // Print Handler
-  const handlePrint = (form: MedicalForm) => {
-    const doc = generateMedicalFormPDF(form);
+  const handlePrint = async (form: MedicalForm) => {
+    const decrypted = await decryptMedicalFormPrescription(form);
+    const doc = generateMedicalFormPDF(decrypted);
     doc.autoPrint();
     const pdfBlob = doc.output('bloburl');
     window.open(pdfBlob, '_blank');
@@ -274,7 +300,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // navigateurs mobiles. Si l'appareil ne supporte pas le partage de fichiers (ex: certains
   // navigateurs de bureau), on retombe sur un téléchargement direct du PDF — jamais sur le
   // partage d'un lien vers l'application, qui n'est pas ce que l'utilisateur demande.
-  const handleShare = async (form: MedicalForm) => {
+  const handleShare = async (rawForm: MedicalForm) => {
+    // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+    const form = await decryptMedicalFormPrescription(rawForm);
     const pType = form.practitionerType === 'Specialist'
       ? `Specialist Physician (${form.doctorSpecialty || 'Specialized'})`
       : 'General Practitioner';
@@ -340,7 +368,16 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // Toggle status in history
   const handleToggleStatus = (form: MedicalForm, newStatus: 'issued' | 'used' | 'pending_return' | 'completed') => {
     if (onUpdateMedicalForm) {
-      onUpdateMedicalForm({ ...form, status: newStatus });
+      // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+      // `form` peut être `previewModalForm`, dont le contenu clinique a été DÉCHIFFRÉ pour
+      // l'affichage à l'écran (voir plus haut). Le renvoyer tel quel écraserait la version
+      // chiffrée stockée dans Firestore par du texte en clair au moindre changement de statut.
+      // `doctorPrescription` est un champ optionnel : l'omettre entièrement du payload
+      // d'update laisse la valeur déjà en base totalement inchangée (updateDoc ne touche que
+      // les clés fournies) — un simple changement de statut n'a de toute façon aucune raison
+      // de modifier le contenu clinique.
+      const { doctorPrescription, ...formWithoutPrescription } = form;
+      onUpdateMedicalForm({ ...formWithoutPrescription, status: newStatus });
     }
   };
 
@@ -361,10 +398,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // Clear all medical forms history
   const handleConfirmClearAll = async () => {
     if (!onClearAllMedicalForms) return;
+    if (clearAllConfirmText.trim().toUpperCase() !== CLEAR_ALL_CONFIRM_PHRASE) return;
+    if (!clearAllReason.trim()) return;
     setIsDeleting(true);
     try {
-      await onClearAllMedicalForms();
+      await onClearAllMedicalForms(clearAllReason.trim());
       setIsClearAllModalOpen(false);
+      setClearAllConfirmText('');
+      setClearAllReason('');
     } catch (e) {
       console.error('Error clearing medical forms history:', e);
     } finally {
@@ -382,6 +423,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       return f;
     });
   }, [medicalForms]);
+
+  // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) — dossiers
+  // ayant dépassé la durée de rétention indicative (voir src/config/dataRetention.ts), calculé
+  // sur l'ensemble de l'historique (indépendamment des filtres actifs) pour un signalement fiable.
+  const pastRetentionForms = useMemo(
+    () => normalizedForms.filter((f) => isPastRetention(f.retentionUntil)),
+    [normalizedForms]
+  );
 
   // Filtered forms for history
   const filteredForms = useMemo(() => {
@@ -1152,6 +1201,24 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             </div>
           </div>
 
+          {/* === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) —
+              Signalement purement informatif des dossiers ayant dépassé la durée de rétention
+              indicative (voir src/config/dataRetention.ts). Aucune action de suppression n'est
+              proposée ici : la revue et la décision restent manuelles, cohérent avec la décision
+              explicite de ne construire aucun mécanisme de purge automatisée tant que les durées
+              réglementaires par pays ne sont pas confirmées. */}
+          {pastRetentionForms.length > 0 && (
+            <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <Clock className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-800">
+                <span className="font-bold">
+                  {pastRetentionForms.length} medical form{pastRetentionForms.length > 1 ? 's have' : ' has'} passed the indicative retention period
+                </span>{' '}
+                ({DEFAULT_MEDICAL_FORM_RETENTION_YEARS} years since issuance) and should be reviewed manually. No automatic deletion is performed.
+              </p>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
@@ -1239,7 +1306,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={() => setPreviewModalForm(form)}
+                              onClick={async () => {
+                                // === AMÉLIORATION AJOUTÉE : protection des données (revue
+                                // 2026-09-05, section 3.1) — déchiffre le contenu clinique
+                                // avant affichage à l'écran (pas seulement pour le PDF).
+                                setPreviewModalForm(await decryptMedicalFormPrescription(form));
+                              }}
                               className={`p-1.5 text-slate-500 ${isSupervisorView ? 'hover:text-[#0F766E]' : 'hover:text-[#0A347B]'} ${isSupervisorView ? 'hover:bg-teal-50' : 'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
                               title="Preview"
                             >
@@ -1516,14 +1588,52 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 Are you sure you want to delete all {normalizedForms.length} medical forms from history?
               </p>
               <p className="text-[11px] text-rose-600 leading-relaxed">
-                This will purge all issued coverage vouchers from the database. This action is irreversible.
+                Each record is archived (full content, who, when, why) before deletion — see Admin
+                audit trail — but this removes it from active history permanently.
               </p>
+            </div>
+
+            {/* === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05,
+                section 2.5) — motif obligatoire et phrase de confirmation exacte avant toute
+                suppression en masse. === */}
+            <div className="space-y-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Reason for this deletion (required, kept in the audit trail)
+                </label>
+                <textarea
+                  value={clearAllReason}
+                  onChange={(e) => setClearAllReason(e.target.value)}
+                  disabled={isDeleting}
+                  rows={2}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  placeholder="e.g. End-of-period cleanup approved by..."
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Type <span className="font-mono text-rose-700">{CLEAR_ALL_CONFIRM_PHRASE}</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={clearAllConfirmText}
+                  onChange={(e) => setClearAllConfirmText(e.target.value)}
+                  disabled={isDeleting}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  placeholder={CLEAR_ALL_CONFIRM_PHRASE}
+                  autoComplete="off"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setIsClearAllModalOpen(false)}
+                onClick={() => {
+                  setIsClearAllModalOpen(false);
+                  setClearAllConfirmText('');
+                  setClearAllReason('');
+                }}
                 disabled={isDeleting}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
@@ -1532,8 +1642,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               <button
                 type="button"
                 onClick={handleConfirmClearAll}
-                disabled={isDeleting}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                disabled={isDeleting || clearAllConfirmText.trim().toUpperCase() !== CLEAR_ALL_CONFIRM_PHRASE || !clearAllReason.trim()}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 {isDeleting ? (
                   <>

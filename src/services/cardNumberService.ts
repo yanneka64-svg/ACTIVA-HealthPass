@@ -28,6 +28,7 @@
 import { collection, doc, getDoc, getDocs, query, runTransaction, setDoc, where, writeBatch } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../lib/firebase';
+import { recordServerFallback } from '../utils/fallbackTelemetry';
 import {
   CardAssignmentMethod,
   CardNumberAssignment,
@@ -181,8 +182,14 @@ export async function generateNextCardNumber(ctx: AssignmentContext): Promise<st
     if (result.data?.success && result.data.cardNumber) {
       return result.data.cardNumber;
     }
+    // === AMÉLIORATION AJOUTÉE : fiabilité (audit 2026-09-05, FIAB-02) ===
+    recordServerFallback('generateCardNumber', 'Cloud Function returned unsuccessful result.');
   } catch (err) {
     console.warn('Cloud Function "generateCardNumber" unavailable — falling back to client-side generation:', err);
+    // === AMÉLIORATION AJOUTÉE : fiabilité (audit 2026-09-05, FIAB-02) — rend visible ce repli
+    // qui restait auparavant totalement silencieux pour l'équipe technique (voir
+    // fallbackTelemetry.ts) ; n'a aucun effet sur le comportement pour l'utilisateur.
+    recordServerFallback('generateCardNumber', String((err as any)?.message || err));
   }
 
   return runTransaction(db, async (tx) => {

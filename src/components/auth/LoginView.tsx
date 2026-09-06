@@ -4,11 +4,10 @@ import { Language } from '../../types';
 import { Logo } from '../Logo';
 import { auth, functions, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { collection, getDocs, doc, updateDoc, deleteField, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { getClientLocationInfo, parseUserAgent } from '../../utils/geoUtils';
 import { FirestoreService } from '../../services/firestore';
-import { verifyPassword } from '../../utils/passwordUtils';
 
 interface LoginViewProps {
   onLoginSuccess: (user: any, accountData?: any) => void;
@@ -95,9 +94,25 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const inputLower = cleanUsername.toLowerCase();
     const inputSanitized = inputLower.replace(/[^a-z0-9_.]/g, '');
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-01/SEC-02 — CRITIQUE) ===
+    // Avant ce correctif, cette fonction lisait l'INTÉGRALITÉ de la collection Firestore
+    // `accounts` directement depuis le navigateur (`getDocs(collection(db,'accounts'))`),
+    // puis comparait le mot de passe saisi au hash/sel — voire au mot de passe en clair pour
+    // les comptes legacy — lus dans ce même document, EN CLAIR CÔTÉ CLIENT. Combiné à la règle
+    // Firestore `accounts: allow read: if true` (désormais retirée, voir firestore.rules),
+    // n'importe qui pouvait télécharger tous les comptes (y compris Admin) sans jamais se
+    // connecter, et l'intégrité de la vérification de mot de passe reposait entièrement sur un
+    // environnement contrôlé par l'attaquant (le navigateur).
+    // Correctif : la résolution d'identifiant ET la vérification de mot de passe legacy sont
+    // désormais EXCLUSIVEMENT effectuées côté serveur par la Cloud Function `resolveLoginIdentifier`
+    // (SDK Admin, ignore les règles Firestore, ne renvoie jamais hash/sel/mot de passe). Le seul
+    // accès direct restant à `accounts` se fait APRÈS authentification Firebase réussie, sur le
+    // document `accounts/{uid}` du PROPRE utilisateur connecté — explicitement autorisé par
+    // `firestore.rules` (`request.auth.uid == userId`) — jamais sur la collection entière.
     try {
-      // 1. Résolution de l'identifiant d'entreprise via la Cloud Function sécurisée
-      // `resolveLoginIdentifier` si disponible (SDK Admin, rate limiting serveur dans Firestore).
+      // 1. Résolution de l'identifiant ET vérification legacy du mot de passe via la Cloud
+      // Function sécurisée `resolveLoginIdentifier` (rate limiting serveur persistant dans
+      // Firestore, SDK Admin, jamais de secret renvoyé au client).
       let resolveResult: {
         found: boolean;
         isActive?: boolean;
@@ -141,49 +156,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
         return false;
       }
 
-      // 2. Recherche directe dans la collection Firestore `accounts` (lecture autorisée)
-      // pour garantir la résolution instantanée de l'identifiant vers son adresse e-mail d'authentification réelle
-      let firestoreAccount: any = null;
-      try {
-        const snap = await getDocs(collection(db, 'accounts'));
-        for (const docSnap of snap.docs) {
-          const acc = docSnap.data();
-          const accUsername = (acc.username || '').toLowerCase().trim();
-          const accEmail = (acc.email || '').toLowerCase().trim();
-          const accAuthEmail = (acc.authEmail || '').toLowerCase().trim();
-          if (
-            accUsername === inputLower ||
-            accUsername === inputSanitized ||
-            accEmail === inputLower ||
-            accAuthEmail === inputLower
-          ) {
-            firestoreAccount = { id: docSnap.id, ...acc };
-            break;
-          }
-        }
-      } catch (dbErr) {
-        console.warn('Direct accounts lookup warning:', dbErr);
-      }
-
-      // Vérification du statut actif depuis Firestore
-      if (firestoreAccount && firestoreAccount.isActive === false) {
-        setError('This account has been deactivated. Please contact your administrator.');
-        setIsLoggingIn(false);
-        return false;
-      }
-
-      // Construire la liste exhaustive des emails candidats pour Firebase Auth
+      // Construire la liste des emails candidats pour Firebase Auth : d'abord ceux retournés
+      // par la Cloud Function (déjà dérivés du compte réel, sans jamais exposer son contenu),
+      // puis les domaines institutionnels ACTIVA conventionnels en repli.
       const candidateEmails: string[] = [];
 
-      // Priorité 1 : Email d'authentification trouvé dans le document de compte Firestore
-      if (firestoreAccount?.authEmail) {
-        candidateEmails.push(firestoreAccount.authEmail.toLowerCase().trim());
-      }
-      if (firestoreAccount?.email) {
-        candidateEmails.push(firestoreAccount.email.toLowerCase().trim());
-      }
-
-      // Priorité 2 : Résultat retourné par la Cloud Function
       if (resolveResult?.authEmail) {
         candidateEmails.push(resolveResult.authEmail.toLowerCase().trim());
       }
@@ -191,7 +168,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
         candidateEmails.push(...resolveResult.candidateEmails.map((e) => e.toLowerCase().trim()));
       }
 
-      // Priorité 3 : Domaines institutionnels ACTIVA conventionnels
+      // Domaines institutionnels ACTIVA conventionnels, en repli si la Cloud Function n'a rien
+      // trouvé ou n'est momentanément pas joignable.
       if (cleanUsername.includes('@')) {
         candidateEmails.push(inputLower);
         const userPart = inputLower.split('@')[0].replace(/[^a-z0-9_.]/g, '');
@@ -208,7 +186,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       let userCredential: any = null;
       let lastSignInErr: any = null;
 
-      // 3. Tentative de connexion standard via Firebase Auth sur chaque e-mail candidat
+      // 2. Tentative de connexion standard via Firebase Auth sur chaque e-mail candidat
       for (const email of uniqueCandidateEmails) {
         try {
           userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -222,106 +200,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
         }
       }
 
-      // 4. Si la connexion standard a réussi :
-      if (userCredential?.user) {
-        if (firestoreAccount && userCredential.user.uid !== firestoreAccount.id) {
-          try {
-            const accountToSync = {
-              ...firestoreAccount,
-              id: userCredential.user.uid,
-              authEmail: userCredential.user.email,
-              updatedAt: new Date().toISOString(),
-            };
-            delete (accountToSync as any).password;
-            delete (accountToSync as any).tempPassword;
-            await setDoc(doc(db, 'accounts', userCredential.user.uid), accountToSync, { merge: true });
-          } catch (syncErr) {
-            console.warn('Account sync notice on standard login:', syncErr);
-          }
-        }
-        onLoginSuccess(userCredential.user, firestoreAccount);
-        return true;
-      }
-
-      // 5. Si la connexion standard n'a pas trouvé l'utilisateur dans Firebase Auth,
-      // mais que le compte d'entreprise est bien présent dans Firestore :
-      // Vérification du mot de passe sécurisé (hash PBKDF2 ou mot de passe initial)
-      if (firestoreAccount) {
-        let isPasswordValid = false;
-        if (firestoreAccount.passwordHash && firestoreAccount.passwordSalt) {
-          isPasswordValid = await verifyPassword(password, firestoreAccount.passwordHash, firestoreAccount.passwordSalt);
-        } else if (firestoreAccount.password || firestoreAccount.tempPassword) {
-          isPasswordValid = (firestoreAccount.password === password || firestoreAccount.tempPassword === password);
-        }
-
-        if (isPasswordValid) {
-          const primaryEmail =
-            firestoreAccount.authEmail ||
-            firestoreAccount.email ||
-            `${(firestoreAccount.username || inputSanitized).toLowerCase()}@activa.local`;
-
-          // Auto-provisionne ou connecte les identifiants Firebase Auth pour ce compte vérifié
-          try {
-            userCredential = await createUserWithEmailAndPassword(auth, primaryEmail, password);
-          } catch (createErr: any) {
-            if (createErr.code === 'auth/email-already-in-use') {
-              try {
-                userCredential = await signInWithEmailAndPassword(auth, primaryEmail, password);
-              } catch {
-                const fallbackEmail = `${(firestoreAccount.username || inputSanitized).toLowerCase()}_${Date.now()}@activa.local`;
-                userCredential = await createUserWithEmailAndPassword(auth, fallbackEmail, password);
-              }
-            } else {
-              throw lastSignInErr || createErr;
-            }
-          }
-
-          if (userCredential?.user) {
-            const authUid = userCredential.user.uid;
-            const currentEmail = userCredential.user.email || primaryEmail;
-
-            // Assure la synchronisation immédiate du document accounts/{authUid}
-            // avec son rôle opérationnel (Admin, Supervisor, Agent) et ses permissions
-            const accountToSync = {
-              ...firestoreAccount,
-              id: authUid,
-              authEmail: currentEmail,
-              updatedAt: new Date().toISOString(),
-            };
-            delete (accountToSync as any).password;
-            delete (accountToSync as any).tempPassword;
-
-            try {
-              await setDoc(doc(db, 'accounts', authUid), accountToSync, { merge: true });
-            } catch (syncErr) {
-              console.warn('Account doc sync to Auth UID notice:', syncErr);
-            }
-
-            // Nettoie les champs de mot de passe en clair s'il en subsistait
-            if (firestoreAccount.password || firestoreAccount.tempPassword) {
-              try {
-                await updateDoc(doc(db, 'accounts', firestoreAccount.id), {
-                  password: deleteField(),
-                  tempPassword: deleteField(),
-                  authEmail: currentEmail,
-                });
-              } catch (cleanErr) {
-                console.warn('Account password cleanup notice:', cleanErr);
-              }
-            }
-            onLoginSuccess(userCredential.user, accountToSync);
-            return true;
-          }
-        } else {
-          // Mot de passe incorrect pour ce compte existant
-          setError('Invalid username or password. Please verify your credentials.');
-          setIsLoggingIn(false);
-          return false;
-        }
-      }
-
-      // 6. Vérification legacy via Cloud Function si applicable
-      if (resolveResult?.found && resolveResult?.legacyVerification) {
+      // 3. Si aucun e-mail candidat n'a permis de se connecter via Firebase Auth, mais que la
+      // Cloud Function a validé un mot de passe legacy (hash PBKDF2, ou mot de passe en clair
+      // non encore migré — la migration est effectuée automatiquement côté serveur), provisionne
+      // l'identifiant Firebase Auth pour ce compte désormais vérifié.
+      if (!userCredential?.user && resolveResult?.found && resolveResult?.legacyVerification) {
         if (resolveResult.legacyVerification.checked && !resolveResult.legacyVerification.valid) {
           setError('Invalid username or password. Please verify your credentials.');
           setIsLoggingIn(false);
@@ -338,25 +221,65 @@ export const LoginView: React.FC<LoginViewProps> = ({
             userCredential = await createUserWithEmailAndPassword(auth, primaryEmail, password);
           } catch (createErr: any) {
             if (createErr.code === 'auth/email-already-in-use') {
-              const fallbackEmail = `${(resolveResult.username || inputSanitized).toLowerCase()}_${Date.now()}@activa.local`;
               try {
-                userCredential = await createUserWithEmailAndPassword(auth, fallbackEmail, password);
+                userCredential = await signInWithEmailAndPassword(auth, primaryEmail, password);
               } catch {
-                throw lastSignInErr || createErr;
+                const fallbackEmail = `${(resolveResult.username || inputSanitized).toLowerCase()}_${Date.now()}@activa.local`;
+                try {
+                  userCredential = await createUserWithEmailAndPassword(auth, fallbackEmail, password);
+                } catch {
+                  throw lastSignInErr || createErr;
+                }
               }
             } else {
               throw lastSignInErr || createErr;
             }
           }
-
-          if (userCredential?.user) {
-            onLoginSuccess(userCredential.user);
-            return true;
-          }
         }
       }
 
-      // 7. En cas d'échec
+      // 4. Connexion réussie (standard ou provisionnement legacy) : récupère le document de
+      // compte du PROPRE utilisateur désormais authentifié — lecture single-doc explicitement
+      // autorisée par firestore.rules (jamais la collection entière). Si ce document n'existe
+      // pas encore sous cet uid (compte pré-provisionné sous un identifiant différent), la
+      // Cloud Function `ensureUserAccount` (SDK Admin) le relie de façon sécurisée.
+      if (userCredential?.user) {
+        const uid = userCredential.user.uid;
+        let accountData: any = null;
+        try {
+          const accSnap = await getDoc(doc(db, 'accounts', uid));
+          accountData = accSnap.exists() ? { id: uid, ...accSnap.data() } : null;
+        } catch (readErr) {
+          console.warn('Account read notice after login:', readErr);
+        }
+
+        if (!accountData) {
+          try {
+            const ensureFn = httpsCallable<{ identifier?: string }, { success: boolean; linked: boolean; profile?: string }>(
+              functions,
+              'ensureUserAccount'
+            );
+            const ensureRes = await ensureFn({ identifier: cleanUsername });
+            if (ensureRes.data?.success) {
+              const accSnap = await getDoc(doc(db, 'accounts', uid));
+              accountData = accSnap.exists() ? { id: uid, ...accSnap.data() } : null;
+            }
+          } catch (ensureErr) {
+            console.warn('ensureUserAccount notice:', ensureErr);
+          }
+        }
+
+        if (accountData && accountData.isActive === false) {
+          setError('This account has been deactivated. Please contact your administrator.');
+          setIsLoggingIn(false);
+          return false;
+        }
+
+        onLoginSuccess(userCredential.user, accountData);
+        return true;
+      }
+
+      // 5. En cas d'échec
       setError('Invalid username or password. Please verify your credentials.');
       setIsLoggingIn(false);
       return false;

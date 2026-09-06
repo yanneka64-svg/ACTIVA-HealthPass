@@ -47,11 +47,22 @@ export async function uploadDataUrlToStorage(dataUrl: string, path: string): Pro
  * `pathPrefix` groups uploads by context (e.g. 'member-photos', 'enrollment-photos') so
  * files are easy to find/administer in the Storage console; `identifier` should be a
  * stable-ish id (card number, temp id) to avoid collisions.
+ *
+ * === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-04 — CRITIQUE) ===
+ * Nouveau paramètre optionnel `organization` : quand il est fourni, le fichier est déposé sous
+ * `{pathPrefix}/{organization}/{identifier}-{timestamp}.jpg` plutôt que directement sous
+ * `{pathPrefix}/...`. Ce segment supplémentaire permet à `storage.rules` de restreindre
+ * l'accès par organisation (comme `hasOrgAccess()` le fait déjà pour Firestore), corrigeant
+ * l'absence totale de cloisonnement documentée dans l'audit de sécurité. Rétrocompatible :
+ * si `organization` est omis ou vide, le comportement (et le chemin produit) reste EXACTEMENT
+ * celui d'avant ce correctif — les fichiers déjà déposés sous l'ancien format plat restent
+ * accessibles (voir la règle `legacy` dans storage.rules).
  */
 export async function uploadPhotoOrFallback(
   dataUrl: string,
   pathPrefix: string,
-  identifier: string
+  identifier: string,
+  organization?: string
 ): Promise<string> {
   if (!dataUrl || !dataUrl.startsWith('data:')) {
     // Already a real URL (e.g. re-saving an existing member without recapturing the photo,
@@ -59,7 +70,10 @@ export async function uploadPhotoOrFallback(
     return dataUrl;
   }
   const safeIdentifier = (identifier || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
-  const path = `${pathPrefix}/${safeIdentifier}-${Date.now()}.jpg`;
+  const safeOrg = organization ? organization.replace(/[^a-zA-Z0-9_-]/g, '_') : '';
+  const path = safeOrg
+    ? `${pathPrefix}/${safeOrg}/${safeIdentifier}-${Date.now()}.jpg`
+    : `${pathPrefix}/${safeIdentifier}-${Date.now()}.jpg`;
   try {
     return await uploadDataUrlToStorage(dataUrl, path);
   } catch (err) {

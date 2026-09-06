@@ -6,6 +6,15 @@
 // 4. Acceptation des documents valides (<= 15Mo) dans claims/receipts
 // 5. Blocage de la suppression pour les non-admins
 // 6. Blocage par défaut sur les chemins arbitraires non autorisés
+// 7. Cloisonnement par organisation (fusionné le 2026-09-06 avec ce qui précède — voir le
+//    commentaire en tête de storage.rules pour le contexte du conflit de fusion résolu ici)
+//
+// === AMÉLIORATION AJOUTÉE (2026-09-06) : mis à jour pour refléter la fusion de storage.rules
+// entre le cloisonnement par organisation (cette PR) et le durcissement MIME/taille/suppression
+// (poussé sur `main` pendant que cette PR était ouverte) — les chemins `member-photos`/
+// `enrollment-photos`/`claims`/`receipts`/`documents` portent désormais un segment `{orgId}`,
+// et les fonctions s'appellent `isSignedIn()`/`isActiveUser()` (pas `isAuthenticated()`),
+// cohérent avec la convention déjà utilisée dans firestore.rules.
 
 import { describe, expect, it } from 'vitest';
 import fs from 'fs';
@@ -20,7 +29,7 @@ describe('Storage Rules — Hardening & Access Control', () => {
   });
 
   it('Enforces authentication for read and write operations', () => {
-    expect(rulesContent).toContain('function isAuthenticated()');
+    expect(rulesContent).toContain('function isSignedIn()');
     expect(rulesContent).toContain('request.auth != null');
   });
 
@@ -36,12 +45,17 @@ describe('Storage Rules — Hardening & Access Control', () => {
     expect(rulesContent).toContain('isValidSize(15)');
   });
 
-  it('Isolates sensitive operational paths', () => {
-    expect(rulesContent).toContain('/member-photos/{photoId}');
-    expect(rulesContent).toContain('/enrollment-photos/{photoId}');
-    expect(rulesContent).toContain('/claims/{claimId}/{fileName}');
-    expect(rulesContent).toContain('/receipts/{receiptId}/{fileName}');
-    expect(rulesContent).toContain('/documents/{docId}/{fileName}');
+  it('Isolates sensitive operational paths, cloisonnés par organisation', () => {
+    expect(rulesContent).toContain('/member-photos/{orgId}/{fileName}');
+    expect(rulesContent).toContain('/enrollment-photos/{orgId}/{fileName}');
+    expect(rulesContent).toContain('/claims/{orgId}/{claimId}/{fileName}');
+    expect(rulesContent).toContain('/receipts/{orgId}/{receiptId}/{fileName}');
+    expect(rulesContent).toContain('/documents/{orgId}/{docId}/{fileName}');
+  });
+
+  it('Enforces per-organization access via custom claims (hasOrgAccess)', () => {
+    expect(rulesContent).toContain('function hasOrgAccess(orgId)');
+    expect(rulesContent).toContain("request.auth.token.orgs");
   });
 
   it('Restricts file deletion strictly to Admin role', () => {
@@ -52,5 +66,9 @@ describe('Storage Rules — Hardening & Access Control', () => {
     expect(rulesContent).toContain('match /{allPaths=**}');
     expect(rulesContent).toContain('allow read, write: if false;');
   });
-});
 
+  it('Preserves legacy flat paths for files uploaded before the org-scoping fix (no regression)', () => {
+    expect(rulesContent).toContain('match /member-photos/{fileName}');
+    expect(rulesContent).toContain('match /enrollment-photos/{fileName}');
+  });
+});

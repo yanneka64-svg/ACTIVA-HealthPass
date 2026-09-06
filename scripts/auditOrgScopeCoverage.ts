@@ -1,25 +1,47 @@
 /**
- * Audit script for Point SEC-FS-002: Multi-Tenant Organization Scope Coverage.
+ * Read-only audit script for finding SEC-FS-002 (firestore.rules, hasOrgAccess()).
  *
- * Connects to the production Firestore named database:
- * `ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b`
+ * hasOrgAccess() currently returns `true` (unrestricted) for any account whose
+ * `assignedOrganizations` field is absent — this is a deliberate, documented backward-
+ * compatibility choice (see the Phase 1.3 comment above hasOrgAccess() in firestore.rules):
+ * it was introduced as an additive, opt-in field so no existing account's access changed
+ * the day the field was introduced.
  *
- * Verifies:
- * 1. Account scoping (accounts.assignedOrganizations vs admin/global accounts)
- * 2. Organization coverage across all scoped collections:
- *    - members (field: organization)
- *    - claims (field: organization)
- *    - enrollments (field: organization)
- *    - invoices (field: organization)
- *    - medicalForms (field: organization)
- *    - policyPayments (field: organizationId)
- *    - healthPolicies (doc ID / organizationId)
- * 3. Master organizations registry consistency
- * 4. Detection of orphaned or un-scoped documents (missing organization field)
+ * Flipping that default (closed unless explicitly scoped) would immediately restrict every
+ * Agent/Supervisor account that has never had `assignedOrganizations` set — this script does
+ * NOT make that change. It reports which accounts would be affected, and (beyond accounts)
+ * how many documents in each org-scoped business collection actually carry an organization
+ * field, so a human with production Firestore access can evaluate the real-world impact
+ * before anyone decides to flip the default.
+ *
+ * This script performs NO writes.
+ *
+ * === AMÉLIORATION AJOUTÉE (2026-09-06) : fusionné avec une version poussée en parallèle
+ * directement sur `main`, qui ajoutait une couverture utile (audit multi-collections :
+ * members/claims/enrollments/invoices/medicalForms/policyPayments/healthPolicies, registre des
+ * organisations) mais réintroduisait la clé API Firebase ET un mot de passe réel EN DUR comme
+ * valeur de repli — exactement le problème déjà corrigé une première fois dans ce fichier (voir
+ * git log). Toute valeur sensible reste exclusivement lue depuis une variable d'environnement,
+ * sans repli codé en dur, quelle que soit la version d'origine du code fusionné.
+ *
+ * USAGE:
+ *   FIREBASE_API_KEY=... FIREBASE_PROJECT_ID=... FIREBASE_AUTH_DOMAIN=... \
+ *   FIRESTORE_DATABASE_ID=... AUDIT_ADMIN_EMAIL=... AUDIT_ADMIN_PASSWORD=... \
+ *   npx tsx scripts/auditOrgScopeCoverage.ts
  */
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}. See the USAGE comment at the top of this script.`);
+  }
+  return value;
+}
+
+const SCOPABLE_PROFILES = new Set(['Agent', 'Supervisor', 'Superviseur']);
 
 interface CollectionAuditResult {
   collectionName: string;
@@ -31,71 +53,72 @@ interface CollectionAuditResult {
   orphanedDocIds: string[];
 }
 
-async function auditOrgScopeCoverage() {
+async function audit() {
   console.log('================================================================');
-  console.log('AUDIT REPORT: SEC-FS-002 — Multi-Tenant Organization Scope Coverage');
-  console.log('Target Database: ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b');
+  console.log('AUDIT REPORT: SEC-FS-002 — Multi-Tenant Organization Scope Coverage (read-only)');
   console.log('Timestamp: ' + new Date().toISOString());
   console.log('================================================================\n');
 
   const app = initializeApp({
-    apiKey: 'AIzaSyDfN_rZOwrcmVuJHzymswFpoNl6zBuaRXk',
-    projectId: 'gen-lang-client-0957905786',
-    authDomain: 'gen-lang-client-0957905786.firebaseapp.com'
+    apiKey: requireEnv('FIREBASE_API_KEY'),
+    projectId: requireEnv('FIREBASE_PROJECT_ID'),
+    authDomain: requireEnv('FIREBASE_AUTH_DOMAIN'),
   });
   const auth = getAuth(app);
-  const db = getFirestore(app, 'ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b');
+  const db = getFirestore(app, requireEnv('FIRESTORE_DATABASE_ID'));
 
-  const adminEmail = process.env.MIGRATION_ADMIN_EMAIL || 'yannick.ekani_test@activa.local';
-  const adminPass = process.env.MIGRATION_ADMIN_PASSWORD || 'Activa#P@ss2026_DLgQmkuyVPyxClkS!';
+  await signInWithEmailAndPassword(auth, requireEnv('AUDIT_ADMIN_EMAIL'), requireEnv('AUDIT_ADMIN_PASSWORD'));
 
-  console.log(`Authenticating auditor with: ${adminEmail}...`);
-  try {
-    await signInWithEmailAndPassword(auth, adminEmail, adminPass);
-    console.log(`✓ Auditor authenticated successfully.\n`);
-  } catch (err: any) {
-    console.error(`✗ Auditor authentication failed: ${err.message}`);
-    process.exit(1);
-  }
-
-  // 1. Audit Master Organizations
+  // --- 1. Master organizations registry ---
   console.log('--- 1. MASTER ORGANIZATIONS REGISTRY ---');
   const orgsSnap = await getDocs(collection(db, 'organizations'));
   const knownOrgs = new Set<string>();
   orgsSnap.docs.forEach((d) => {
     const data = d.data();
-    const name = data.name || d.id;
-    knownOrgs.add(name);
+    knownOrgs.add(data.name || d.id);
   });
   console.log(`Total Master Organizations defined: ${orgsSnap.size}`);
   console.log(`Known Organizations: [${Array.from(knownOrgs).join(', ')}]\n`);
 
-  // 2. Audit Accounts & assignedOrganizations
-  console.log('--- 2. ACCOUNTS & TENANT SCOPING AUDIT ---');
+  // --- 2. Accounts & assignedOrganizations coverage ---
+  console.log('--- 2. ACCOUNTS & TENANT SCOPING AUDIT (SEC-FS-002 core question) ---');
   const accountsSnap = await getDocs(collection(db, 'accounts'));
-  let accountsWithScope = 0;
-  let adminAccounts = 0;
-  let globalAccessAccounts = 0;
+  const unscoped: { id: string; username?: string; profile?: string; isActive?: boolean }[] = [];
+  let scopedCount = 0;
+  let adminOrOtherCount = 0;
 
-  accountsSnap.docs.forEach((d) => {
-    const data = d.data();
-    const role = data.role || 'Unspecified';
-    const assigned = data.assignedOrganizations;
-    if (role === 'Admin') {
-      adminAccounts++;
-    } else if (Array.isArray(assigned) && assigned.length > 0) {
-      accountsWithScope++;
-      console.log(`  - Account ${d.id} (${data.username || data.email}): Scoped to [${assigned.join(', ')}]`);
+  accountsSnap.docs.forEach((docSnap) => {
+    const data = docSnap.data();
+    const profile: string | undefined = data.profile;
+    const hasScope = Array.isArray(data.assignedOrganizations) && data.assignedOrganizations.length > 0;
+
+    if (profile && SCOPABLE_PROFILES.has(profile)) {
+      if (hasScope) {
+        scopedCount++;
+      } else {
+        unscoped.push({ id: docSnap.id, username: data.username, profile, isActive: data.isActive });
+      }
     } else {
-      globalAccessAccounts++;
-      console.log(`  - Account ${d.id} (${data.username || data.email}): Global access (role: ${role}, assignedOrganizations: not set)`);
+      // Admin accounts always bypass hasOrgAccess() (isAdmin() takes priority) — not affected
+      // either way by this finding, listed separately for completeness only.
+      adminOrOtherCount++;
     }
   });
 
-  console.log(`Summary Accounts: Total=${accountsSnap.size} | Admin=${adminAccounts} | Explicitly Scoped=${accountsWithScope} | Global/Default=${globalAccessAccounts}\n`);
+  console.log(`Total accounts found: ${accountsSnap.size}`);
+  console.log(`Agent/Supervisor accounts WITH assignedOrganizations set: ${scopedCount}`);
+  console.log(`Admin (or other/unrecognized profile) accounts, not affected by hasOrgAccess(): ${adminOrOtherCount}`);
+  console.log(`Agent/Supervisor accounts WITHOUT assignedOrganizations (would lose unrestricted`);
+  console.log(`org access if the hasOrgAccess() default were flipped to closed): ${unscoped.length}`);
+  if (unscoped.length > 0) {
+    console.log('\nAffected accounts:');
+    unscoped.forEach((a) => {
+      console.log(`  - ${a.id} | username=${a.username || 'unknown'} | profile=${a.profile} | isActive=${a.isActive}`);
+    });
+  }
 
-  // 3. Audit Scoped Business Collections
-  console.log('--- 3. BUSINESS COLLECTIONS ORGANIZATION FIELD COVERAGE ---');
+  // --- 3. Business collections organization-field coverage ---
+  console.log('\n--- 3. BUSINESS COLLECTIONS ORGANIZATION FIELD COVERAGE ---');
   const targetCollections: { name: string; field: string }[] = [
     { name: 'members', field: 'organization' },
     { name: 'claims', field: 'organization' },
@@ -103,7 +126,7 @@ async function auditOrgScopeCoverage() {
     { name: 'invoices', field: 'organization' },
     { name: 'medicalForms', field: 'organization' },
     { name: 'policyPayments', field: 'organizationId' },
-    { name: 'healthPolicies', field: 'organizationId' }
+    { name: 'healthPolicies', field: 'organizationId' },
   ];
 
   const results: CollectionAuditResult[] = [];
@@ -116,8 +139,7 @@ async function auditOrgScopeCoverage() {
     const orphaned: string[] = [];
 
     snap.docs.forEach((docSnap) => {
-      const data = docSnap.data();
-      const val = data[target.field];
+      const val = docSnap.data()[target.field];
       if (val && typeof val === 'string' && val.trim().length > 0) {
         withOrg++;
         orgsFound.add(val.trim());
@@ -134,11 +156,10 @@ async function auditOrgScopeCoverage() {
       withOrgField: withOrg,
       missingOrgField: missingOrg,
       uniqueOrgs: Array.from(orgsFound),
-      orphanedDocIds: orphaned
+      orphanedDocIds: orphaned,
     });
   }
 
-  // Print results table
   console.log(
     'Collection'.padEnd(16) +
     'Total Docs'.padEnd(12) +
@@ -155,7 +176,7 @@ async function auditOrgScopeCoverage() {
   for (const res of results) {
     totalDocsAudited += res.totalDocs;
     totalMissingOrg += res.missingOrgField;
-    const status = res.missingOrgField === 0 ? '✓ PASS' : res.totalDocs === 0 ? '- EMPTY' : '⚠ WARN';
+    const status = res.missingOrgField === 0 ? 'PASS' : res.totalDocs === 0 ? 'EMPTY' : 'WARN';
     console.log(
       res.collectionName.padEnd(16) +
       String(res.totalDocs).padEnd(12) +
@@ -165,35 +186,19 @@ async function auditOrgScopeCoverage() {
       status
     );
     if (res.orphanedDocIds.length > 0) {
-      console.log(`    ↳ Un-scoped document IDs: ${res.orphanedDocIds.slice(0, 5).join(', ')}${res.orphanedDocIds.length > 5 ? '...' : ''}`);
+      console.log(`    -> Un-scoped document IDs: ${res.orphanedDocIds.slice(0, 5).join(', ')}${res.orphanedDocIds.length > 5 ? '...' : ''}`);
     }
   }
 
-  console.log('\n--- 4. SEC-FS-002 COMPLIANCE SYNTHESIS ---');
+  console.log('\n--- 4. SUMMARY ---');
   console.log(`Total business documents inspected : ${totalDocsAudited}`);
   console.log(`Total documents properly scoped     : ${totalDocsAudited - totalMissingOrg}`);
   console.log(`Total documents un-scoped / missing : ${totalMissingOrg}`);
-
-  const rulesCompliance = '✓ COMPLIANT: firestore.rules enforces `hasOrgAccess(orgName)` checking `assignedOrganizations`';
-  const queryCompliance = '✓ COMPLIANT: src/services/firestore.ts wraps read subscriptions with `scopedQuery()`';
-
-  console.log(`\nSecurity Layer Verification:`);
-  console.log(`- Firestore Security Rules Gate : ${rulesCompliance}`);
-  console.log(`- Client SDK Query Isolation    : ${queryCompliance}`);
-
-  if (totalMissingOrg === 0) {
-    console.log('\n[PASS] Point SEC-FS-002 is 100% compliant. No orphaned or un-scoped documents found.');
-  } else {
-    console.log(`\n[NOTE] Point SEC-FS-002: ${totalMissingOrg} legacy document(s) have no explicit organization field.`);
-  }
-
-  console.log('\n================================================================');
-  console.log('AUDIT COMPLETE');
-  console.log('================================================================');
+  console.log('\n--- Audit finished. No data was modified. ---');
   process.exit(0);
 }
 
-auditOrgScopeCoverage().catch((err) => {
+audit().catch((err) => {
   console.error('Audit failed:', err);
   process.exit(1);
 });

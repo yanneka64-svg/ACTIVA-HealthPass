@@ -26,6 +26,7 @@ import {
 import { Claim, Language, Organization, Provider, Member, NavSection } from '../types';
 import { useTranslation } from '../i18n/translations';
 import { exportClaimsToCSV, exportClaimsToExcel } from '../utils/excelUtils';
+import { FirestoreService } from '../services/firestore';
 import { useCurrency } from '../services/currency';
 import { AttachmentBiometricViewerModal } from '../components/AttachmentBiometricViewerModal';
 import { ExportDropdown } from '../components/ExportDropdown';
@@ -209,6 +210,22 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
   };
 
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
+
+  // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.6) — voir
+  // ReportsView.tsx pour le même mécanisme. Journalise chaque export de claims (montants +
+  // nature des actes, potentiellement révélateurs de données de santé) sans jamais bloquer
+  // l'export en cas d'échec de la journalisation.
+  const logExportEvent = (format: 'Excel' | 'CSV', recordCount: number) => {
+    FirestoreService.addLog({
+      userId: currentUser?.uid || 'unknown',
+      userName: currentUser?.displayName || currentUser?.fullName || currentUser?.email || 'Unknown',
+      userRole: userRole || 'Unknown',
+      action: 'DATA_EXPORTED',
+      category: 'Claims',
+      entityType: 'claims',
+      details: `Exported ${recordCount} claim(s) as ${format}.`,
+    }).catch(() => {});
+  };
   // === AMÉLIORATION AJOUTÉE : couleurs alignées sur le rôle connecté (gris Admin / teal
   // Supervisor) au lieu du bleu marine Agent affiché en dur auparavant peu importe qui
   // consultait cet écran (ClaimsView est partagé Admin + Supervisor).
@@ -319,8 +336,14 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
           {canExportData(userRole) && currentSection !== 'claims_validation' && (
             <ExportDropdown
               lang={lang}
-              onExportExcel={() => exportClaimsToExcel(filteredClaims, lang)}
-              onExportPDF={() => exportClaimsToCSV(filteredClaims, lang)}
+              onExportExcel={() => {
+                exportClaimsToExcel(filteredClaims, lang);
+                logExportEvent('Excel', filteredClaims.length);
+              }}
+              onExportPDF={() => {
+                exportClaimsToCSV(filteredClaims, lang);
+                logExportEvent('CSV', filteredClaims.length);
+              }}
             />
           )}
 
