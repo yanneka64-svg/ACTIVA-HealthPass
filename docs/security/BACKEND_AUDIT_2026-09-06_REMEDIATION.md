@@ -88,11 +88,35 @@ Vérifié après fusion : `npm run lint` (racine), `npm test` (37/37), tests de 
 sur émulateur (57/57), `cd functions && npx tsc --noEmit` et `npm test` (19/19), `npm run build`
 (racine) — tous passent sans régression.
 
+## Deuxième conflit de fusion avec `main` (2026-09-06, après le premier) — mot de passe compromis une seconde fois
+
+Un second commit direct sur `main` (`chore: enhance security and add audit tools`) a réécrit
+`scripts/migratePlaintextPasswords.ts` et `scripts/auditOrgScopeCoverage.ts`, et ajouté
+`scripts/resetCompromisedPassword.ts`. Ces trois fichiers réintroduisaient, en clair, la clé API
+Firebase et — plus grave — **le NOUVEAU mot de passe issu de la rotation** du compte
+`yannick.ekani_test@activa.local` (`Activa#P@ss2026_DLgQmkuyVPyxClkS!`), codé en dur comme valeur
+de repli dans deux fichiers différents. C'est exactement le même type d'erreur que celle déjà
+corrigée le 2026-09-06 plus tôt dans la journée (voir plus haut) — la rotation du mot de passe
+compromis a elle-même fini par recompromettre son remplaçant, très probablement en recopiant la
+valeur affichée une fois par `resetCompromisedPassword.ts` à l'exécution directement dans le
+code d'un autre script au lieu de la stocker dans un gestionnaire de secrets.
+
+**Résolution** : fusion plutôt que choix d'un côté — la couverture d'audit multi-collections
+apportée par la version de `main` (`members`/`claims`/`enrollments`/`invoices`/`medicalForms`/
+`policyPayments`/`healthPolicies`, registre des organisations) est conservée dans
+`auditOrgScopeCoverage.ts`, mais toute valeur sensible (clé API, e-mail, mot de passe) reste
+exclusivement lue depuis une variable d'environnement dans les trois scripts, sans aucun repli
+codé en dur. Revérifié après fusion : `npm run lint`, `npm test` (37/37), tests de règles
+Firestore sur émulateur (57/57), `npm run build` — tous passent.
+
 ## Actions humaines requises (cumulées, tous groupes)
 
-1. **Urgent** : changer le mot de passe du compte `yannick.ekani_test@activa.local` dans Firebase
-   Authentication (secret exposé dans l'historique git, à la fois dans `server.ts` — déjà retiré
-   le 2026-09-05 — et dans `scripts/migratePlaintextPasswords.ts` — retiré le 2026-09-06).
+1. **Urgent, à nouveau** : le mot de passe `Activa#P@ss2026_DLgQmkuyVPyxClkS!` (censé remplacer
+   le premier secret compromis) est LUI AUSSI désormais exposé dans l'historique git déjà publié
+   sur GitHub — il doit être changé une deuxième fois dans Firebase Authentication, cette fois-ci
+   en prenant soin de ne JAMAIS le recopier en dur dans un fichier commité (voir
+   `scripts/resetCompromisedPassword.ts`, qui l'affiche une seule fois sur la sortie standard
+   pour être noté dans un gestionnaire de secrets — pas dans un autre script).
 2. Déployer les règles/fonctions réellement modifiées : `firebase deploy --only functions,firestore:rules,storage`.
 3. Exécuter `scripts/auditOrgScopeCoverage.ts` (lecture seule) avec un accès Firestore de
    production pour chiffrer l'impact de SEC-FS-002, si une bascule est envisagée un jour.
