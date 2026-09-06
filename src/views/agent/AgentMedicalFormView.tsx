@@ -43,6 +43,8 @@ import {
 } from '../../utils/medicalFormUtils';
 // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
 import { encryptMedicalFormPrescription, decryptMedicalFormPrescription } from '../../utils/sensitiveData';
+// === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) ===
+import { DEFAULT_MEDICAL_FORM_RETENTION_YEARS, isPastRetention } from '../../config/dataRetention';
 
 interface AgentMedicalFormViewProps {
   providers: Provider[];
@@ -417,6 +419,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       return f;
     });
   }, [medicalForms]);
+
+  // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) — dossiers
+  // ayant dépassé la durée de rétention indicative (voir src/config/dataRetention.ts), calculé
+  // sur l'ensemble de l'historique (indépendamment des filtres actifs) pour un signalement fiable.
+  const pastRetentionForms = useMemo(
+    () => normalizedForms.filter((f) => isPastRetention(f.retentionUntil)),
+    [normalizedForms]
+  );
 
   // Filtered forms for history
   const filteredForms = useMemo(() => {
@@ -1186,6 +1196,24 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) —
+              Signalement purement informatif des dossiers ayant dépassé la durée de rétention
+              indicative (voir src/config/dataRetention.ts). Aucune action de suppression n'est
+              proposée ici : la revue et la décision restent manuelles, cohérent avec la décision
+              explicite de ne construire aucun mécanisme de purge automatisée tant que les durées
+              réglementaires par pays ne sont pas confirmées. */}
+          {pastRetentionForms.length > 0 && (
+            <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <Clock className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-800">
+                <span className="font-bold">
+                  {pastRetentionForms.length} medical form{pastRetentionForms.length > 1 ? 's have' : ' has'} passed the indicative retention period
+                </span>{' '}
+                ({DEFAULT_MEDICAL_FORM_RETENTION_YEARS} years since issuance) and should be reviewed manually. No automatic deletion is performed.
+              </p>
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">

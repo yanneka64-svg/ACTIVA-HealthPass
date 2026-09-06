@@ -254,10 +254,25 @@ correctifs appliqués.*
    du chiffrement, qui aurait cassé la recherche/le scan sans bénéfice réel (voir section 1,
    note de correction). Nécessite le déploiement de la Cloud Function et la configuration du
    secret pour prendre effet.
-5. ⏸️ **REPORTÉ** (décision explicite du 2026-09-05, vu la découverte du point 1) — **Politique
-   de rétention et de purge programmée** (2.4) : aucun nouveau mécanisme de suppression
-   automatisée ne sera construit sans un point dédié sur les durées réglementaires par pays et
-   les garde-fous exigés.
+5. 🔶 **PHASE 1 CORRIGÉE (non destructive), suite reste REPORTÉE** (ce commit) — **Politique de
+   rétention et de purge programmée** (2.4). Toujours aucun mécanisme de suppression
+   automatisée : les durées réglementaires exactes par pays (Liberia, Cameroun, Côte d'Ivoire,
+   Ghana, Guinée, RDC, Sierra Leone) restent à confirmer avec la conformité avant d'y toucher
+   (décision explicite, reconfirmée le 2026-09-06). Ce qui est livré maintenant, à droit constant
+   et sans aucun risque de perte de donnée :
+   - `src/config/dataRetention.ts` : calcule une date `retentionUntil` indicative
+     (`issueDate` + `DEFAULT_MEDICAL_FORM_RETENTION_YEARS`, actuellement 10 ans — valeur
+     **provisoire**, volontairement prudente en attendant confirmation pays par pays, documentée
+     comme telle dans le code) et une fonction pure `isPastRetention` qui ne renvoie jamais
+     `true` en l'absence de date calculée.
+   - `MedicalForm.retentionUntil` (champ optionnel, additif) : calculé pour tout NOUVEAU
+     formulaire dans `FirestoreService.addMedicalForm` ; les formulaires existants ne sont pas
+     rétro-migrés (aucune écriture de masse sur l'historique).
+   - Écran Historique des dossiers médicaux (`AgentMedicalFormView.tsx`) : bandeau
+     d'avertissement purement informatif signalant le nombre de dossiers ayant dépassé la
+     rétention indicative, sans aucune action de suppression proposée — la revue reste
+     entièrement manuelle.
+   - 4 nouveaux tests unitaires (`tests/dataRetention.test.ts`) : 28/28 tests unitaires passent.
 6. ✅ **CORRIGÉ** (commit `5d44ca5`) — **Encadrer les exports en masse** (2.6) : chaque export
    (rapports, polices, claims, membres) écrit désormais une entrée d'audit structurée
    (qui/quoi/quand) dans `auditLogs`.

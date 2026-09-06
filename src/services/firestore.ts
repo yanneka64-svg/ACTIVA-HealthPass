@@ -3,6 +3,7 @@ import { db, auth } from '../lib/firebase';
 import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, AuditLog, MedicalForm, AppNotification, HealthPolicy, PolicyPayment } from '../types';
 import { getFullDemoData, seedInitialDemoDataIfEmpty } from './seedData';
 import { isNewSecurityNumberFormat, normalizeMedicalFormSecurityNumber } from '../utils/medicalFormUtils';
+import { computeMedicalFormRetentionUntil } from '../config/dataRetention';
 
 // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5) —
 // voir deleteMedicalForm/deleteAllMedicalForms ci-dessous.
@@ -586,6 +587,11 @@ export const FirestoreService = {
         data.barcode = secNum;
       }
       const { doctorPrescription, ...parentData } = data;
+      // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) —
+      // date de rétention indicative, purement informative (voir src/config/dataRetention.ts) :
+      // aucune suppression automatique n'en découle, elle sert seulement à signaler plus tard,
+      // à un Admin/Supervisor, les dossiers arrivés à échéance pour une revue manuelle.
+      parentData.retentionUntil = computeMedicalFormRetentionUntil(parentData.issueDate || new Date().toISOString());
       const parentRef = await addDoc(collection(db, 'medicalForms'), parentData);
 
       if (

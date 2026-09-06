@@ -276,6 +276,12 @@ export interface MedicalForm {
   // medicalForms, cette collection n'ayant pas de notion de transition d'approbation
   // (status: issued/used/pending_return/completed — voir docs/security/CODE_AUDIT_MAP.md).
   createdByUid?: string;
+  // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) — date de
+  // rétention indicative (voir src/config/dataRetention.ts), calculée uniquement pour les
+  // formulaires créés après ce correctif. Absente sur l'historique existant : ne signifie jamais
+  // "à purger immédiatement", seulement "pas encore évaluée". Purement informative — aucune
+  // suppression automatique n'est déclenchée par ce champ.
+  retentionUntil?: string;
 }
 
 export type OrgStatus = 'Active' | 'Actif' | 'Expired' | 'Expiré' | 'Suspended' | 'Suspendu';
