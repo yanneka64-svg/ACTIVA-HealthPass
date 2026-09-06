@@ -4,9 +4,28 @@ import { createServer as createViteServer } from 'vite';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, DocumentData } from 'firebase-admin/firestore';
+import helmet from 'helmet';
 
 const app = express();
 const PORT = 3000;
+
+// === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.5) ===
+// Constat : aucun en-tête de sécurité HTTP n'était posé par ce serveur (ni Content-Security-
+// Policy, ni X-Frame-Options, ni Strict-Transport-Security...) — pour une application qui
+// affiche des données de santé à l'écran, ces en-têtes réduisent significativement l'impact
+// d'une éventuelle faille XSS ou d'un clickjacking. `contentSecurityPolicy` reste désactivée
+// ici : une CSP mal calibrée pourrait bloquer silencieusement les appels réseau du SDK Firebase
+// (Auth/Firestore/Functions/Storage, sur de nombreux sous-domaines *.googleapis.com) ou des
+// bibliothèques comme jsPDF/html2canvas — un risque de régression que cette session ne peut pas
+// entièrement écarter sans test visuel exhaustif de chaque écran. Les autres protections de
+// `helmet` (X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Strict-Transport-Security,
+// masquage de X-Powered-By...) sont, elles, sans risque de régression fonctionnelle et activées
+// immédiatement.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+  })
+);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
