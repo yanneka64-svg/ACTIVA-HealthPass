@@ -47,6 +47,47 @@ l'utilisateur a délégué le choix. Décision prise selon le principe directeur
    des correctifs de sécurité déjà écrits, pas du code mort — les supprimer serait une régression
    de la posture de sécurité sans bénéfice réel.
 
+## Conflit de fusion avec `main` (2026-09-06, après validation des Groupes 1-3)
+
+Pendant que cette PR était ouverte, un commit direct sur `main` (`chore: update infrastructure
+and dependencies`) a modifié plusieurs fichiers touchés par cette PR, créant un vrai conflit de
+fusion — pas seulement textuel, mais fonctionnel sur deux points :
+
+1. **`storage.rules`** : `main` a réécrit intégralement le fichier avec un durcissement
+   MIME/taille/suppression (types de fichiers vérifiés, limites de taille, suppression réservée
+   Admin, fermeture par défaut sur tout chemin non déclaré) — **sans avoir connaissance du
+   cloisonnement par organisation** de cette PR (SEC-STOR-001). Prendre la version de `main`
+   telle quelle aurait fait régresser ce cloisonnement ; garder uniquement la version de cette PR
+   aurait perdu le nouveau durcissement. **Résolution : fusion des deux** — chaque chemin
+   cloisonné par organisation porte désormais aussi la validation MIME/taille, et les nouveaux
+   chemins anticipés par `main` (`claims`/`receipts`/`documents`, non encore utilisés par le code
+   actuel) portent eux aussi un segment d'organisation, par cohérence. `tests/storage.rules.test.ts`
+   (ajouté par `main`) mis à jour pour refléter cette fusion plutôt que cassé par elle.
+
+2. **`functions/package.json`** : `main` a rétrogradé `firebase-functions` de `^7.3.2` à
+   `^5.0.0` et `firebase-admin` de `^13.0.0` à `^12.0.0` ("downgrade SDKs for compatibility" —
+   raison exacte non documentée dans le commit). Cette rétrogradation cassait intégralement la
+   compilation de `functions/src/index.ts` (18 erreurs TypeScript) : le code de cette PR utilise
+   la signature v2 `CallableRequest` (migration Phase 2, nécessaire sous v7), or sous v5 l'import
+   générique `functions.https.*` résout vers l'API v1, qui n'a jamais eu `CallableRequest`.
+   **Résolution : ni revenir à l'ancienne signature `(data, context)`, ni annuler la
+   rétrogradation de `main`** (dont la raison n'est pas connue) — `firebase-functions@5.1.1`
+   (version réellement installée) expose en fait très bien l'API v2 via l'import explicite
+   `firebase-functions/v2/https` (vérifié dans `node_modules`) ; le code a été mis à jour pour
+   importer `onCall`/`CallableRequest`/`HttpsError` depuis ce sous-module plutôt que depuis
+   l'espace de noms générique — compatible avec v5 ET v7, donc avec les deux contraintes.
+   **Effet secondaire noté, pas une régression nouvelle** : `npm audit` dans `functions/`
+   remonte 17 vulnérabilités (15 modérées, 1 haute, 1 critique) sur les dépendances de
+   `firebase-admin`/`firebase-functions` à ces versions — la sévérité "critique" concerne
+   `vitest` (dépendance de développement uniquement, exploitable seulement si son serveur UI est
+   exposé publiquement, ce qui n'est pas le cas ici) ; les autres recoupent les 13 findings
+   MODÉRÉS déjà documentés et acceptés dans `AUDIT_2026-09-05_REMEDIATION.md`. Aucune nouvelle
+   vulnérabilité critique de production identifiée, mais signalé ici pour traçabilité.
+
+Vérifié après fusion : `npm run lint` (racine), `npm test` (37/37), tests de règles Firestore
+sur émulateur (57/57), `cd functions && npx tsc --noEmit` et `npm test` (19/19), `npm run build`
+(racine) — tous passent sans régression.
+
 ## Actions humaines requises (cumulées, tous groupes)
 
 1. **Urgent** : changer le mot de passe du compte `yannick.ekani_test@activa.local` dans Firebase

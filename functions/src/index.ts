@@ -1,8 +1,22 @@
-import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import * as crypto from 'crypto';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+// === AMÉLIORATION AJOUTÉE : fusion de conflit (2026-09-06) — `main` a rétrogradé
+// `firebase-functions` de ^7.3.2 à ^5.0.0 ("downgrade SDKs for compatibility") pendant que
+// cette PR migrait déjà toutes les fonctions callable vers la signature v2 `CallableRequest`
+// (v7 l'exigeait). Sous v5, l'espace de noms `functions.https.*` (issu de
+// `import * as functions from 'firebase-functions'`) résout vers l'API v1 — qui n'a jamais eu
+// `CallableRequest` ni le formulaire `onCall(options, handler)` à 2 arguments utilisé par
+// `encryptSensitiveFields`/`decryptSensitiveFields` (secrets Cloud Functions). Plutôt que de
+// revenir à l'ancienne signature `(data, context)` (perdrait le typage strict apporté par la
+// migration v7) ou de revenir à v7 (déferait le correctif de compatibilité de `main`, dont la
+// raison exacte n'est pas documentée), l'import explicite ci-dessous vise directement le sous-
+// module v2 : il existe dans firebase-functions@5.1.1 (vérifié : `node_modules/firebase-
+// functions/lib/v2/providers/https.d.ts` exporte bien `onCall`/`CallableRequest`/`HttpsError`)
+// et fonctionnera aussi bien sous v7 si la version remonte un jour — solution compatible avec
+// les deux contraintes plutôt qu'un choix qui en sacrifie une.
+import { onCall, CallableRequest, HttpsError } from 'firebase-functions/v2/https';
 import {
   generateNextCardNumberServer,
   batchGenerateCardNumbersServer,
@@ -128,18 +142,18 @@ async function resolveUserRole(uid: string, tokenRole?: string): Promise<{ role:
  * Cloud Function: Generate Next Card Number (Atomic, Server-Side)
  */
 // === AMÉLIORATION AJOUTÉE : compatibilité firebase-functions v7 (CI) ===
-// `functions.https.onCall` n'accepte plus la signature à deux arguments `(data, context)`
+// `onCall` n'accepte plus la signature à deux arguments `(data, context)`
 // (le type `CallableContext` a été retiré de la bibliothèque) : elle exige désormais un
 // unique argument `CallableRequest<T>`, qui porte les mêmes champs qu'avant (`.data`, `.auth`,
 // `.rawRequest`, ...). Migration purement mécanique dans tout ce fichier : `data`/`context`
 // restent utilisés tels quels dans le corps de chaque fonction, dérivés de `request` en tête —
 // aucun changement de comportement, uniquement de signature/typage.
-export const generateCardNumber = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const generateCardNumber = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
     validatePayload(data, {
       organization: { type: 'string', required: true, maxLength: 200 },
@@ -164,7 +178,7 @@ export const generateCardNumber = functions.https.onCall(
       const cardNumber = await generateNextCardNumberServer(db, ctx);
       return { success: true, cardNumber };
     } catch (error: any) {
-      throw new functions.https.HttpsError('internal', error?.message || 'Failed to generate card number');
+      throw new HttpsError('internal', error?.message || 'Failed to generate card number');
     }
   }
 );
@@ -172,12 +186,12 @@ export const generateCardNumber = functions.https.onCall(
 /**
  * Cloud Function: Register Existing Card Number (Case A)
  */
-export const registerCardNumber = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const registerCardNumber = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
 
     validatePayload(data, {
@@ -206,7 +220,7 @@ export const registerCardNumber = functions.https.onCall(
       const result = await registerExistingCardNumberServer(db, cardNumber, ctx);
       return result;
     } catch (error: any) {
-      throw new functions.https.HttpsError('failed-precondition', error?.message || 'Failed to register card number');
+      throw new HttpsError('failed-precondition', error?.message || 'Failed to register card number');
     }
   }
 );
@@ -214,12 +228,12 @@ export const registerCardNumber = functions.https.onCall(
 /**
  * Cloud Function: Batch Generate Card Numbers
  */
-export const batchGenerateCardNumbers = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const batchGenerateCardNumbers = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
 
     validatePayload(data, {
@@ -234,7 +248,7 @@ export const batchGenerateCardNumbers = functions.https.onCall(
       const cardNumbers = await batchGenerateCardNumbersServer(db, count, ctxList);
       return { success: true, cardNumbers };
     } catch (error: any) {
-      throw new functions.https.HttpsError('internal', error?.message || 'Failed to batch generate card numbers');
+      throw new HttpsError('internal', error?.message || 'Failed to batch generate card numbers');
     }
   }
 );
@@ -242,12 +256,12 @@ export const batchGenerateCardNumbers = functions.https.onCall(
 /**
  * Cloud Function: Process Claim Decision (Separation of Duties enforced server-side)
  */
-export const processClaimDecision = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const processClaimDecision = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
 
     validatePayload(data, {
@@ -277,7 +291,7 @@ export const processClaimDecision = functions.https.onCall(
       const result = await processClaimDecisionServer(db, payload);
       return result;
     } catch (error: any) {
-      throw new functions.https.HttpsError('failed-precondition', error?.message || 'Failed to process claim decision');
+      throw new HttpsError('failed-precondition', error?.message || 'Failed to process claim decision');
     }
   }
 );
@@ -285,12 +299,12 @@ export const processClaimDecision = functions.https.onCall(
 /**
  * Cloud Function: Process Enrollment Decision (Separation of Duties enforced server-side)
  */
-export const processEnrollmentDecision = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const processEnrollmentDecision = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
 
     validatePayload(data, {
@@ -316,7 +330,7 @@ export const processEnrollmentDecision = functions.https.onCall(
       const result = await processEnrollmentDecisionServer(db, payload);
       return result;
     } catch (error: any) {
-      throw new functions.https.HttpsError('failed-precondition', error?.message || 'Failed to process enrollment decision');
+      throw new HttpsError('failed-precondition', error?.message || 'Failed to process enrollment decision');
     }
   }
 );
@@ -324,12 +338,12 @@ export const processEnrollmentDecision = functions.https.onCall(
 /**
  * Cloud Function: Bulk Member Import
  */
-export const bulkImportMembers = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const bulkImportMembers = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
 
     validatePayload(data, {
@@ -338,7 +352,7 @@ export const bulkImportMembers = functions.https.onCall(
 
     const { role, name } = await resolveUserRole(context.auth.uid, context.auth.token.role as string);
     if (role !== 'Admin' && role !== 'Supervisor') {
-      throw new functions.https.HttpsError('permission-denied', 'Only Admins or Supervisors can perform bulk import.');
+      throw new HttpsError('permission-denied', 'Only Admins or Supervisors can perform bulk import.');
     }
 
     const rows = (data.rows || []) as ImportRowInput[];
@@ -352,7 +366,7 @@ export const bulkImportMembers = functions.https.onCall(
       const result = await processBulkMemberImportServer(db, rows, user);
       return { success: true, result };
     } catch (error: any) {
-      throw new functions.https.HttpsError('internal', error?.message || 'Failed to process bulk import');
+      throw new HttpsError('internal', error?.message || 'Failed to process bulk import');
     }
   }
 );
@@ -367,12 +381,12 @@ export const bulkImportMembers = functions.https.onCall(
  * validateCoverage (validateHealthcareAccessServer) le fait déjà correctement. Aucun appelant
  * existant (voir CODE_AUDIT_MAP.md section 3.1) — aucune régression possible.
  */
-export const evaluatePolicy = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const evaluatePolicy = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
 
     validatePayload(data, {
@@ -393,12 +407,12 @@ export const evaluatePolicy = functions.https.onCall(
 /**
  * Cloud Function: Sync Policy Status
  */
-export const syncPolicy = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const syncPolicy = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
 
     validatePayload(data, {
@@ -410,7 +424,7 @@ export const syncPolicy = functions.https.onCall(
       const result = await syncPolicyStatusServer(db, orgId);
       return { success: true, result };
     } catch (error: any) {
-      throw new functions.https.HttpsError('internal', error?.message || 'Failed to sync policy status');
+      throw new HttpsError('internal', error?.message || 'Failed to sync policy status');
     }
   }
 );
@@ -418,12 +432,12 @@ export const syncPolicy = functions.https.onCall(
 /**
  * Cloud Function: Validate Coverage
  */
-export const validateCoverage = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const validateCoverage = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
 
     validatePayload(data, {
@@ -438,8 +452,8 @@ export const validateCoverage = functions.https.onCall(
 /**
  * Cloud Function: Log Audit Event
  */
-export const logAuditEvent = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const logAuditEvent = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     validatePayload(data, {
@@ -495,12 +509,12 @@ export const logAuditEvent = functions.https.onCall(
  * disproportionné pour ce lot. Livrée prête à l'emploi et testée unitairement dans la mesure
  * du possible (voir rapport final) ; le câblage UI est documenté comme prochaine étape.
  */
-export const getSignedFileUrl = functions.https.onCall(
-  async (request: functions.https.CallableRequest<any>) => {
+export const getSignedFileUrl = onCall(
+  async (request: CallableRequest<any>) => {
     const { data } = request;
     const context = request;
     if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
 
     validatePayload(data, {
@@ -509,7 +523,7 @@ export const getSignedFileUrl = functions.https.onCall(
     });
     const filePath = data.path;
     if (filePath.includes('..')) {
-      throw new functions.https.HttpsError('invalid-argument', 'A valid, non-traversal file path is required.');
+      throw new HttpsError('invalid-argument', 'A valid, non-traversal file path is required.');
     }
 
     // Verify the account is active (mirrors isActiveUser() in firestore.rules) — a deactivated
@@ -519,7 +533,7 @@ export const getSignedFileUrl = functions.https.onCall(
     const tokenIsActive = context.auth.token.isActive;
     const isActive = tokenIsActive !== undefined ? tokenIsActive !== false : accData.isActive !== false;
     if (!isActive) {
-      throw new functions.https.HttpsError('permission-denied', 'This account has been deactivated.');
+      throw new HttpsError('permission-denied', 'This account has been deactivated.');
     }
 
     // NOTE (limitation documentée) : un cloisonnement par organisation au niveau du chemin de
@@ -554,7 +568,7 @@ export const getSignedFileUrl = functions.https.onCall(
 
       return { success: true, url, expiresAt: new Date(Date.now() + expiresInMs).toISOString() };
     } catch (error: any) {
-      throw new functions.https.HttpsError('internal', error?.message || 'Failed to generate signed URL');
+      throw new HttpsError('internal', error?.message || 'Failed to generate signed URL');
     }
   }
 );
@@ -667,14 +681,14 @@ async function checkAndApplyRateLimit(
  */
 async function handleResolveLogin(
   data: { identifier?: string; password?: string },
-  context: functions.https.CallableRequest<any>
+  context: CallableRequest<any>
 ) {
   const rawIdentifier = (data?.identifier || '').trim();
   const identifier = rawIdentifier.toLowerCase();
   const password = typeof data?.password === 'string' ? data.password : '';
 
   if (!identifier) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing identifier');
+    throw new HttpsError('invalid-argument', 'Missing identifier');
   }
 
   const sanitizedId = identifier.replace(/[^a-z0-9_.]/g, '');
@@ -821,8 +835,8 @@ async function handleResolveLogin(
   };
 }
 
-export const resolveLoginIdentifier = functions.https.onCall(
-  async (request: functions.https.CallableRequest<{ identifier?: string; password?: string }>) => {
+export const resolveLoginIdentifier = onCall(
+  async (request: CallableRequest<{ identifier?: string; password?: string }>) => {
     return handleResolveLogin(request.data, request);
   }
 );
@@ -830,8 +844,8 @@ export const resolveLoginIdentifier = functions.https.onCall(
 /**
  * === AMÉLIORATION AJOUTÉE : alias rétro-compatible pour lookupAccountAuthEmail ===
  */
-export const lookupAccountAuthEmail = functions.https.onCall(
-  async (request: functions.https.CallableRequest<{ identifier?: string; password?: string }>) => {
+export const lookupAccountAuthEmail = onCall(
+  async (request: CallableRequest<{ identifier?: string; password?: string }>) => {
     return handleResolveLogin(request.data, request);
   }
 );
@@ -842,12 +856,12 @@ export const lookupAccountAuthEmail = functions.https.onCall(
  * avec un identifiant de démonstration ou créé par email d'entreprise), cette fonction callable
  * associe son compte de manière sécurisée côté serveur sans exiger une lecture publique de `accounts`.
  */
-export const ensureUserAccount = functions.https.onCall(
-  async (request: functions.https.CallableRequest<{ identifier?: string }>) => {
+export const ensureUserAccount = onCall(
+  async (request: CallableRequest<{ identifier?: string }>) => {
     const { data } = request;
     const auth = request.auth;
     if (!auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+      throw new HttpsError('unauthenticated', 'User must be authenticated');
     }
 
     const uid = auth.uid;
@@ -925,11 +939,11 @@ export const ensureUserAccount = functions.https.onCall(
  * Générique par construction (`fields: Record<string,string>`) pour rester réutilisable au-delà
  * de `medicalForms` si d'autres champs sensibles devaient être chiffrés plus tard.
  */
-export const encryptSensitiveFields = functions.https.onCall(
+export const encryptSensitiveFields = onCall(
   { secrets: [MEDICAL_FIELD_ENCRYPTION_KEY] },
-  async (request: functions.https.CallableRequest<{ fields?: Record<string, unknown> }>) => {
+  async (request: CallableRequest<{ fields?: Record<string, unknown> }>) => {
     if (!request.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
     validatePayload(request.data, { fields: { type: 'object', required: true } });
 
@@ -937,7 +951,7 @@ export const encryptSensitiveFields = functions.https.onCall(
       const encrypted = encryptFieldMap(request.data.fields || {});
       return { success: true, fields: encrypted };
     } catch (error: any) {
-      throw new functions.https.HttpsError('invalid-argument', error?.message || 'Failed to encrypt fields.');
+      throw new HttpsError('invalid-argument', error?.message || 'Failed to encrypt fields.');
     }
   }
 );
@@ -948,11 +962,11 @@ export const encryptSensitiveFields = functions.https.onCall(
  * portent pas le préfixe de chiffrement (documents créés avant ce correctif) sont renvoyées
  * telles quelles : aucune régression sur les formulaires médicaux existants.
  */
-export const decryptSensitiveFields = functions.https.onCall(
+export const decryptSensitiveFields = onCall(
   { secrets: [MEDICAL_FIELD_ENCRYPTION_KEY] },
-  async (request: functions.https.CallableRequest<{ fields?: Record<string, unknown> }>) => {
+  async (request: CallableRequest<{ fields?: Record<string, unknown> }>) => {
     if (!request.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
     validatePayload(request.data, { fields: { type: 'object', required: true } });
 
@@ -960,7 +974,7 @@ export const decryptSensitiveFields = functions.https.onCall(
       const decrypted = decryptFieldMap(request.data.fields || {});
       return { success: true, fields: decrypted };
     } catch (error: any) {
-      throw new functions.https.HttpsError('internal', error?.message || 'Failed to decrypt fields.');
+      throw new HttpsError('internal', error?.message || 'Failed to decrypt fields.');
     }
   }
 );

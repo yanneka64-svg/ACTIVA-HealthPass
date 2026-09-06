@@ -1,30 +1,46 @@
-// === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-04 — CRITIQUE) ===
-// Avant ce correctif : `allow read, write: if request.auth != null` s'appliquait à TOUS les
-// chemins (`allPaths=**`), sans distinction de rôle, d'organisation ni de propriétaire. Tout
-// compte authentifié — y compris un Agent d'une autre organisation cliente — pouvait lire ou
-// écraser n'importe quel fichier déposé par n'importe quel autre utilisateur ou assuré dès
-// lors qu'il devinait/énumérait le chemin (photos d'assurés, pièces d'identité scannées).
+// === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-04 — CRITIQUE ; fusionnée le
+// 2026-09-06 avec le durcissement MIME/taille/suppression poussé directement sur `main` entre
+// temps) ===
 //
-// Correctif : les nouveaux chemins `member-photos/{orgId}/...` et `enrollment-photos/{orgId}/...`
-// (voir src/utils/storageUtils.ts) sont cloisonnés par organisation, en miroir de
-// `hasOrgAccess()` dans firestore.rules — mais évalués ici via les CUSTOM CLAIMS Firebase Auth
-// (`request.auth.token.orgs`/`.role`/`.isActive`, posés par la Cloud Function `syncAccountClaims`,
-// functions/src/index.ts) plutôt que via une lecture croisée de Firestore : Cloud Storage ne
-// peut interroger que la base Firestore "(default)" via `firestore.get()`, alors que ce projet
-// utilise une base NOMMÉE (voir firebase.json) — s'appuyer sur cette fonctionnalité produirait
-// une règle qui échoue silencieusement ou vise la mauvaise base, un faux sentiment de sécurité
-// pire que l'absence de règle (voir SEC-05 dans le rapport d'audit). Les custom claims, eux,
-// font partie du jeton Firebase Auth et sont donc utilisables sans dépendance externe.
+// Ce fichier combine délibérément DEUX correctifs de sécurité indépendants qui ont divergé sur
+// la même version de base et se sont retrouvés en conflit de fusion sur la PR de durcissement :
 //
-// Compatibilité : les fichiers déjà déposés AVANT ce correctif suivent l'ancien format plat
-// (`member-photos/{fichier}`, sans segment d'organisation — voir commentaire historique dans
-// storageUtils.ts). Ils restent accessibles à tout utilisateur actif authentifié exactement
-// comme avant (règle `legacy` ci-dessous) : aucune régression sur les photos déjà en place.
-// Seuls les NOUVEAUX chemins, désormais toujours préfixés par l'organisation côté client,
-// bénéficient du cloisonnement réel. Limite documentée : un compte dont les custom claims
-// n'ont pas encore été synchronisés (`orgs` absent du jeton) reste traité comme non restreint
-// (comportement identique à hasOrgAccess() dans firestore.rules quand `assignedOrganizations`
-// est absent) — cohérent avec le choix produit déjà documenté pour DATA-01/MODEL-02.
+// 1. Cloisonnement par organisation (ce correctif, 2026-09-05) : avant lui,
+//    `allow read, write: if request.auth != null` s'appliquait à TOUS les chemins
+//    (`allPaths=**`), sans distinction d'organisation ni de propriétaire — un Agent authentifié
+//    d'une autre organisation cliente pouvait lire/écraser n'importe quel fichier déposé par
+//    n'importe qui d'autre. Corrigé en cloisonnant `member-photos/{orgId}/...` et
+//    `enrollment-photos/{orgId}/...` (voir `src/utils/storageUtils.ts`) via les CUSTOM CLAIMS
+//    Firebase Auth (`request.auth.token.orgs`/`.role`/`.isActive`, posés par la Cloud Function
+//    `syncAccountClaims`, `functions/src/index.ts`) plutôt que via une lecture croisée de
+//    Firestore : Cloud Storage ne peut interroger que la base Firestore "(default)" via
+//    `firestore.get()`, alors que ce projet utilise une base NOMMÉE (voir `firebase.json`) —
+//    s'appuyer sur cette fonctionnalité produirait une règle qui échoue silencieusement ou vise
+//    la mauvaise base, un faux sentiment de sécurité pire que l'absence de règle.
+//
+// 2. Durcissement MIME/taille/suppression (poussé sur `main` le 2026-09-06, pendant que cette
+//    PR était ouverte) : validation du type MIME à l'écriture, limite de taille par type de
+//    document, suppression réservée à `isAdmin()`, et un `deny by default` explicite sur tout
+//    chemin non déclaré (remplace l'ancien filet de sécurité "authentifié + actif" — vérifié
+//    sans risque : recherche exhaustive dans `src/`, AUCUN chemin autre que
+//    `member-photos/...`/`enrollment-photos/...` n'est jamais écrit par l'application
+//    actuelle ; le filet permissif ne protégeait donc aucun usage réel).
+//
+// La version de `main` seule aurait fait régresser le cloisonnement par organisation (elle
+// n'en avait pas connaissance) ; la version de cette PR seule aurait perdu la validation
+// MIME/taille et les nouveaux chemins `claims`/`receipts`/`documents`. Les deux jeux de règles
+// ont donc été fusionnés plutôt que l'un ou l'autre choisi : chaque chemin cloisonné par
+// organisation porte maintenant AUSSI la validation MIME/taille, et les nouveaux chemins
+// `claims`/`receipts`/`documents` (anticipés par `main`, non encore utilisés par aucun code
+// applicatif actuel — vérifié) portent eux aussi un segment `{orgId}`, par cohérence avec le
+// principe de cloisonnement plutôt que de le réintroduire à moitié.
+//
+// Compatibilité : les fichiers déjà déposés AVANT le correctif de cloisonnement suivent
+// l'ancien format plat (`member-photos/{fichier}`, sans segment d'organisation). Ils restent
+// lisibles/écrits par tout utilisateur actif authentifié exactement comme avant (règle
+// `legacy` ci-dessous) — aucune régression sur les photos déjà en place. La validation
+// MIME/taille n'est pas rétro-appliquée à ces anciens chemins (risquerait de bloquer des
+// fichiers déjà stockés qui n'auraient jamais été validés à l'écriture).
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
@@ -38,7 +54,8 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return isSignedIn() && ('role' in request.auth.token) && request.auth.token.role == 'Admin';
+      return isSignedIn() &&
+        (('role' in request.auth.token) && request.auth.token.role == 'Admin');
     }
 
     function hasOrgAccess(orgId) {
@@ -47,28 +64,71 @@ service firebase.storage {
         (orgId in request.auth.token.orgs);
     }
 
-    // Chemins cloisonnés par organisation (convention utilisée pour tout nouvel upload).
-    match /member-photos/{orgId}/{fileName} {
-      allow read, write: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId);
-    }
-    match /enrollment-photos/{orgId}/{fileName} {
-      allow read, write: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId);
+    function isImage() {
+      return request.resource.contentType.matches('image/(jpeg|jpg|png|webp)');
     }
 
-    // Chemins plats historiques (pré-existants avant ce correctif, sans segment d'organisation)
-    // — comportement inchangé : authentifié + compte actif uniquement.
+    function isPdfOrImage() {
+      return request.resource.contentType.matches('application/pdf') ||
+             request.resource.contentType.matches('image/(jpeg|jpg|png|webp)');
+    }
+
+    function isValidSize(maxMb) {
+      return request.resource.size > 0 && request.resource.size <= maxMb * 1024 * 1024;
+    }
+
+    // --- Chemins cloisonnés par organisation, avec validation MIME/taille (convention pour
+    // tout nouvel upload) ---
+    match /member-photos/{orgId}/{fileName} {
+      allow read: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId);
+      allow create, update: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId) && isImage() && isValidSize(5);
+      allow delete: if isAdmin();
+    }
+    match /enrollment-photos/{orgId}/{fileName} {
+      allow read: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId);
+      allow create, update: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId) && isImage() && isValidSize(5);
+      allow delete: if isAdmin();
+    }
+
+    // --- Nouveaux chemins anticipés par le durcissement du 2026-09-06 (justificatifs de
+    // sinistres, reçus, documents légaux) — non utilisés par aucun code applicatif actuel
+    // (vérifié), cloisonnés par organisation dès leur introduction plutôt que d'attendre une
+    // seconde vague de correctif. ---
+    match /claims/{orgId}/{claimId}/{fileName} {
+      allow read: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId);
+      allow create, update: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId) && isPdfOrImage() && isValidSize(15);
+      allow delete: if isAdmin();
+    }
+    match /receipts/{orgId}/{receiptId}/{fileName} {
+      allow read: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId);
+      allow create, update: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId) && isPdfOrImage() && isValidSize(15);
+      allow delete: if isAdmin();
+    }
+    match /documents/{orgId}/{docId}/{fileName} {
+      allow read: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId);
+      allow create, update: if isSignedIn() && isActiveUser() && hasOrgAccess(orgId) && isPdfOrImage() && isValidSize(20);
+      allow delete: if isAdmin();
+    }
+
+    // --- Chemins plats historiques (pré-existants avant le cloisonnement par organisation,
+    // sans segment d'organisation) — comportement inchangé : authentifié + compte actif
+    // uniquement, sans validation MIME/taille rétroactive. Suppression alignée sur le
+    // durcissement du 2026-09-06 (Admin uniquement, cohérent avec les chemins ci-dessus). ---
     match /member-photos/{fileName} {
       allow read, write: if isSignedIn() && isActiveUser();
+      allow delete: if isAdmin();
     }
     match /enrollment-photos/{fileName} {
       allow read, write: if isSignedIn() && isActiveUser();
+      allow delete: if isAdmin();
     }
 
-    // Filet de sécurité pour tout autre chemin (captures biométriques, préfixes futurs non
-    // encore cloisonnés) — comportement inchangé par rapport à avant ce correctif : authentifié
-    // + compte actif uniquement (jamais public, jamais ouvert à un compte désactivé).
+    // --- Fermeture par défaut sur tout chemin non explicitement déclaré (durcissement du
+    // 2026-09-06) — remplace l'ancien filet "authentifié + actif" : recherche exhaustive dans
+    // `src/` confirmant qu'aucun chemin en dehors de ceux déclarés ci-dessus n'est jamais
+    // utilisé par l'application actuelle, donc aucune régression. ---
     match /{allPaths=**} {
-      allow read, write: if isSignedIn() && isActiveUser();
+      allow read, write: if false;
     }
   }
 }
