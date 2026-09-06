@@ -24,6 +24,7 @@ import { migrateCardNumberCounters, migrateAllCardsToNewCardNumberFormat } from 
 import { seedInitialDemoDataIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
+import { SyncIssueBanner } from './components/SyncIssueBanner';
 import { LoginView } from './components/auth/LoginView';
 import { AuthLoadingScreen } from './components/auth/AuthLoadingScreen';
 import { AuthBlockedScreen } from './components/auth/AuthBlockedScreen';
@@ -1223,6 +1224,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 lg:ml-[240px] flex flex-col min-w-0 h-screen overflow-hidden">
+        <SyncIssueBanner />
         {/* Topbar (outside the scroll container below — stays fixed at the top, un-scrolled) */}
         <Topbar
           currentSection={effectiveSection}
