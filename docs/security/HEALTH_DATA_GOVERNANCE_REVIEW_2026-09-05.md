@@ -201,6 +201,19 @@ applicatif au champ `presumedDiagnosis` avant écriture. Une politique de sécur
 santé mature centralise ce traitement (un seul module `sensitiveFields.ts` que tout chemin
 d'écriture doit utiliser), plutôt que de compter sur chaque écran à faire le bon choix.
 
+**Constat mis à jour (2026-09-06)** : ce point s'est en grande partie résolu comme effet de bord
+des corrections 3.1 (chiffrement applicatif) et 2.1 (séparation identité/clinique) — dans le
+code actuel, il n'existe qu'**un seul** chemin de production qui écrit `doctorPrescription` :
+`AgentMedicalFormView.tsx` → `encryptMedicalFormPrescription` (`src/utils/sensitiveData.ts`) →
+`FirestoreService.addMedicalForm`. Aucun autre écran n'écrit ce champ. `src/services/seedData.ts`
+écrit bien des `medicalForms` de démonstration en clair par `batch.set` direct, mais il s'agit de
+données de démonstration non-production, couvertes par le même chemin de lecture historique
+(`hydratePrescriptionFromSubcollection`) que les documents antérieurs au correctif 2.1 — ce n'est
+pas un contournement du chiffrement en production. Il n'existe cependant toujours **aucune
+barrière technique** (règle Firestore, lint, ou type) qui empêcherait un futur écran d'écrire
+`doctorPrescription` en clair directement : le point reste donc listé, à un niveau de risque
+réduit, plutôt que fermé.
+
 ### 4.3 Séparation des environnements
 Un seul projet Firebase (`gen-lang-client-0957905786`) semble servir à la fois de cible de
 développement et de production (le fichier `firebase.json` ne référence qu'un seul projet, et
@@ -302,6 +315,10 @@ correctifs appliqués.*
     `src/types/dataClassification.ts` documente, champ par champ, la sensibilité réelle
     (santé/biométrique/personnel) de chaque collection sensible — référence unique à consulter
     avant d'ajouter un nouveau champ à `members`/`claims`/`enrollments`/`medicalForms`.
+11ter. 🔶 **Risque réduit, non fermé** (mis à jour le 2026-09-06) — Couche de validation/
+    chiffrement centralisée pour les champs sensibles (4.2) : voir le constat mis à jour en
+    section 4.2 — un seul chemin de production écrit `doctorPrescription`, déjà correctement
+    chiffré, mais aucune barrière technique n'empêche un futur écran de le contourner.
 
 ### Nécessite une décision de gouvernance, pas seulement du code
 12. Confirmer la région Firestore/Storage réellement utilisée et l'aligner sur les exigences de
