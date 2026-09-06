@@ -11,7 +11,8 @@ import { getFirestore, collection, getDocs, doc, setDoc, deleteField } from 'fir
 import { hashPassword } from '../src/utils/passwordUtils';
 
 async function migrate() {
-  console.log('--- Starting One-Shot Plaintext Password Migration ---');
+  const isDryRun = process.argv.includes('--dry-run');
+  console.log(`--- Starting Plaintext Password Migration ${isDryRun ? '[DRY-RUN MODE]' : '[LIVE EXECUTION]'} ---`);
   const app = initializeApp({
     apiKey: 'AIzaSyDfN_rZOwrcmVuJHzymswFpoNl6zBuaRXk',
     projectId: 'gen-lang-client-0957905786',
@@ -21,18 +22,14 @@ async function migrate() {
   const db = getFirestore(app, 'ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b');
 
   // Authenticate as active admin/migration user to satisfy `isSignedIn()` rule
-  const adminEmail = 'yannick.ekani_test@activa.local';
-  const adminPass = 'ActivaJKC8Q@!2025';
+  const adminEmail = process.env.MIGRATION_ADMIN_EMAIL || 'yannick.ekani_test@activa.local';
+  const adminPass = process.env.MIGRATION_ADMIN_PASSWORD || 'Activa#P@ss2026_DLgQmkuyVPyxClkS!';
   try {
     await signInWithEmailAndPassword(auth, adminEmail, adminPass);
     console.log(`Authenticated for migration with ${adminEmail}`);
-  } catch {
-    try {
-      await createUserWithEmailAndPassword(auth, adminEmail, adminPass);
-      console.log(`Created migration auth user ${adminEmail}`);
-    } catch (e: any) {
-      console.log(`Auth note: ${e.message}`);
-    }
+  } catch (err: any) {
+    console.error(`Authentication error: ${err.message}`);
+    process.exit(1);
   }
 
   const snap = await getDocs(collection(db, 'accounts'));
@@ -48,33 +45,38 @@ async function migrate() {
 
     if (hasPlaintextPassword || hasTempPassword) {
       const plaintext = data.password || data.tempPassword;
-      console.log(`Migrating account ${docSnap.id} (username: ${data.username || 'unknown'})...`);
+      console.log(`[Target] Account ${docSnap.id} (username: ${data.username || 'unknown'}, plaintext: ${hasPlaintextPassword ? 'password' : ''} ${hasTempPassword ? 'tempPassword' : ''})`);
 
       const { passwordHash, passwordSalt } = await hashPassword(plaintext);
 
-      // Perform update: write hash/salt and permanently delete plaintext fields
-      await setDoc(
-        doc(db, 'accounts', docSnap.id),
-        {
-          passwordHash,
-          passwordSalt,
-          password: deleteField(),
-          tempPassword: deleteField(),
-          migratedFromPlaintextAt: new Date().toISOString()
-        },
-        { merge: true }
-      );
+      if (isDryRun) {
+        console.log(`[DRY-RUN] Would compute hash/salt and purge plaintext fields for account ${docSnap.id}`);
+      } else {
+        // Perform update: write hash/salt and permanently delete plaintext fields
+        await setDoc(
+          doc(db, 'accounts', docSnap.id),
+          {
+            passwordHash,
+            passwordSalt,
+            password: deleteField(),
+            tempPassword: deleteField(),
+            migratedFromPlaintextAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
+        console.log(`[LIVE] Account ${docSnap.id} migrated successfully (plaintext fields permanently deleted).`);
+      }
 
       migratedCount++;
-      console.log(`Account ${docSnap.id} migrated successfully (plaintext fields permanently deleted).`);
     } else {
       alreadyCleanCount++;
     }
   }
 
-  console.log(`\nMigration Summary:`);
-  console.log(`- Migrated and purged: ${migratedCount}`);
-  console.log(`- Already clean (no plaintext): ${alreadyCleanCount}`);
+  console.log(`\nMigration Summary (${isDryRun ? 'DRY-RUN' : 'LIVE'}):`);
+  console.log(`- Accounts needing migration : ${migratedCount}`);
+  console.log(`- Accounts already clean     : ${alreadyCleanCount}`);
+  console.log(`- Total accounts inspected   : ${snap.size}`);
   console.log(`--- Migration Finished Successfully ---`);
   process.exit(0);
 }
