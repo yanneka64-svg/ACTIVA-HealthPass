@@ -136,10 +136,24 @@ service cloud.firestore {
     // ou celui d'un tiers uniquement en tant qu'Admin.
     match /accounts/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create: if isSignedIn() && (
-        isAdmin() ||
-        (request.auth.uid == userId && request.resource.data.profile != 'Admin')
-      );
+      // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding A1 — CRITIQUE) ===
+      // Problème : la branche `request.auth.uid == userId && profile != 'Admin'` permettait à
+      // QUICONQUE authentifié de s'auto-créer un document `accounts/{son propre uid}` avec
+      // `profile: 'Supervisor'` (ou 'Agent'), `isActive: true` et n'importe quelle liste de
+      // `permissions` — obtenant ainsi, via un simple appel SDK direct contournant l'UI, un accès
+      // Supervisor complet (approbation de claims/enrollments, lecture des logs d'audit, export
+      // de données de santé) sans jamais être invité par un Admin.
+      // Vérifié dans le code existant qu'aucun flux légitime ne dépend de cette branche : la
+      // création de compte par un Admin (`AccountsView.tsx`) écrit toujours via `db`/`auth`
+      // (l'app Firebase PRIMAIRE, donc la session de l'Admin), même quand le nouvel utilisateur
+      // Auth est créé via `secondaryAuth` (app secondaire dédiée à cet effet, justement pour ne
+      // jamais faire perdre sa session à l'Admin) — la requête d'écriture Firestore satisfait
+      // donc toujours `isAdmin()`, jamais cette branche de self-create. Le provisionnement Auth
+      // fait depuis `LoginView.tsx` (migration d'un mot de passe legacy) n'écrit lui-même jamais
+      // `accounts/{uid}` : il délègue au Cloud Function `ensureUserAccount` (SDK Admin, hors
+      // règles Firestore). Correctif : la création d'un document `accounts` est désormais
+      // réservée à un Admin, sans exception.
+      allow create: if isSignedIn() && isAdmin();
       // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — un utilisateur ne doit jamais
       // pouvoir s'auto-assigner ou s'auto-élargir un périmètre d'organisations via une
       // écriture directe sur son propre compte (élévation de privilège). Ajouté à la liste

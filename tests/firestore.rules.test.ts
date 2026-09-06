@@ -686,3 +686,41 @@ describe('Phase 3 / 2.1 — medicalForms/{formId}/clinical/{clinicalId} : cloiso
     await assertSucceeds(asUser('agentLegacyForm').doc('medicalForms/formLegacy').get());
   });
 });
+
+// --- Revue complète 2026-09-06, finding A1 : auto-élévation de privilège sur accounts.create --
+
+describe('Revue 2026-09-06 (A1) — accounts.create : pas d\'auto-élévation de privilège', () => {
+  it('un utilisateur non-Admin ne peut PAS s\'auto-créer un compte "Supervisor" actif (auto-élévation)', async () => {
+    await assertFails(
+      asUser('attackerSupervisor')
+        .doc('accounts/attackerSupervisor')
+        .set({ profile: 'Supervisor', isActive: true, permissions: ['approve_claims', 'view_audit_logs'] })
+    );
+  });
+
+  it('un utilisateur non-Admin ne peut PAS s\'auto-créer un compte "Agent" actif via écriture directe (contourne le flux d\'app, qui passe toujours par un Admin)', async () => {
+    await assertFails(
+      asUser('attackerAgent')
+        .doc('accounts/attackerAgent')
+        .set({ profile: 'Agent', isActive: true })
+    );
+  });
+
+  it('non-régression : un Admin peut toujours créer un compte pour un tiers, y compris "Supervisor"', async () => {
+    await seedAccount('adminCreator', { profile: 'Admin' });
+    await assertSucceeds(
+      asUser('adminCreator')
+        .doc('accounts/newSupervisor')
+        .set({ profile: 'Supervisor', isActive: true, permissions: ['approve_claims'] })
+    );
+  });
+
+  it('non-régression : un Admin peut toujours créer un compte "Agent" pour un tiers', async () => {
+    await seedAccount('adminCreator2', { profile: 'Admin' });
+    await assertSucceeds(
+      asUser('adminCreator2')
+        .doc('accounts/newAgent')
+        .set({ profile: 'Agent', isActive: true })
+    );
+  });
+});
