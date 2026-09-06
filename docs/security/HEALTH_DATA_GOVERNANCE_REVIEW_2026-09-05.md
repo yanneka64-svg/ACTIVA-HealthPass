@@ -249,13 +249,30 @@ correctifs appliqués.*
    (qui/quoi/quand) dans `auditLogs`.
 
 ### Moyenne
-7. Activer Firebase App Check (3.4).
-8. Ajouter des en-têtes de sécurité HTTP (3.5, `helmet` ou équivalent).
-9. Retirer la dépendance `@google/genai` inutilisée, ou documenter formellement l'interdiction
-   d'y faire transiter des données de santé tant qu'aucun DPA n'est en place (3.3).
-10. Documenter explicitement la base légale de traitement par finalité (2.7) — registre des
-    traitements, même minimal.
-11. Faire converger les deux implémentations serveur dupliquées (4.1).
+7. ✅ **CÂBLÉ, effet différé au déploiement** (commit `7fe6949`) — Firebase App Check (3.4) :
+   initialisation conditionnelle (ReCaptchaV3Provider), sans effet tant qu'une clé de site
+   reCAPTCHA v3 n'est pas configurée et que l'application des règles n'est pas activée côté
+   console Firebase.
+8. ✅ **CORRIGÉ** (commit `7fe6949`) — En-têtes de sécurité HTTP (3.5) via `helmet` sur
+   `server.ts` ; CSP volontairement désactivée (risque de régression sur les appels Firebase/
+   jsPDF sans test visuel exhaustif). Vérifié en navigateur réel (Playwright).
+9. ✅ **CORRIGÉ** (commit `7fe6949`) — Dépendance `@google/genai` retirée (confirmé sans aucun
+   appel dans le code), ainsi que `GEMINI_API_KEY` (3.3).
+10. ✅ **CORRIGÉ** (ce commit) — Registre des traitements minimal (2.7) :
+    `docs/security/REGISTRE_DES_TRAITEMENTS.md`. Documente honnêtement les zones encore
+    ouvertes (durée de conservation non définie, DPA non confirmé, droits des personnes non
+    instrumentés).
+11. ⏸️ Non traité — Faire converger les deux implémentations serveur dupliquées (4.1) :
+    `server.ts` (Express) et `functions/` sont deux projets TypeScript séparés (tsconfig/
+    résolution de modules distincts) ; les faire partager un module commun demande une
+    restructuration du dépôt (package partagé) plutôt qu'un correctif ponctuel — risque jugé
+    disproportionné par rapport à la sévérité (Moyenne) de ce constat isolé.
+
+### Élevée (ajout)
+11bis. ✅ **CORRIGÉ** (ce commit) — Classification des données (2.2) :
+    `src/types/dataClassification.ts` documente, champ par champ, la sensibilité réelle
+    (santé/biométrique/personnel) de chaque collection sensible — référence unique à consulter
+    avant d'ajouter un nouveau champ à `members`/`claims`/`enrollments`/`medicalForms`.
 
 ### Nécessite une décision de gouvernance, pas seulement du code
 12. Confirmer la région Firestore/Storage réellement utilisée et l'aligner sur les exigences de
