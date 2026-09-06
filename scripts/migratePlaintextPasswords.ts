@@ -41,7 +41,7 @@ function requireEnv(name: string): string {
 
 async function migrate() {
   const isDryRun = process.argv.includes('--dry-run');
-  console.log(`--- Starting One-Shot Plaintext Password Migration${isDryRun ? ' (DRY RUN — no writes will be made)' : ''} ---`);
+  console.log(`--- Starting Plaintext Password Migration ${isDryRun ? '[DRY-RUN MODE — no writes will be made]' : '[LIVE EXECUTION]'} ---`);
 
   const app = initializeApp({
     apiKey: requireEnv('FIREBASE_API_KEY'),
@@ -51,19 +51,16 @@ async function migrate() {
   const auth = getAuth(app);
   const db = getFirestore(app, requireEnv('FIRESTORE_DATABASE_ID'));
 
-  // Authenticate as active admin/migration user to satisfy `isSignedIn()` rule
+  // Authenticate as active admin/migration user to satisfy `isSignedIn()` rule. Required
+  // env vars, NEVER a hard-coded fallback — see the header comment above for why.
   const adminEmail = requireEnv('MIGRATION_ADMIN_EMAIL');
   const adminPass = requireEnv('MIGRATION_ADMIN_PASSWORD');
   try {
     await signInWithEmailAndPassword(auth, adminEmail, adminPass);
     console.log(`Authenticated for migration with ${adminEmail}`);
-  } catch {
-    try {
-      await createUserWithEmailAndPassword(auth, adminEmail, adminPass);
-      console.log(`Created migration auth user ${adminEmail}`);
-    } catch (e: any) {
-      console.log(`Auth note: ${e.message}`);
-    }
+  } catch (err: any) {
+    console.error(`Authentication error: ${err.message}`);
+    process.exit(1);
   }
 
   const snap = await getDocs(collection(db, 'accounts'));
@@ -79,14 +76,15 @@ async function migrate() {
 
     if (hasPlaintextPassword || hasTempPassword) {
       const plaintext = data.password || data.tempPassword;
+      const fieldNames = [hasPlaintextPassword ? 'password' : null, hasTempPassword ? 'tempPassword' : null].filter(Boolean).join(', ');
 
       if (isDryRun) {
-        console.log(`[DRY RUN] Would migrate account ${docSnap.id} (username: ${data.username || 'unknown'}) — no write performed.`);
+        console.log(`[DRY-RUN] Would migrate account ${docSnap.id} (username: ${data.username || 'unknown'}, plaintext field(s): ${fieldNames}) — no write performed.`);
         migratedCount++;
         continue;
       }
 
-      console.log(`Migrating account ${docSnap.id} (username: ${data.username || 'unknown'})...`);
+      console.log(`Migrating account ${docSnap.id} (username: ${data.username || 'unknown'}, plaintext field(s): ${fieldNames})...`);
 
       const { passwordHash, passwordSalt } = await hashPassword(plaintext);
 
@@ -102,18 +100,19 @@ async function migrate() {
         },
         { merge: true }
       );
+      console.log(`[LIVE] Account ${docSnap.id} migrated successfully (plaintext fields permanently deleted).`);
 
       migratedCount++;
-      console.log(`Account ${docSnap.id} migrated successfully (plaintext fields permanently deleted).`);
     } else {
       alreadyCleanCount++;
     }
   }
 
-  console.log(`\nMigration Summary:`);
+  console.log(`\nMigration Summary (${isDryRun ? 'DRY-RUN' : 'LIVE'}):`);
   console.log(`- ${isDryRun ? 'Would be migrated' : 'Migrated and purged'}: ${migratedCount}`);
   console.log(`- Already clean (no plaintext): ${alreadyCleanCount}`);
-  console.log(`--- Migration ${isDryRun ? 'Dry Run' : ''} Finished Successfully ---`);
+  console.log(`- Total accounts inspected: ${snap.size}`);
+  console.log(`--- Migration ${isDryRun ? 'Dry Run ' : ''}Finished Successfully ---`);
   process.exit(0);
 }
 
