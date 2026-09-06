@@ -123,3 +123,39 @@ Firestore sur émulateur (57/57), `npm run build` — tous passent.
 4. Le cas échéant, exécuter `scripts/migratePlaintextPasswords.ts --dry-run` puis, après
    vérification du résultat, sans `--dry-run`, pour purger les mots de passe encore en clair
    dans `accounts` (SEC-AUTH-003 / DATA-04).
+
+## Décision : le compte `yannick.ekani_test@activa.local` expose l'application à un risque
+
+Ce compte a vu son mot de passe compromis à deux reprises (voir sections ci-dessus) et sert par
+ailleurs de compte à privilèges élevés à des scripts d'exploitation (`migratePlaintextPasswords.ts`,
+`auditOrgScopeCoverage.ts`) qui lisent l'intégralité de la collection `accounts` — ce que
+`firestore.rules` n'autorise qu'à un compte `profile: 'Admin'`. Deux options ont été évaluées :
+
+- **Suppression** (Firebase Auth + document `accounts/{id}`) : coupe l'accès immédiatement, mais
+  Firestore ne supprime rien en cascade — tout document historique (claims, enrollments, logs
+  d'audit) référençant l'UID de ce compte comme auteur/acteur deviendrait orphelin (UID non
+  résolvable dans l'historique). Irréversible.
+- **Désactivation** (`isActive: false` sur le document `accounts/{id}`, compte Auth conservé mais
+  inutilisable dans l'app) : bloque la connexion et **toute écriture** — `isActive` est vérifié à
+  la fois côté client (`src/components/auth/LoginView.tsx`) et côté règles (`isActiveUser()` dans
+  `firestore.rules`, qui conditionne la quasi-totalité des `allow create/update`). Préserve
+  l'historique/audit trail (le compte reste résolvable par nom) et reste réversible.
+
+**Décision retenue : désactivation**, comme mesure immédiate et proportionnée au risque, sans les
+effets de bord irréversibles d'une suppression. La suppression définitive peut être reconsidérée
+plus tard, une fois confirmé qu'aucune donnée métier ne référence encore son UID.
+
+// === AMÉLIORATION AJOUTÉE : sécurité (2026-09-06) ===
+Nouveau script `scripts/deactivateCompromisedAccount.ts` (lecture + une seule écriture ciblée,
+`isActive: false`), suivant le même modèle que `resetCompromisedPassword.ts` : toutes les
+identités/secrets requis via variables d'environnement uniquement, mode `--dry-run` pour valider
+la cible avant écriture, garde-fou explicite empêchant qu'un compte s'auto-désactive (le champ
+`isActive` est de toute façon figé au self-update par `firestore.rules`). Ce script n'a PAS été
+exécuté contre la production depuis cette session — aucun accès Firestore de production n'est
+disponible ici : c'est une **action humaine requise**, ajoutée à la liste ci-dessus :
+
+5. **Exécuter `scripts/deactivateCompromisedAccount.ts`** (d'abord `--dry-run` pour confirmer la
+   cible, puis sans) avec `ADMIN_EMAIL`/`ADMIN_PASSWORD` d'un **autre** compte Admin actif et
+   `TARGET_ACCOUNT_EMAIL=yannick.ekani_test@activa.local`, pour désactiver ce compte compromis.
+   Si le mot de passe compromis n'a pas déjà été changé une seconde fois (action 1 ci-dessus),
+   le faire dans la foulée via `scripts/resetCompromisedPassword.ts`.
