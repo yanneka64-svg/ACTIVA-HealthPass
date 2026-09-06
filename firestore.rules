@@ -316,6 +316,37 @@ service cloud.firestore {
         hasOrgAccess(resource.data.organization) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
       allow delete: if isAdmin();
+
+      // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section
+      // 2.1) ===
+      // Constat : le document `medicalForms/{formId}` portait, dans le MÊME document,
+      // l'identité complète de l'assuré (nom, numéro de carte, date de naissance, sexe) ET le
+      // contenu clinique (diagnostic présumé, examens demandés, traitement prescrit — déjà
+      // chiffré applicativement depuis la section 3.1). Tout accès en lecture au document
+      // parent (listing pour l'historique, export, rapport) donnait donc accès au même
+      // « paquet » identité+clinique, même quand seul l'un des deux était réellement
+      // nécessaire.
+      // Correctif : le contenu clinique vit désormais dans un document séparé
+      // `medicalForms/{formId}/clinical/content` (voir FirestoreService.addMedicalForm/
+      // deleteMedicalForm dans src/services/firestore.ts), avec sa propre règle. Un client qui
+      // lit/liste la collection `medicalForms` (historique, export, rapport) ne reçoit JAMAIS
+      // automatiquement le contenu de cette sous-collection — Firestore ne l'inclut jamais dans
+      // une requête sur la collection parente — il faut une lecture EXPLICITE et séparée pour
+      // l'obtenir. Même périmètre d'accès que le document parent (org du formulaire, lu via
+      // `get()` sur le document parent), pour ne retirer aucun accès légitime existant :
+      // uniquement resserrer la SURFACE de ce qui expose le contenu clinique par défaut.
+      // Compatibilité : les formulaires créés avant ce correctif gardent `doctorPrescription`
+      // intégré au document parent (jamais migré de force) — voir la logique de repli côté
+      // client (src/utils/sensitiveData.ts) qui n'interroge cette sous-collection que si le
+      // champ est absent du document parent.
+      match /clinical/{clinicalId} {
+        function parentOrganization() {
+          return get(/databases/$(database)/documents/medicalForms/$(formId)).data.organization;
+        }
+        allow read: if isSignedIn() && hasOrgAccess(parentOrganization());
+        allow create, update: if isSignedIn() && isActiveUser() && hasOrgAccess(parentOrganization());
+        allow delete: if isAdmin();
+      }
     }
 
     // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5

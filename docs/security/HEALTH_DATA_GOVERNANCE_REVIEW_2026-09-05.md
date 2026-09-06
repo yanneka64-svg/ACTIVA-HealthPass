@@ -228,10 +228,24 @@ correctifs appliqués.*
    d'une phrase de confirmation.
 
 ### Élevée
-2. ⏸️ **REPORTÉ** (décision explicite du 2026-09-05) — **Séparer identité et contenu clinique**
-   dans `medicalForms` (2.1) : restructuration de schéma à risque de régression réel (création,
-   affichage, historique, PDF), nécessite un créneau de validation visuelle dédié.
-3. ⏸️ Non traité — **Champ de classification** (2.2) sur chaque type sensible.
+2. ✅ **CORRIGÉ** (ce commit) — **Séparer identité et contenu clinique** dans `medicalForms`
+   (2.1), reprise après le report du 2026-09-05. Le contenu clinique
+   (`presumedDiagnosis`/`requestedExams`/`treatmentOrder`) des NOUVEAUX formulaires vit
+   désormais dans un document séparé `medicalForms/{formId}/clinical/content`, avec ses propres
+   règles Firestore (cloisonnement par organisation hérité du document parent via `get()`,
+   suppression réservée à l'Admin). `FirestoreService.addMedicalForm` écrit les deux documents ;
+   `updateMedicalForm` exclut désormais `doctorPrescription` du document parent ;
+   `deleteMedicalForm`/`deleteAllMedicalForms` archivent et suppriment les deux documents (parent
+   + sous-document clinique) de façon cohérente. Aucune migration forcée des formulaires
+   existants : un formulaire créé avant ce correctif garde son `doctorPrescription` intégré au
+   document parent, et `decryptMedicalFormPrescription` (voir `sensitiveData.ts`) détecte
+   l'absence du champ et va lire la sous-collection à la demande
+   (`hydratePrescriptionFromSubcollection`) — zéro lecture Firestore supplémentaire pour
+   l'historique existant, zéro régression sur la création/l'affichage/le PDF/l'historique.
+   9 nouveaux tests de règles Firestore (émulateur) couvrent le cloisonnement hérité, le
+   delete Admin-only, et la non-régression sur les formulaires legacy — 57/57 tests passent.
+3. ⏸️ Non traité (voir toutefois 11bis ci-dessous, déjà corrigé) — **Champ de classification**
+   (2.2) sur chaque type sensible.
 4. ✅ **CORRIGÉ** (commit `5868cab`) — **Chiffrement applicatif des champs les plus sensibles**
    (3.1), avec clé exclusivement côté serveur (Cloud Function, jamais dans le navigateur) :
    `presumedDiagnosis`/`requestedExams`/`treatmentOrder` de `medicalForms`. Correction

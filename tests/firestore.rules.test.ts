@@ -589,3 +589,100 @@ describe('Phase 2.3 — audit trail : create pré-authentification restreint à 
     );
   });
 });
+
+// === AMÉLIORATION AJOUTÉE : Phase 3, revue de gouvernance des données de santé (2026-09-05,
+// section 2.1) — séparation identité/contenu clinique. Le contenu clinique des NOUVEAUX
+// formulaires médicaux vit désormais dans le document séparé
+// `medicalForms/{formId}/clinical/content` (voir FirestoreService.addMedicalForm et
+// firestore.rules) plutôt que dans le document `medicalForms/{formId}` lui-même. Ces tests
+// prouvent que : (a) le cloisonnement par organisation s'applique aussi à cette sous-collection
+// (héritée du document parent, puisque le sous-document lui-même n'a pas de champ
+// `organization`), (b) seul un Admin peut la supprimer, et (c) les formulaires legacy
+// (contenu clinique intégré au document parent, jamais migré de force) continuent de
+// fonctionner sans aucune régression.
+describe('Phase 3 / 2.1 — medicalForms/{formId}/clinical/{clinicalId} : cloisonnement hérité du parent', () => {
+  it('un Agent avec accès à l\'organisation du formulaire parent PEUT lire le sous-document clinique', async () => {
+    await seedAccount('agentClinicalRead', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formA', { organization: 'OrgA', memberName: 'X' });
+    await seedDoc('medicalForms/formA/clinical', 'content', { presumedDiagnosis: 'encv1:abc' });
+
+    await assertSucceeds(asUser('agentClinicalRead').doc('medicalForms/formA/clinical/content').get());
+  });
+
+  it('un Agent SANS accès à l\'organisation du formulaire parent NE PEUT PAS lire le sous-document clinique (REFUS)', async () => {
+    await seedAccount('agentClinicalNoAccess', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formB', { organization: 'OrgB', memberName: 'Y' });
+    await seedDoc('medicalForms/formB/clinical', 'content', { presumedDiagnosis: 'encv1:abc' });
+
+    await assertFails(asUser('agentClinicalNoAccess').doc('medicalForms/formB/clinical/content').get());
+  });
+
+  it('un Agent avec accès à l\'organisation PEUT créer le sous-document clinique', async () => {
+    await seedAccount('agentClinicalCreate', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formC', { organization: 'OrgA', memberName: 'Z' });
+
+    await assertSucceeds(
+      asUser('agentClinicalCreate')
+        .doc('medicalForms/formC/clinical/content')
+        .set({ presumedDiagnosis: 'encv1:xyz', updatedAt: new Date().toISOString() })
+    );
+  });
+
+  it('un Agent SANS accès à l\'organisation NE PEUT PAS créer le sous-document clinique (REFUS)', async () => {
+    await seedAccount('agentClinicalCreateNoAccess', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formD', { organization: 'OrgB', memberName: 'W' });
+
+    await assertFails(
+      asUser('agentClinicalCreateNoAccess')
+        .doc('medicalForms/formD/clinical/content')
+        .set({ presumedDiagnosis: 'encv1:xyz', updatedAt: new Date().toISOString() })
+    );
+  });
+
+  it('un Agent avec accès PEUT mettre à jour le sous-document clinique', async () => {
+    await seedAccount('agentClinicalUpdate', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formE', { organization: 'OrgA', memberName: 'V' });
+    await seedDoc('medicalForms/formE/clinical', 'content', { presumedDiagnosis: 'encv1:old' });
+
+    await assertSucceeds(
+      asUser('agentClinicalUpdate')
+        .doc('medicalForms/formE/clinical/content')
+        .set({ presumedDiagnosis: 'encv1:new', updatedAt: new Date().toISOString() })
+    );
+  });
+
+  it('un Agent (non-Admin) NE PEUT PAS supprimer le sous-document clinique, même avec accès à l\'organisation (REFUS)', async () => {
+    await seedAccount('agentClinicalDelete', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formF', { organization: 'OrgA', memberName: 'U' });
+    await seedDoc('medicalForms/formF/clinical', 'content', { presumedDiagnosis: 'encv1:abc' });
+
+    await assertFails(asUser('agentClinicalDelete').doc('medicalForms/formF/clinical/content').delete());
+  });
+
+  it('un Admin PEUT supprimer le sous-document clinique', async () => {
+    await seedAccount('adminClinicalDelete', { profile: 'Admin' });
+    await seedDoc('medicalForms', 'formG', { organization: 'OrgA', memberName: 'T' });
+    await seedDoc('medicalForms/formG/clinical', 'content', { presumedDiagnosis: 'encv1:abc' });
+
+    await assertSucceeds(asUser('adminClinicalDelete').doc('medicalForms/formG/clinical/content').delete());
+  });
+
+  it('un Admin garde un accès total au sous-document clinique, même hors de son assignedOrganizations', async () => {
+    await seedAccount('adminClinicalRead', { profile: 'Admin', assignedOrganizations: ['OrgZ'] });
+    await seedDoc('medicalForms', 'formH', { organization: 'OrgQ', memberName: 'S' });
+    await seedDoc('medicalForms/formH/clinical', 'content', { presumedDiagnosis: 'encv1:abc' });
+
+    await assertSucceeds(asUser('adminClinicalRead').doc('medicalForms/formH/clinical/content').get());
+  });
+
+  it('non-régression : un formulaire legacy (contenu clinique intégré au document parent) reste lisible normalement', async () => {
+    await seedAccount('agentLegacyForm', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formLegacy', {
+      organization: 'OrgA',
+      memberName: 'Legacy',
+      doctorPrescription: { presumedDiagnosis: 'encv1:legacy' },
+    });
+
+    await assertSucceeds(asUser('agentLegacyForm').doc('medicalForms/formLegacy').get());
+  });
+});

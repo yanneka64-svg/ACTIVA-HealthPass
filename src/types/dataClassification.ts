@@ -27,23 +27,33 @@ export interface FieldClassification {
 
 export const DATA_CLASSIFICATION: readonly FieldClassification[] = [
   // --- Données de santé (RGPD art. 9) ---
+  // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.1)
+  // — depuis ce correctif, ces 3 champs ne vivent plus dans le document `medicalForms/{id}`
+  // pour les NOUVEAUX formulaires : ils sont dans le document séparé
+  // `medicalForms/{id}/clinical/content` (voir FirestoreService.addMedicalForm et
+  // firestore.rules). Les documents créés avant ce correctif les gardent intégrés au document
+  // parent (jamais migrés de force) — voir hydratePrescriptionFromSubcollection dans
+  // sensitiveData.ts pour la logique de repli qui gère les deux formats.
   {
-    collection: 'medicalForms',
-    field: 'doctorPrescription.presumedDiagnosis',
+    collection: 'medicalForms/clinical',
+    field: 'presumedDiagnosis',
     sensitivity: 'health',
     encryptedAtApplicationLevel: true,
+    notes: 'Sous-collection medicalForms/{id}/clinical/content — voir note ci-dessus.',
   },
   {
-    collection: 'medicalForms',
-    field: 'doctorPrescription.requestedExams',
+    collection: 'medicalForms/clinical',
+    field: 'requestedExams',
     sensitivity: 'health',
     encryptedAtApplicationLevel: true,
+    notes: 'Sous-collection medicalForms/{id}/clinical/content — voir note ci-dessus.',
   },
   {
-    collection: 'medicalForms',
-    field: 'doctorPrescription.treatmentOrder',
+    collection: 'medicalForms/clinical',
+    field: 'treatmentOrder',
     sensitivity: 'health',
     encryptedAtApplicationLevel: true,
+    notes: 'Sous-collection medicalForms/{id}/clinical/content — voir note ci-dessus.',
   },
   {
     collection: 'medicalForms',
