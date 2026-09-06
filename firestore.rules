@@ -291,6 +291,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && isActiveUser() &&
         hasOrgAccess(resource.data.organization) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) &&
+        (!('createdByUid' in request.resource.data) || !('createdByUid' in resource.data) || request.resource.data.createdByUid == resource.data.createdByUid) &&
         (!('status' in request.resource.data) || statusChangeAllowed(resource.data.status, request.resource.data.status)) && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
         ((isAdmin() || isSupervisor()) && !isSelfCreated(resource.data))
@@ -327,24 +328,28 @@ service cloud.firestore {
       // « paquet » identité+clinique, même quand seul l'un des deux était réellement
       // nécessaire.
       // Correctif : le contenu clinique vit désormais dans un document séparé
-      // `medicalForms/{formId}/clinical/content` (voir FirestoreService.addMedicalForm/
-      // deleteMedicalForm dans src/services/firestore.ts), avec sa propre règle. Un client qui
-      // lit/liste la collection `medicalForms` (historique, export, rapport) ne reçoit JAMAIS
-      // automatiquement le contenu de cette sous-collection — Firestore ne l'inclut jamais dans
-      // une requête sur la collection parente — il faut une lecture EXPLICITE et séparée pour
-      // l'obtenir. Même périmètre d'accès que le document parent (org du formulaire, lu via
-      // `get()` sur le document parent), pour ne retirer aucun accès légitime existant :
-      // uniquement resserrer la SURFACE de ce qui expose le contenu clinique par défaut.
-      // Compatibilité : les formulaires créés avant ce correctif gardent `doctorPrescription`
-      // intégré au document parent (jamais migré de force) — voir la logique de repli côté
-      // client (src/utils/sensitiveData.ts) qui n'interroge cette sous-collection que si le
-      // champ est absent du document parent.
+      // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05 & Go-Live Santé) ===
+      // Contenu clinique déporté dans cette sous-collection dédiée.
+      // RÈGLE STRICTE FAIL-CLOSED : toute écriture de champ clinique (presumedDiagnosis, requestedExams,
+      // treatmentOrder) DOIT impérativement être chiffrée applicativement avec le préfixe 'encv1:'.
+      // Un client ne peut EN AUCUN CAS persister des données médicales en clair dans Firestore.
       match /clinical/{clinicalId} {
         function parentOrganization() {
           return get(/databases/$(database)/documents/medicalForms/$(formId)).data.organization;
         }
+
+        function isEncryptedClinicalField(val) {
+          return val is string && (val.size() == 0 || val.matches('^encv1:.*'));
+        }
+
+        function hasEncryptedClinicalFields() {
+          return (!('presumedDiagnosis' in request.resource.data) || isEncryptedClinicalField(request.resource.data.presumedDiagnosis)) &&
+                 (!('requestedExams' in request.resource.data) || isEncryptedClinicalField(request.resource.data.requestedExams)) &&
+                 (!('treatmentOrder' in request.resource.data) || isEncryptedClinicalField(request.resource.data.treatmentOrder));
+        }
+
         allow read: if isSignedIn() && hasOrgAccess(parentOrganization());
-        allow create, update: if isSignedIn() && isActiveUser() && hasOrgAccess(parentOrganization());
+        allow create, update: if isSignedIn() && isActiveUser() && hasOrgAccess(parentOrganization()) && hasEncryptedClinicalFields();
         allow delete: if isAdmin();
       }
     }
@@ -373,6 +378,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && isActiveUser() &&
         hasOrgAccess(resource.data.organization) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) &&
+        (!('createdByUid' in request.resource.data) || !('createdByUid' in resource.data) || request.resource.data.createdByUid == resource.data.createdByUid) &&
         (!('status' in request.resource.data) || statusChangeAllowed(resource.data.status, request.resource.data.status)) && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
         ((isAdmin() || isSupervisor()) && !isSelfCreated(resource.data))
@@ -460,11 +466,20 @@ service cloud.firestore {
     // Correctif : impose que toute écriture authentifiée corresponde à l'une de ces deux formes
     // connues — sans changer aucun appelant existant, qui les respecte déjà tous. Empêche
     // désormais qu'un client falsifie un événement d'audit sous une forme arbitraire.
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05 & Go-Live Santé) ===
+    // Renforcement anti-usurpation d'identité et intégrité de la piste d'audit :
+    // 1. userId DOIT correspondre à l'identifiant du jeton authentifié (request.auth.uid) ou 'system'
+    // 2. userRole DOIT correspondre au profil réel de l'utilisateur (aucun agent ne peut forger 'Admin')
+    // 3. timestamp obligatoire
+    // 4. update/delete strictement interdits (immuabilité absolue de la piste d'audit)
     function isBusinessAuditLogValid(data) {
-      return data.keys().hasAll(['userId', 'action', 'category']) &&
+      return data.keys().hasAll(['userId', 'action', 'category', 'timestamp']) &&
         data.userId is string &&
+        (data.userId == request.auth.uid || data.userId == 'system') &&
+        (!('userRole' in data) || data.userRole == userProfile() || data.userRole == 'System') &&
         data.action is string && data.action.size() > 0 &&
-        data.category is string && data.category.size() > 0;
+        data.category is string && data.category.size() > 0 &&
+        data.timestamp is string;
     }
 
     match /auditLogs/{logId} {

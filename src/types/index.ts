@@ -501,6 +501,7 @@ export interface AuditLog {
   ip?: string;
   userAgent?: string;
   severity?: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+  integrityHash?: string;
 }
 
 export type NavSection =

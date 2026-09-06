@@ -5,6 +5,7 @@ import { generateNextCardNumber } from './cardNumberService';
 // === AMÉLIORATION AJOUTÉE : câblage des Cloud Functions (Phase 3/5), sur demande explicite.
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../lib/firebase';
+import { recordServerFallback } from '../utils/fallbackTelemetry';
 
 /**
  * Service to execute end-to-end multi-role workflows and keep Firestore records,
@@ -71,42 +72,66 @@ export const WorkflowService = {
       );
     }
 
-    const updated: Enrollment = {
-      ...enr,
-      status: 'approved',
-      decisionDate: new Date().toISOString().split('T')[0],
-      approvedBy: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Medical Supervisor',
-    };
-    await FirestoreService.updateEnrollment(updated);
+    // === AMÉLIORATION AJOUTÉE : sécurité (Go-Live Santé / SoD) — Exécution autoritaire côté serveur
+    // via la Cloud Function `processEnrollmentDecision`. Applique la séparation des tâches (SoD),
+    // la mise à jour atomique dans une transaction Firestore, la synchronisation avec l'annuaire
+    // des membres et l'écriture de l'audit log immuable.
+    let handledByServer = false;
+    try {
+      const callProcessEnrollment = httpsCallable<
+        { enrollmentId: string; decision: 'approved' | 'rejected'; approverName?: string; approverRole?: string },
+        { success: boolean; memberId?: string }
+      >(functions, 'processEnrollmentDecision');
+      const result = await callProcessEnrollment({
+        enrollmentId: enr.id,
+        decision: 'approved',
+        approverName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+        approverRole: currentUser?.profile || currentUser?.role,
+      });
+      handledByServer = !!result.data?.success;
+    } catch (err) {
+      console.warn('Cloud Function "processEnrollmentDecision" unavailable — falling back to client-side approval:', err);
+      recordServerFallback('processEnrollmentDecision', `Approval fallback for ${enr.id}`);
+    }
 
-    // Sync into Insured Members
-    await WorkflowService.syncApprovedEnrollmentToMembers(enr, members);
+    if (!handledByServer) {
+      const updated: Enrollment = {
+        ...enr,
+        status: 'approved',
+        decisionDate: new Date().toISOString().split('T')[0],
+        approvedBy: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Medical Supervisor',
+      };
+      await FirestoreService.updateEnrollment(updated);
 
-    // Persistent notification to the Agent
-    await FirestoreService.addNotification({
-      recipientRole: 'Agent',
-      recipientEmail: enr.creatorEmail,
-      recipientId: enr.createdBy,
-      title: 'Enrollment Approved ✓',
-      message: `Card #${enr.cardNo} (${enr.fullName}) has been approved by ${currentUser?.fullName || 'Supervisor'} and added to Insured Members.`,
-      timestamp: new Date().toISOString(),
-      unread: true,
-      type: 'enrollment',
-      targetSection: 'enrollments',
-      entityId: enr.id,
-    });
+      // Sync into Insured Members
+      await WorkflowService.syncApprovedEnrollmentToMembers(enr, members);
 
-    // Enriched audit log
-    await FirestoreService.addLog({
-      userId: currentUser?.uid || 'supervisor',
-      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
-      userRole: currentUser?.role || 'Supervisor',
-      action: 'ENROLLMENT_APPROVED',
-      category: 'Enrollments',
-      entityId: enr.id,
-      entityType: 'enrollment',
-      details: `Enrollment for ${enr.fullName} (Card #${enr.cardNo}) approved by ${currentUser?.fullName || 'Supervisor'}.`,
-    });
+      // Persistent notification to the Agent
+      await FirestoreService.addNotification({
+        recipientRole: 'Agent',
+        recipientEmail: enr.creatorEmail,
+        recipientId: enr.createdBy,
+        title: 'Enrollment Approved ✓',
+        message: `Card #${enr.cardNo} (${enr.fullName}) has been approved by ${currentUser?.fullName || 'Supervisor'} and added to Insured Members.`,
+        timestamp: new Date().toISOString(),
+        unread: true,
+        type: 'enrollment',
+        targetSection: 'enrollments',
+        entityId: enr.id,
+      });
+
+      // Enriched audit log
+      await FirestoreService.addLog({
+        userId: currentUser?.uid || 'supervisor',
+        userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
+        userRole: currentUser?.role || 'Supervisor',
+        action: 'ENROLLMENT_APPROVED',
+        category: 'Enrollments',
+        entityId: enr.id,
+        entityType: 'enrollment',
+        details: `Enrollment for ${enr.fullName} (Card #${enr.cardNo}) approved by ${currentUser?.fullName || 'Supervisor'}.`,
+      });
+    }
   },
 
   /**
@@ -123,39 +148,61 @@ export const WorkflowService = {
       );
     }
 
-    const updated: Enrollment = {
-      ...enr,
-      status: 'rejected',
-      decisionDate: new Date().toISOString().split('T')[0],
-      rejectionReason: reason,
-    };
-    await FirestoreService.updateEnrollment(updated);
+    // === AMÉLIORATION AJOUTÉE : câblage de la Cloud Function `processEnrollmentDecision` pour le rejet
+    let handledByServer = false;
+    try {
+      const callProcessEnrollment = httpsCallable<
+        { enrollmentId: string; decision: 'approved' | 'rejected'; approverName?: string; approverRole?: string; rejectionReason?: string },
+        { success: boolean }
+      >(functions, 'processEnrollmentDecision');
+      const result = await callProcessEnrollment({
+        enrollmentId: enr.id,
+        decision: 'rejected',
+        approverName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+        approverRole: currentUser?.profile || currentUser?.role,
+        rejectionReason: reason,
+      });
+      handledByServer = !!result.data?.success;
+    } catch (err) {
+      console.warn('Cloud Function "processEnrollmentDecision" unavailable — falling back to client-side rejection:', err);
+      recordServerFallback('processEnrollmentDecision', `Rejection fallback for ${enr.id}`);
+    }
 
-    // Persistent notification to the Agent
-    await FirestoreService.addNotification({
-      recipientRole: 'Agent',
-      recipientEmail: enr.creatorEmail,
-      recipientId: enr.createdBy,
-      title: 'Enrollment Rejected ✗',
-      message: `Card #${enr.cardNo} (${enr.fullName}) was rejected by Supervisor. Reason: ${reason}`,
-      timestamp: new Date().toISOString(),
-      unread: true,
-      type: 'enrollment',
-      targetSection: 'enrollments',
-      entityId: enr.id,
-    });
+    if (!handledByServer) {
+      const updated: Enrollment = {
+        ...enr,
+        status: 'rejected',
+        decisionDate: new Date().toISOString().split('T')[0],
+        rejectionReason: reason,
+      };
+      await FirestoreService.updateEnrollment(updated);
 
-    // Enriched audit log
-    await FirestoreService.addLog({
-      userId: currentUser?.uid || 'supervisor',
-      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
-      userRole: currentUser?.role || 'Supervisor',
-      action: 'ENROLLMENT_REJECTED',
-      category: 'Enrollments',
-      entityId: enr.id,
-      entityType: 'enrollment',
-      details: `Enrollment for ${enr.fullName} rejected by ${currentUser?.fullName || 'Supervisor'}. Reason: ${reason}`,
-    });
+      // Persistent notification to the Agent
+      await FirestoreService.addNotification({
+        recipientRole: 'Agent',
+        recipientEmail: enr.creatorEmail,
+        recipientId: enr.createdBy,
+        title: 'Enrollment Rejected ✗',
+        message: `Card #${enr.cardNo} (${enr.fullName}) was rejected by Supervisor. Reason: ${reason}`,
+        timestamp: new Date().toISOString(),
+        unread: true,
+        type: 'enrollment',
+        targetSection: 'enrollments',
+        entityId: enr.id,
+      });
+
+      // Enriched audit log
+      await FirestoreService.addLog({
+        userId: currentUser?.uid || 'supervisor',
+        userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
+        userRole: currentUser?.role || 'Supervisor',
+        action: 'ENROLLMENT_REJECTED',
+        category: 'Enrollments',
+        entityId: enr.id,
+        entityType: 'enrollment',
+        details: `Enrollment for ${enr.fullName} rejected by ${currentUser?.fullName || 'Supervisor'}. Reason: ${reason}`,
+      });
+    }
   },
 
   /**
