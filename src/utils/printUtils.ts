@@ -28,6 +28,41 @@ function getActiveCurrencyFormatter(lang: Language = 'en') {
   };
 }
 
+// === AMÉLIORATION AJOUTÉE : nouveau modèle "Settlement Slip & Direct Billing Voucher"
+// (maquette fournie par l'utilisateur) — miroir de la logique déjà utilisée par
+// InvoicesView.tsx (slipBreakdownRows) pour que l'écran, l'impression et le PDF affichent
+// exactement le même détail par acte médical. Les factures antérieures à ce correctif n'ont
+// pas de `medicalActs` : repli sur une ligne unique dérivée de careType/amount/coveredAmount.
+function getBreakdownRows(invoice: InvoiceItem): { description: string; category: string; billed: number; covered: number }[] {
+  if (invoice.medicalActs && invoice.medicalActs.length > 0) {
+    return invoice.medicalActs.map((act) => ({
+      description: act.name,
+      category: act.category || invoice.careType,
+      billed: act.amount,
+      covered: (act.amount * (invoice.coveragePercentage || 80)) / 100,
+    }));
+  }
+  return [
+    {
+      description: invoice.careType,
+      category: invoice.careType,
+      billed: invoice.amount,
+      covered:
+        invoice.coveredAmount !== undefined
+          ? invoice.coveredAmount
+          : (invoice.amount * (invoice.coveragePercentage || 80)) / 100,
+    },
+  ];
+}
+
+function getSlipClaimRef(invoice: InvoiceItem): string {
+  return invoice.claimId || `SIN-${invoice.id.substring(0, 8)}`;
+}
+
+function isSlipApproved(invoice: InvoiceItem): boolean {
+  return invoice.status === 'valid' || (invoice.status as string) === 'approved';
+}
+
 /**
  * Generates and downloads a direct high-quality PDF version of the Coverage Voucher / Settlement Slip.
  */
@@ -53,23 +88,19 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   doc.setFont('helvetica', 'normal');
   doc.text('Health • Safety • Serenity — Healthcare Insurance', 14, 19);
 
-  doc.setFontSize(11);
+  doc.setFontSize(9.5);
   doc.setFont('helvetica', 'bold');
   doc.text(
-    'Direct-Billing Settlement Slip',
+    'Settlement Slip & Direct Billing Voucher',
     196,
-    13,
+    12,
     { align: 'right' }
   );
 
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
-  doc.text(
-    `Ref: ${invoice.reference}`,
-    196,
-    19,
-    { align: 'right' }
-  );
+  doc.text(`Voucher Ref: ${invoice.reference}`, 196, 17, { align: 'right' });
+  doc.text(`Claim Ref: ${getSlipClaimRef(invoice)}`, 196, 21, { align: 'right' });
 
   // === AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus sous le bandeau de couleur
   // existant (voir pdfBranding.ts). Comme ce document utilise des coordonnées Y fixes
@@ -79,77 +110,80 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   // se décale automatiquement sans qu'aucune autre ligne n'ait besoin d'être touchée.
   drawPdfLogoStrip(doc, 210, 29);
 
-  // Section: Beneficiary & Provider info cards
+  // === AMÉLIORATION AJOUTÉE : cachet "APPROVED & COVERED" (maquette fournie par
+  // l'utilisateur) — jsPDF ne gère pas nativement l'opacité, une teinte vert clair rotative
+  // approche visuellement l'effet de tampon semi-transparent de l'aperçu écran/impression.
+  if (isSlipApproved(invoice)) {
+    doc.setTextColor(190, 227, 205);
+    doc.setFontSize(21);
+    doc.setFont('helvetica', 'bold');
+    doc.text('APPROVED & COVERED', 105, 58 + PDF_LOGO_STRIP_HEIGHT, { align: 'center', angle: 18 });
+  }
+
+  // Section: Beneficiary & Coverage Identification (nouveaux libellés, maquette fournie)
+  const infoY = 40 + PDF_LOGO_STRIP_HEIGHT;
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.line(14, infoY, 196, infoY);
+
+  const infoRow = (label: string, leftVal: string, rightLabel: string, rightVal: string, y: number) => {
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text(label.toUpperCase(), 14, y);
+    doc.text(rightLabel.toUpperCase(), 105, y);
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(leftVal || 'N/A', 14, y + 5);
+    doc.text(rightVal || 'N/A', 105, y + 5);
+  };
+
+  infoRow('Beneficiary Name', invoice.patientName, 'Healthcare Facility', invoice.provider, infoY + 8);
+  infoRow('HealthPass Card No.', invoice.cardNo || invoice.patientPolicyNumber || 'N/A', 'Date of Service', invoice.serviceDate, infoY + 22);
+  infoRow('Organization', invoice.organization, 'Prescriber / Practitioner', invoice.prescribingDoctor || 'Medical Staff', infoY + 36);
+
+  const infoEndY = infoY + 46;
+
+  // Section: Medical Benefits Coverage Breakdown (une ligne par acte médical)
   doc.setTextColor(10, 46, 107);
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('1. File & Policy Identification', 14, 38 + PDF_LOGO_STRIP_HEIGHT);
+  doc.text('Medical Benefits Coverage Breakdown', 14, infoEndY);
+
+  const breakdownRows = getBreakdownRows(invoice);
 
   autoTable(doc, {
-    startY: 42 + PDF_LOGO_STRIP_HEIGHT,
-    theme: 'grid',
-    head: [[
-      'Beneficiary & Insured',
-      'Healthcare Facility & Prescriber',
-    ]],
-    body: [[
-      `Name: ${invoice.patientName}\nCard No.: ${invoice.cardNo}\nOrganization: ${invoice.organization}\nFamily Head: ${invoice.familyHead}`,
-      `Facility: ${invoice.provider}\nPrescriber: ${invoice.prescribingDoctor || 'Medical Staff'}\nCare Date: ${invoice.serviceDate}\nStatus: APPROVED & COMPLIANT`,
-    ]],
-    headStyles: {
-      fillColor: [13, 63, 143],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-    },
-    bodyStyles: {
-      fontSize: 9,
-      textColor: [30, 41, 59],
-      cellPadding: 4,
-    },
-  });
-
-  const finalY1 = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : 80;
-
-  // Section: Medical Act Table
-  doc.setTextColor(10, 46, 107);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('2. Medical Act & Coverage Breakdown', 14, finalY1 + 10);
-
-  autoTable(doc, {
-    startY: finalY1 + 14,
+    startY: infoEndY + 4,
     theme: 'striped',
     head: [[
-      'Care Description',
-      'Care Date',
-      'Coverage Rate',
-      'Total Billed',
-      'ACTIVA Share',
+      'Act / Service Description',
+      'Category',
+      'Billed Amount',
+      'Covered Amount',
     ]],
-    body: [[
-      invoice.careType,
-      invoice.serviceDate,
-      `${invoice.coveragePercentage} %`,
-      formatCurrency(invoice.amount),
-      formatCurrency(invoice.amount),
-    ]],
+    body: breakdownRows.map((row) => [
+      row.description,
+      row.category,
+      formatCurrency(row.billed),
+      formatCurrency(row.covered),
+    ]),
     headStyles: {
       fillColor: [0, 168, 89], // #00A859
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      halign: 'center',
     },
     columnStyles: {
       0: { halign: 'left', fontStyle: 'bold' },
-      1: { halign: 'center' },
-      2: { halign: 'center', fontStyle: 'bold', textColor: [0, 168, 89] },
-      3: { halign: 'right' },
-      4: { halign: 'right', fontStyle: 'bold', textColor: [13, 63, 143] },
+      1: { halign: 'left' },
+      2: { halign: 'right' },
+      3: { halign: 'right', fontStyle: 'bold', textColor: [13, 63, 143] },
     },
     styles: { fontSize: 9 },
   });
 
   const finalY2 = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : 120;
+  const totalCovered = breakdownRows.reduce((sum, row) => sum + row.covered, 0);
 
   // Highlight Box: Total Amount
   doc.setFillColor(236, 253, 245);
@@ -177,7 +211,7 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(4, 120, 87);
-  doc.text(formatCurrency(invoice.amount), 190, finalY2 + 20, { align: 'right' });
+  doc.text(formatCurrency(totalCovered), 190, finalY2 + 20, { align: 'right' });
 
   // Signatures Section
   const sigY = finalY2 + 38;
@@ -453,106 +487,145 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             font-size: 10px;
             letter-spacing: 0.5px;
           }
+          /* === AMELIORATION AJOUTEE : cachet "APPROVED & COVERED" (maquette fournie par
+             l'utilisateur), superpose en filigrane sur l'en-tete + le bloc d'identification du
+             bordereau. Portee volontairement limitee a .voucher-top (pas toute la carte, dont
+             la hauteur varie avec le nombre de lignes du tableau d'actes medicaux) pour que le
+             cachet reste toujours centre sur cette zone, quel que soit le contenu en dessous. */
+          .voucher-card {
+            position: relative;
+          }
+          .voucher-top {
+            position: relative;
+          }
+          .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-18deg);
+            border: 4px solid rgba(0, 168, 89, 0.25);
+            color: rgba(0, 168, 89, 0.25);
+            font-weight: 900;
+            font-size: 28px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 8px 20px;
+            border-radius: 10px;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 0;
+          }
+          .voucher-top > *:not(.watermark) {
+            position: relative;
+            z-index: 1;
+          }
         </style>
       </head>
       <body>
-        <div class="header">
-          <div>
-            <h1 class="brand-title">ACTIVA <span>HealthPass</span></h1>
-            <div class="brand-tagline">Health • Safety • Serenity — Healthcare Insurance</div>
-          </div>
-          <div class="doc-badge">
-            <h2>Settlement Slip</h2>
-            <div class="ref">REF. ${invoice.reference}</div>
-            <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
-              Date: ${currentDate}
-            </div>
-          </div>
-        </div>
+        <div class="voucher-card">
+          <div class="voucher-top">
+            ${isSlipApproved(invoice) ? '<div class="watermark">Approved &amp; Covered</div>' : ''}
 
-        <!-- AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus, juste sous l'entête
-             existant — nouveau bloc, la structure/flex du .header ci-dessus est intacte. -->
-        <div class="letterhead-logos">
-          <img src="${ACTIVA_LOGO_PNG_BASE64}" alt="ACTIVA" style="aspect-ratio: ${ACTIVA_LOGO_ASPECT_RATIO};" />
-          <div class="letterhead-partner">
-            <span class="label">In partnership with</span>
-            <img src="${GLOBUS_LOGO_PNG_BASE64}" alt="Globus" style="aspect-ratio: ${GLOBUS_LOGO_ASPECT_RATIO};" />
-          </div>
-        </div>
+            <div class="header">
+              <div>
+                <h1 class="brand-title">ACTIVA <span>HealthPass</span></h1>
+                <div class="brand-tagline">Health • Safety • Serenity — Healthcare Insurance</div>
+              </div>
+              <div class="doc-badge">
+                <h2>Settlement Slip &amp; Direct Billing Voucher</h2>
+                <div class="ref">Voucher Reference: ${invoice.reference}</div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 2px;">
+                  Claim Ref: ${getSlipClaimRef(invoice)}
+                </div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
+                  Date: ${currentDate}
+                </div>
+              </div>
+            </div>
 
-        <div class="grid-2">
-          <!-- Beneficiary Information -->
-          <div class="info-card">
-            <h4>Beneficiary & Insured Details</h4>
-            <div class="info-row">
-              <span class="info-label">Beneficiary Name :</span>
-              <span class="info-val">${invoice.patientName}</span>
+            <!-- AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus, juste sous l'entête
+                 existant — nouveau bloc, la structure/flex du .header ci-dessus est intacte. -->
+            <div class="letterhead-logos">
+              <img src="${ACTIVA_LOGO_PNG_BASE64}" alt="ACTIVA" style="aspect-ratio: ${ACTIVA_LOGO_ASPECT_RATIO};" />
+              <div class="letterhead-partner">
+                <span class="label">In partnership with</span>
+                <img src="${GLOBUS_LOGO_PNG_BASE64}" alt="Globus" style="aspect-ratio: ${GLOBUS_LOGO_ASPECT_RATIO};" />
+              </div>
             </div>
-            <div class="info-row">
-              <span class="info-label">Health Card No. :</span>
-              <span class="info-val">${invoice.cardNo}</span>
+
+            <div class="grid-2">
+            <!-- Beneficiary Information -->
+            <div class="info-card">
+              <h4>Beneficiary Details</h4>
+              <div class="info-row">
+                <span class="info-label">Beneficiary Name :</span>
+                <span class="info-val">${invoice.patientName}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">HealthPass Card No. :</span>
+                <span class="info-val">${invoice.cardNo || invoice.patientPolicyNumber || 'N/A'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Organization :</span>
+                <span class="info-val">${invoice.organization}</span>
+              </div>
             </div>
-            <div class="info-row">
-              <span class="info-label">Organization :</span>
-              <span class="info-val">${invoice.organization}</span>
+
+            <!-- Healthcare Provider Information -->
+            <div class="info-card">
+              <h4>Healthcare Facility</h4>
+              <div class="info-row">
+                <span class="info-label">Healthcare Facility :</span>
+                <span class="info-val">${invoice.provider}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Date of Service :</span>
+                <span class="info-val">${invoice.serviceDate}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Prescriber / Practitioner :</span>
+                <span class="info-val">${invoice.prescribingDoctor || 'Medical Staff'}</span>
+              </div>
             </div>
-            <div class="info-row">
-              <span class="info-label">Family Head :</span>
-              <span class="info-val">${invoice.familyHead}</span>
             </div>
           </div>
 
-          <!-- Healthcare Provider Information -->
-          <div class="info-card">
-            <h4>Healthcare Facility & Prescription</h4>
-            <div class="info-row">
-              <span class="info-label">Provider Facility :</span>
-              <span class="info-val">${invoice.provider}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Prescribing Doctor :</span>
-              <span class="info-val">${invoice.prescribingDoctor || 'Medical Staff'}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Care Date :</span>
-              <span class="info-val">${invoice.serviceDate}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Status :</span>
-              <span class="info-val"><span class="stamp">APPROVED</span></span>
-            </div>
+          <div class="table-container">
+            <h4 style="margin: 0 0 10px 0; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #0a2e6b; letter-spacing: 0.5px;">
+              Medical Benefits Coverage Breakdown
+            </h4>
+            <table>
+              <thead>
+                <tr>
+                  <th>Act / Service Description</th>
+                  <th>Category</th>
+                  <th style="text-align: right;">Billed Amount</th>
+                  <th style="text-align: right;">Covered Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${getBreakdownRows(invoice)
+                  .map(
+                    (row) => `
+                <tr>
+                  <td style="font-weight: 700; color: #0a2e6b;">${row.description}</td>
+                  <td>${row.category}</td>
+                  <td style="text-align: right; font-weight: 600;">${formatCurrency(row.billed)}</td>
+                  <td style="text-align: right; font-weight: 800; color: #00A859;">${formatCurrency(row.covered)}</td>
+                </tr>`
+                  )
+                  .join('')}
+              </tbody>
+            </table>
           </div>
-        </div>
 
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Care Category / Medical Act</th>
-                <th style="text-align: center;">Care Date</th>
-                <th style="text-align: center;">Coverage Rate</th>
-                <th style="text-align: right;">Total Billed</th>
-                <th style="text-align: right;">Covered by ACTIVA</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="font-weight: 700; color: #0a2e6b;">${invoice.careType}</td>
-                <td style="text-align: center;">${invoice.serviceDate}</td>
-                <td style="text-align: center; font-weight: 700; color: #00A859;">${invoice.coveragePercentage}%</td>
-                <td style="text-align: right; font-weight: 600;">${formatCurrency(invoice.amount)}</td>
-                <td style="text-align: right; font-weight: 800; color: #00A859;">${formatCurrency(invoice.amount)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="amount-highlight">
-          <div>
-            <div class="label">Total Net Payable by ACTIVA (${invoice.coveragePercentage}%)</div>
-            <div class="sub">Guaranteed payment under ACTIVA HealthPass convention terms</div>
+          <div class="amount-highlight">
+            <div>
+              <div class="label">Total Net Payable by ACTIVA (${invoice.coveragePercentage}%)</div>
+              <div class="sub">Guaranteed payment under ACTIVA HealthPass convention terms</div>
+            </div>
+            <div class="value">${formatCurrency(getBreakdownRows(invoice).reduce((sum, row) => sum + row.covered, 0))}</div>
           </div>
-          <div class="value">${formatCurrency(invoice.amount)}</div>
         </div>
 
         <div class="signatures">

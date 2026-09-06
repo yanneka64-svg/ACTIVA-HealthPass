@@ -430,6 +430,11 @@ export const WorkflowService = {
         careType: claim.careType,
         prescribingDoctor: claim.doctorName,
         coveragePercentage: org?.coverageRate ?? 80,
+        // === AMÉLIORATION AJOUTÉE : nouveau modèle de bordereau de règlement (voir
+        // InvoicesView.tsx / printUtils.ts) — conserve la référence du claim d'origine et le
+        // détail des actes médicaux, jusqu'ici perdus lors de la génération de la facture.
+        claimId: claim.reference,
+        medicalActs: claim.medicalActs,
       };
       await FirestoreService.addInvoice(newInvoice);
     }

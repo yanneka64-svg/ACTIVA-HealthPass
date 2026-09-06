@@ -192,6 +192,17 @@ export interface InvoiceItem {
   careType: string;
   prescribingDoctor?: string;
   coveragePercentage: number;
+  // === AMÉLIORATION AJOUTÉE : ces trois champs étaient déjà lus par InvoicesView.tsx sans
+  // être déclarés ici — champs additifs formalisant un usage déjà existant, sans changement de
+  // comportement.
+  claimId?: string;
+  coveredAmount?: number;
+  patientPolicyNumber?: string;
+  // === AMÉLIORATION AJOUTÉE : détail des actes médicaux (nouveau modèle de bordereau de
+  // règlement — voir InvoicesView.tsx / printUtils.ts), miroir de Claim.medicalActs.
+  // Optionnel : les factures antérieures à ce correctif n'en disposent pas et retombent sur un
+  // affichage à ligne unique (careType/amount/coveredAmount).
+  medicalActs?: { name: string; amount: number; category?: string; description?: string }[];
 }
 
 export interface Enrollment {
