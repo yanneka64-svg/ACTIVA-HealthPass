@@ -85,8 +85,32 @@ service cloud.firestore {
         : (hasAccount() && ('assignedOrganizations' in getUserData()) ? getUserData().assignedOrganizations : null);
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #5) ===
+    // Constat externe validé : `assignedOrganizations() == null → accès autorisé` est une
+    // logique "allow by default" — un compte Agent/Supervisor auquel un Admin n'a PAS encore
+    // assigné de périmètre d'organisations garde un accès illimité à toutes les organisations.
+    // C'est un choix rétrocompatible délibéré (voir commentaire Phase 1.3 ci-dessus), pas un
+    // oubli, mais il ne correspond pas à un objectif "deny by default" pour une application de
+    // gestion de données de santé.
+    // Décision explicite de cette revue : PRÉPARER le mécanisme deny-by-default SANS l'activer
+    // globalement — l'activer par défaut aujourd'hui bloquerait immédiatement tout Agent/
+    // Supervisor de production, puisqu'AUCUN compte n'a encore de `assignedOrganizations` peuplé
+    // (aucune UI Admin ne permet encore de le renseigner). Retenu : un opt-in explicite PAR
+    // COMPTE (`orgAccessPolicy: 'strict'`, absent par défaut) qu'un Admin pourra activer une
+    // fois qu'il aura vérifié/assigné le périmètre d'un compte donné — jamais activé
+    // globalement tant qu'aucun code ne pose ce champ. Comportement inchangé à 100% pour tout
+    // compte existant (aucun ne porte ce champ aujourd'hui) ; testé en non-régression.
+    function orgAccessDenyByDefault() {
+      return ('orgAccessPolicy' in request.auth.token && request.auth.token.orgAccessPolicy == 'strict')
+        || (hasAccount() && ('orgAccessPolicy' in getUserData()) && getUserData().orgAccessPolicy == 'strict');
+    }
+
     function hasOrgAccess(orgName) {
-      return isAdmin() || assignedOrganizations() == null || (orgName in assignedOrganizations());
+      return isAdmin() || (
+        assignedOrganizations() == null
+          ? !orgAccessDenyByDefault()
+          : (orgName in assignedOrganizations())
+      );
     }
 
     // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4 — SoD, createdByUid déterminé serveur) ===

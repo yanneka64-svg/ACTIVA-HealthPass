@@ -855,3 +855,37 @@ describe('Revue 2026-09-06 (A4) — healthPolicies.update : champs de synchro au
     );
   });
 });
+
+// --- Revue complète 2026-09-06, finding #5 : préparation du deny-by-default (opt-in) ----------
+
+describe('Revue 2026-09-06 (#5) — hasOrgAccess() : deny-by-default en opt-in par compte', () => {
+  it('non-régression : un Agent SANS assignedOrganizations ET SANS orgAccessPolicy garde un accès illimité (comportement actuel inchangé)', async () => {
+    await seedAccount('agentNoPolicy', { profile: 'Agent' });
+    await seedDoc('claims', 'cNoPolicy', { organization: 'AnyOrgWhatsoever', createdByUid: 'someoneElse' });
+
+    await assertSucceeds(asUser('agentNoPolicy').doc('claims/cNoPolicy').get());
+  });
+
+  it('un Agent avec orgAccessPolicy:"strict" ET sans assignedOrganizations perd l\'accès (deny-by-default activé)', async () => {
+    await seedAccount('agentStrictNoScope', { profile: 'Agent', orgAccessPolicy: 'strict' });
+    await seedDoc('claims', 'cStrict1', { organization: 'OrgX', createdByUid: 'someoneElse' });
+
+    await assertFails(asUser('agentStrictNoScope').doc('claims/cStrict1').get());
+  });
+
+  it('un Agent avec orgAccessPolicy:"strict" ET un assignedOrganizations explicite reste scopé normalement (l\'opt-in ne change rien quand un périmètre existe déjà)', async () => {
+    await seedAccount('agentStrictScoped', { profile: 'Agent', orgAccessPolicy: 'strict', assignedOrganizations: ['OrgY'] });
+    await seedDoc('claims', 'cStrict2', { organization: 'OrgY', createdByUid: 'someoneElse' });
+    await seedDoc('claims', 'cStrict3', { organization: 'OrgZ', createdByUid: 'someoneElse' });
+
+    await assertSucceeds(asUser('agentStrictScoped').doc('claims/cStrict2').get());
+    await assertFails(asUser('agentStrictScoped').doc('claims/cStrict3').get());
+  });
+
+  it('un Admin garde un accès total même avec orgAccessPolicy:"strict" posé sur son propre compte', async () => {
+    await seedAccount('adminStrict', { profile: 'Admin', orgAccessPolicy: 'strict' });
+    await seedDoc('claims', 'cStrictAdmin', { organization: 'AnyOrg', createdByUid: 'someoneElse' });
+
+    await assertSucceeds(asUser('adminStrict').doc('claims/cStrictAdmin').get());
+  });
+});
