@@ -264,9 +264,12 @@ l'environnement GitHub `staging` (et `production`) dispose bien de reviewers req
 | B | Collision d'ID quasi garantie sur l'import de masse | `b1f3744` |
 | A3 | `notifications` lisible par tout utilisateur signé | `b63d76f` |
 | A4 | Whitelist `healthPolicies.update` incomplète (champs de synchro) | `b63d76f` |
+| D1 | Tests : authUtils, passwordUtils, eligibilityService, cardService | `b7c8325` |
+| D1 | Tests : policyService.ts (copie serveur du moteur de polices) | `3705c61` |
 
-Restent ouverts : D1 (tests ciblés sur SoD/éligibilité/auth/cartes) et le reste des constats C/D
-(qualité/performance frontend et backend, hors urgence sécurité).
+Restent ouverts : le reste des constats C/D (qualité/performance frontend et backend, hors
+urgence sécurité), et le finding B5 (divergence client/serveur sur l'expiration le jour même —
+décision de comportement métier, volontairement non tranchée dans ce lot).
 
 ## Priorisation recommandée pour la suite
 
