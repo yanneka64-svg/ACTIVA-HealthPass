@@ -19,8 +19,11 @@
  *     reste résolvable, la suppression peut être décidée séparément et reste réversible ici
  *     (repasser isActive à true), ce qu'une suppression ne permet pas.
  *
- * Ce script NE modifie PAS le mot de passe Firebase Auth : lancer séparément
- * scripts/resetCompromisedPassword.ts si le mot de passe compromis n'a pas déjà été changé.
+ * Ce script NE modifie PAS le mot de passe Firebase Auth, ni ne révoque l'accès Auth lui-même
+ * (isActive n'existe que côté Firestore — le login Auth réussirait toujours) : lancer séparément
+ * scripts/resetCompromisedPassword.ts si le mot de passe compromis n'a pas déjà été changé, ET
+ * scripts/revokeCompromisedAccountAccess.ts pour désactiver le compte au niveau Auth et révoquer
+ * tout token déjà émis (SDK Admin, ADC — voir ce script pour le détail).
  *
  * IMPORTANT : la désactivation d'un compte (isActive) est un champ figé par les règles de
  * self-update (voir firestore.rules) — ce script doit obligatoirement s'authentifier avec un
@@ -128,8 +131,11 @@ async function run() {
 
   await updateDoc(doc(db, 'accounts', targetDocId as string), { isActive: false });
   console.log(`\n✓ Account accounts/${targetDocId} deactivated (isActive: false).`);
-  console.log('Reminder: this does NOT rotate the Firebase Auth password. Run scripts/resetCompromisedPassword.ts');
-  console.log('separately if the compromised password has not already been changed.');
+  console.log('Reminder: this does NOT rotate the Firebase Auth password, nor revoke Auth-level access —');
+  console.log('it only blocks Firestore access. For full remediation, also run:');
+  console.log('  1. scripts/resetCompromisedPassword.ts (if the compromised password has not already been changed)');
+  console.log('  2. scripts/revokeCompromisedAccountAccess.ts (disables Auth sign-in outright and revokes any');
+  console.log('     already-issued token — the Admin SDK step neither this script nor resetCompromisedPassword.ts can do)');
   process.exit(0);
 }
 
