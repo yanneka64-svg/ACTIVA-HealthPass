@@ -512,7 +512,16 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 badge "Policy Age Limits & Real-Time Eligibility Verification" (au lieu de se
                 trouver plus bas, après les bulles d'âge et le bouton), avec un retour à la
                 ligne normal et un alignement explicite à gauche. === */}
-            <div className="space-y-2 max-w-md lg:max-w-lg shrink-0">
+            {/* === AMÉLIORATION AJOUTÉE : justification du texte corrigée (retour utilisateur :
+                "le texte décale un peu") — vérifié visuellement dans le navigateur réel (pas
+                seulement en isolation) : text-align: justify était bien appliqué, mais la boîte
+                (max-w-md, 448px) était nettement plus étroite que l'espace réellement
+                disponible dans la bannière avant les bulles d'âge, forçant la justification à
+                étirer très peu de mots sur toute la largeur -> espaces inter-mots visiblement
+                inégaux, lus comme un texte "décalé"/mal aligné. Élargi (max-w-lg/lg:max-w-xl) +
+                w-full (largeur toujours égale à cette max-width, jamais ambiguë selon le calcul
+                flex "auto") pour donner à la justification assez de mots par ligne à répartir. */}
+            <div className="space-y-2 max-w-lg lg:max-w-xl shrink-0 w-full">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-gray-300">
                 <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
                 <span>Policy Age Limits & Real-Time Eligibility Verification</span>
