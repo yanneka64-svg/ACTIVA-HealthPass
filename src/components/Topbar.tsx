@@ -251,9 +251,14 @@ export const Topbar: React.FC<TopbarProps> = ({
         </div>
 
         {/* Language Pill */}
+        {/* === AMÉLIORATION AJOUTÉE : masqué en dessous de sm (retour utilisateur, navigation
+            mobile pas assez simplifiée) — cette pastille purement informative (pas de sélecteur,
+            "cursor-default") prenait ~100px sur un en-tête mobile de 390px, ce qui écrasait le
+            titre de la page affiché juste à gauche jusqu'à ne montrer qu'une ou deux lettres
+            (ex. "M..."). Réapparaît normalement à partir de sm, comportement desktop inchangé. */}
         <div
           id="app-language-indicator"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[var(--brand-900)] shadow-2xs hover:bg-slate-50 transition cursor-default"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[var(--brand-900)] shadow-2xs hover:bg-slate-50 transition cursor-default"
           title="System Language: English (Official)"
         >
           <Globe className={`w-3.5 h-3.5 ${theme.palette.primaryText}`} />
