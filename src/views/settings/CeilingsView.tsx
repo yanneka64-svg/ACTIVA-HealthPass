@@ -494,10 +494,13 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. TOP POLICY AGE LIMITS & REAL-TIME ELIGIBILITY CONTROLS BANNER */}
-      {/* === AMÉLIORATION AJOUTÉE : bannière alignée sur le gris déjà utilisé par la barre
-          latérale Admin (auparavant un dégradé quasi-noir #111827/#0F172A, incohérent avec
-          le reste de l'interface Admin) === */}
-      <div className="bg-gradient-to-r from-[#334155] via-[#3B485C] to-[#1E293B] rounded-3xl p-6 text-white shadow-xl border border-slate-600/70 relative overflow-hidden">
+      {/* === AMÉLIORATION AJOUTÉE : fond rouge (retour utilisateur, 2026-09-07) — signale
+          visuellement qu'il s'agit d'une règle de blocage stricte (bloque les réclamations,
+          invalide la couverture), au lieu du gris neutre utilisé partout ailleurs dans
+          l'interface Admin. Le texte/les badges/bulles restent dans les mêmes teintes claires
+          translucides (blanc/10, blanc/20) qu'avant, qui fonctionnent sur n'importe quel fond
+          sombre — seule la couleur de fond change réellement. */}
+      <div className="bg-gradient-to-r from-[#7F1D1D] via-[#991B1B] to-[#450A0A] rounded-3xl p-6 text-white shadow-xl border border-red-800/70 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         
         {/* === AMÉLIORATION AJOUTÉE : le badge "Policy Age Limits & Real-Time Eligibility
@@ -521,43 +524,55 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 inégaux, lus comme un texte "décalé"/mal aligné. Élargi (max-w-lg/lg:max-w-xl) +
                 w-full (largeur toujours égale à cette max-width, jamais ambiguë selon le calcul
                 flex "auto") pour donner à la justification assez de mots par ligne à répartir. */}
-            <div className="space-y-2 max-w-lg lg:max-w-xl shrink-0 w-full">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-gray-300">
+            {/* === AMÉLIORATION AJOUTÉE : largeur du bloc de texte alignée sur celle du badge
+                juste au-dessus (retour utilisateur, 2026-09-07) — auparavant plus large
+                (max-w-lg/xl) que le badge, le paragraphe s'étirait au-delà du bord droit du
+                badge au lieu de revenir à la ligne au même niveau. */}
+            <div className="space-y-2 max-w-md shrink-0 w-full">
+              {/* === AMÉLIORATION AJOUTÉE : mention "Age Limits" retirée du libellé affiché
+                  (retour utilisateur, 2026-09-07) — la configuration des plafonds d'âge
+                  elle-même (bulles Primary/Spouse/Child ci-dessous + bouton "Configure Benefit
+                  Limit") reste entièrement inchangée, seul ce libellé est reformulé. */}
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-red-100">
                 <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
-                <span>Policy Age Limits & Real-Time Eligibility Verification</span>
+                <span>Real-Time Eligibility Verification</span>
               </div>
               {/* === AMÉLIORATION AJOUTÉE : texte justifié (text-justify) sur demande explicite,
                   au lieu d'un simple alignement à gauche — les bords gauche ET droit du
                   paragraphe sont désormais alignés. === */}
-              <p className="text-xs text-gray-300 leading-relaxed font-medium text-justify whitespace-normal break-words">
+              <p className="text-xs text-red-100 leading-relaxed font-medium text-justify whitespace-normal break-words">
                 Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
               </p>
             </div>
 
             {/* Dynamic Age Limits Display Pills */}
-            <div className="flex flex-wrap items-center gap-3">
+            {/* === AMÉLIORATION AJOUTÉE : flex-nowrap (retour utilisateur, 2026-09-07) — les
+                bulles d'âge et le bouton "Configure Benefit Limit" doivent toujours rester sur
+                la même ligne (auparavant flex-wrap, pouvait les faire passer sur plusieurs
+                lignes). === */}
+            <div className="flex flex-nowrap items-center gap-3">
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-red-100 block">
                 Primary Insured
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgePrinc}</span>
-                <span className="text-[10px] font-bold text-gray-300">years</span>
+                <span className="text-[10px] font-bold text-red-100">years</span>
               </div>
             </div>
 
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-red-100 block">
                 Spouse
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgeSpouse}</span>
-                <span className="text-[10px] font-bold text-gray-300">years</span>
+                <span className="text-[10px] font-bold text-red-100">years</span>
               </div>
             </div>
 
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[140px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-red-100 block">
                 Child / Dependant
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
@@ -573,7 +588,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             <button
               id="configure-benefit-limit-btn"
               onClick={openNewBenefitLimitWizard}
-              className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-slate-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
+              className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-red-50 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
             >
               <PlusCircle className="w-4 h-4 text-slate-800" />
               <span>Configure Benefit Limit</span>
