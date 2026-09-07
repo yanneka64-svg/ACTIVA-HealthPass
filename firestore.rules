@@ -214,10 +214,20 @@ service cloud.firestore {
 
     // members collection
     match /members/{memberId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+      // "Missing or insufficient permissions" en production) — `resource.data.organization` en
+      // notation pointée déclenche une ERREUR D'ÉVALUATION (pas juste `null`) sur tout document
+      // qui ne porte pas ce champ, ce qui refuse alors l'ENSEMBLE de la requête `onSnapshot` en
+      // temps réel (pas seulement ce document précis) : exactement le comportement observé
+      // (members/claims/invoices, les 3 seules collections cloisonnées par hasOrgAccess()).
+      // `resource.data.get('organization', null)` ne lève jamais cette erreur et retombe sur
+      // `null`, ce qui restaure le comportement pleinement rétrocompatible déjà documenté plus
+      // haut (Phase 1.3 / finding #5) pour les documents antérieurs à ce champ — jusqu'ici cette
+      // garantie n'était appliquée que côté compte (`assignedOrganizations()`), pas côté document.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null));
       allow create: if isSignedIn() && isActiveUser() && hasOrgAccess(request.resource.data.organization);
       allow update: if isSignedIn() && isActiveUser() &&
-        hasOrgAccess(resource.data.organization) &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
       allow delete: if isAdmin();
     }
@@ -319,7 +329,10 @@ service cloud.firestore {
     // organisation via hasOrgAccess() (voir définition plus haut) ; écriture inchangée
     // (déjà réservée à isAdmin(), qui passe toujours hasOrgAccess()).
     match /policyPayments/{paymentId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organizationId);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07) — même
+      // correctif que members/claims/invoices ci-dessous : accès sûr au champ, sans erreur
+      // d'évaluation sur un document qui ne le porte pas encore.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organizationId', null));
       allow write: if isAdmin();
     }
 
@@ -335,11 +348,21 @@ service cloud.firestore {
     // organisation via hasOrgAccess() ; empêche aussi de "déplacer" un claim vers une
     // organisation hors périmètre lors d'une mise à jour.
     match /claims/{claimId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+      // "Missing or insufficient permissions" en production) — `resource.data.organization` en
+      // notation pointée déclenche une ERREUR D'ÉVALUATION (pas juste `null`) sur tout document
+      // qui ne porte pas ce champ, ce qui refuse alors l'ENSEMBLE de la requête `onSnapshot` en
+      // temps réel (pas seulement ce document précis) : exactement le comportement observé
+      // (members/claims/invoices, les 3 seules collections cloisonnées par hasOrgAccess()).
+      // `resource.data.get('organization', null)` ne lève jamais cette erreur et retombe sur
+      // `null`, ce qui restaure le comportement pleinement rétrocompatible déjà documenté plus
+      // haut (Phase 1.3 / finding #5) pour les documents antérieurs à ce champ — jusqu'ici cette
+      // garantie n'était appliquée que côté compte (`assignedOrganizations()`), pas côté document.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null));
       allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization) &&
         hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
-        hasOrgAccess(resource.data.organization) &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) &&
         (!('createdByUid' in request.resource.data) || !('createdByUid' in resource.data) || request.resource.data.createdByUid == resource.data.createdByUid) &&
         (!('status' in request.resource.data) || statusChangeAllowed(resource.data.status, request.resource.data.status)) && (
@@ -360,11 +383,21 @@ service cloud.firestore {
     // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — read/create/update cloisonnés par
     // organisation via hasOrgAccess().
     match /medicalForms/{formId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+      // "Missing or insufficient permissions" en production) — `resource.data.organization` en
+      // notation pointée déclenche une ERREUR D'ÉVALUATION (pas juste `null`) sur tout document
+      // qui ne porte pas ce champ, ce qui refuse alors l'ENSEMBLE de la requête `onSnapshot` en
+      // temps réel (pas seulement ce document précis) : exactement le comportement observé
+      // (members/claims/invoices, les 3 seules collections cloisonnées par hasOrgAccess()).
+      // `resource.data.get('organization', null)` ne lève jamais cette erreur et retombe sur
+      // `null`, ce qui restaure le comportement pleinement rétrocompatible déjà documenté plus
+      // haut (Phase 1.3 / finding #5) pour les documents antérieurs à ce champ — jusqu'ici cette
+      // garantie n'était appliquée que côté compte (`assignedOrganizations()`), pas côté document.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null));
       allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization) &&
         hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
-        hasOrgAccess(resource.data.organization) &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
       allow delete: if isAdmin();
 
@@ -385,7 +418,10 @@ service cloud.firestore {
       // Un client ne peut EN AUCUN CAS persister des données médicales en clair dans Firestore.
       match /clinical/{clinicalId} {
         function parentOrganization() {
-          return get(/databases/$(database)/documents/medicalForms/$(formId)).data.organization;
+          // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07) —
+          // même correctif que ci-dessus : accès sûr, sans erreur d'évaluation si le formulaire
+          // parent ne porte pas (encore) ce champ.
+          return get(/databases/$(database)/documents/medicalForms/$(formId)).data.get('organization', null);
         }
 
         function isEncryptedClinicalField(val) {
@@ -423,10 +459,20 @@ service cloud.firestore {
     // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — read/create/update cloisonnés par
     // organisation via hasOrgAccess().
     match /enrollments/{enrollmentId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+      // "Missing or insufficient permissions" en production) — `resource.data.organization` en
+      // notation pointée déclenche une ERREUR D'ÉVALUATION (pas juste `null`) sur tout document
+      // qui ne porte pas ce champ, ce qui refuse alors l'ENSEMBLE de la requête `onSnapshot` en
+      // temps réel (pas seulement ce document précis) : exactement le comportement observé
+      // (members/claims/invoices, les 3 seules collections cloisonnées par hasOrgAccess()).
+      // `resource.data.get('organization', null)` ne lève jamais cette erreur et retombe sur
+      // `null`, ce qui restaure le comportement pleinement rétrocompatible déjà documenté plus
+      // haut (Phase 1.3 / finding #5) pour les documents antérieurs à ce champ — jusqu'ici cette
+      // garantie n'était appliquée que côté compte (`assignedOrganizations()`), pas côté document.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null));
       allow create: if isSignedIn() && isActiveUser() && hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
-        hasOrgAccess(resource.data.organization) &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) &&
         (!('createdByUid' in request.resource.data) || !('createdByUid' in resource.data) || request.resource.data.createdByUid == resource.data.createdByUid) &&
         (!('status' in request.resource.data) || statusChangeAllowed(resource.data.status, request.resource.data.status)) && (
@@ -441,10 +487,20 @@ service cloud.firestore {
     // organisation via hasOrgAccess(). Séparé en deux règles (create/update) car `resource`
     // n'existe pas encore lors d'une création.
     match /invoices/{invoiceId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+      // "Missing or insufficient permissions" en production) — `resource.data.organization` en
+      // notation pointée déclenche une ERREUR D'ÉVALUATION (pas juste `null`) sur tout document
+      // qui ne porte pas ce champ, ce qui refuse alors l'ENSEMBLE de la requête `onSnapshot` en
+      // temps réel (pas seulement ce document précis) : exactement le comportement observé
+      // (members/claims/invoices, les 3 seules collections cloisonnées par hasOrgAccess()).
+      // `resource.data.get('organization', null)` ne lève jamais cette erreur et retombe sur
+      // `null`, ce qui restaure le comportement pleinement rétrocompatible déjà documenté plus
+      // haut (Phase 1.3 / finding #5) pour les documents antérieurs à ce champ — jusqu'ici cette
+      // garantie n'était appliquée que côté compte (`assignedOrganizations()`), pas côté document.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null));
       allow create: if isSignedIn() && isActiveUser() && canValidate() && hasOrgAccess(request.resource.data.organization);
       allow update: if isSignedIn() && isActiveUser() && canValidate() &&
-        hasOrgAccess(resource.data.organization) &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
       allow delete: if isAdmin();
     }

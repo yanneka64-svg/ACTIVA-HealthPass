@@ -37,8 +37,6 @@ import {
   isSectionAllowedForRole,
 } from './utils/authUtils';
 import { getRoleTheme, getRoleCssVars } from './theme/roleTheme';
-// === AMÉLIORATION AJOUTÉE : sécurité (retour utilisateur, 2026-09-07) ===
-import { getPendingLoginProfile, clearPendingLoginProfile } from './utils/pendingLoginProfile';
 import { getClientLocationInfo, parseUserAgent } from './utils/geoUtils';
 
 // Views
@@ -68,16 +66,7 @@ import {
 } from './utils/sound'; // === AMÉLIORATION AJOUTÉE : sons Web Audio API (succès, notification, connexion, erreur, déconnexion) ===
 import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon, Users, FileCheck } from 'lucide-react';
 
-// === AMÉLIORATION AJOUTÉE : sécurité (retour utilisateur, 2026-09-07) — 'profile_mismatch' ajouté
-// pour le cas où le profil sélectionné sur la page de connexion ne correspond pas au vrai rôle du
-// compte (voir onAuthStateChanged ci-dessous et src/utils/pendingLoginProfile.ts).
-export type AuthStateStatus =
-  | 'loading'
-  | 'unauthenticated'
-  | 'authenticated'
-  | 'inactive'
-  | 'invalid_role'
-  | 'profile_mismatch';
+export type AuthStateStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'inactive' | 'invalid_role';
 
 // === AMÉLIORATION AJOUTÉE : reconnexion forcée après un nouveau déploiement. Firebase Auth
 // garde une session ouverte indéfiniment par défaut (persistance locale standard, comme
@@ -115,11 +104,6 @@ export default function App() {
   const [authStatus, setAuthStatus] = useState<AuthStateStatus>('loading');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<AppRole | null>(null);
-  // === AMÉLIORATION AJOUTÉE : sécurité (retour utilisateur, 2026-09-07) ===
-  const [profileMismatchDetail, setProfileMismatchDetail] = useState<{
-    selected: string;
-    actual: string;
-  } | null>(null);
   const [forcedFirstLogin, setForcedFirstLogin] = useState(false);
   const [forcedPasswordExpiry, setForcedPasswordExpiry] = useState(false);
 
@@ -174,11 +158,6 @@ export default function App() {
         setChangePasswordModalOpen(false);
         setToastMessage(null);
         sessionStorage.removeItem('activa_current_section');
-        // === AMÉLIORATION AJOUTÉE : sécurité (retour utilisateur, 2026-09-07) — évite qu'un
-        // profil sélectionné lors d'une tentative de connexion précédente reste pris en compte
-        // pour la suivante une fois l'utilisateur revenu à l'écran de connexion.
-        clearPendingLoginProfile();
-        setProfileMismatchDetail(null);
         return;
       }
 
@@ -209,31 +188,6 @@ export default function App() {
                 setUserRole(null);
                 setAuthStatus('invalid_role');
                 return;
-              }
-
-              // === AMÉLIORATION AJOUTÉE : sécurité (retour utilisateur, 2026-09-07) — c'est ICI,
-              // et seulement ici, que le rôle réel du compte est connu avec certitude : c'est donc
-              // le seul endroit qui puisse faire réellement autorité pour vérifier que le profil
-              // choisi sur la page de connexion (LoginView.tsx) correspond au compte utilisé.
-              // Une vérification faite uniquement dans LoginView ne pourrait bloquer que ses
-              // propres effets de bord (son, journal d'audit) : ce listener global, lui,
-              // authentifierait et afficherait quand même le tableau de bord du VRAI rôle,
-              // quel que soit le profil sélectionné. Volontairement PAS déconnecté automatiquement
-              // ici (voir pendingLoginProfile.ts) : on suit le même principe que les écrans
-              // 'inactive'/'invalid_role' ci-dessus/dessous, qui laissent déjà l'utilisateur
-              // authentifié côté Firebase mais bloquent l'accès au tableau de bord tant qu'il n'a
-              // pas cliqué sur "Return to Login".
-              const pendingLoginProfile = getPendingLoginProfile();
-              if (pendingLoginProfile && pendingLoginProfile !== resolvedRole) {
-                setCurrentUser({ ...firebaseUser, ...data });
-                setUserRole(null);
-                setProfileMismatchDetail({ selected: pendingLoginProfile, actual: resolvedRole });
-                setAuthStatus('profile_mismatch');
-                return;
-              }
-              if (pendingLoginProfile) {
-                clearPendingLoginProfile();
-                setProfileMismatchDetail(null);
               }
 
               // Dynamic entity & metadata from single source of truth
@@ -1139,23 +1093,6 @@ export default function App() {
       <AuthBlockedScreen
         reason="inactive"
         userEmail={currentUser?.email}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  // === AMÉLIORATION AJOUTÉE : sécurité (retour utilisateur, 2026-09-07) — écran affiché quand le
-  // profil sélectionné sur la page de connexion (LoginView.tsx) ne correspond pas au vrai rôle du
-  // compte (voir la vérification dans onAuthStateChanged ci-dessus). L'utilisateur reste
-  // authentifié côté Firebase mais n'accède à aucun tableau de bord tant qu'il n'a pas cliqué sur
-  // "Return to Login" (handleLogout, qui déconnecte réellement et réinitialise le formulaire).
-  if (authStatus === 'profile_mismatch') {
-    return (
-      <AuthBlockedScreen
-        reason="profile_mismatch"
-        userEmail={currentUser?.email}
-        selectedProfile={profileMismatchDetail?.selected}
-        actualProfile={profileMismatchDetail?.actual}
         onLogout={handleLogout}
       />
     );

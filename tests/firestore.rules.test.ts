@@ -78,6 +78,34 @@ describe('Phase 1.3 — isolation par organisation (accounts.assignedOrganizatio
     await assertSucceeds(asUser('agentNoScope').doc('claims/c1').get());
   });
 
+  // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+  // "Missing or insufficient permissions" observée en production sur members/claims/invoices) ===
+  // Preuve reproductible : avant le correctif (`resource.data.organization` en notation
+  // pointée), un document dépourvu du champ `organization` faisait ÉCHOUER l'évaluation de la
+  // règle (pas juste refuser CE document précis), ce qui bloquait toute la requête
+  // `onSnapshot`/lecture en temps réel — visible en production sur des données antérieures à
+  // l'introduction de ce champ (Phase 1.3). `resource.data.get('organization', null)` retombe
+  // sur `null`, donc sur le même comportement rétrocompatible que documenté plus haut pour
+  // `assignedOrganizations()` absent : accès autorisé par défaut (deny-by-default restant
+  // opt-in, jamais activé globalement).
+  it('un document members/claims/invoices SANS champ organization reste lisible (non-régression, cause racine du bug de production)', async () => {
+    await seedAccount('agentLegacyDoc', { profile: 'Agent' });
+    await seedDoc('claims', 'cLegacy', { status: 'pending', createdBy: 'someoneElse' });
+    await seedDoc('members', 'mLegacy', { cardNo: 'AMID-260101-00099' });
+    await seedDoc('invoices', 'iLegacy', { amount: 50 });
+
+    await assertSucceeds(asUser('agentLegacyDoc').doc('claims/cLegacy').get());
+    await assertSucceeds(asUser('agentLegacyDoc').doc('members/mLegacy').get());
+    await assertSucceeds(asUser('agentLegacyDoc').doc('invoices/iLegacy').get());
+  });
+
+  it('un document SANS champ organization reste REFUSÉ pour un Agent dont le périmètre est explicitement restreint', async () => {
+    await seedAccount('agentScopedLegacyDoc', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('claims', 'cLegacyScoped', { status: 'pending', createdBy: 'someoneElse' });
+
+    await assertFails(asUser('agentScopedLegacyDoc').doc('claims/cLegacyScoped').get());
+  });
+
   it('avec assignedOrganizations=[OrgA] : un Agent PEUT lire un claim de OrgA', async () => {
     await seedAccount('agentOrgA', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
     await seedDoc('claims', 'c1', { organization: 'OrgA', status: 'pending', createdBy: 'someoneElse' });

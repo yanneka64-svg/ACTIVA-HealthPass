@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff, Stethoscope, ShieldCheck, ChevronDown } from 'lucide-react';
+import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff } from 'lucide-react';
 import { Language } from '../../types';
 import { Logo } from '../Logo';
 import { auth, functions, db } from '../../lib/firebase';
@@ -8,23 +8,6 @@ import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { getClientLocationInfo, parseUserAgent } from '../../utils/geoUtils';
 import { FirestoreService } from '../../services/firestore';
-import { getRoleTheme, UserRole } from '../../theme/roleTheme';
-import { normalizeRole } from '../../utils/authUtils';
-import { setPendingLoginProfile } from '../../utils/pendingLoginProfile';
-
-// === AMÉLIORATION AJOUTÉE : sélecteur de profil sur la page de connexion (sur demande
-// explicite) — prévisualise la couleur de l'interface correspondante avant même de se connecter,
-// en réutilisant le même système de thème par rôle (src/theme/roleTheme.ts) que le reste de
-// l'application. Depuis le retour utilisateur du 2026-09-07, ce choix n'est plus seulement
-// visuel : la connexion est refusée si le profil sélectionné ne correspond pas au VRAI rôle du
-// compte (accounts/{uid}.profile) — voir le contrôle plus bas dans attemptLogin, et surtout le
-// contrôle faisant réellement autorité dans App.tsx (onAuthStateChanged), qui seul décide si le
-// tableau de bord s'affiche.
-const PROFILE_OPTIONS: { role: UserRole; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { role: 'Agent', label: 'Agent', icon: User },
-  { role: 'Supervisor', label: 'Supervisor', icon: Stethoscope },
-  { role: 'Admin', label: 'Admin', icon: ShieldCheck },
-];
 
 interface LoginViewProps {
   onLoginSuccess: (user: any, accountData?: any) => void;
@@ -93,12 +76,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [lockoutRemainingSec, setLockoutRemainingSec] = useState(0);
-  // === AMÉLIORATION AJOUTÉE : sélecteur de profil — voir le commentaire au-dessus de
-  // PROFILE_OPTIONS. "Agent" par défaut pour ne rien changer visuellement pour un utilisateur
-  // qui ne touche pas au sélecteur (couleur bleue déjà existante avant ce correctif).
-  const [selectedProfile, setSelectedProfile] = useState<UserRole>('Agent');
-  const theme = getRoleTheme(selectedProfile);
-  const [mR, mG, mB] = theme.palette.motifStroke.split(',').map((s) => s.trim());
 
   // Live countdown while locked out, so the user sees when they can retry.
   useEffect(() => {
@@ -113,13 +90,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const attemptLogin = async (cleanUsername: string): Promise<boolean> => {
     setIsLoggingIn(true);
     setError(null);
-
-    // === AMÉLIORATION AJOUTÉE : sécurité (retour utilisateur, 2026-09-07) — transmet le profil
-    // choisi dans la liste déroulante au listener global onAuthStateChanged (App.tsx) AVANT toute
-    // tentative de connexion Firebase Auth ci-dessous, afin qu'il puisse comparer ce choix au VRAI
-    // rôle du compte dès qu'il le connaît et refuser l'accès au tableau de bord en cas de
-    // désaccord (voir src/utils/pendingLoginProfile.ts pour le détail du fonctionnement).
-    setPendingLoginProfile(selectedProfile);
 
     const inputLower = cleanUsername.toLowerCase();
     const inputSanitized = inputLower.replace(/[^a-z0-9_.]/g, '');
@@ -305,26 +275,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
           return false;
         }
 
-        // === AMÉLIORATION AJOUTÉE : sécurité/UX (retour utilisateur, 2026-09-07) — le
-        // sélecteur de profil (voir PROFILE_OPTIONS ci-dessus) n'était jusqu'ici qu'une
-        // préférence d'affichage : n'importe quel compte pouvait se connecter quel que soit le
-        // profil sélectionné. Désormais, la connexion est refusée si le profil réel du compte
-        // (accounts/{uid}.profile, normalisé — accepte les variantes/alias existants, voir
-        // normalizeRole) ne correspond pas au profil choisi. Comparaison uniquement quand le
-        // profil réel est déterminable ; un compte au profil manquant/invalide n'est jamais
-        // bloqué ici par cette vérification (un autre garde-fou existant s'en charge déjà en
-        // aval). Ne modifie ni la vérification Firebase Auth déjà effectuée ci-dessus, ni les
-        // règles Firestore : la source de vérité du profil reste exclusivement le compte réel,
-        // seule cette page de connexion applique ce contrôle supplémentaire.
-        const actualRole = normalizeRole(accountData?.profile);
-        if (actualRole && actualRole !== selectedProfile) {
-          setError(
-            `This account is registered as ${actualRole}, not ${selectedProfile}. Please select "${actualRole}" above, or contact your administrator if this seems wrong.`
-          );
-          setIsLoggingIn(false);
-          return false;
-        }
-
         onLoginSuccess(userCredential.user, accountData);
         return true;
       }
@@ -415,7 +365,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
           bleu (masqué en dessous de lg) n'est pas affiché. */}
       <div className="lg:hidden fixed top-0 inset-x-0 z-20 flex items-center justify-between gap-2 px-4 py-3 bg-white border-b border-[#E8EDF2]">
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
-          <Shield className="w-3.5 h-3.5 text-[#0A347B] transition-colors duration-500" style={{ color: theme.palette.hexRamp['900'] }} />
+          <Shield className="w-3.5 h-3.5 text-[#0A347B]" />
           <span>ACTIVA Secure Portal</span>
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
@@ -424,22 +374,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
       </div>
 
-      {/* LEFT PANEL — dégradé + motif de courbes, désormais dynamiques selon le profil
-          sélectionné ci-dessous (voir PROFILE_OPTIONS / roleTheme.ts) ; bleu Agent par défaut,
-          identique à avant tant que l'utilisateur ne change pas la sélection. */}
-      <div className={`hidden lg:flex lg:w-[46%] xl:w-[44%] ${theme.palette.sidebarGradient} relative overflow-hidden flex-col justify-between p-10 xl:p-14 transition-colors duration-500`}>
-        {/* Halo lumineux — identique à Sidebar.tsx (accentGlow, dynamique par rôle) */}
-        <div className={`absolute -bottom-16 -left-16 w-72 h-72 ${theme.palette.accentGlow} rounded-full blur-3xl pointer-events-none transition-colors duration-500`} />
+      {/* LEFT PANEL — dégradé bleu + motif de courbes, identiques à la sidebar Agent */}
+      <div className="hidden lg:flex lg:w-[46%] xl:w-[44%] bg-gradient-to-b from-[#072659] via-[#0A347B] to-[#0D2B63] relative overflow-hidden flex-col justify-between p-10 xl:p-14">
+        {/* Halo lumineux — identique à Sidebar.tsx (accentGlow Agent: bg-blue-400/20) */}
+        <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Motif de courbes — copié tel quel de Sidebar.tsx, couleur dynamique par rôle
-            (motifStroke). === AMÉLIORATION AJOUTÉE : dérive lente et continue
-            (login-motif-drift), sur demande explicite. === */}
+        {/* Motif de courbes — copié tel quel de Sidebar.tsx. === AMÉLIORATION AJOUTÉE :
+            dérive lente et continue (login-motif-drift), sur demande explicite. === */}
         <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0 login-motif-drift">
           <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke={`rgba(${mR}, ${mG}, ${mB}, 0.55)`} strokeWidth="1.8" style={{ transition: 'stroke 0.5s' }} />
-            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke={`rgba(${mR}, ${mG}, ${mB}, 0.45)`} strokeWidth="1.5" style={{ transition: 'stroke 0.5s' }} />
-            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke={`rgba(${mR}, ${mG}, ${mB}, 0.38)`} strokeWidth="1.3" style={{ transition: 'stroke 0.5s' }} />
-            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke={`rgba(${mR}, ${mG}, ${mB}, 0.30)`} strokeWidth="1.2" style={{ transition: 'stroke 0.5s' }} />
+            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
+            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
+            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
+            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
           </svg>
         </div>
 
@@ -489,38 +436,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
               Sign in to access your ACTIVA HealthPass account.
             </p>
 
-            {/* === AMÉLIORATION AJOUTÉE : sélecteur de profil (Agent / Supervisor / Admin), sur
-                demande explicite — liste déroulante (remplace les 3 boutons initiaux, jugés
-                trop chargés). La couleur de la page (panneau bleu, bouton, motif) adopte celle
-                du profil choisi ; la connexion elle-même est désormais refusée si le compte
-                réel ne correspond pas au profil sélectionné (voir la vérification dans
-                attemptLogin ci-dessus). === */}
-            <div className="mt-6">
-              <label htmlFor="login-profile-select" className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
-                Connect as
-              </label>
-              <div className="relative">
-                {(() => {
-                  const SelectedIcon = PROFILE_OPTIONS.find((o) => o.role === selectedProfile)?.icon || User;
-                  return <SelectedIcon className="w-4 h-4 text-[#778FAF] absolute left-3.5 top-3.5 pointer-events-none" />;
-                })()}
-                <select
-                  id="login-profile-select"
-                  value={selectedProfile}
-                  onChange={(e) => setSelectedProfile(e.target.value as UserRole)}
-                  className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150 cursor-pointer appearance-none"
-                >
-                  {PROFILE_OPTIONS.map(({ role, label }) => (
-                    <option key={role} value={role}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-[#778FAF] absolute right-3.5 top-3.5 pointer-events-none" />
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <form onSubmit={handleSubmit} className="mt-7 space-y-4">
               {/* Error Alert Box */}
               {error && (
                 <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
@@ -594,7 +510,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   id="login-submit-button"
                   type="submit"
                   disabled={isLoggingIn || lockoutRemainingSec > 0}
-                  className={`w-full py-3 px-4 rounded-xl ${theme.palette.primaryColor} active:brightness-90 text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
+                  className="w-full py-3 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span>{lockoutRemainingSec > 0 ? `Try again in ${lockoutRemainingSec}s` : isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
                   <ArrowRight className="w-4 h-4" />
