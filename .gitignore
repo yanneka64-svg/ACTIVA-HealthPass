@@ -24,3 +24,10 @@ firebase-adminsdk-*.json
 e2e/.e2e-pids.json
 test-results/
 playwright-report/
+
+# === AMÉLIORATION AJOUTÉE : hygiène de dépôt (préparation Go-Live, 2026-09-07) ===
+# Sortie de compilation des Cloud Functions — entièrement régénérée par `npm run build` à chaque
+# déploiement réel (voir le hook `predeploy` de firebase.json) ; la tracker créait un décalage
+# permanent avec functions/src/ (déjà désynchronisée avant même ce commit) sans aucun bénéfice,
+# le déploiement ne dépendant jamais de la copie committée.
+functions/lib/
