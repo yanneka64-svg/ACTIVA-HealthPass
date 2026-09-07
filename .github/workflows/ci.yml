@@ -34,7 +34,7 @@ jobs:
       # cette étape, "Firestore rules tests (emulator)" échoue avec "firebase-tools no longer
       # supports Java version before 21" — jamais détecté jusqu'ici car les étapes précédentes
       # du pipeline échouaient toujours plus tôt (voir historique des runs CI sur main).
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '21'
