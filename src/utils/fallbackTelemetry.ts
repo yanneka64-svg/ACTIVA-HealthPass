@@ -14,6 +14,7 @@
 // toutes les 5 minutes par nom de repli, pour éviter d'inonder le journal en cas de panne
 // prolongée d'une Cloud Function très sollicitée (ex. génération de numéro de carte).
 import { FirestoreService } from '../services/firestore';
+import { reportFallbackEvent } from './systemStatus';
 
 const lastLoggedAt: Record<string, number> = {};
 const MIN_INTERVAL_MS = 5 * 60 * 1000;
@@ -21,8 +22,18 @@ const MIN_INTERVAL_MS = 5 * 60 * 1000;
 /**
  * Records that a server-side (Cloud Function) call fell back to client-side logic. Fire-and-
  * forget: never throws, never delays the caller.
+ *
+ * === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07) === En plus de la
+ * journalisation dans `auditLogs` ci-dessous (déjà en place, mais invisible à l'écran), chaque
+ * repli déclenche désormais un signalement visible via systemStatus.ts (voir FallbackAlertBanner)
+ * — décision explicite : garder le filet de sécurité client, mais ne plus le laisser se
+ * déclencher silencieusement. Appelé AVANT l'anti-spam (throttle) ci-dessous pour que
+ * l'utilisateur actif voie l'alerte même quand la journalisation Firestore est temporairement
+ * supprimée par celui-ci (l'anti-spam ne concerne que l'écriture en base, pas l'affichage).
  */
 export function recordServerFallback(fallbackName: string, detail?: string): void {
+  reportFallbackEvent(fallbackName, detail);
+
   const now = Date.now();
   const last = lastLoggedAt[fallbackName] || 0;
   if (now - last < MIN_INTERVAL_MS) return;

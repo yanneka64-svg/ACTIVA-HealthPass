@@ -4,8 +4,42 @@ import { getPolicyCoverageStatus } from './policyEngine';
 import { generateNextCardNumber } from './cardNumberService';
 // === AMÉLIORATION AJOUTÉE : câblage des Cloud Functions (Phase 3/5), sur demande explicite.
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '../lib/firebase';
+import { runTransaction, doc } from 'firebase/firestore';
+import { functions, db } from '../lib/firebase';
 import { recordServerFallback } from '../utils/fallbackTelemetry';
+
+// === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07, décision explicite) ===
+// Le filet de sécurité client sur claims/enrollments (voir approveClaim/rejectClaim/
+// approveEnrollment/rejectEnrollment ci-dessous) n'a jamais vérifié le statut courant du
+// document avant d'écrire — exactement la même faille déjà corrigée côté serveur dans
+// functions/src/claimsService.ts/enrollmentsService.ts (finding A2, 2026-09-06), mais restée
+// ouverte sur CE chemin de repli. Décision explicite : garder le fallback (le supprimer
+// bloquerait toute approbation si les Cloud Functions ne tournent pas), mais lui appliquer la
+// même garde. Vérification par transaction Firestore juste avant l'écriture de repli (lecture +
+// contrôle atomiques ; l'écriture elle-même reste hors transaction, comme le reste de ce chemin
+// de repli déjà existant — voir FirestoreService.updateClaim/updateEnrollment) : réduit
+// drastiquement, sans réécrire toute l'architecture de ce chemin de secours, la fenêtre pendant
+// laquelle un double-clic ou deux superviseurs concurrents pourraient générer une facture ou un
+// membre en double via CE chemin précis (le chemin serveur, prioritaire, est lui déjà protégé
+// atomiquement par la transaction de claimsService.ts/enrollmentsService.ts).
+export async function assertStillPendingForClientFallback(
+  collectionName: 'claims' | 'enrollments',
+  id: string
+): Promise<void> {
+  await runTransaction(db, async (tx) => {
+    const ref = doc(db, collectionName, id);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) {
+      throw new Error(`This ${collectionName === 'claims' ? 'claim' : 'enrollment'} no longer exists.`);
+    }
+    const status = (snap.data() as { status?: string }).status || 'pending';
+    if (status !== 'pending') {
+      throw new Error(
+        `This ${collectionName === 'claims' ? 'claim' : 'enrollment'} has already been decided (current status: '${status}') and cannot be decided again.`
+      );
+    }
+  });
+}
 
 /**
  * Service to execute end-to-end multi-role workflows and keep Firestore records,
@@ -95,6 +129,8 @@ export const WorkflowService = {
     }
 
     if (!handledByServer) {
+      await assertStillPendingForClientFallback('enrollments', enr.id);
+
       const updated: Enrollment = {
         ...enr,
         status: 'approved',
@@ -169,6 +205,8 @@ export const WorkflowService = {
     }
 
     if (!handledByServer) {
+      await assertStillPendingForClientFallback('enrollments', enr.id);
+
       const updated: Enrollment = {
         ...enr,
         status: 'rejected',
@@ -434,9 +472,12 @@ export const WorkflowService = {
       handledByServer = !!result.data?.success;
     } catch (err) {
       console.warn('Cloud Function "processClaimDecision" unavailable — falling back to client-side approval:', err);
+      recordServerFallback('processClaimDecision', `Approval fallback for ${claim.id}`);
     }
 
     if (!handledByServer) {
+      await assertStillPendingForClientFallback('claims', claim.id);
+
       const updated: Claim = {
         ...claim,
         status: 'approved',
@@ -535,9 +576,12 @@ export const WorkflowService = {
       handledByServer = !!result.data?.success;
     } catch (err) {
       console.warn('Cloud Function "processClaimDecision" unavailable — falling back to client-side rejection:', err);
+      recordServerFallback('processClaimDecision', `Rejection fallback for ${claim.id}`);
     }
 
     if (!handledByServer) {
+      await assertStillPendingForClientFallback('claims', claim.id);
+
       const updated: Claim = {
         ...claim,
         status: 'rejected',

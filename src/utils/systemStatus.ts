@@ -47,3 +47,52 @@ export function subscribeSyncIssues(listener: Listener): () => void {
     listeners = listeners.filter((l) => l !== listener);
   };
 }
+
+// === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07, décision explicite sur le
+// fallback client claims/enrollments) === Décision retenue : le filet de sécurité client sur
+// l'approbation/rejet des claims/enrollments (voir src/services/workflowService.ts) reste en
+// place tant que le déploiement des Cloud Functions n'est pas confirmé en production — le
+// supprimer bloquerait totalement les approbations si les fonctions ne tournaient pas
+// réellement. Mais son déclenchement doit désormais être VISIBLE à l'écran (pas seulement
+// journalisé dans `auditLogs`, voir fallbackTelemetry.ts), pour qu'un incident Cloud Function ne
+// passe plus inaperçu de l'utilisateur qui approuve/rejette un dossier.
+export interface FallbackEvent {
+  fallbackName: string;
+  detail?: string;
+  timestamp: string;
+}
+
+type FallbackListener = (events: FallbackEvent[]) => void;
+
+let fallbackEvents: FallbackEvent[] = [];
+let fallbackListeners: FallbackListener[] = [];
+
+function notifyFallback() {
+  fallbackListeners.forEach((l) => l(fallbackEvents));
+}
+
+/** Appelé quand un appel Cloud Function retombe sur la logique client (voir
+ *  src/utils/fallbackTelemetry.ts, appelé depuis workflowService.ts/policyEngine.ts/
+ *  cardNumberService.ts). Best-effort, purement informatif pour l'affichage. */
+export function reportFallbackEvent(fallbackName: string, detail?: string) {
+  fallbackEvents = [...fallbackEvents, { fallbackName, detail, timestamp: new Date().toISOString() }].slice(-20);
+  notifyFallback();
+}
+
+export function getFallbackEvents(): FallbackEvent[] {
+  return fallbackEvents;
+}
+
+export function subscribeFallbackEvents(listener: FallbackListener): () => void {
+  fallbackListeners.push(listener);
+  listener(fallbackEvents);
+  return () => {
+    fallbackListeners = fallbackListeners.filter((l) => l !== listener);
+  };
+}
+
+/** Réservé aux tests : vide la liste des événements de repli entre deux scénarios. */
+export function clearAllFallbackEvents() {
+  fallbackEvents = [];
+  notifyFallback();
+}

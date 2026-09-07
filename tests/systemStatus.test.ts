@@ -2,7 +2,16 @@
 // petit bus d'état utilisé pour signaler un incident de synchronisation Firestore réel (voir
 // src/services/firestore.ts) sans repli silencieux vers des données de démonstration.
 import { describe, expect, it, beforeEach } from 'vitest';
-import { reportSyncIssue, clearSyncIssue, getSyncIssues, subscribeSyncIssues } from '../src/utils/systemStatus';
+import {
+  reportSyncIssue,
+  clearSyncIssue,
+  getSyncIssues,
+  subscribeSyncIssues,
+  reportFallbackEvent,
+  getFallbackEvents,
+  subscribeFallbackEvents,
+  clearAllFallbackEvents,
+} from '../src/utils/systemStatus';
 
 describe('systemStatus — reportSyncIssue / clearSyncIssue / getSyncIssues', () => {
   beforeEach(() => {
@@ -76,5 +85,45 @@ describe('systemStatus — subscribeSyncIssues', () => {
     unsubscribe();
     reportSyncIssue('members', new Error('err'));
     expect(snapshots).toEqual([0]);
+  });
+});
+
+// === AMÉLIORATION AJOUTÉE : tests (Réconciliation 2026-09-07, décision explicite sur le
+// fallback client claims/enrollments) — le repli client doit désormais être VISIBLE à l'écran.
+describe('systemStatus — reportFallbackEvent / getFallbackEvents / subscribeFallbackEvents', () => {
+  beforeEach(() => {
+    clearAllFallbackEvents();
+  });
+
+  it('reportFallbackEvent ajoute un événement horodaté', () => {
+    reportFallbackEvent('processClaimDecision', 'Approval fallback for c1');
+    const events = getFallbackEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0].fallbackName).toBe('processClaimDecision');
+    expect(events[0].detail).toContain('c1');
+    expect(events[0].timestamp).toBeTruthy();
+  });
+
+  it('plusieurs replis s\'accumulent (contrairement aux incidents de sync, un repli n\'écrase pas le précédent)', () => {
+    reportFallbackEvent('processClaimDecision', 'first');
+    reportFallbackEvent('processClaimDecision', 'second');
+    expect(getFallbackEvents()).toHaveLength(2);
+  });
+
+  it('un nouvel abonné reçoit immédiatement l\'état courant', () => {
+    reportFallbackEvent('processEnrollmentDecision');
+    let received: string[] = [];
+    subscribeFallbackEvents((events) => {
+      received = events.map((e) => e.fallbackName);
+    });
+    expect(received).toEqual(['processEnrollmentDecision']);
+  });
+
+  it('clearAllFallbackEvents vide la liste et notifie les abonnés', () => {
+    reportFallbackEvent('processClaimDecision');
+    const snapshots: number[] = [];
+    subscribeFallbackEvents((events) => snapshots.push(events.length));
+    clearAllFallbackEvents();
+    expect(snapshots).toEqual([1, 0]);
   });
 });
