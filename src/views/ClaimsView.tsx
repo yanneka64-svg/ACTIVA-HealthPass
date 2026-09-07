@@ -384,7 +384,128 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
             <p className="text-[11px] text-slate-400 mt-1">{t.emptyListHint}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* === AMÉLIORATION AJOUTÉE : liste en cartes sous md (retour utilisateur — tableau
+              qui débordait/illisible sur petit écran). Mêmes données, mêmes actions et mêmes
+              permissions que le tableau ci-dessous (rien n'est ajouté ni retiré), affichage
+              uniquement en carte par dossier au lieu de colonnes. Tableau desktop inchangé,
+              masqué sous md à la place. === */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {pendingClaims.map((claim) => {
+              const approvalCheck = canApproveRecord(userRole, currentUser, claim);
+              return (
+                <div key={claim.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className={`font-bold text-sm ${roleTheme.palette.primaryText}`}>{claim.memberName}</p>
+                      <p className="text-[11px] text-slate-400 font-mono">{claim.memberCardNo}</p>
+                    </div>
+                    <p className="font-black text-slate-900 shrink-0">{formatAmount(claim.amount)}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span className="font-bold text-slate-600">{claim.reference}</span>
+                    <span>{claim.serviceDate}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+                    <span className="truncate max-w-[45%]">{claim.organization}</span>
+                    <span className="text-slate-300">&bull;</span>
+                    <span className="truncate max-w-[45%]">{claim.provider}</span>
+                  </div>
+                  <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold">
+                    {claim.careType}
+                  </span>
+                  {claim.assignedAgentName && (
+                    <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
+                      Assigned: {claim.assignedAgentName}
+                    </span>
+                  )}
+
+                  <div className="flex items-center flex-wrap gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedClaimForBiometrics(claim);
+                        setBiometricModalOpen(true);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                      title="Verify medical and biometric record"
+                    >
+                      <Scan className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Verify</span>
+                    </button>
+
+                    {isSupervisor && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleApproveAttempt(claim)}
+                          disabled={!approvalCheck.allowed}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                            approvalCheck.allowed
+                              ? `${roleTheme.palette.primaryColor} text-white shadow-xs cursor-pointer`
+                              : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                          }`}
+                          title={approvalCheck.allowed ? t.approve : approvalCheck.reason}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{t.approve}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openRejectModal(claim)}
+                          className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-500 border border-rose-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                          title={t.reject}
+                        >
+                          <X className="w-3.5 h-3.5 text-rose-400" />
+                          <span>{t.reject}</span>
+                        </button>
+                      </>
+                    )}
+
+                    {!isSupervisor && currentSection !== 'claims_validation' && userRole.toLowerCase() !== 'agent' && (
+                      <>
+                        {canReturnRecord(userRole) && onReturn && (
+                          <button
+                            type="button"
+                            onClick={() => openReturnModal(claim)}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                            title="Return claim for correction"
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Return</span>
+                          </button>
+                        )}
+                        {canAssignRecord(userRole) && onAssign && (
+                          <button
+                            type="button"
+                            onClick={() => openAssignModal(claim)}
+                            className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                            title="Assign to agent"
+                          >
+                            <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Assign</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+
+                    {canDeleteRecord(userRole) && onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => openDeleteModal(claim)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer ml-auto"
+                        title="Delete claim (Admin)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -532,6 +653,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -552,7 +674,91 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
             {t.noData}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* === AMÉLIORATION AJOUTÉE : même logique que la section "Pending Validation" ci-dessus
+              — liste en cartes sous md, tableau desktop inchangé masqué à la place. === */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {historyClaims.map((claim) => (
+              <div key={claim.id} className="p-4 space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm text-slate-800">{claim.memberName}</p>
+                    <p className="text-[11px] text-slate-400 font-mono">{claim.memberCardNo}</p>
+                  </div>
+                  <p className="font-black text-slate-900 shrink-0">{formatAmount(claim.amount)}</p>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                  <span className="font-bold text-slate-600">{claim.reference}</span>
+                  <span>{claim.decisionDate || claim.serviceDate}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+                  <span className="truncate max-w-[45%]">{claim.organization}</span>
+                  <span className="text-slate-300">&bull;</span>
+                  <span className="truncate max-w-[45%]">{claim.provider}</span>
+                </div>
+
+                {claim.status === 'approved' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-[#00A859] border border-emerald-200 text-[11px] font-extrabold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{t.validated}</span>
+                  </span>
+                ) : claim.status === 'returned' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-extrabold">
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    <span>Returned</span>
+                  </span>
+                ) : (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${isSupervisor ? 'bg-rose-50 text-rose-500 border border-rose-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                    <XCircle className={`w-3.5 h-3.5 ${isSupervisor ? 'text-rose-400' : 'text-rose-600'}`} />
+                    <span>{t.rejectedStatus}</span>
+                  </span>
+                )}
+
+                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 pt-0.5">
+                  {claim.rejectionReason || claim.returnReason ? (
+                    <div className="min-w-0">
+                      <p className={`font-semibold ${claim.status === 'returned' ? 'text-amber-800' : (isSupervisor ? 'text-rose-500' : 'text-rose-700')}`}>
+                        {claim.rejectionReason || claim.returnReason}
+                      </p>
+                      {claim.comments && (
+                        <p className="text-slate-400 italic text-[10px] truncate">{claim.comments}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <span className={`font-medium ${isSupervisor ? roleTheme.palette.primaryText : 'text-emerald-700'}`}>
+                      Coverage approved
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedClaimForBiometrics(claim);
+                      setBiometricModalOpen(true);
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                    title="View and verify archived record"
+                  >
+                    <Scan className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Verify</span>
+                  </button>
+                  {canDeleteRecord(userRole) && (
+                    <button
+                      onClick={() => openDeleteModal(claim)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer ml-auto"
+                      title="Delete claim (Admin)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -658,6 +864,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
       )}

@@ -363,7 +363,120 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
             <p>{t.dashboard.noPendingEnrollments}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* === AMÉLIORATION AJOUTÉE : liste en cartes sous md (retour utilisateur — tableau
+              qui débordait/illisible sur petit écran, même correctif que ClaimsView). Mêmes
+              données, actions et permissions que le tableau ci-dessous, en carte par dossier
+              au lieu de colonnes. Tableau desktop inchangé, masqué sous md à la place. === */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {pendingEnrollments.map((enr) => {
+              const approvalCheck = canApproveRecord(userRole, currentUser, enr);
+              return (
+                <div key={enr.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className={`font-bold text-sm ${roleTheme.palette.primaryText}`}>{enr.fullName}</p>
+                      <p className="text-[11px] text-slate-400 font-mono">{enr.cardNo}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px] shrink-0">
+                      {enr.relationship}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span className="font-bold text-slate-600">{enr.reference}</span>
+                    <span>{enr.submissionDate}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 truncate">{enr.organization}</p>
+                  {enr.assignedAgentName && (
+                    <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
+                      Assigned: {enr.assignedAgentName}
+                    </span>
+                  )}
+
+                  <div className="flex items-center flex-wrap gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedEnrForBiometrics(enr);
+                        setBiometricModalOpen(true);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                      title={'Review biometric file before approval'}
+                    >
+                      <Scan className="w-3.5 h-3.5 text-slate-600" />
+                      <span>{'Verify'}</span>
+                    </button>
+
+                    {userRole !== 'Agent' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleApproveAttempt(enr)}
+                          disabled={!approvalCheck.allowed}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                            approvalCheck.allowed
+                              ? (isSupervisor ? `${roleTheme.palette.primaryColor} text-white shadow-xs cursor-pointer` : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer')
+                              : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                          }`}
+                          title={approvalCheck.allowed ? t.approve : approvalCheck.reason}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{t.approve}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openRejectModal(enr)}
+                          className={`px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-bold transition flex items-center gap-1 ${isSupervisor ? 'text-rose-500' : 'text-rose-700'}`}
+                          title={t.reject}
+                        >
+                          <X className={`w-3.5 h-3.5 ${isSupervisor ? 'text-rose-400' : 'text-rose-600'}`} />
+                          <span>{t.reject}</span>
+                        </button>
+
+                        {canReturnRecord(userRole) && onReturn && (
+                          <button
+                            type="button"
+                            onClick={() => openReturnModal(enr)}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition flex items-center gap-1"
+                            title="Return for correction"
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Return</span>
+                          </button>
+                        )}
+
+                        {canAssignRecord(userRole) && onAssign && (
+                          <button
+                            type="button"
+                            onClick={() => openAssignModal(enr)}
+                            className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition flex items-center gap-1"
+                            title="Assign to agent"
+                          >
+                            <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Assign</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+
+                    {canDeleteRecord(userRole) && onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => openDeleteModal(enr)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition ml-auto"
+                        title="Delete (Admin)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -491,6 +604,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -512,7 +626,66 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
             {t.noData}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* === AMÉLIORATION AJOUTÉE : même correctif que la section "En attente" ci-dessus —
+              liste en cartes sous md, tableau desktop inchangé masqué à la place. === */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {historyEnrollments.map((enr) => (
+              <div key={enr.id} className="p-4 space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm text-slate-800">{enr.fullName}</p>
+                    <p className="text-[11px] text-slate-400 font-mono">{enr.cardNo}</p>
+                  </div>
+                  <span className="text-[11px] text-slate-500 shrink-0">{enr.decisionDate || enr.submissionDate}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                  <span className="font-bold text-slate-600">{enr.reference}</span>
+                  <span className="truncate max-w-[55%] text-right">{enr.organization}</span>
+                </div>
+
+                {enr.status === 'approved' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-[#00A859] border border-emerald-200 text-[11px] font-extrabold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{t.validated}</span>
+                  </span>
+                ) : enr.status === 'returned' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-extrabold">
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    <span>Returned</span>
+                  </span>
+                ) : (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-50 border border-rose-200 ${isSupervisor ? 'text-rose-500' : 'text-rose-700'}`}>
+                    <XCircle className={`w-3.5 h-3.5 ${isSupervisor ? 'text-rose-400' : 'text-rose-600'}`} />
+                    <span>{t.rejectedStatus}</span>
+                  </span>
+                )}
+
+                <div className="flex items-center justify-between gap-2">
+                  {enr.rejectionReason || enr.returnReason ? (
+                    <span className={`text-[11px] font-semibold ${enr.status === 'returned' ? 'text-amber-800' : (isSupervisor ? 'text-rose-500' : 'text-rose-700')}`}>
+                      {enr.rejectionReason || enr.returnReason}
+                    </span>
+                  ) : (
+                    <span className={`text-[11px] font-medium ${isSupervisor ? roleTheme.palette.primaryText : 'text-emerald-700'}`}>
+                      Health card issued &amp; activated
+                    </span>
+                  )}
+                  {canDeleteRecord(userRole) && (
+                    <button
+                      onClick={() => openDeleteModal(enr)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition shrink-0"
+                      title="Delete (Admin)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -590,6 +763,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

@@ -699,7 +699,36 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 No health insurance policies configured yet. Open an organization's "Policy" button to configure one.
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              {/* === AMÉLIORATION AJOUTÉE : liste en cartes sous md (retour utilisateur — tableau
+                  à 9 colonnes illisible sur petit écran). Mêmes données que le tableau ci-dessous
+                  (organisation/prime/statut mis en avant, le reste en second plan), en carte au
+                  lieu de colonnes. Tableau desktop inchangé, masqué sous md à la place. === */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {filteredPolicies.map(({ policy, coverage }) => (
+                  <div key={policy.id} onClick={() => setSelectedPolicyDetail(policy)} className="p-4 space-y-2.5 cursor-pointer active:bg-slate-50">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-slate-800 truncate">{policy.organizationId}</p>
+                        <p className="text-[11px] text-slate-500 font-mono">{policy.policyNumber}</p>
+                      </div>
+                      <span className={`shrink-0 px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${POLICY_STATUS_BADGE[coverage.status]}`}>{coverage.status}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                      <span>{policy.effectiveDate} &rarr; {policy.expirationDate}</span>
+                      <span className="font-bold text-slate-800">{formatAmount(policy.annualPremium)}/yr</span>
+                    </div>
+                    {(policy.outstandingAmount || 0) > 0 && (
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="text-slate-500">Next due {policy.nextPaymentDueDate || '—'} &bull; {policy.paymentFrequency}</span>
+                        <span className="font-bold text-rose-600">{formatAmount(policy.outstandingAmount || 0)} due</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -733,6 +762,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         </>
