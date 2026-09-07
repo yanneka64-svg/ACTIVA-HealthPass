@@ -102,16 +102,27 @@
   }
 }
 
-/* === AMÉLIORATION AJOUTÉE : remplace login-motif-drift (aller-retour de quelques pixels,
-   peu perceptible comme "vague") par un défilement horizontal continu en boucle parfaite —
-   voir LoginView.tsx pour le motif dupliqué qui rend la boucle invisible. === */
-@keyframes login-motif-wave {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
+/* === AMÉLIORATION AJOUTÉE : remplace le défilement horizontal essayé juste avant ("pas ce qui
+   était voulu") par une véritable ondulation verticale — chaque courbe déforme ses propres
+   points de contrôle sur place (anime la propriété CSS `d`), sans aucun déplacement latéral.
+   Une @keyframes par courbe (formes de départ différentes -> impossible de les faire partager
+   une seule règle), déphasées via animation-delay négatif dans les classes ci-dessous pour un
+   mouvement de houle superposée plutôt que 4 lignes synchronisées. */
+@keyframes login-wave-1 {
+  0%, 100% { d: path('M-40 320 C 30 240, 110 220, 270 250'); }
+  50% { d: path('M-40 320 C 30 227, 110 209, 270 250'); }
+}
+@keyframes login-wave-2 {
+  0%, 100% { d: path('M-40 280 C 50 210, 130 190, 270 220'); }
+  50% { d: path('M-40 280 C 50 223, 130 203, 270 220'); }
+}
+@keyframes login-wave-3 {
+  0%, 100% { d: path('M-40 240 C 70 180, 150 160, 270 190'); }
+  50% { d: path('M-40 240 C 70 167, 150 147, 270 190'); }
+}
+@keyframes login-wave-4 {
+  0%, 100% { d: path('M-40 200 C 90 150, 170 130, 270 160'); }
+  50% { d: path('M-40 200 C 90 163, 170 143, 270 160'); }
 }
 
 .login-anim-fade-up {
@@ -124,9 +135,10 @@
 .login-anim-delay-3 { animation-delay: 0.4s; }
 .login-anim-delay-4 { animation-delay: 0.55s; }
 
-.login-motif-wave {
-  animation: login-motif-wave 22s linear infinite;
-}
+.login-wave-path-1 { animation: login-wave-1 9s ease-in-out infinite; }
+.login-wave-path-2 { animation: login-wave-2 9s ease-in-out infinite; animation-delay: -2.25s; }
+.login-wave-path-3 { animation: login-wave-3 9s ease-in-out infinite; animation-delay: -4.5s; }
+.login-wave-path-4 { animation: login-wave-4 9s ease-in-out infinite; animation-delay: -6.75s; }
 
 @media (prefers-reduced-motion: reduce) {
   .login-anim-fade-up {
@@ -134,7 +146,10 @@
     animation: none;
     transform: none;
   }
-  .login-motif-wave {
+  .login-wave-path-1,
+  .login-wave-path-2,
+  .login-wave-path-3,
+  .login-wave-path-4 {
     animation: none;
   }
 }
