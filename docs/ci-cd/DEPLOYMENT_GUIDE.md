@@ -258,4 +258,5 @@ Avant d'ouvrir le trafic aux utilisateurs en production :
 - [ ] Le fichier `firestore.indexes.json` est bien lié dans `firebase.json` et versionné.
 - [ ] Les règles `storage.rules` interdisent tout fichier > 15 Mo et tout exécutable.
 - [ ] La synchronisation des Custom Claims Firebase Auth (`syncAccountClaims`) a été testée avec un compte de test.
-- [ ] L'URL de production est supervisée par une sonde de disponibilité (Cloud Monitoring Uptime Check).
+- [ ] L'URL de production est supervisée par une sonde de disponibilité (Cloud Monitoring Uptime Check) — voir [`MONITORING_AND_ALERTING.md`](MONITORING_AND_ALERTING.md) pour les commandes `gcloud` prêtes à l'emploi (sonde + politiques d'alerte, non appliquées par cette session faute d'accès GCP réel).
+- [ ] Un test de charge de référence a été exécuté contre l'URL de staging (`node scripts/loadtest.mjs --url <staging>`) — voir [`LOAD_TESTING.md`](LOAD_TESTING.md) pour l'outil et les résultats de référence obtenus dans l'environnement de développement.

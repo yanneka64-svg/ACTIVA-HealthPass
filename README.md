@@ -135,5 +135,9 @@ statique stockée en secret GitHub).
 
 - [`docs/ci-cd/TEST_STRATEGY.md`](docs/ci-cd/TEST_STRATEGY.md) — stratégie de test détaillée.
 - [`docs/ci-cd/DEPLOYMENT_GUIDE.md`](docs/ci-cd/DEPLOYMENT_GUIDE.md) — guide de déploiement.
+- [`docs/ci-cd/LOAD_TESTING.md`](docs/ci-cd/LOAD_TESTING.md) — outil et résultats de référence
+  des tests de charge (`scripts/loadtest.mjs`).
+- [`docs/ci-cd/MONITORING_AND_ALERTING.md`](docs/ci-cd/MONITORING_AND_ALERTING.md) — sonde de
+  disponibilité et politiques d'alerte Cloud Monitoring (commandes prêtes à l'emploi).
 - [`docs/security/`](docs/security/) — audits de sécurité, revues de code, gouvernance des
   données de santé, runbook opérationnel.
