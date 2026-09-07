@@ -6,3 +6,15 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# === AMÉLIORATION AJOUTÉE : sécurité (préparation Go-Live, 2026-09-07) ===
+# Garde-fou défensif : aucun fichier de ce type n'est présent dans le dépôt aujourd'hui (vérifié
+# par recherche exhaustive de "BEGIN PRIVATE KEY"/"service_account" — functions/src/index.ts
+# utilise admin.initializeApp() sans argument, donc les identifiants par défaut de
+# l'environnement Cloud Functions, jamais de clé committée). Ces motifs empêchent qu'une clé de
+# compte de service Firebase/GCP ne soit committée par erreur à l'avenir.
+*serviceAccount*.json
+*service-account*.json
+firebase-adminsdk-*.json
+*.pem
+*.p12

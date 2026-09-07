@@ -58,6 +58,18 @@ jobs:
       - name: Unit & security tests
         run: npm test
 
+      # === AMÉLIORATION AJOUTÉE : sécurité (préparation Go-Live, 2026-09-07) ===
+      # `npm test` exclut délibérément tests/firestore.rules.test.ts (qui nécessite l'émulateur
+      # Firestore — voir package.json). Ce workflow déployait donc firestore:rules,indexes,storage
+      # vers Staging SANS jamais avoir exécuté la suite de tests de règles correspondante,
+      # contrairement à deploy-production.yml qui l'exécute déjà (étape "Emulator Security Rules
+      # Tests"). Ajouté ici pour que Staging bénéficie de la même garantie avant déploiement des
+      # règles — aucune règle modifiée, seule la validation est ajoutée.
+      - name: Emulator Security Rules Tests
+        run: |
+          npm install -g firebase-tools
+          firebase emulators:exec --only firestore --project demo-activa-ci "npm run test:rules"
+
       - name: Build functions
         run: npm run build
         working-directory: functions
