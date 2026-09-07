@@ -67,6 +67,16 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      # === AMÉLIORATION AJOUTÉE : CI/CD (réconciliation Go-Live, 2026-09-07) ===
+      # Trouvé en exécutant réellement ce workflow : sans cette étape, "Emulator Security Rules
+      # Tests" ci-dessous échoue avec "firebase-tools no longer supports Java version before 21"
+      # — jamais détecté auparavant faute d'avoir exécuté ce workflow jusqu'à cette étape (voir
+      # ci.yml, qui a le même correctif pour la même raison).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
       - name: Install dependencies (app)
         run: npm ci
 
