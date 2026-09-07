@@ -18,3 +18,9 @@ coverage/
 firebase-adminsdk-*.json
 *.pem
 *.p12
+
+# === AMÉLIORATION AJOUTÉE : tests end-to-end (préparation Go-Live, 2026-09-07) ===
+# Artefacts d'exécution de la suite E2E Playwright (voir e2e/global-setup.ts) — jamais commités.
+e2e/.e2e-pids.json
+test-results/
+playwright-report/
