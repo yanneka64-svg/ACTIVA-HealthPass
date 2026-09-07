@@ -233,6 +233,10 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   // Form State
   const [formError, setFormError] = useState<string | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : UI — un seul bouton "Import" regroupant les deux flux d'import
+  // existants (Excel mono-organisation / classeur multi-organisations Staff+Deps), sur le même
+  // modèle que le bouton "Export" ci-dessus (menu déroulant, deux options).
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
   const [formCardNo, setFormCardNo] = useState('');
   const [formPrincipalName, setFormPrincipalName] = useState('');
   const [formBirthDate, setFormBirthDate] = useState('');
@@ -702,30 +706,53 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
           </div>
           )}
 
+          {/* === AMÉLIORATION AJOUTÉE : UI — un seul bouton "Import" (menu déroulant) au lieu de
+              deux boutons séparés, regroupant le flux Excel mono-organisation (existant) et le
+              flux classeur multi-organisations Staff/Deps (existant) — même modèle que le bouton
+              "Export" ci-dessus. Les deux modales/flux sous-jacents sont inchangés. === */}
           {userRole === 'Admin' && (
+          <div className="relative">
             <button
-              id="import-members-excel-btn"
-              onClick={() => setImportModalOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#047857] border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-          >
-            <UploadCloud className="w-4 h-4 text-[#10B981]" />
-            <span>Import Excel</span>
-          </button>
-          )}
-
-          {/* === ADDED IMPROVEMENT: dedicated import for multi-organization workbooks
-              (sheet pairs "<Organization> - Staff" / "<Organization> - Deps"), distinct
-              from the "Import Excel" button above, which only reads a single sheet/organization === */}
-          {userRole === 'Admin' && (
-            <button
-              id="import-members-multi-org-btn"
-              onClick={() => setImportMultiOrgModalOpen(true)}
-              title="Import a multi-organization workbook (sheets &quot;Organization - Staff&quot; / &quot;Organization - Deps&quot;)"
-              className="px-3.5 py-2 rounded-xl bg-[var(--brand-50)] hover:bg-[var(--brand-100)] text-[var(--brand-900)] border border-[var(--brand-200)] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              id="import-members-dropdown-btn"
+              type="button"
+              onClick={() => setImportMenuOpen(!importMenuOpen)}
+              className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#047857] border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
             >
-              <UploadCloud className="w-4 h-4 text-[var(--brand-900)]" />
-              <span>Import Multi-Org (Staff/Deps)</span>
+              <UploadCloud className="w-4 h-4 text-[#10B981]" />
+              <span>Import</span>
+              <ChevronDown className="w-3 h-3 text-[#047857]" />
             </button>
+
+            {importMenuOpen && (
+              <div className="absolute left-0 sm:left-auto sm:right-0 mt-1.5 w-64 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-30 animate-in fade-in zoom-in-95">
+                <button
+                  id="import-members-excel-btn"
+                  type="button"
+                  onClick={() => {
+                    setImportMenuOpen(false);
+                    setImportModalOpen(true);
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 transition cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>Excel (single organization)</span>
+                </button>
+                <button
+                  id="import-members-multi-org-btn"
+                  type="button"
+                  onClick={() => {
+                    setImportMenuOpen(false);
+                    setImportMultiOrgModalOpen(true);
+                  }}
+                  title="Import a multi-organization workbook (sheets &quot;Organization - Staff&quot; / &quot;Organization - Deps&quot;)"
+                  className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Building2 className="w-4 h-4 text-emerald-600" />
+                  <span>Multi-Org (Staff/Deps)</span>
+                </button>
+              </div>
+            )}
+          </div>
           )}
 
           {userRole === 'Admin' && (

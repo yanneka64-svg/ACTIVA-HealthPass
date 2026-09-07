@@ -192,7 +192,7 @@ export const translations = {
       children: 'Children (1-4)',
       organization: 'Organization',
       newMember: 'New Member',
-      importExcel: 'Import Excel',
+      importExcel: 'Import',
       exportCsv: 'Export CSV',
       exportExcel: 'Download .xlsx',
       modalTitleNew: 'Create New Member',
@@ -221,7 +221,7 @@ export const translations = {
       coverageRate: 'Coverage Rate (%)',
       createBtn: 'Save Organization',
       editBtn: 'Update Organization',
-      importExcel: 'Import Excel',
+      importExcel: 'Import',
       exportExcel: 'Download .xlsx',
     },
 
@@ -241,7 +241,7 @@ export const translations = {
       kypRejected: 'Rejected',
       phone: 'Contact Phone',
       createBtn: 'New Provider',
-      importExcel: 'Import Excel',
+      importExcel: 'Import',
       exportExcel: 'Download .xlsx',
       types: {
         hospital: 'Hospital',
