@@ -270,6 +270,8 @@ l'environnement GitHub `staging` (et `production`) dispose bien de reviewers req
 | #5 | Isolation organisation : deny-by-default préparé en opt-in (non activé) | `506fd98` |
 | #6 | **CRITIQUE** — Données de démo exclues du repli en production (gaté par env, bannière d'incident) | `6719439` |
 | #7 | Fail-closed sur l'upload photo, retrait du repli base64 (garde-fou de secours conservé) | `b18059f` |
+| — | Fusion avec `main` (3ᵉ push direct non revu — durcissement chiffrement/audit) + 3ᵉ fuite de clé API corrigée | `ac2762e` |
+| — | Garde de statut + alerte visible sur le fallback client claims/enrollments | `6196785` |
 
 ### Constats d'un audit externe (2026-09-06, second avis) — décisions prises
 
