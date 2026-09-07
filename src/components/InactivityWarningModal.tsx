@@ -28,8 +28,8 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
   // #0A347B affiché auparavant peu importe le rôle connecté) ===
   const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
-  const accentTextClass = isAdmin ? 'text-slate-800' : isSupervisor ? 'text-[#0F766E]' : 'text-[#0A347B]';
-  const accentBtnClass = isAdmin ? 'bg-slate-700 hover:bg-slate-800' : isSupervisor ? 'bg-[#0F766E] hover:bg-[#115E59]' : 'bg-[#0A347B] hover:bg-[#08285e]';
+  const accentTextClass = isAdmin || isSupervisor ? 'text-slate-800' : 'text-[#0A347B]';
+  const accentBtnClass = isAdmin || isSupervisor ? 'bg-slate-700 hover:bg-slate-800' : 'bg-[#0A347B] hover:bg-[#08285e]';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-in fade-in">

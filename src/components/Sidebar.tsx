@@ -228,7 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title="OVERVIEW"
           isOpen={isOverviewOpen}
           onToggle={() => setIsOverviewOpen((prev) => !prev)}
-          titleColor={isAdmin ? 'text-slate-300/90' : isSupervisor ? 'text-teal-200/80' : 'text-blue-200/80'}
+          titleColor={isAdmin || isSupervisor ? 'text-slate-300/90' : 'text-blue-200/80'}
         >
           {filteredOverviewItems.map(renderNavItem)}
         </CollapsibleNavSection>

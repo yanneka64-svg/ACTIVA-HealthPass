@@ -455,7 +455,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isSupervisor ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-800'}`}>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-800">
               {isSupervisor ? 'Supervision Workspace' : 'General Administration'}
             </span>
             <h2 className="text-sm font-bold text-slate-800 tracking-tight">
@@ -819,8 +819,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           disabled={!approvalCheck.allowed}
                           className={`p-1.5 rounded transition ${
                             approvalCheck.allowed
-                              // === AMÉLIORATION AJOUTÉE : vert aligné à la barre de menu Superviseur ===
-                              ? (isSupervisor ? 'bg-teal-50 hover:bg-[#0F766E] text-[#0F766E] hover:text-white cursor-pointer' : 'bg-emerald-50 hover:bg-[#00A859] text-[#00A859] hover:text-white cursor-pointer')
+                              ? 'bg-emerald-50 hover:bg-[#00A859] text-[#00A859] hover:text-white cursor-pointer'
                               : 'bg-slate-100 text-slate-300 cursor-not-allowed'
                           }`}
                           title={approvalCheck.allowed ? t.approve : approvalCheck.reason}

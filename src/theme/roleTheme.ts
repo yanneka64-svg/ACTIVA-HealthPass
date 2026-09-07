@@ -87,39 +87,18 @@ export const ADMIN_THEME: RoleThemeConfig = {
   },
 };
 
+// === AMÉLIORATION AJOUTÉE : UI (retour utilisateur, 2026-09-07) — palette Superviseur alignée
+// sur celle d'Admin (gris ardoise), sur demande explicite ("l'ensemble de l'interface
+// superviseur doit être pareil que celle de Admin"). Auparavant une palette sarcelle/turquoise
+// distincte (conservée en commentaire juste au-dessus dans l'historique Git si besoin de
+// revenir en arrière) ; comme chaque vue lit ses couleurs exclusivement via getRoleTheme(), ce
+// seul changement suffit à harmoniser l'intégralité de l'interface Superviseur (barre latérale,
+// boutons, bandeaux, badges...) sans toucher à un seul composant. `role`/`displayName`
+// inchangés : le rôle réel et son libellé restent corrects, seule l'apparence est alignée.
 export const SUPERVISOR_THEME: RoleThemeConfig = {
   role: 'Supervisor',
   displayName: 'Medical Advisor & Supervisor',
-  palette: {
-    sidebarBg: '#134E4A',
-    sidebarGradient: 'bg-gradient-to-b from-[#042F2E] via-[#115E59] to-[#134E4A]',
-    sidebarBorder: 'border-[#115E59]',
-    activeItemBg: 'bg-[#0D9488] hover:bg-[#0F766E]',
-    activeItemText: 'text-white font-bold',
-    activeIndicator: 'bg-[#2DD4BF]',
-    activeIconColor: 'text-[#2DD4BF]',
-    inactiveText: 'text-teal-100/80 hover:text-white',
-    inactiveHoverBg: 'hover:bg-white/10',
-    badgeBg: 'bg-[#0D9488] text-white',
-    primaryColor: 'bg-[#0F766E] hover:bg-[#115E59]',
-    primaryHover: 'hover:bg-[#115E59]',
-    primaryText: 'text-[#0F766E]',
-    pageTitleColor: 'text-[#0F766E]',
-    avatarBg: 'bg-[#0F766E]',
-    bannerGradient: 'bg-gradient-to-r from-[#042F2E] via-[#0F766E] to-[#134E4A]',
-    bannerBorder: 'border-teal-800',
-    modalHeaderBg: 'bg-[#0F766E]',
-    accentBadge: 'bg-[#0F766E] text-white',
-    accentRing: 'focus:ring-[#0F766E]',
-    accentGlow: 'bg-teal-400/20',
-    // Tailwind's native "teal" ramp — already the exact family used above (#134E4A = teal-900).
-    hexRamp: {
-      '50': '#f0fdfa', '100': '#ccfbf1', '200': '#99f6e4', '300': '#5eead4', '400': '#2dd4bf',
-      '500': '#14b8a6', '600': '#0d9488', '700': '#0f766e', '800': '#115e59', '900': '#134e4a',
-    },
-    // Superviseur — teinte turquoise/menthe, cohérente avec activeIndicator (#2DD4BF).
-    motifStroke: '45, 212, 191',
-  },
+  palette: { ...ADMIN_THEME.palette },
 };
 
 export const AGENT_THEME: RoleThemeConfig = {

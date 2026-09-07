@@ -451,8 +451,8 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                           {isSupervisor && (
                             <>
                               {/* Approve Button with SoD check */}
-                              {/* === AMÉLIORATION AJOUTÉE : vert aligné à la couleur de la barre de menu Superviseur
-                                  (roleTheme.palette.primaryColor = #0F766E) au lieu d'un vert générique === */}
+                              {/* === AMÉLIORATION AJOUTÉE : couleur alignée sur roleTheme.palette.primaryColor
+                                  (gris Admin/Superviseur depuis le 2026-09-07) au lieu d'un vert générique === */}
                               <button
                                 type="button"
                                 onClick={() => handleApproveAttempt(claim)}
