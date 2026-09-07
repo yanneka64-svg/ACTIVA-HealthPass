@@ -1,10 +1,23 @@
 /**
- * Secure password rotation script for yannick.ekani_test@activa.local
+ * Secure password rotation script for a compromised account.
  * - Generates high-entropy password in memory
  * - NEVER logs or hardcodes passwords
  * - Verifies revocation of the previous password
  * - Verifies activation of the new password
  * - Stores the new password exclusively in gitignored .env.local
+ *
+ * === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07) ===
+ * Ce fichier, malgré son nom ("NoHardcode"), contenait pourtant la clé API Firebase codée en
+ * dur, ET un repli implicite de l'identifiant cible vers le compte déjà compromis à deux
+ * reprises `yannick.ekani_test@activa.local` (voir docs/security/BACKEND_AUDIT_2026-09-06_REMEDIATION.md)
+ * — l'affirmation finale du script ("Hardcoded in code: NO") était donc inexacte. Corrigé :
+ * aucune valeur sensible/de configuration en dur, y compris l'identifiant cible (obligatoire,
+ * sans repli).
+ *
+ * USAGE :
+ *   FIREBASE_API_KEY=... FIREBASE_PROJECT_ID=... FIREBASE_AUTH_DOMAIN=... \
+ *   MIGRATION_ADMIN_EMAIL=... CURRENT_PASSWORD=... \
+ *   npx tsx scripts/rotatePasswordNoHardcode.ts
  */
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, updatePassword, signOut } from 'firebase/auth';
@@ -12,16 +25,19 @@ import { randomBytes, createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}.`);
+  }
+  return value;
+}
+
 async function rotatePassword() {
   console.log('--- SECURE IN-MEMORY PASSWORD ROTATION ---');
 
-  const targetEmail = process.env.MIGRATION_ADMIN_EMAIL || 'yannick.ekani_test@activa.local';
-  const currentPassword = process.env.CURRENT_PASSWORD;
-
-  if (!currentPassword) {
-    console.error('Error: CURRENT_PASSWORD environment variable is required.');
-    process.exit(1);
-  }
+  const targetEmail = requireEnv('MIGRATION_ADMIN_EMAIL');
+  const currentPassword = requireEnv('CURRENT_PASSWORD');
 
   // Generate a cryptographically strong 36-character password in memory
   const entropy = randomBytes(24).toString('base64url');
@@ -29,9 +45,9 @@ async function rotatePassword() {
   const sha256Fingerprint = createHash('sha256').update(newPassword).digest('hex').slice(0, 12);
 
   const app = initializeApp({
-    apiKey: 'AIzaSyDfN_rZOwrcmVuJHzymswFpoNl6zBuaRXk',
-    projectId: 'gen-lang-client-0957905786',
-    authDomain: 'gen-lang-client-0957905786.firebaseapp.com'
+    apiKey: requireEnv('FIREBASE_API_KEY'),
+    projectId: requireEnv('FIREBASE_PROJECT_ID'),
+    authDomain: requireEnv('FIREBASE_AUTH_DOMAIN'),
   });
   const auth = getAuth(app);
 
@@ -85,7 +101,11 @@ async function rotatePassword() {
   console.log(`UID                  : ${verifyCred.user.uid}`);
   console.log(`Password Fingerprint : sha256:${sha256Fingerprint}...`);
   console.log(`Saved To             : .env.local (strictly gitignored, permissions 0600)`);
-  console.log(`Hardcoded in code    : NO (zero occurrences in git)`);
+  // === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07) — l'ancienne ligne
+  // affirmait "Hardcoded in code: NO (zero occurrences in git)", une garantie que ce script ne
+  // peut pas vérifier lui-même (et qui s'est révélée fausse : voir le commentaire d'en-tête).
+  // Reformulé pour ne plus affirmer un fait non vérifié par le script lui-même.
+  console.log(`Note                 : this password was never written to any file tracked by git.`);
   console.log('======================================================\n');
   process.exit(0);
 }

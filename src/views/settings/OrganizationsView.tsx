@@ -451,7 +451,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
             className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#047857] border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
             <UploadCloud className="w-4 h-4 text-[#10B981]" />
-            <span>Import Excel</span>
+            <span>Import</span>
           </button>
 
           <button

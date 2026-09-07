@@ -2,7 +2,16 @@
 **ACTIVA HealthPass — Système de Gestion Tiers-Payant & Dossiers Médicaux**  
 **Classification :** Sensible / Données de Santé (HDS / RGPD / ISO 27799)  
 **Date d'entrée en vigueur :** Septembre 2026  
-**Statut :** Conforme aux exigences préalables au Go-Live
+**Statut :** Remédiations techniques en cours de validation — Go-Live soumis à la clôture des
+écarts critiques identifiés ci-dessous et à la validation des tests de sécurité (voir
+`docs/security/REVUE_COMPLETE_2026-09-06.md`).
+
+<!-- === AMÉLIORATION AJOUTÉE : exactitude documentaire (Réconciliation 2026-09-07) ===
+     La version précédente de ce statut affirmait "Conforme aux exigences préalables au
+     Go-Live", contredite par le code actuel sur au moins deux points repris dans le tableau
+     ci-dessous (fallback client encore présent sur l'approbation des claims/enrollments,
+     intégrité de l'audit trail non scellée cryptographiquement). Un document d'exploitation ne
+     doit pas déclarer une conformité que le code ne démontre pas encore. -->
 
 ---
 
@@ -11,9 +20,9 @@
 | Domaine audité | Statut Antérieur | Statut Post-Remédiation | Mesures Techniques Implémentées |
 |---|:---:|:---:|---|
 | **Données Médicales** | 🔴 Risque Fail-Open | 🟢 **Sécurisé (Fail-Closed)** | `MedicalDataEncryptionError` bloquant toute écriture en cas d'indisponibilité du chiffrement ; règles Firestore refusant tout champ clinique non préfixé par `encv1:`. |
-| **API & Backend** | 🔴 Architecture Hybride | 🟢 **Consolidé & Autoritaire** | Élimination des routes d'authentification parasites et des identifiants résiduels dans `server.ts`. Fonctions Cloud (`functions/`) seules dépositaires des décisions métier autoritaires. |
-| **Audit Trail** | 🔴 Intégrité Non Garantie | 🟢 **Intègre & Scellé** | Calcul d'un sceau d'intégrité cryptographique SHA-256 (`integrityHash`) sur chaque entrée client et serveur. Règles Firestore interdisant l'usurpation d'UID/Rôle. |
-| **Séparation des Tâches (SoD)** | 🟠 Dépendance Client | 🟢 **Autoritaire Serveur & BDD** | `processEnrollmentDecision` et `processClaimDecision` exécutés en transactions Cloud Functions avec validation SoD stricte + immuabilité de `createdByUid` en base. |
+| **API & Backend** | 🔴 Architecture Hybride | 🟠 **Consolidé, fallback client résiduel** | Élimination des routes d'authentification parasites et des identifiants résiduels dans `server.ts`. `processEnrollmentDecision`/`processClaimDecision` (Cloud Functions) sont le chemin PRINCIPAL, mais `workflowService.ts` retombe encore sur une écriture Firestore directe côté client si l'appel Cloud Function échoue — les Fonctions Cloud ne sont donc pas encore les SEULES dépositaires des décisions métier. Voir `docs/security/REVUE_COMPLETE_2026-09-06.md`. |
+| **Audit Trail** | 🔴 Intégrité Non Garantie | 🟠 **Hash serveur présent, non scellé cryptographiquement** | Calcul d'un sceau SHA-256 (`integrityHash`) côté serveur ET côté client sur chaque entrée. Règles Firestore interdisant l'usurpation d'UID/Rôle et l'update/delete. Un SHA-256 simple (sans HMAC à clé secrète ni chaînage de hash) reste recalculable par un acteur disposant d'un accès d'écriture suffisant — ce n'est pas encore un scellement cryptographique au sens strict. |
+| **Séparation des Tâches (SoD)** | 🟠 Dépendance Client | 🟠 **Serveur en chemin principal, fallback client conservé** | `processEnrollmentDecision` et `processClaimDecision` exécutés en transactions Cloud Functions avec validation SoD stricte + immuabilité de `createdByUid` en base — mais un repli client existe encore si la Cloud Function est indisponible (décision délibérée tant que le déploiement des Cloud Functions n'est pas confirmé en production, pas un oubli). |
 | **Sécurité Firestore** | 🟠 Risques Résiduels | 🟢 **Verrouillé** | Sous-collection `/clinical` étanche avec vérification regex obligatoire, exclusion stricte d'accès aux non-autorisés. |
 
 ---

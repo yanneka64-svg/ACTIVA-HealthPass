@@ -585,6 +585,9 @@ describe('Phase 2.3 — audit trail : create pré-authentification restreint à 
         entityId: 'c1',
         entityType: 'claim',
         details: 'Claim approved.',
+        // Requis depuis le renforcement anti-usurpation de la piste d'audit (voir
+        // isBusinessAuditLogValid() dans firestore.rules) : timestamp désormais obligatoire.
+        timestamp: new Date().toISOString(),
       })
     );
   });
@@ -684,5 +687,208 @@ describe('Phase 3 / 2.1 — medicalForms/{formId}/clinical/{clinicalId} : cloiso
     });
 
     await assertSucceeds(asUser('agentLegacyForm').doc('medicalForms/formLegacy').get());
+  });
+});
+
+// --- Revue complète 2026-09-06, finding A1 : auto-élévation de privilège sur accounts.create --
+
+describe('Revue 2026-09-06 (A1) — accounts.create : pas d\'auto-élévation de privilège', () => {
+  it('un utilisateur non-Admin ne peut PAS s\'auto-créer un compte "Supervisor" actif (auto-élévation)', async () => {
+    await assertFails(
+      asUser('attackerSupervisor')
+        .doc('accounts/attackerSupervisor')
+        .set({ profile: 'Supervisor', isActive: true, permissions: ['approve_claims', 'view_audit_logs'] })
+    );
+  });
+
+  it('un utilisateur non-Admin ne peut PAS s\'auto-créer un compte "Agent" actif via écriture directe (contourne le flux d\'app, qui passe toujours par un Admin)', async () => {
+    await assertFails(
+      asUser('attackerAgent')
+        .doc('accounts/attackerAgent')
+        .set({ profile: 'Agent', isActive: true })
+    );
+  });
+
+  it('non-régression : un Admin peut toujours créer un compte pour un tiers, y compris "Supervisor"', async () => {
+    await seedAccount('adminCreator', { profile: 'Admin' });
+    await assertSucceeds(
+      asUser('adminCreator')
+        .doc('accounts/newSupervisor')
+        .set({ profile: 'Supervisor', isActive: true, permissions: ['approve_claims'] })
+    );
+  });
+
+  it('non-régression : un Admin peut toujours créer un compte "Agent" pour un tiers', async () => {
+    await seedAccount('adminCreator2', { profile: 'Admin' });
+    await assertSucceeds(
+      asUser('adminCreator2')
+        .doc('accounts/newAgent')
+        .set({ profile: 'Agent', isActive: true })
+    );
+  });
+});
+
+// --- Revue complète 2026-09-06, finding A3 : lecture des notifications non cloisonnée --------
+
+describe('Revue 2026-09-06 (A3) — notifications : lecture restreinte au destinataire réel', () => {
+  it('un utilisateur NE PEUT PAS lire une notification adressée par recipientId à quelqu\'un d\'autre', async () => {
+    await seedAccount('agentBystander', { profile: 'Agent' });
+    await seedDoc('notifications', 'n1', {
+      recipientId: 'someoneElseUid',
+      message: 'Claim #123 for John Doe ($4500) was approved.',
+    });
+
+    await assertFails(asUser('agentBystander').doc('notifications/n1').get());
+  });
+
+  it('un utilisateur NE PEUT PAS lire une notification diffusée à un autre rôle (recipientRole)', async () => {
+    await seedAccount('agentBystander2', { profile: 'Agent' });
+    await seedDoc('notifications', 'n2', {
+      recipientRole: 'Supervisor',
+      message: 'A new claim is pending validation.',
+    });
+
+    await assertFails(asUser('agentBystander2').doc('notifications/n2').get());
+  });
+
+  it('le destinataire direct (recipientId) peut lire sa propre notification', async () => {
+    await seedAccount('agentOwner', { profile: 'Agent' });
+    await seedDoc('notifications', 'n3', {
+      recipientId: 'agentOwner',
+      message: 'Your claim was approved.',
+    });
+
+    await assertSucceeds(asUser('agentOwner').doc('notifications/n3').get());
+  });
+
+  it('un utilisateur dont le rôle correspond à recipientRole peut lire la notification diffusée (non-régression Topbar)', async () => {
+    await seedAccount('supervisorReader', { profile: 'Supervisor' });
+    await seedDoc('notifications', 'n4', {
+      recipientRole: 'Supervisor',
+      message: 'A new claim is pending validation.',
+    });
+
+    await assertSucceeds(asUser('supervisorReader').doc('notifications/n4').get());
+  });
+
+  it('non-régression : alias Supervisor/Superviseur reste couvert', async () => {
+    await seedAccount('supervisorFr', { profile: 'Superviseur' });
+    await seedDoc('notifications', 'n5', { recipientRole: 'Supervisor', message: 'x' });
+
+    await assertSucceeds(asUser('supervisorFr').doc('notifications/n5').get());
+  });
+
+  it('un Admin garde un accès total à toutes les notifications', async () => {
+    await seedAccount('adminNotif', { profile: 'Admin' });
+    await seedDoc('notifications', 'n6', { recipientId: 'someoneElseUid', message: 'x' });
+
+    await assertSucceeds(asUser('adminNotif').doc('notifications/n6').get());
+  });
+
+  it('non-régression : une notification legacy sans recipientId/recipientRole reste lisible par tout utilisateur actif', async () => {
+    await seedAccount('agentLegacyNotif', { profile: 'Agent' });
+    await seedDoc('notifications', 'n7', { message: 'Legacy broadcast notification', unread: true });
+
+    await assertSucceeds(asUser('agentLegacyNotif').doc('notifications/n7').get());
+  });
+});
+
+// --- Revue complète 2026-09-06, finding A4 : whitelist healthPolicies.update incomplète -------
+
+describe('Revue 2026-09-06 (A4) — healthPolicies.update : champs de synchro automatique autorisés', () => {
+  it('un Agent peut mettre à jour suspensionReason/suspensionDate lors d\'une synchro automatique de statut', async () => {
+    await seedAccount('agentSync', { profile: 'Agent' });
+    await seedDoc('healthPolicies', 'OrgSyncA', {
+      status: 'Active',
+      coverageBlocked: false,
+      organization: 'OrgSyncA',
+    });
+
+    await assertSucceeds(
+      asUser('agentSync').doc('healthPolicies/OrgSyncA').update({
+        status: 'Suspended',
+        coverageBlocked: true,
+        suspensionReason: 'Payment overdue',
+        suspensionDate: '2026-09-06',
+        updatedAt: '2026-09-06T00:00:00.000Z',
+      })
+    );
+  });
+
+  it('un Agent peut mettre à jour reactivationDate lors d\'une réactivation automatique', async () => {
+    await seedAccount('agentSync2', { profile: 'Agent' });
+    await seedDoc('healthPolicies', 'OrgSyncB', {
+      status: 'Suspended',
+      coverageBlocked: false,
+      organization: 'OrgSyncB',
+    });
+
+    await assertSucceeds(
+      asUser('agentSync2').doc('healthPolicies/OrgSyncB').update({
+        status: 'Active',
+        reactivationDate: '2026-09-06',
+        updatedAt: '2026-09-06T00:00:00.000Z',
+      })
+    );
+  });
+
+  it('non-régression : un Agent ne peut toujours pas modifier un champ hors liste (ex: organization)', async () => {
+    await seedAccount('agentSync3', { profile: 'Agent' });
+    await seedDoc('healthPolicies', 'OrgSyncC', {
+      status: 'Active',
+      coverageBlocked: false,
+      organization: 'OrgSyncC',
+    });
+
+    await assertFails(
+      asUser('agentSync3').doc('healthPolicies/OrgSyncC').update({ organization: 'HijackedOrg' })
+    );
+  });
+
+  it('non-régression : un Agent ne peut toujours pas débloquer une couverture déjà suspendue via ce chemin', async () => {
+    await seedAccount('agentSync4', { profile: 'Agent' });
+    await seedDoc('healthPolicies', 'OrgSyncD', {
+      status: 'Suspended',
+      coverageBlocked: true,
+      organization: 'OrgSyncD',
+    });
+
+    await assertFails(
+      asUser('agentSync4').doc('healthPolicies/OrgSyncD').update({ coverageBlocked: false })
+    );
+  });
+});
+
+// --- Revue complète 2026-09-06, finding #5 : préparation du deny-by-default (opt-in) ----------
+
+describe('Revue 2026-09-06 (#5) — hasOrgAccess() : deny-by-default en opt-in par compte', () => {
+  it('non-régression : un Agent SANS assignedOrganizations ET SANS orgAccessPolicy garde un accès illimité (comportement actuel inchangé)', async () => {
+    await seedAccount('agentNoPolicy', { profile: 'Agent' });
+    await seedDoc('claims', 'cNoPolicy', { organization: 'AnyOrgWhatsoever', createdByUid: 'someoneElse' });
+
+    await assertSucceeds(asUser('agentNoPolicy').doc('claims/cNoPolicy').get());
+  });
+
+  it('un Agent avec orgAccessPolicy:"strict" ET sans assignedOrganizations perd l\'accès (deny-by-default activé)', async () => {
+    await seedAccount('agentStrictNoScope', { profile: 'Agent', orgAccessPolicy: 'strict' });
+    await seedDoc('claims', 'cStrict1', { organization: 'OrgX', createdByUid: 'someoneElse' });
+
+    await assertFails(asUser('agentStrictNoScope').doc('claims/cStrict1').get());
+  });
+
+  it('un Agent avec orgAccessPolicy:"strict" ET un assignedOrganizations explicite reste scopé normalement (l\'opt-in ne change rien quand un périmètre existe déjà)', async () => {
+    await seedAccount('agentStrictScoped', { profile: 'Agent', orgAccessPolicy: 'strict', assignedOrganizations: ['OrgY'] });
+    await seedDoc('claims', 'cStrict2', { organization: 'OrgY', createdByUid: 'someoneElse' });
+    await seedDoc('claims', 'cStrict3', { organization: 'OrgZ', createdByUid: 'someoneElse' });
+
+    await assertSucceeds(asUser('agentStrictScoped').doc('claims/cStrict2').get());
+    await assertFails(asUser('agentStrictScoped').doc('claims/cStrict3').get());
+  });
+
+  it('un Admin garde un accès total même avec orgAccessPolicy:"strict" posé sur son propre compte', async () => {
+    await seedAccount('adminStrict', { profile: 'Admin', orgAccessPolicy: 'strict' });
+    await seedDoc('claims', 'cStrictAdmin', { organization: 'AnyOrg', createdByUid: 'someoneElse' });
+
+    await assertSucceeds(asUser('adminStrict').doc('claims/cStrictAdmin').get());
   });
 });

@@ -176,11 +176,19 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     }
     setIsGeneratingCard(false);
 
-    // === ADDED IMPROVEMENT: upload to Firebase Storage with an automatic fallback to the
-    // existing base64 storage on failure (see storageUtils.ts / MembersView.tsx).
-    const resolvedPhotoUrl = photoData
-      ? await uploadPhotoOrFallback(photoData, 'enrollment-photos', generatedCardNo, form.organization)
-      : undefined;
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #7) — l'upload
+    // échoue désormais explicitement (fail-closed, voir storageUtils.ts) au lieu de dégrader
+    // silencieusement vers un stockage base64 ; l'enrôlement est bloqué avec un message clair
+    // plutôt que de continuer avec une photo mal stockée.
+    let resolvedPhotoUrl: string | undefined;
+    if (photoData) {
+      try {
+        resolvedPhotoUrl = await uploadPhotoOrFallback(photoData, 'enrollment-photos', generatedCardNo, form.organization);
+      } catch (err: any) {
+        setFormError(err?.message || 'Could not save the photo. Please try again.');
+        return;
+      }
+    }
 
     const newEnrollment: Partial<Enrollment> = {
       reference: `ENR-2026-${Math.floor(100 + Math.random() * 900)}`,

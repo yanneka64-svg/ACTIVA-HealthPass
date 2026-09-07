@@ -23,6 +23,19 @@ export async function processEnrollmentDecisionServer(
 
     const enrollment = enrollmentSnap.data() || {};
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding A2 — CRITIQUE) ===
+    // Voir claimsService.ts pour le détail complet du problème (aucune vérification du statut
+    // courant avant application de la décision) et pourquoi le garde-fou doit exister ici, côté
+    // serveur : un second appel sur un enrollment déjà 'approved' créerait un second membre en
+    // double via l'étape 4 ci-dessous. Un enrollment sans champ `status` est traité comme
+    // 'pending' pour ne créer aucune régression sur les données existantes.
+    const currentStatus = enrollment.status || 'pending';
+    if (currentStatus !== 'pending') {
+      throw new Error(
+        `This enrollment has already been decided (current status: '${currentStatus}') and cannot be decided again.`
+      );
+    }
+
     // 1. Enforce Separation of Duties (approver cannot be submitter)
     // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4) — voir claimsService.ts pour le détail :
     // createdByUid (vérifié serveur) préféré à createdBy (hérité, non vérifié) quand présent.

@@ -106,11 +106,16 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   // === AMÉLIORATION AJOUTÉE : cachet "APPROVED & COVERED" (maquette fournie par
   // l'utilisateur) — jsPDF ne gère pas nativement l'opacité, une teinte vert clair rotative
   // approche visuellement l'effet de tampon semi-transparent de l'aperçu écran/impression.
+  // Repositionné sur demande explicite : à fontSize 21 / y 54 / angle 18, la rotation faisait
+  // dépasser le coin "COVERED" DANS la bande bleue + le liseré vert de l'en-tête (0-29mm) —
+  // vérifié visuellement (rendu Chromium du PDF généré). fontSize/y/angle réduits pour que le
+  // cachet reste intégralement centré sur le bloc d'identification bénéficiaire/prestataire
+  // (zone blanche, infoY=36 à infoEndY=86 ci-dessous), sans jamais toucher l'en-tête.
   if (isSlipApproved(invoice)) {
     doc.setTextColor(190, 227, 205);
-    doc.setFontSize(21);
+    doc.setFontSize(17);
     doc.setFont('helvetica', 'bold');
-    doc.text('APPROVED & COVERED', 105, 54, { align: 'center', angle: 18 });
+    doc.text('APPROVED & COVERED', 105, 64, { align: 'center', angle: 14 });
   }
 
   // Section: Beneficiary & Coverage Identification (nouveaux libellés, maquette fournie)
@@ -456,15 +461,20 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             font-size: 10px;
             letter-spacing: 0.5px;
           }
-          /* === AMELIORATION AJOUTEE : cachet "APPROVED & COVERED" (maquette fournie par
-             l'utilisateur), superpose en filigrane sur l'en-tete + le bloc d'identification du
-             bordereau. Portee volontairement limitee a .voucher-top (pas toute la carte, dont
-             la hauteur varie avec le nombre de lignes du tableau d'actes medicaux) pour que le
-             cachet reste toujours centre sur cette zone, quel que soit le contenu en dessous. */
+          /* === AMÉLIORATION AJOUTÉE : cachet "APPROVED & COVERED" (maquette fournie par
+             l'utilisateur), superposé en filigrane sur le bloc d'identification (bénéficiaire /
+             prestataire) du bordereau. Portée volontairement limitée à .grid-2 — et non plus
+             .voucher-top, qui englobait aussi .header — sur demande explicite : le cachet ne
+             doit jamais toucher la bande bleue de l'en-tête ni en sortir, il doit rester
+             entièrement sur le fond blanc du bloc d'identification, quel que soit le contenu du
+             tableau d'actes médicaux en dessous. */
           .voucher-card {
             position: relative;
           }
           .voucher-top {
+            position: relative;
+          }
+          .grid-2 {
             position: relative;
           }
           .watermark {
@@ -482,12 +492,10 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             border-radius: 10px;
             white-space: nowrap;
             pointer-events: none;
-            /* === AMÉLIORATION AJOUTÉE : le cachet est maintenant rendu PAR-DESSUS l'en-tête
-               et la grille d'identification (z-index le plus élevé de la carte), comme un
-               vrai tampon encreur appliqué sur un document déjà imprimé — sa transparence
-               (rgba 0.25) suffit à garder le texte dessous lisible. Auparavant positionné
-               DERRIÈRE via un z-index inversé, ce qui le faisait disparaître partiellement
-               chaque fois qu'il croisait un élément opaque de l'en-tête (ex. le logo). */
+            /* === AMÉLIORATION AJOUTÉE : le cachet est rendu PAR-DESSUS le bloc d'identification
+               (z-index le plus élevé de ce bloc), comme un vrai tampon encreur appliqué sur un
+               document déjà imprimé — sa transparence (rgba 0.25) suffit à garder le texte
+               dessous lisible. Ne dépasse plus jamais sur .header (voir portée ci-dessus). */
             z-index: 5;
           }
         </style>
@@ -495,7 +503,6 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
       <body>
         <div class="voucher-card">
           <div class="voucher-top">
-            ${isSlipApproved(invoice) ? '<div class="watermark">Approved &amp; Covered</div>' : ''}
 
             <div class="header">
               <!-- AMÉLIORATION AJOUTÉE : sur demande explicite — le logo ACTIVA remplace le
@@ -516,6 +523,7 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
             </div>
 
             <div class="grid-2">
+            ${isSlipApproved(invoice) ? '<div class="watermark">Approved &amp; Covered</div>' : ''}
             <!-- Beneficiary Information -->
             <div class="info-card">
               <h4>Beneficiary Details</h4>

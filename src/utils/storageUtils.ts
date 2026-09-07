@@ -13,18 +13,24 @@
 // every photo as base64, even when only a table with no photo is displayed).
 //
 // This module sends the photo to Firebase Storage and only stores the download URL
-// (short, stable) in Firestore. Automatic, silent fallback to the previous behavior
-// (storing the base64 string as-is) if the upload fails for any reason (Storage rules
-// not yet deployed on the Firebase project, offline, quota...) — so there is NO possible
-// regression versus the existing behavior: at worst, it's identical to before.
+// (short, stable) in Firestore.
 //
-// IMPORTANT (deployment): like firestore.rules, the storage.rules file at the repo root
-// must be deployed to the Firebase project (`firebase deploy --only storage`) for the
-// upload to succeed. Until that's done, the fallback below guarantees that photo capture
-// keeps working exactly as it does today.
+// === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #7 — HIGH) ===
+// Le repli silencieux vers le stockage base64 dans Firestore, décrit ci-dessus dans la version
+// initiale de ce commentaire, a été RETIRÉ (fail-closed par défaut) : il réintroduisait
+// exactement les risques (dépassement de la limite ~1 MiB, données biométriques hors
+// cloisonnement par organisation) que ce module visait à éliminer. Voir
+// `uploadPhotoOrFallback` ci-dessous et `src/config/storageFallback.ts` pour le détail et
+// l'interrupteur de secours explicite (désactivé par défaut).
+//
+// IMPORTANT (deployment): comme firestore.rules, le fichier storage.rules à la racine du dépôt
+// doit être déployé sur le projet Firebase (`firebase deploy --only storage`) pour que l'upload
+// réussisse. Sans ce déploiement, la capture de photo échoue désormais explicitement (voir
+// storageFallback.ts) au lieu de dégrader silencieusement le stockage.
 
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
+import { isBase64PhotoFallbackAllowed } from '../config/storageFallback';
 
 /**
  * Uploads a base64 "data:...;base64,..." image URL to Firebase Storage under `path` and
@@ -40,9 +46,7 @@ export async function uploadDataUrlToStorage(dataUrl: string, path: string): Pro
 
 /**
  * Safe wrapper: tries to upload the captured photo to Firebase Storage and return its
- * download URL; if that fails for ANY reason, silently falls back to returning the
- * original base64 data URL unchanged (today's behavior). This means enabling Storage is
- * purely additive — it can never make photo capture worse than it already is.
+ * download URL.
  *
  * `pathPrefix` groups uploads by context (e.g. 'member-photos', 'enrollment-photos') so
  * files are easy to find/administer in the Storage console; `identifier` should be a
@@ -57,6 +61,14 @@ export async function uploadDataUrlToStorage(dataUrl: string, path: string): Pro
  * si `organization` est omis ou vide, le comportement (et le chemin produit) reste EXACTEMENT
  * celui d'avant ce correctif — les fichiers déjà déposés sous l'ancien format plat restent
  * accessibles (voir la règle `legacy` dans storage.rules).
+ *
+ * === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #7 — HIGH) ===
+ * FAIL-CLOSED PAR DÉFAUT : cette fonction ne retombe plus silencieusement sur le stockage en
+ * base64 dans Firestore si l'upload Storage échoue — elle relance l'erreur, à charge de
+ * l'appelant de bloquer la sauvegarde et d'afficher un message clair (voir MembersView.tsx,
+ * AgentEnrollmentsView.tsx, EnrollmentsView.tsx). Voir src/config/storageFallback.ts pour
+ * l'interrupteur de secours explicite (désactivé par défaut) si Storage s'avère non opérationnel
+ * en production après ce correctif.
  */
 export async function uploadPhotoOrFallback(
   dataUrl: string,
@@ -77,11 +89,17 @@ export async function uploadPhotoOrFallback(
   try {
     return await uploadDataUrlToStorage(dataUrl, path);
   } catch (err) {
-    console.warn(
-      `Firebase Storage upload failed for "${path}" — falling back to inline base64 storage in Firestore. ` +
-        `This still works, but see storage.rules deployment note in storageUtils.ts.`,
-      err
+    if (isBase64PhotoFallbackAllowed()) {
+      console.warn(
+        `Firebase Storage upload failed for "${path}" — VITE_ALLOW_STORAGE_BASE64_FALLBACK is ` +
+          `enabled, falling back to inline base64 storage in Firestore (legacy behavior).`,
+        err
+      );
+      return dataUrl;
+    }
+    console.error(`Firebase Storage upload failed for "${path}" — failing closed (no base64 fallback).`, err);
+    throw new Error(
+      'Photo could not be saved securely to Firebase Storage. Please check your connection and try again, or contact your administrator if the problem persists.'
     );
-    return dataUrl;
   }
 }

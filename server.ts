@@ -4,9 +4,49 @@ import { createServer as createViteServer } from 'vite';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, DocumentData } from 'firebase-admin/firestore';
+import pino from 'pino';
+import pinoHttp from 'pino-http';
+
+// === AMÉLIORATION AJOUTÉE : observabilité (préparation Go-Live, 2026-09-07) ===
+// Logs structurés (JSON, niveaux de sévérité) au lieu de console.log/console.warn épars —
+// nécessaire pour qu'un outil de monitoring externe (Cloud Logging, Datadog, etc., voir action
+// humaine requise dans le rapport de session) puisse ingérer et filtrer les logs par sévérité.
+// LOG_LEVEL est optionnel (défaut 'info') ; jamais de donnée sensible loguée en clair (voir
+// redact ci-dessous pour les en-têtes d'authentification).
+// === AMÉLIORATION AJOUTÉE : monitoring (préparation Go-Live, 2026-09-07) ===
+// `formatters.level`/`messageKey` alignent la sortie JSON de pino sur le format que Google
+// Cloud Logging reconnaît nativement (champ `severity` en texte, pas le niveau numérique par
+// défaut de pino ; message sous la clé `message`, pas `msg`) — sans dépendance supplémentaire.
+// Sur tout hébergement GCP dont les logs stdout sont collectés par l'agent Cloud Logging (Cloud
+// Run, Compute Engine, GKE...), cela suffit à ce que ces entrées apparaissent avec la bonne
+// sévérité et que les erreurs soient reprises automatiquement par Google Cloud Error Reporting
+// — décision retenue plutôt qu'un SDK de monitoring tiers (Sentry, Datadog) pour rester sans
+// nouveau compte externe ni nouvelle dépendance. Sans effet en dehors d'un tel hébergement
+// (les champs sont simplement ignorés).
+export const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  redact: ['req.headers.authorization', 'req.headers.cookie'],
+  messageKey: 'message',
+  formatters: {
+    level(label) {
+      return { severity: label.toUpperCase() === 'WARN' ? 'WARNING' : label.toUpperCase() };
+    },
+  },
+});
 
 const app = express();
 const PORT = 3000;
+
+app.use(
+  pinoHttp({
+    logger,
+    // Le endpoint de health check est appelé fréquemment par les sondes d'orchestration —
+    // l'exclure du log par-requête évite de noyer les vrais événements sous du bruit répétitif.
+    autoLogging: {
+      ignore: (req) => req.url === '/api/health',
+    },
+  })
+);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -19,7 +59,7 @@ try {
   }
 } catch (e: any) {
   adminInitError = e?.message || 'Firebase Admin SDK initialization failed';
-  console.warn('[server.ts] Firebase Admin SDK not available:', adminInitError);
+  logger.warn({ err: e }, '[server.ts] Firebase Admin SDK not available');
 }
 
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -40,12 +80,52 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 // --- API ROUTES ---
-app.get('/api/health', (_req: Request, res: Response) => {
+// === AMÉLIORATION AJOUTÉE : observabilité (préparation Go-Live, 2026-09-07) ===
+// Le health check précédent répondait "ok" inconditionnellement, sans jamais vérifier que le
+// service peut réellement joindre Firestore/Auth — un faux vert pour un outil de monitoring
+// externe pendant une panne réelle de connectivité. Vérifie désormais chaque dépendance
+// indépendamment (statut 'ok'/'degraded' par service), avec un délai court (2s) pour ne jamais
+// faire traîner une sonde de santé. Le SDK Admin non initialisé (adminInitError) est signalé
+// séparément, sans tenter d'appel réseau inutile. Reste HTTP 200 même en dégradé partiel : un
+// orchestrateur qui redémarre le service sur un simple "degraded" aggraverait souvent la
+// situation plutôt que de la corriger ; le corps de la réponse porte l'information détaillée
+// pour que l'outil de monitoring décide de la sévérité.
+app.get('/api/health', async (_req: Request, res: Response) => {
+  const checks: Record<string, { status: 'ok' | 'degraded' | 'unavailable'; error?: string }> = {};
+
+  if (adminInitError) {
+    checks.firestore = { status: 'unavailable', error: 'Admin SDK not initialized' };
+    checks.auth = { status: 'unavailable', error: 'Admin SDK not initialized' };
+  } else {
+    const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+      Promise.race([
+        promise,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+      ]);
+
+    try {
+      await withTimeout(getFirestore().collection('organizations').limit(1).get(), 2000);
+      checks.firestore = { status: 'ok' };
+    } catch (e: any) {
+      checks.firestore = { status: 'degraded', error: e?.message || 'Firestore check failed' };
+    }
+
+    try {
+      await withTimeout(getAuth().listUsers(1), 2000);
+      checks.auth = { status: 'ok' };
+    } catch (e: any) {
+      checks.auth = { status: 'degraded', error: e?.message || 'Auth check failed' };
+    }
+  }
+
+  const overall = Object.values(checks).every((c) => c.status === 'ok') ? 'ok' : 'degraded';
+
   res.json({
-    status: 'ok',
+    status: overall,
     service: 'ACTIVA HealthPass API & Continuity Gateway',
     timestamp: new Date().toISOString(),
     version: '2.0.0',
+    checks,
   });
 });
 
@@ -238,6 +318,7 @@ app.post('/api/policies/evaluate', requireAuth, async (req: Request, res: Respon
   try {
     policySnap = await getFirestore().doc(`healthPolicies/${organizationName}`).get();
   } catch (e: any) {
+    req.log.error({ err: e, organizationName }, 'Failed to read policy data');
     return res.status(503).json({ error: 'Unable to read policy data from the database.' });
   }
   if (!policySnap.exists) {
@@ -265,7 +346,8 @@ app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res:
     if (policySnap.exists) {
       coverageBlocked = evaluatePolicyFromRecord(policySnap.data() || {}).coverageBlocked === true;
     }
-  } catch {
+  } catch (e: any) {
+    req.log.error({ err: e, organizationName }, 'Failed to read policy data');
     return res.status(503).json({ error: 'Unable to read policy data from the database.' });
   }
 
@@ -283,7 +365,8 @@ app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res:
       if (!memberSnap.empty) {
         memberStatus = memberSnap.docs[0].data().status;
       }
-    } catch {
+    } catch (e: any) {
+      req.log.error({ err: e, memberCardNo }, 'Failed to read member data');
       return res.status(503).json({ error: 'Unable to read member data from the database.' });
     }
   }
@@ -336,6 +419,7 @@ app.post('/api/audit/log', async (req: Request, res: Response) => {
     const ref = await getFirestore().collection('auditLogs').add(entry);
     res.json({ success: true, id: ref.id, entry });
   } catch (e: any) {
+    req.log.error({ err: e }, 'Failed to persist audit log entry');
     res.status(503).json({ error: 'Failed to persist audit log entry.' });
   }
 });
@@ -356,7 +440,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`ACTIVA HealthPass full-stack server running on http://0.0.0.0:${PORT}`);
+    logger.info({ port: PORT }, 'ACTIVA HealthPass full-stack server running');
   });
 }
 

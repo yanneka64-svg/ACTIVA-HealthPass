@@ -4,30 +4,46 @@
  *
  * Hashes passwords using PBKDF2-HMAC-SHA256 (150,000 iterations),
  * writes passwordHash + passwordSalt, and deletes the plaintext fields.
+ *
+ * === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07) ===
+ * Un push direct sur `main` avait réintroduit, en clair, la clé API Firebase et un repli sur
+ * l'e-mail du compte compromis `yannick.ekani_test@activa.local` — pour la TROISIÈME fois cette
+ * session (voir docs/security/BACKEND_AUDIT_2026-09-06_REMEDIATION.md). Retiré à nouveau : toute
+ * valeur sensible est exclusivement lue depuis une variable d'environnement, sans repli codé en
+ * dur.
+ *
+ * USAGE :
+ *   FIREBASE_API_KEY=... FIREBASE_PROJECT_ID=... FIREBASE_AUTH_DOMAIN=... \
+ *   FIRESTORE_DATABASE_ID=... MIGRATION_ADMIN_EMAIL=... MIGRATION_ADMIN_PASSWORD=... \
+ *   npx tsx scripts/migratePlaintextPasswords.ts --dry-run
  */
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, getDocs, doc, setDoc, deleteField } from 'firebase/firestore';
 import { hashPassword } from '../src/utils/passwordUtils';
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}.`);
+  }
+  return value;
+}
+
 async function migrate() {
   const isDryRun = process.argv.includes('--dry-run');
   console.log(`--- Starting Plaintext Password Migration ${isDryRun ? '[DRY-RUN MODE]' : '[LIVE EXECUTION]'} ---`);
   const app = initializeApp({
-    apiKey: 'AIzaSyDfN_rZOwrcmVuJHzymswFpoNl6zBuaRXk',
-    projectId: 'gen-lang-client-0957905786',
-    authDomain: 'gen-lang-client-0957905786.firebaseapp.com'
+    apiKey: requireEnv('FIREBASE_API_KEY'),
+    projectId: requireEnv('FIREBASE_PROJECT_ID'),
+    authDomain: requireEnv('FIREBASE_AUTH_DOMAIN'),
   });
   const auth = getAuth(app);
-  const db = getFirestore(app, 'ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b');
+  const db = getFirestore(app, requireEnv('FIRESTORE_DATABASE_ID'));
 
   // Authenticate as active admin/migration user to satisfy `isSignedIn()` rule
-  const adminEmail = process.env.MIGRATION_ADMIN_EMAIL || 'yannick.ekani_test@activa.local';
-  const adminPass = process.env.MIGRATION_ADMIN_PASSWORD;
-  if (!adminPass) {
-    console.error('Error: Environment variable MIGRATION_ADMIN_PASSWORD is required.');
-    process.exit(1);
-  }
+  const adminEmail = requireEnv('MIGRATION_ADMIN_EMAIL');
+  const adminPass = requireEnv('MIGRATION_ADMIN_PASSWORD');
   try {
     await signInWithEmailAndPassword(auth, adminEmail, adminPass);
     console.log(`Authenticated for migration with ${adminEmail}`);

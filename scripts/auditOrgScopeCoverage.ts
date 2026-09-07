@@ -1,8 +1,10 @@
 /**
  * Audit script for Point SEC-FS-002: Multi-Tenant Organization Scope Coverage.
  *
- * Connects to the production Firestore named database:
- * `ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b`
+ * USAGE :
+ *   FIREBASE_API_KEY=... FIREBASE_PROJECT_ID=... FIREBASE_AUTH_DOMAIN=... \
+ *   FIRESTORE_DATABASE_ID=... MIGRATION_ADMIN_EMAIL=... MIGRATION_ADMIN_PASSWORD=... \
+ *   npx tsx scripts/auditOrgScopeCoverage.ts
  *
  * Verifies:
  * 1. Account scoping (accounts.assignedOrganizations vs admin/global accounts)
@@ -21,6 +23,21 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 
+// === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07) ===
+// Un push direct sur `main` avait réintroduit, en clair, la clé API Firebase, le projectId,
+// l'authDomain et le nom de la base Firestore nommée — pour la TROISIÈME fois cette session
+// (voir docs/security/BACKEND_AUDIT_2026-09-06_REMEDIATION.md pour les deux précédentes). Retiré
+// à nouveau : toute valeur sensible/de configuration est exclusivement lue depuis une variable
+// d'environnement, sans repli codé en dur, y compris le nom de la base et l'e-mail admin (qui
+// avait aussi un repli en dur vers le compte compromis `yannick.ekani_test@activa.local`).
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}.`);
+  }
+  return value;
+}
+
 interface CollectionAuditResult {
   collectionName: string;
   totalDocs: number;
@@ -34,24 +51,19 @@ interface CollectionAuditResult {
 async function auditOrgScopeCoverage() {
   console.log('================================================================');
   console.log('AUDIT REPORT: SEC-FS-002 — Multi-Tenant Organization Scope Coverage');
-  console.log('Target Database: ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b');
   console.log('Timestamp: ' + new Date().toISOString());
   console.log('================================================================\n');
 
   const app = initializeApp({
-    apiKey: 'AIzaSyDfN_rZOwrcmVuJHzymswFpoNl6zBuaRXk',
-    projectId: 'gen-lang-client-0957905786',
-    authDomain: 'gen-lang-client-0957905786.firebaseapp.com'
+    apiKey: requireEnv('FIREBASE_API_KEY'),
+    projectId: requireEnv('FIREBASE_PROJECT_ID'),
+    authDomain: requireEnv('FIREBASE_AUTH_DOMAIN'),
   });
   const auth = getAuth(app);
-  const db = getFirestore(app, 'ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b');
+  const db = getFirestore(app, requireEnv('FIRESTORE_DATABASE_ID'));
 
-  const adminEmail = process.env.MIGRATION_ADMIN_EMAIL || 'yannick.ekani_test@activa.local';
-  const adminPass = process.env.MIGRATION_ADMIN_PASSWORD;
-  if (!adminPass) {
-    console.error('Error: Environment variable MIGRATION_ADMIN_PASSWORD is required.');
-    process.exit(1);
-  }
+  const adminEmail = requireEnv('MIGRATION_ADMIN_EMAIL');
+  const adminPass = requireEnv('MIGRATION_ADMIN_PASSWORD');
 
   console.log(`Authenticating auditor with: ${adminEmail}...`);
   try {

@@ -4,6 +4,8 @@ import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling
 import { getFullDemoData, seedInitialDemoDataIfEmpty } from './seedData';
 import { isNewSecurityNumberFormat, normalizeMedicalFormSecurityNumber } from '../utils/medicalFormUtils';
 import { computeMedicalFormRetentionUntil } from '../config/dataRetention';
+import { isDemoFallbackAllowed } from '../config/demoFallback';
+import { reportSyncIssue, clearSyncIssue } from '../utils/systemStatus';
 import { computeLogIntegrityHash } from '../utils/auditIntegrity';
 
 // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5) —
@@ -78,20 +80,28 @@ export const FirestoreService = {
     onSnapshot(
       scopedQuery('members', 'organization', orgScope),
       (snap) => {
+        clearSyncIssue('members');
         if (!snap.empty) {
           const map = new Map<string, Member>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as Member));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.membersList || []) as Member[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'members');
-        const demo = getFullDemoData();
-        cb((demo.membersList || []) as Member[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.membersList || []) as Member[]);
+        } else {
+          reportSyncIssue('members', err);
+          cb([]);
+        }
       }
     ),
 
@@ -99,20 +109,28 @@ export const FirestoreService = {
     onSnapshot(
       collection(db, 'organizations'),
       (snap) => {
+        clearSyncIssue('organizations');
         if (!snap.empty) {
           const map = new Map<string, Organization>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as Organization));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.orgs || []) as Organization[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'organizations');
-        const demo = getFullDemoData();
-        cb((demo.orgs || []) as Organization[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.orgs || []) as Organization[]);
+        } else {
+          reportSyncIssue('organizations', err);
+          cb([]);
+        }
       }
     ),
 
@@ -120,20 +138,28 @@ export const FirestoreService = {
     onSnapshot(
       collection(db, 'providers'),
       (snap) => {
+        clearSyncIssue('providers');
         if (!snap.empty) {
           const map = new Map<string, Provider>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as Provider));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.providers || []) as Provider[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'providers');
-        const demo = getFullDemoData();
-        cb((demo.providers || []) as Provider[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.providers || []) as Provider[]);
+        } else {
+          reportSyncIssue('providers', err);
+          cb([]);
+        }
       }
     ),
 
@@ -141,20 +167,28 @@ export const FirestoreService = {
     onSnapshot(
       scopedQuery('claims', 'organization', orgScope),
       (snap) => {
+        clearSyncIssue('claims');
         if (!snap.empty) {
           const map = new Map<string, Claim>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as Claim));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.sampleClaims || []) as Claim[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'claims');
-        const demo = getFullDemoData();
-        cb((demo.sampleClaims || []) as Claim[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.sampleClaims || []) as Claim[]);
+        } else {
+          reportSyncIssue('claims', err);
+          cb([]);
+        }
       }
     ),
 
@@ -162,20 +196,28 @@ export const FirestoreService = {
     onSnapshot(
       scopedQuery('invoices', 'organization', orgScope),
       (snap) => {
+        clearSyncIssue('invoices');
         if (!snap.empty) {
           const map = new Map<string, InvoiceItem>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as InvoiceItem));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.sampleInvoices || []) as InvoiceItem[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'invoices');
-        const demo = getFullDemoData();
-        cb((demo.sampleInvoices || []) as InvoiceItem[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.sampleInvoices || []) as InvoiceItem[]);
+        } else {
+          reportSyncIssue('invoices', err);
+          cb([]);
+        }
       }
     ),
 
@@ -198,20 +240,28 @@ export const FirestoreService = {
     onSnapshot(
       collection(db, 'ceilings'),
       (snap) => {
+        clearSyncIssue('ceilings');
         if (!snap.empty) {
           const map = new Map<string, Ceiling>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as Ceiling));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.sampleCeilings || []) as Ceiling[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'ceilings');
-        const demo = getFullDemoData();
-        cb((demo.sampleCeilings || []) as Ceiling[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.sampleCeilings || []) as Ceiling[]);
+        } else {
+          reportSyncIssue('ceilings', err);
+          cb([]);
+        }
       }
     ),
 
@@ -230,20 +280,28 @@ export const FirestoreService = {
     onSnapshot(
       collection(db, 'accounts'),
       (snap) => {
+        clearSyncIssue('accounts');
         if (!snap.empty) {
           const map = new Map<string, any>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id }));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb(demo.defaultAccounts);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'accounts');
-        const demo = getFullDemoData();
-        cb(demo.defaultAccounts);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb(demo.defaultAccounts);
+        } else {
+          reportSyncIssue('accounts', err);
+          cb([]);
+        }
       }
     ),
 

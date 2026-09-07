@@ -6,3 +6,28 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# === AMÉLIORATION AJOUTÉE : sécurité (préparation Go-Live, 2026-09-07) ===
+# Garde-fou défensif : aucun fichier de ce type n'est présent dans le dépôt aujourd'hui (vérifié
+# par recherche exhaustive de "BEGIN PRIVATE KEY"/"service_account" — functions/src/index.ts
+# utilise admin.initializeApp() sans argument, donc les identifiants par défaut de
+# l'environnement Cloud Functions, jamais de clé committée). Ces motifs empêchent qu'une clé de
+# compte de service Firebase/GCP ne soit committée par erreur à l'avenir.
+*serviceAccount*.json
+*service-account*.json
+firebase-adminsdk-*.json
+*.pem
+*.p12
+
+# === AMÉLIORATION AJOUTÉE : tests end-to-end (préparation Go-Live, 2026-09-07) ===
+# Artefacts d'exécution de la suite E2E Playwright (voir e2e/global-setup.ts) — jamais commités.
+e2e/.e2e-pids.json
+test-results/
+playwright-report/
+
+# === AMÉLIORATION AJOUTÉE : hygiène de dépôt (préparation Go-Live, 2026-09-07) ===
+# Sortie de compilation des Cloud Functions — entièrement régénérée par `npm run build` à chaque
+# déploiement réel (voir le hook `predeploy` de firebase.json) ; la tracker créait un décalage
+# permanent avec functions/src/ (déjà désynchronisée avant même ce commit) sans aucun bénéfice,
+# le déploiement ne dépendant jamais de la copie committée.
+functions/lib/
