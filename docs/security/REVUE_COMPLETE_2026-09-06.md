@@ -317,3 +317,65 @@ correction est demandée :
 5. Le reste (C, D restant) — qualité/performance, à traiter par lots sans urgence business.
 
 Aucune de ces corrections n'a été appliquée dans le cadre de cette revue : c'est un audit, pas un lot de correctifs.
+
+---
+
+## Constats d'une passe de préparation Go-Live (2026-09-07) — décisions prises
+
+Suite à une demande de préparation production couvrant tests, observabilité, variables
+d'environnement, CI/CD et performance. Voir aussi `docs/ci-cd/TEST_STRATEGY.md` (stratégie de
+test complète) pour le détail de la suite E2E ajoutée.
+
+- **Tests** : suite E2E Playwright ajoutée (`e2e/`), 3 parcours critiques (création de carte,
+  approbation de dossier, génération de facture), verte. Total 226 tests automatisés.
+- **Logs structurés** : `server.ts` (pino/pino-http) et `functions/src/index.ts`
+  (`firebase-functions/logger`) — chacun avec l'outil natif de son environnement d'exécution
+  plutôt qu'un choix unique forcé.
+- **Monitoring** : décision utilisateur — Google Cloud Error Reporting (déjà inclus via GCP),
+  pas de SDK tiers (Sentry/Datadog) pour éviter un nouveau compte externe et un flux de données
+  d'erreur vers un tiers pour une application de santé. `server.ts` formate désormais ses logs
+  pino au format que Cloud Logging reconnaît nativement (`severity`, `message`) — sans nouvelle
+  dépendance. **Limite non résolue** : cela suppose un hébergement GCP dont le stdout est
+  collecté par l'agent Cloud Logging (Cloud Run, GCE, GKE...) ; cette session n'a pas pu
+  déterminer où `server.ts` tourne réellement en production (aucune trace de déploiement dans
+  les workflows CI, qui ne déploient que Firestore rules/indexes/functions) — à confirmer côté
+  opérateur.
+- **Health checks** : `/api/health` vérifie désormais réellement Firestore et Auth (timeout 2s
+  chacun), plus seulement un statut statique.
+- **Variables d'environnement** : `.env.example` réécrit intégralement, chaque variable
+  documentée avec son usage. Vérification qu'aucune clé de service Firebase Admin n'est
+  exposée dans le dépôt (recherche exhaustive, historique git inclus) ; `.gitignore` durci en
+  prévention.
+- **Vérification des valeurs réellement configurées en production/GitHub Actions** : hors de
+  portée de cette session (aucun accès à l'environnement de production ni aux secrets GitHub
+  configurés) — action humaine requise, cf. `.env.example` pour la liste exhaustive de ce qui
+  doit être défini.
+- **Tests de charge** : hors de portée de cette session (nécessite un environnement cible réel).
+- **Index Firestore** : les 4 index composites déclarés n'étaient utilisés par aucune requête
+  du code (aucun `orderBy()`, vérifié par recherche exhaustive) — retirés (décision
+  utilisateur).
+- **Cache Redis** — évaluation demandée, pas d'implémentation :
+  - Le taux de change LRD/USD est une constante fixe dans le code (`1 USD = 195 LRD`), pas un
+    appel réseau répété — rien à mettre en cache de ce côté.
+  - Les plafonds par organisation et la configuration sont déjà servis via les abonnements
+    Firestore temps réel côté client (`src/services/firestore.ts`), qui bénéficient du cache
+    local persistant de Firestore (`persistentLocalCache`, déjà configuré dans
+    `src/lib/firebase.ts`) — un cache Redis serait redondant à ce niveau.
+  - Les endpoints `server.ts` (`/api/policies/evaluate`, `/api/claims/validate-coverage`) et les
+    Cloud Functions font des lectures Firestore ponctuelles par requête, pas de calcul lourd
+    répété — à l'échelle actuelle (usage interne, pas un trafic public à fort volume), un cache
+    Redis ajouterait une dépendance d'infrastructure (instance Cloud Memorystore, connecteur VPC
+    pour Cloud Functions/Cloud Run, coût récurrent) sans bénéfice mesuré.
+  - **Recommandation** : ne pas ajouter Redis maintenant. À reconsidérer seulement si un
+    profilage réel en production identifie un endpoint spécifique dont la latence ou le volume
+    de lectures Firestore justifie le coût d'exploitation d'un cache dédié.
+- **Dependabot** : configuré (`npm` racine + `functions/`, `github-actions`, hebdomadaire).
+- **CI/CD** : `deploy-staging.yml` exécute désormais aussi la validation des règles Firestore
+  contre l'émulateur avant déploiement (aligné sur `deploy-production.yml`, qui l'avait déjà).
+  Le flux staging → production à deux étapes existait déjà et n'a pas nécessité de changement
+  structurel.
+- **Snyk** (`security/snyk`, PR #6) : 13 vulnérabilités modérées transitives pré-existantes
+  (`firebase-tools`, `express`/`body-parser`/`qs`), aucune régression introduite cette session
+  (vérifié à chaque nouvelle dépendance ajoutée : `pino`/`pino-http`, `@playwright/test`), aucun
+  correctif sûr disponible sans rétrograder `firebase-tools` de façon cassante — non bloquant
+  pour la fusion (`mergeable_state: unstable`, pas `blocked`).
