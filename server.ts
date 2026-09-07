@@ -13,9 +13,25 @@ import pinoHttp from 'pino-http';
 // humaine requise dans le rapport de session) puisse ingérer et filtrer les logs par sévérité.
 // LOG_LEVEL est optionnel (défaut 'info') ; jamais de donnée sensible loguée en clair (voir
 // redact ci-dessous pour les en-têtes d'authentification).
+// === AMÉLIORATION AJOUTÉE : monitoring (préparation Go-Live, 2026-09-07) ===
+// `formatters.level`/`messageKey` alignent la sortie JSON de pino sur le format que Google
+// Cloud Logging reconnaît nativement (champ `severity` en texte, pas le niveau numérique par
+// défaut de pino ; message sous la clé `message`, pas `msg`) — sans dépendance supplémentaire.
+// Sur tout hébergement GCP dont les logs stdout sont collectés par l'agent Cloud Logging (Cloud
+// Run, Compute Engine, GKE...), cela suffit à ce que ces entrées apparaissent avec la bonne
+// sévérité et que les erreurs soient reprises automatiquement par Google Cloud Error Reporting
+// — décision retenue plutôt qu'un SDK de monitoring tiers (Sentry, Datadog) pour rester sans
+// nouveau compte externe ni nouvelle dépendance. Sans effet en dehors d'un tel hébergement
+// (les champs sont simplement ignorés).
 export const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
   redact: ['req.headers.authorization', 'req.headers.cookie'],
+  messageKey: 'message',
+  formatters: {
+    level(label) {
+      return { severity: label.toUpperCase() === 'WARN' ? 'WARNING' : label.toUpperCase() };
+    },
+  },
 });
 
 const app = express();
