@@ -355,6 +355,25 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       return;
     }
 
+    // === AMÉLIORATION AJOUTÉE : robustesse (retour utilisateur, 2026-09-07 — connexions
+    // aléatoirement refusées) — rien n'empêchait jusqu'ici de créer plusieurs comptes avec le
+    // même `username`. resolveLoginIdentifier (Cloud Function) s'arrête au premier document
+    // Firestore trouvé pour un nom d'utilisateur donné, dans un ordre non garanti : avec deux
+    // comptes ou plus partageant le même username (constaté en production : 3 comptes
+    // "yannick.mebada", 2 comptes "ekani.mebada"), la connexion se comparait tantôt au bon
+    // compte, tantôt à un autre — refusée de façon imprévisible même avec le bon mot de passe.
+    // Empêche désormais la création d'un nouveau doublon ; ne modifie aucun compte existant.
+    const cleanUsernameEarly = formData.username.trim() || generateAutoUsername(formData.fullName) || '';
+    if (
+      cleanUsernameEarly &&
+      accounts.some((a) => (a.username || '').toLowerCase() === cleanUsernameEarly.toLowerCase())
+    ) {
+      setFormError(
+        `Username "${cleanUsernameEarly}" is already used by another account. Please choose a different username.`
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     const emailLower = formData.email.toLowerCase().trim();
     const selectedEntity = formData.entity || 'ACTIVA Liberia';
@@ -370,7 +389,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
     // Create user in Firebase Auth using secondary app to prevent log-out
     let uid = 'USR-' + Date.now();
-    const cleanUsername = formData.username.trim() || generateAutoUsername(formData.fullName) || ('act_' + Math.floor(1000 + Math.random() * 9000));
+    const cleanUsername = cleanUsernameEarly || ('act_' + Math.floor(1000 + Math.random() * 9000));
     let authEmailUsed = `${cleanUsername.toLowerCase()}@activa.local`;
 
     try {
