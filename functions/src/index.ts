@@ -636,6 +636,57 @@ export const adminResetUserPassword = onCall(
   }
 );
 
+/**
+ * === AMÉLIORATION AJOUTÉE : sécurité/correctif (retour utilisateur, 2026-09-07 — comptes
+ * fantômes après suppression) ===
+ * Même famille de bug que adminResetUserPassword ci-dessus : `AccountsView.tsx`
+ * (handleDeleteAccount) ne supprimait le compte que dans Firestore
+ * (`FirestoreService.deleteAccount`), jamais l'utilisateur Firebase Auth correspondant — le SDK
+ * client ne peut d'ailleurs pas supprimer le compte Auth de quelqu'un d'autre, seul le SDK Admin
+ * le peut. En pratique : "supprimer puis recréer" un compte laissait l'ancien utilisateur
+ * Firebase Auth orphelin sous la même adresse e-mail, ce qui faisait échouer silencieusement la
+ * création du nouveau compte sur cette adresse (`auth/email-already-in-use`) — le code de
+ * création retombait alors sur un e-mail de secours différent (`<username>@activa.local`),
+ * aggravant encore la confusion entre comptes/adresses observée pour ce même utilisateur.
+ * Supprime désormais l'utilisateur Firebase Auth ET le document Firestore ensemble, réservé aux
+ * comptes Admin actifs.
+ */
+export const adminDeleteUserAccount = onCall(
+  async (request: CallableRequest<{ uid?: string }>) => {
+    const context = request;
+    if (!context.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
+    }
+
+    const { role } = await resolveUserRole(context.auth.uid, context.auth.token.role as string);
+    if (role !== 'Admin') {
+      throw new HttpsError('permission-denied', 'Only administrators can delete another user account.');
+    }
+
+    const targetUid = (request.data?.uid || '').trim();
+    if (!targetUid) {
+      throw new HttpsError('invalid-argument', 'A target account uid is required.');
+    }
+    if (targetUid === context.auth.uid) {
+      throw new HttpsError('failed-precondition', 'You cannot delete your own account.');
+    }
+
+    try {
+      await admin.auth().deleteUser(targetUid);
+    } catch (err: any) {
+      // Déjà absent de Firebase Auth (ex. compte legacy jamais provisionné) : pas bloquant,
+      // on continue quand même la suppression du document Firestore.
+      if (err?.code !== 'auth/user-not-found') {
+        console.warn('adminDeleteUserAccount: Firebase Auth deletion warning:', err);
+      }
+    }
+
+    await db.doc(`accounts/${targetUid}`).delete();
+
+    return { success: true };
+  }
+);
+
 function verifyPasswordServer(password: string, passwordHash: string, passwordSalt: string): boolean {
   if (!passwordHash || !passwordSalt) return false;
   try {

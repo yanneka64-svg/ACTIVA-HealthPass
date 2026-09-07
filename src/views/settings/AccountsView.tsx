@@ -579,11 +579,21 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     showToast(`Account ${acc.fullName || acc.username} ${updatedStatus ? 'activated' : 'deactivated'}.`);
   };
 
+  // === AMÉLIORATION AJOUTÉE : sécurité/correctif (retour utilisateur, 2026-09-07 — comptes
+  // fantômes après suppression) === Ne supprimait auparavant que le document Firestore, jamais
+  // le compte Firebase Auth réel : "supprimer puis recréer" laissait l'ancien compte Auth
+  // orphelin sous la même adresse, faisant échouer silencieusement la recréation sur cette
+  // adresse. Passe désormais par la Cloud Function `adminDeleteUserAccount` (SDK Admin, seule
+  // habilitée à supprimer le compte Auth d'un AUTRE utilisateur), qui supprime les deux ensemble.
   const handleDeleteAccount = async (id: string, email: string) => {
     try {
-      await FirestoreService.deleteAccount(id);
+      const deleteFn = httpsCallable<{ uid: string }, { success: boolean }>(functions, 'adminDeleteUserAccount');
+      await deleteFn({ uid: id });
     } catch (err: any) {
-      console.error("Firestore delete error:", err);
+      console.error('Account deletion error:', err);
+      showToast(err?.message || `Failed to delete account ${email}. Please try again.`);
+      setAccountToDelete(null);
+      return;
     }
     // Optimistically update local state immediately
     setAccounts((prev) => prev.filter((a) => a.id !== id));
