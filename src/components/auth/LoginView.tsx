@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff } from 'lucide-react';
+import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff, Stethoscope, ShieldCheck } from 'lucide-react';
 import { Language } from '../../types';
 import { Logo } from '../Logo';
 import { auth, functions, db } from '../../lib/firebase';
@@ -8,6 +8,20 @@ import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { getClientLocationInfo, parseUserAgent } from '../../utils/geoUtils';
 import { FirestoreService } from '../../services/firestore';
+import { getRoleTheme, UserRole } from '../../theme/roleTheme';
+
+// === AMÉLIORATION AJOUTÉE : sélecteur de profil sur la page de connexion (sur demande
+// explicite) — purement visuel : le profil réellement appliqué après connexion reste
+// exclusivement déterminé par le compte réel de l'utilisateur (accounts/{uid}.profile),
+// exactement comme avant. Ce sélecteur ne fait que prévisualiser la couleur de l'interface
+// correspondante avant même de se connecter, en réutilisant le même système de thème par
+// rôle (src/theme/roleTheme.ts) que le reste de l'application — aucune nouvelle palette
+// créée, aucun risque d'incohérence avec les interfaces Agent/Superviseur/Admin réelles.
+const PROFILE_OPTIONS: { role: UserRole; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { role: 'Agent', label: 'Agent', icon: User },
+  { role: 'Supervisor', label: 'Supervisor', icon: Stethoscope },
+  { role: 'Admin', label: 'Admin', icon: ShieldCheck },
+];
 
 interface LoginViewProps {
   onLoginSuccess: (user: any, accountData?: any) => void;
@@ -76,6 +90,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [lockoutRemainingSec, setLockoutRemainingSec] = useState(0);
+  // === AMÉLIORATION AJOUTÉE : sélecteur de profil — voir le commentaire au-dessus de
+  // PROFILE_OPTIONS. "Agent" par défaut pour ne rien changer visuellement pour un utilisateur
+  // qui ne touche pas au sélecteur (couleur bleue déjà existante avant ce correctif).
+  const [selectedProfile, setSelectedProfile] = useState<UserRole>('Agent');
+  const theme = getRoleTheme(selectedProfile);
+  const [mR, mG, mB] = theme.palette.motifStroke.split(',').map((s) => s.trim());
 
   // Live countdown while locked out, so the user sees when they can retry.
   useEffect(() => {
@@ -365,7 +385,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
           bleu (masqué en dessous de lg) n'est pas affiché. */}
       <div className="lg:hidden fixed top-0 inset-x-0 z-20 flex items-center justify-between gap-2 px-4 py-3 bg-white border-b border-[#E8EDF2]">
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
-          <Shield className="w-3.5 h-3.5 text-[#0A347B]" />
+          <Shield className="w-3.5 h-3.5 text-[#0A347B] transition-colors duration-500" style={{ color: theme.palette.hexRamp['900'] }} />
           <span>ACTIVA Secure Portal</span>
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
@@ -374,19 +394,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
       </div>
 
-      {/* LEFT PANEL — dégradé bleu + motif de courbes, identiques à la sidebar Agent */}
-      <div className="hidden lg:flex lg:w-[46%] xl:w-[44%] bg-gradient-to-b from-[#072659] via-[#0A347B] to-[#0D2B63] relative overflow-hidden flex-col justify-between p-10 xl:p-14">
-        {/* Halo lumineux — identique à Sidebar.tsx (accentGlow Agent: bg-blue-400/20) */}
-        <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
+      {/* LEFT PANEL — dégradé + motif de courbes, désormais dynamiques selon le profil
+          sélectionné ci-dessous (voir PROFILE_OPTIONS / roleTheme.ts) ; bleu Agent par défaut,
+          identique à avant tant que l'utilisateur ne change pas la sélection. */}
+      <div className={`hidden lg:flex lg:w-[46%] xl:w-[44%] ${theme.palette.sidebarGradient} relative overflow-hidden flex-col justify-between p-10 xl:p-14 transition-colors duration-500`}>
+        {/* Halo lumineux — identique à Sidebar.tsx (accentGlow, dynamique par rôle) */}
+        <div className={`absolute -bottom-16 -left-16 w-72 h-72 ${theme.palette.accentGlow} rounded-full blur-3xl pointer-events-none transition-colors duration-500`} />
 
-        {/* Motif de courbes — copié tel quel de Sidebar.tsx. === AMÉLIORATION AJOUTÉE :
-            dérive lente et continue (login-motif-drift), sur demande explicite. === */}
+        {/* Motif de courbes — copié tel quel de Sidebar.tsx, couleur dynamique par rôle
+            (motifStroke). === AMÉLIORATION AJOUTÉE : dérive lente et continue
+            (login-motif-drift), sur demande explicite. === */}
         <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0 login-motif-drift">
           <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
-            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
-            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
+            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke={`rgba(${mR}, ${mG}, ${mB}, 0.55)`} strokeWidth="1.8" style={{ transition: 'stroke 0.5s' }} />
+            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke={`rgba(${mR}, ${mG}, ${mB}, 0.45)`} strokeWidth="1.5" style={{ transition: 'stroke 0.5s' }} />
+            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke={`rgba(${mR}, ${mG}, ${mB}, 0.38)`} strokeWidth="1.3" style={{ transition: 'stroke 0.5s' }} />
+            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke={`rgba(${mR}, ${mG}, ${mB}, 0.30)`} strokeWidth="1.2" style={{ transition: 'stroke 0.5s' }} />
           </svg>
         </div>
 
@@ -436,7 +459,42 @@ export const LoginView: React.FC<LoginViewProps> = ({
               Sign in to access your ACTIVA HealthPass account.
             </p>
 
-            <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+            {/* === AMÉLIORATION AJOUTÉE : sélecteur de profil (Agent / Supervisor / Admin), sur
+                demande explicite — purement une préférence d'affichage : la couleur de la page
+                (panneau bleu, bouton, motif) adopte celle du profil choisi, mais le profil
+                réellement appliqué après connexion reste déterminé par le compte de
+                l'utilisateur, exactement comme avant. === */}
+            <div className="mt-6">
+              <p className="text-[11px] font-bold text-[#5B7091] uppercase tracking-wide text-center mb-2">
+                Connect as
+              </p>
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Select the profile to connect as">
+                {PROFILE_OPTIONS.map(({ role, label, icon: Icon }) => {
+                  const isSelected = selectedProfile === role;
+                  const optionTheme = getRoleTheme(role);
+                  return (
+                    <button
+                      key={role}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      id={`login-profile-${role.toLowerCase()}`}
+                      onClick={() => setSelectedProfile(role)}
+                      className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[11px] font-bold transition-all duration-200 cursor-pointer ${
+                        isSelected
+                          ? `${optionTheme.palette.badgeBg} shadow-sm`
+                          : 'bg-[#F8FAFC] border border-[#E8EDF2] text-[#5B7091] hover:bg-slate-100'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               {/* Error Alert Box */}
               {error && (
                 <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
@@ -510,7 +568,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   id="login-submit-button"
                   type="submit"
                   disabled={isLoggingIn || lockoutRemainingSec > 0}
-                  className="w-full py-3 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full py-3 px-4 rounded-xl ${theme.palette.primaryColor} active:brightness-90 text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   <span>{lockoutRemainingSec > 0 ? `Try again in ${lockoutRemainingSec}s` : isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
                   <ArrowRight className="w-4 h-4" />
