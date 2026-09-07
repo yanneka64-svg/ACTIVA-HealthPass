@@ -2,6 +2,12 @@ import * as admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import * as crypto from 'crypto';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+// === AMÉLIORATION AJOUTÉE : logs structurés (préparation Go-Live, 2026-09-07) ===
+// `firebase-functions/logger` (plutôt que `console.*` brut, ou une dépendance externe comme
+// pino) est l'équivalent natif pour Cloud Functions : Cloud Logging reconnaît nativement son
+// champ `severity`, sans configuration supplémentaire, contrairement à une sortie JSON pino
+// qui serait traitée comme du texte non structuré dans cet environnement managé.
+import * as logger from 'firebase-functions/logger';
 // === AMÉLIORATION AJOUTÉE : fusion de conflit (2026-09-06) — `main` a rétrogradé
 // `firebase-functions` de ^7.3.2 à ^5.0.0 ("downgrade SDKs for compatibility") pendant que
 // cette PR migrait déjà toutes les fonctions callable vers la signature v2 `CallableRequest`
@@ -101,7 +107,7 @@ export const syncAccountClaims = onDocumentWritten('accounts/{uid}', async (even
     // first login — see LoginView.tsx). Non-fatal: the client-side fallback in
     // firestore.rules (reading accounts/{uid} directly) keeps working exactly as before, and
     // this trigger will succeed on the next write once the Auth user exists.
-    console.warn(`syncAccountClaims: could not set custom claims for ${uid}:`, error?.message || error);
+    logger.warn(`syncAccountClaims: could not set custom claims for ${uid}`, { uid, error: error?.message || String(error) });
   }
 });
 
@@ -676,7 +682,7 @@ export async function checkAndApplyRateLimit(
       }
     });
   } catch (err) {
-    console.warn('Rate limiting non-fatal error:', err);
+    logger.warn('Rate limiting non-fatal error', { error: (err as any)?.message || String(err) });
     return { allowed: true };
   }
 }
@@ -821,7 +827,7 @@ async function handleResolveLogin(
             migratedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
         } catch (migrateErr) {
-          console.warn('Auto-migration non-fatal error:', migrateErr);
+          logger.warn('Auto-migration non-fatal error', { error: (migrateErr as any)?.message || String(migrateErr) });
         }
       } else {
         legacyVerification.valid = false;
