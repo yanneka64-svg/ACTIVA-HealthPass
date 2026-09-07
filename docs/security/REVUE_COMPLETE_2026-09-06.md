@@ -110,8 +110,10 @@ Fonctionne aujourd'hui car `assignedOrganizations` est vide pour tous les compte
 
 ### A7. BASSE
 
-- `firestore.indexes.json` déclare 4 index composites (`claims`/`enrollments`/`auditLogs`) qu'aucune requête
-  actuelle n'utilise (aucun `orderBy` dans le code) — à retirer ou justifier.
+- ~~`firestore.indexes.json` déclare 4 index composites (`claims`/`enrollments`/`auditLogs`) qu'aucune requête
+  actuelle n'utilise (aucun `orderBy` dans le code) — à retirer ou justifier.~~ **Résolu (2026-09-07)** :
+  retirés (décision utilisateur, aucun `orderBy()` dans le code confirmé par recherche exhaustive). Un
+  index se recrée en quelques minutes via la console Firebase ou un déploiement si un besoin apparaît.
 - Lectures temps réel sans pagination sur `auditLogs` et `notifications` (`src/services/firestore.ts`).
 - `scopedQuery` tronque silencieusement à 30 organisations (limite de la clause `in`).
 - `counters`/`cardNumberRegistry` lisibles par tout compte signé, y compris désactivé (`isSignedIn()` sans `isActiveUser()`).
