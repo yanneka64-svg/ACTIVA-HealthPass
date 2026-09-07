@@ -497,10 +497,12 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
       {/* === AMÉLIORATION AJOUTÉE : fond rouge (retour utilisateur, 2026-09-07) — signale
           visuellement qu'il s'agit d'une règle de blocage stricte (bloque les réclamations,
           invalide la couverture), au lieu du gris neutre utilisé partout ailleurs dans
-          l'interface Admin. Le texte/les badges/bulles restent dans les mêmes teintes claires
-          translucides (blanc/10, blanc/20) qu'avant, qui fonctionnent sur n'importe quel fond
-          sombre — seule la couleur de fond change réellement. */}
-      <div className="bg-gradient-to-r from-[#7F1D1D] via-[#991B1B] to-[#450A0A] rounded-3xl p-6 text-white shadow-xl border border-red-800/70 relative overflow-hidden">
+          l'interface Admin. Assombri sur retour utilisateur suivant ("trop rouge, le noir doit
+          se voir d'avantage") : le dégradé va désormais d'un rouge sombre à un quasi-noir, au
+          lieu d'un rouge vif sur toute sa largeur. Le texte/les badges/bulles restent dans les
+          mêmes teintes claires translucides (blanc/10, blanc/20) qu'avant, qui fonctionnent sur
+          n'importe quel fond sombre — seule la couleur de fond change réellement. */}
+      <div className="bg-gradient-to-r from-[#3F1212] via-[#2A0A0A] to-[#0D0404] rounded-3xl p-6 text-white shadow-xl border border-red-950/70 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         
         {/* === AMÉLIORATION AJOUTÉE : le badge "Policy Age Limits & Real-Time Eligibility
@@ -528,7 +530,15 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 juste au-dessus (retour utilisateur, 2026-09-07) — auparavant plus large
                 (max-w-lg/xl) que le badge, le paragraphe s'étirait au-delà du bord droit du
                 badge au lieu de revenir à la ligne au même niveau. */}
-            <div className="space-y-2 max-w-md shrink-0 w-full">
+            {/* === AMÉLIORATION AJOUTÉE : correctif débordement (retour utilisateur, 2026-09-07
+                — "le texte déborde toujours la bannière") — `max-w-md shrink-0` fixait une
+                largeur MINIMALE non compressible de 448px pour ce bloc ; combiné aux bulles
+                d'âge + bouton passés en flex-nowrap juste en dessous (qui ne peuvent plus non
+                plus rétrécir), la ligne entière dépassait la largeur de la bannière sur tout
+                écran plus étroit que ~1150px. `flex-1 min-w-0` laisse ce bloc de texte être
+                celui qui absorbe le rétrécissement (plus de lignes, jamais de débordement),
+                pendant que les bulles/bouton, eux, gardent leur taille naturelle fixe. */}
+            <div className="space-y-2 flex-1 min-w-0">
               {/* === AMÉLIORATION AJOUTÉE : mention "Age Limits" retirée du libellé affiché
                   (retour utilisateur, 2026-09-07) — la configuration des plafonds d'âge
                   elle-même (bulles Primary/Spouse/Child ci-dessous + bouton "Configure Benefit
@@ -549,8 +559,10 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             {/* === AMÉLIORATION AJOUTÉE : flex-nowrap (retour utilisateur, 2026-09-07) — les
                 bulles d'âge et le bouton "Configure Benefit Limit" doivent toujours rester sur
                 la même ligne (auparavant flex-wrap, pouvait les faire passer sur plusieurs
-                lignes). === */}
-            <div className="flex flex-nowrap items-center gap-3">
+                lignes). `shrink-0` ajouté pour que ce bloc garde toujours sa taille naturelle :
+                c'est le panneau de texte à gauche (flex-1 min-w-0) qui absorbe seul le
+                rétrécissement sur un écran étroit, jamais les bulles/bouton. === */}
+            <div className="flex flex-nowrap items-center gap-3 shrink-0">
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-red-100 block">
                 Primary Insured

@@ -56,9 +56,15 @@ export const ADMIN_THEME: RoleThemeConfig = {
   role: 'Admin',
   displayName: 'Administrator',
   palette: {
-    sidebarBg: '#334155',
-    sidebarGradient: 'bg-gradient-to-b from-[#334155] via-[#3B485C] to-[#1E293B]',
-    sidebarBorder: 'border-slate-600/70',
+    // === AMÉLIORATION AJOUTÉE : léger fond rouge (retour utilisateur, 2026-09-07) — le
+    // dégradé gris-ardoise (froid, bleuté) est remplacé par un dégradé gris tout aussi sombre
+    // mais légèrement réchauffé vers le rouge (teinte discrète, la barre latérale reste
+    // clairement grise au premier coup d'œil, pas une bannière rouge). Seule la barre latérale
+    // est concernée ici — les boutons/badges/bannières du reste de l'interface (primaryColor,
+    // badgeBg, hexRamp...) restent gris neutre, inchangés.
+    sidebarBg: '#4A2E30',
+    sidebarGradient: 'bg-gradient-to-b from-[#4A2E30] via-[#52363A] to-[#2A1719]',
+    sidebarBorder: 'border-[#5A3D40]/70',
     activeItemBg: 'bg-white/20 hover:bg-white/25',
     activeItemText: 'text-white font-bold',
     activeIndicator: 'bg-white',
