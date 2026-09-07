@@ -16,6 +16,10 @@ Stack : React 19 + Vite (frontend), Express + Vite middleware en dev (`server.ts
   rester cohérent avec les workflows).
 - **Firebase CLI** (`npm install -g firebase-tools`) — nécessaire pour lancer les émulateurs
   locaux (Firestore/Auth), exécuter les tests de règles de sécurité, et pour tout déploiement.
+- **Java 21** (distribution Temurin recommandée) — requis par les émulateurs Firestore/Auth de
+  `firebase-tools` (voir `.github/workflows/ci.yml`, qui installe explicitement Java 21 pour
+  cette raison). Uniquement nécessaire si vous lancez `firebase emulators:start` ou
+  `npm run test:rules` localement — pas pour un simple `npm run dev` sans émulateurs.
 - Un projet Firebase existant si vous devez déployer ou pointer vers un backend réel (Firestore,
   Auth, Storage, Cloud Functions activés). La configuration client (clé API Web publique,
   projet, base Firestore nommée) est déjà committée dans `firebase-applet-config.json` — c'est
@@ -66,6 +70,32 @@ défaut le cas échéant, avertissements de sécurité). Résumé des catégorie
 ```bash
 cp .env.example .env.local   # puis éditer .env.local (jamais suivi par git)
 ```
+
+## Structure des données Firestore
+
+Collections principales (base nommée, pas `(default)` — voir `firebase.json`) ; le détail des
+règles d'accès pour chacune est dans `firestore.rules` :
+
+| Collection | Contenu |
+|---|---|
+| `accounts` | Comptes utilisateurs internes (Agent/Superviseur/Admin), profil, organisation(s) assignée(s), statut actif. |
+| `organizations` | Organisations clientes (souscripteurs de la police groupe). |
+| `members` | Assurés (principaux et ayants droit) rattachés à une organisation. |
+| `enrollments` | Dossiers d'enrôlement soumis par un Agent, en attente/validés par un Superviseur (émet la carte HealthPass). |
+| `claims` | Sinistres soumis par un Agent, validés par un Superviseur (génère la facture de règlement). |
+| `invoices` | Factures de règlement générées après validation d'un sinistre. |
+| `medicalForms` (+ sous-collection `clinical`) | Formulaires médicaux ; le contenu clinique proprement dit (diagnostic, examens, traitement) vit dans une sous-collection séparée, toujours chiffré côté applicatif (préfixe `encv1:`, fail-closed) — voir `functions/src/encryptionService.ts`. Soumis à une politique de rétention (`src/config/dataRetention.ts`) ; suppression archivée intégralement dans `medicalFormsDeletionArchive` (immuable, lecture Admin uniquement) avant effacement physique. |
+| `healthPolicies` | Statut de police par organisation (active/suspendue/expirée), contrôle l'accès à la couverture. |
+| `policyPayments` | Historique des paiements de prime par police. |
+| `ceilings` | Plafonds de garantie par organisation et type de soin. |
+| `providers` | Prestataires de santé conventionnés (hôpitaux, cliniques, pharmacies). |
+| `counters` / `cardNumberRegistry` | Séquence et registre d'unicité des numéros de carte HealthPass (écrits uniquement via transaction, voir `src/services/cardNumberService.ts`). |
+| `auditLogs` / `loginLogs` | Pistes d'audit immuables (create-only, jamais modifiables/supprimables) — actions métier et tentatives de connexion respectivement. |
+| `notifications` | Notifications applicatives internes, scopées au destinataire. |
+
+`users` existe encore dans les règles pour compatibilité descendante (ancien filet de secours), mais
+n'est plus la source de vérité : `accounts/{uid}` l'est exclusivement pour l'identité/le rôle
+applicatif (voir `App.tsx`).
 
 ## Tests
 
