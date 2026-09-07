@@ -101,10 +101,21 @@ export const ADMIN_THEME: RoleThemeConfig = {
 // seul changement suffit à harmoniser l'intégralité de l'interface Superviseur (barre latérale,
 // boutons, bandeaux, badges...) sans toucher à un seul composant. `role`/`displayName`
 // inchangés : le rôle réel et son libellé restent corrects, seule l'apparence est alignée.
+// === AMÉLIORATION AJOUTÉE : UI (retour utilisateur, 2026-09-07) — la teinte rouge ajoutée
+// ensuite à la barre latérale d'Admin (voir sidebarBg/sidebarGradient/sidebarBorder ci-dessus)
+// ne doit PAS se répercuter sur le Superviseur : "adopter les couleurs grises pour l'interface
+// superviseur ... ne rien changer pour l'interface admin". Le Superviseur garde donc le gris
+// neutre d'origine pour sa seule barre latérale ; tout le reste (boutons, badges, bandeaux...)
+// continue de suivre exactement la palette Admin via le spread ci-dessous.
 export const SUPERVISOR_THEME: RoleThemeConfig = {
   role: 'Supervisor',
   displayName: 'Medical Advisor & Supervisor',
-  palette: { ...ADMIN_THEME.palette },
+  palette: {
+    ...ADMIN_THEME.palette,
+    sidebarBg: '#334155',
+    sidebarGradient: 'bg-gradient-to-b from-[#334155] via-[#3B485C] to-[#1E293B]',
+    sidebarBorder: 'border-slate-600/70',
+  },
 };
 
 export const AGENT_THEME: RoleThemeConfig = {

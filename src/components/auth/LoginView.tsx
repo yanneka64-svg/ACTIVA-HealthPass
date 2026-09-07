@@ -420,28 +420,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
           <span>English (Default)</span>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-10 xl:p-16 pt-20 lg:pt-10">
+        {/* === AMÉLIORATION AJOUTÉE : contenu remonté légèrement (retour utilisateur, 2026-09-07)
+            — le padding-haut réduit (par rapport au padding des autres côtés) fait remonter le
+            bloc logo+formulaire dans son conteneur centré, sans autre changement de mise en
+            page. === */}
+        <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-10 xl:p-16 pt-16 lg:pt-6">
           <div className="w-full max-w-[400px]">
             {/* Logo agrandi et centré, mieux mis en valeur qu'avant. === AMÉLIORATION
                 AJOUTÉE : espace réduit entre le logo et "Welcome Back!" (mb-8 -> mb-5), sur
                 demande explicite. === */}
-            {/* === AMÉLIORATION AJOUTÉE : un peu plus d'éclat sur le logo (retour utilisateur)
-                — lueur douce derrière + léger reflet balayant + ombre portée subtile, purement
-                des calques additifs (glow en arrière-plan, reflet en superposition
-                mix-blend-mode) : le logo lui-même (fichier PNG/SVG, couleurs, forme) n'est
-                jamais modifié. === */}
-            <div className="relative flex justify-center mb-5">
-              <div
-                className="login-logo-glow absolute inset-0 m-auto w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-[#0546AF]/25 blur-2xl pointer-events-none"
-                aria-hidden="true"
-              />
-              <div className="relative overflow-hidden [filter:drop-shadow(0_2px_10px_rgba(5,70,175,0.18))]">
-                <Logo size="2xl" showTagline={true} transparent={true} />
-                <div
-                  className="login-logo-shimmer absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent mix-blend-overlay pointer-events-none"
-                  aria-hidden="true"
-                />
-              </div>
+            <div className="flex justify-center mb-5">
+              <Logo size="2xl" showTagline={true} transparent={true} />
             </div>
 
             <h2 className="text-2xl sm:text-[28px] font-black text-[#0D2B63] tracking-tight text-center">

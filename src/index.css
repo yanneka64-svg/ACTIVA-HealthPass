@@ -127,38 +127,6 @@
   animation: login-motif-drift 12s ease-in-out infinite;
 }
 
-/* === AMÉLIORATION AJOUTÉE : un peu plus d'éclat sur le logo de la page de connexion (retour
-   utilisateur) — une lueur douce derrière le logo + un léger reflet balayant périodiquement,
-   SANS toucher au logo lui-même (aucune modification de couleur/forme, purement des calques
-   additifs par-dessus/derrière) === */
-@keyframes login-logo-glow-pulse {
-  0%, 100% {
-    opacity: 0.35;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.55;
-    transform: scale(1.06);
-  }
-}
-
-@keyframes login-logo-shimmer {
-  0%, 20% {
-    transform: translateX(-130%) skewX(-20deg);
-  }
-  55%, 100% {
-    transform: translateX(230%) skewX(-20deg);
-  }
-}
-
-.login-logo-glow {
-  animation: login-logo-glow-pulse 3.5s ease-in-out infinite;
-}
-
-.login-logo-shimmer {
-  animation: login-logo-shimmer 4.5s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .login-anim-fade-up {
     opacity: 1;
@@ -167,13 +135,6 @@
   }
   .login-motif-drift {
     animation: none;
-  }
-  .login-logo-glow {
-    animation: none;
-    opacity: 0.4;
-  }
-  .login-logo-shimmer {
-    display: none;
   }
 }
 
