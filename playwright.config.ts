@@ -15,7 +15,12 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
   globalSetup: path.resolve(__dirname, './e2e/global-setup.ts'),
   globalTeardown: path.resolve(__dirname, './e2e/global-teardown.ts'),
-  timeout: 60_000,
+  // Le test #3 (chaîne enrôlement -> approbation -> sinistre -> approbation, 2 connexions et
+  // 2 replis Cloud Function -> transaction Firestore d'environ 13-15s chacun dans cet
+  // environnement, voir e2e/helpers.ts FALLBACK_TIMEOUT) dépasse la marge des 60s par défaut de
+  // Playwright une fois cumulé avec les logins/navigations — vérifié par une reproduction
+  // manuelle qui aboutit sans erreur, juste plus lentement que ce budget.
+  timeout: 120_000,
   fullyParallel: false,
   workers: 1,
   retries: 0,
