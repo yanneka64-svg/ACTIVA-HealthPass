@@ -425,7 +425,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
             bloc logo+formulaire dans son conteneur centré, sans autre changement de mise en
             page. === */}
         <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-10 xl:p-16 pt-16 lg:pt-6">
-          <div className="w-full max-w-[400px]">
+          {/* === AMÉLIORATION AJOUTÉE : largeur légèrement réduite (retour utilisateur, 2026-09-07
+              — max-w-[400px] -> max-w-[360px]), cohérent avec le resserrement des champs
+              ci-dessous ("Compact & fin"). === */}
+          <div className="w-full max-w-[360px]">
             {/* Logo agrandi et centré, mieux mis en valeur qu'avant. === AMÉLIORATION
                 AJOUTÉE : espace réduit entre le logo et "Welcome Back!" (mb-8 -> mb-5), sur
                 demande explicite. === */}
@@ -444,7 +447,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 — un premier resserrement mt-7/space-y-4/py-3 -> mt-5/space-y-3/py-2.5 était trop
                 léger pour être perceptible) : au-dessus du formulaire (mt-5 -> mt-4), entre les
                 champs Username/Password/Sign In (space-y-3 -> space-y-2), et champs/bouton plus
-                compacts (py-2.5 -> py-2) ; aucun champ ni comportement retiré. === */}
+                compacts (py-2.5 -> py-2) ; aucun champ ni comportement retiré.
+                === AMÉLIORATION AJOUTÉE : style "Compact & fin" (retenu sur la maquette mobile,
+                appliqué ici au desktop) — les champs Username/Password passent d'un cadre rempli
+                (fond #F8FAFC, bordure pleine, angles arrondis) à un simple soulignement fin, sur
+                fond transparent, plus étroit et plus discret. === */}
             <form onSubmit={handleSubmit} className="mt-4 space-y-2">
               {/* Error Alert Box */}
               {error && (
@@ -468,11 +475,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder=""
-                    className="w-full pl-10 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                    className="w-full pl-6 pr-2 py-1.5 bg-transparent border-0 border-b border-[#E8EDF2] rounded-none text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-b-[#0A34A3] transition duration-150"
                     autoComplete="username"
                     required
                   />
-                  <User className="w-4 h-4 text-[#778FAF] absolute left-3.5 top-3.5 pointer-events-none" />
+                  <User className="w-3.5 h-3.5 text-[#778FAF] absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               </div>
 
@@ -488,10 +495,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder=""
-                    className="w-full pl-4 pr-12 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                    className="w-full pl-6 pr-8 py-1.5 bg-transparent border-0 border-b border-[#E8EDF2] rounded-none text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-b-[#0A34A3] transition duration-150"
                     autoComplete="current-password"
                     required
                   />
+                  <Lock className="w-3.5 h-3.5 text-[#778FAF] absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <button
                     id="login-toggle-password"
                     type="button"
@@ -500,14 +508,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       e.preventDefault();
                       setShowPassword((prev) => !prev);
                     }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#778FAF] hover:text-[#0D2B63] focus:outline-none transition rounded-lg hover:bg-slate-200/50 cursor-pointer select-none"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-[#778FAF] hover:text-[#0D2B63] focus:outline-none transition rounded-lg hover:bg-slate-200/50 cursor-pointer select-none"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     title={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
+                      <EyeOff className="w-3.5 h-3.5" />
                     ) : (
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-3.5 h-3.5" />
                     )}
                   </button>
                 </div>
@@ -519,7 +527,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   id="login-submit-button"
                   type="submit"
                   disabled={isLoggingIn || lockoutRemainingSec > 0}
-                  className="w-full py-2 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-2 px-4 rounded-lg bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span>{lockoutRemainingSec > 0 ? `Try again in ${lockoutRemainingSec}s` : isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
                   <ArrowRight className="w-4 h-4" />
