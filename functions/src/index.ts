@@ -579,6 +579,63 @@ export const getSignedFileUrl = onCall(
   }
 );
 
+/**
+ * === AMÉLIORATION AJOUTÉE : sécurité/correctif (retour utilisateur, 2026-09-07 — connexions
+ * bloquées après réinitialisation de mot de passe) ===
+ * Avant ce correctif, la réinitialisation de mot de passe (AccountsView.tsx,
+ * handleResetPassword) écrivait le nouveau mot de passe UNIQUEMENT dans Firestore
+ * (accounts/{uid}.passwordHash/passwordSalt, vérifié côté serveur par resolveLoginIdentifier
+ * ci-dessus) — jamais dans Firebase Auth lui-même, qui reste pourtant la SEULE source
+ * d'authentification réelle (signInWithEmailAndPassword, voir LoginView.tsx). Résultat : après
+ * une réinitialisation, la vérification "legacy" côté serveur validait bien le nouveau mot de
+ * passe, mais la connexion Firebase Auth réelle échouait toujours puisque son propre mot de
+ * passe n'avait jamais changé. LoginView retombait alors sur son mécanisme de secours, qui crée
+ * un compte Firebase Auth ENTIÈREMENT NOUVEAU sous un identifiant `<username>_<timestamp>@activa.local`
+ * — produisant un compte fantôme dupliqué à chaque réinitialisation au lieu de corriger le
+ * compte existant, ou, si `resolveLoginIdentifier` retrouvait un autre doublon existant, un pur
+ * refus de connexion ("Invalid username or password") même avec le bon mot de passe.
+ * Seul le SDK Admin peut changer le mot de passe RÉEL d'un autre utilisateur (le SDK client ne
+ * peut changer que son propre mot de passe) : cette fonction met donc à jour Firebase Auth ET
+ * Firestore de façon atomique, réservée aux comptes Admin actifs.
+ */
+export const adminResetUserPassword = onCall(
+  async (request: CallableRequest<{ uid?: string; newPassword?: string }>) => {
+    const { data } = request;
+    const context = request;
+    if (!context.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
+    }
+
+    const { role } = await resolveUserRole(context.auth.uid, context.auth.token.role as string);
+    if (role !== 'Admin') {
+      throw new HttpsError('permission-denied', "Only administrators can reset another user's password.");
+    }
+
+    const targetUid = (data?.uid || '').trim();
+    const newPassword = data?.newPassword || '';
+    if (!targetUid || newPassword.length < 8) {
+      throw new HttpsError('invalid-argument', 'A target account and a valid new password (8+ characters) are required.');
+    }
+
+    try {
+      await admin.auth().updateUser(targetUid, { password: newPassword });
+    } catch (err: any) {
+      throw new HttpsError('failed-precondition', err?.message || 'Failed to update the Firebase Auth password.');
+    }
+
+    const { passwordHash, passwordSalt } = hashPasswordServer(newPassword);
+    await db.doc(`accounts/${targetUid}`).update({
+      passwordHash,
+      passwordSalt,
+      isTemporaryPassword: true,
+      mustChangePassword: true,
+      passwordChangedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  }
+);
+
 function verifyPasswordServer(password: string, passwordHash: string, passwordSalt: string): boolean {
   if (!passwordHash || !passwordSalt) return false;
   try {

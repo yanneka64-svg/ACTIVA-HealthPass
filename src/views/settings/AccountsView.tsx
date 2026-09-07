@@ -1,6 +1,7 @@
 import { FirestoreService } from '../../services/firestore';
 import { createUserWithEmailAndPassword, updatePassword } from 'firebase/auth';
-import { auth, secondaryAuth, db } from '../../lib/firebase';
+import { auth, secondaryAuth, db, functions } from '../../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import {
@@ -531,41 +532,28 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     }
   };
 
+  // === AMÉLIORATION AJOUTÉE : sécurité/correctif (retour utilisateur, 2026-09-07 — connexions
+  // bloquées après réinitialisation de mot de passe) === Cette fonction n'écrivait auparavant
+  // le nouveau mot de passe QUE dans Firestore (passwordHash/passwordSalt), jamais dans Firebase
+  // Auth — qui reste pourtant la seule source d'authentification réelle. Résultat : après une
+  // réinitialisation, la connexion échouait quand même, et le mécanisme de secours de LoginView
+  // finissait par créer un compte Firebase Auth fantôme dupliqué à chaque tentative, ou refusait
+  // purement et simplement la connexion. Corrigé en passant par la Cloud Function
+  // `adminResetUserPassword` (SDK Admin, seule habilitée à changer le mot de passe RÉEL d'un
+  // AUTRE utilisateur), qui met à jour Firebase Auth ET Firestore de façon atomique.
   const handleResetPassword = async (acc: UserAccount) => {
-    const newPwd = generateStrongPassword();
-    const newPassword = newPwd;
-    // === AMÉLIORATION AJOUTÉE : sécurité (audit) — voir handleCreateSubmit ci-dessus, même
-    // principe : seuls le hash et le sel sont désormais persistés, jamais le mot de passe en
-    // clair. Le comportement de connexion pour l'utilisateur reste strictement identique
-    // (voir LoginView.tsx, qui vérifie désormais le hash).
-    const { passwordHash, passwordSalt } = await hashPassword(newPassword);
+    const newPassword = generateStrongPassword();
 
     try {
-      await updateDoc(doc(db, 'accounts', acc.id), {
-        passwordHash,
-        passwordSalt,
-        isTemporaryPassword: true,
-        mustChangePassword: true,
-        passwordChangedAt: new Date().toISOString(),
-      });
-      await FirestoreService.updateAccount({
-        id: acc.id,
-        passwordHash,
-        passwordSalt,
-        isTemporaryPassword: true,
-        mustChangePassword: true,
-        passwordChangedAt: new Date().toISOString(),
-      });
-    } catch (e) {
-      console.warn('Firestore password update note:', e);
-      await FirestoreService.updateAccount({
-        id: acc.id,
-        passwordHash,
-        passwordSalt,
-        isTemporaryPassword: true,
-        mustChangePassword: true,
-        passwordChangedAt: new Date().toISOString(),
-      });
+      const resetFn = httpsCallable<{ uid: string; newPassword: string }, { success: boolean }>(
+        functions,
+        'adminResetUserPassword'
+      );
+      await resetFn({ uid: acc.id, newPassword });
+    } catch (e: any) {
+      console.error('Password reset failed:', e);
+      showToast(e?.message || 'Failed to reset password. Please try again.');
+      return;
     }
 
     // Prompt the on-screen credentials dialog with new password
