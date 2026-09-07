@@ -52,70 +52,89 @@ export interface RoleThemeConfig {
   };
 }
 
+// === AMÉLIORATION AJOUTÉE : UI (retour utilisateur, 2026-09-07) — palette grise neutre
+// d'origine, conservée telle quelle pour le Superviseur (voir SUPERVISOR_THEME plus bas :
+// "adopter les couleurs grises pour l'interface superviseur ... ne rien changer pour l'interface
+// admin"). Admin, lui, en dérive ci-dessous en réchauffant TOUTES les couleurs (barre latérale,
+// boutons, bandeaux, badges) vers un même rouge sourd — plus seulement la barre latérale — sur
+// demande explicite ("tous les boutons et bouton de fenêtre doivent avoir la couleur du
+// sidebar").
+const NEUTRAL_GRAY_PALETTE = {
+  sidebarBg: '#334155',
+  sidebarGradient: 'bg-gradient-to-b from-[#334155] via-[#3B485C] to-[#1E293B]',
+  sidebarBorder: 'border-slate-600/70',
+  activeItemBg: 'bg-white/20 hover:bg-white/25',
+  activeItemText: 'text-white font-bold',
+  activeIndicator: 'bg-white',
+  activeIconColor: 'text-white',
+  inactiveText: 'text-slate-200/90 hover:text-white',
+  inactiveHoverBg: 'hover:bg-white/10',
+  badgeBg: 'bg-[#111827] text-white border border-gray-600',
+  primaryColor: 'bg-[#1F2937] hover:bg-[#111827]',
+  primaryHover: 'hover:bg-[#111827]',
+  primaryText: 'text-[#111827]',
+  pageTitleColor: 'text-[#111827]',
+  avatarBg: 'bg-[#1F2937]',
+  bannerGradient: 'bg-gradient-to-r from-[#111827] via-[#1F2937] to-[#0F172A]',
+  bannerBorder: 'border-gray-800',
+  modalHeaderBg: 'bg-[#1F2937]',
+  accentBadge: 'bg-[#1F2937] text-white',
+  accentRing: 'focus:ring-[#1F2937]',
+  accentGlow: 'bg-gray-500/20',
+  // Tailwind's native "slate" ramp — already the exact family used above (#0F172A = slate-900).
+  hexRamp: {
+    '50': '#f8fafc', '100': '#f1f5f9', '200': '#e2e8f0', '300': '#cbd5e1', '400': '#94a3b8',
+    '500': '#64748b', '600': '#475569', '700': '#334155', '800': '#1e293b', '900': '#0f172a',
+  } as BrandHexRamp,
+  // Admin — teinte or/ambre (identité "exécutif"), distincte du bleu Agent et du vert Superviseur.
+  motifStroke: '245, 197, 66',
+};
+
 export const ADMIN_THEME: RoleThemeConfig = {
   role: 'Admin',
   displayName: 'Administrator',
   palette: {
-    // === AMÉLIORATION AJOUTÉE : léger fond rouge (retour utilisateur, 2026-09-07) — le
-    // dégradé gris-ardoise (froid, bleuté) est remplacé par un dégradé gris tout aussi sombre
-    // mais légèrement réchauffé vers le rouge (teinte discrète, la barre latérale reste
-    // clairement grise au premier coup d'œil, pas une bannière rouge). Seule la barre latérale
-    // est concernée ici — les boutons/badges/bannières du reste de l'interface (primaryColor,
-    // badgeBg, hexRamp...) restent gris neutre, inchangés.
-    sidebarBg: '#4A2E30',
-    sidebarGradient: 'bg-gradient-to-b from-[#4A2E30] via-[#52363A] to-[#2A1719]',
-    sidebarBorder: 'border-[#5A3D40]/70',
-    activeItemBg: 'bg-white/20 hover:bg-white/25',
-    activeItemText: 'text-white font-bold',
-    activeIndicator: 'bg-white',
-    activeIconColor: 'text-white',
-    inactiveText: 'text-slate-200/90 hover:text-white',
-    inactiveHoverBg: 'hover:bg-white/10',
-    badgeBg: 'bg-[#111827] text-white border border-gray-600',
-    primaryColor: 'bg-[#1F2937] hover:bg-[#111827]',
-    primaryHover: 'hover:bg-[#111827]',
-    primaryText: 'text-[#111827]',
-    pageTitleColor: 'text-[#111827]',
-    avatarBg: 'bg-[#1F2937]',
-    bannerGradient: 'bg-gradient-to-r from-[#111827] via-[#1F2937] to-[#0F172A]',
-    bannerBorder: 'border-gray-800',
-    modalHeaderBg: 'bg-[#1F2937]',
-    accentBadge: 'bg-[#1F2937] text-white',
-    accentRing: 'focus:ring-[#1F2937]',
-    accentGlow: 'bg-gray-500/20',
-    // Tailwind's native "slate" ramp — already the exact family used above (#0F172A = slate-900).
+    ...NEUTRAL_GRAY_PALETTE,
+    // === AMÉLIORATION AJOUTÉE : léger fond rouge (retour utilisateur, 2026-09-07 puis affiné
+    // deux fois : intensité réduite, puis étendue à TOUTE l'interface — plus seulement la barre
+    // latérale). Même teinte chaude sourde (dérivée par rotation de teinte + réduction de
+    // saturation de la rampe "slate" ci-dessus) appliquée uniformément à la barre latérale, aux
+    // boutons, bandeaux, badges et fenêtres modales : tout ce qui était gris neutre suit
+    // désormais exactement la même couleur que la barre latérale.
+    sidebarBg: '#4F3C39',
+    sidebarGradient: 'bg-gradient-to-b from-[#4F3C39] via-[#63504D] to-[#251614]',
+    sidebarBorder: 'border-[#6B5754]/70',
+    badgeBg: 'bg-[#251614] text-white border border-[#6B5754]',
+    primaryColor: 'bg-[#4F3C39] hover:bg-[#251614]',
+    primaryHover: 'hover:bg-[#251614]',
+    primaryText: 'text-[#251614]',
+    pageTitleColor: 'text-[#251614]',
+    avatarBg: 'bg-[#4F3C39]',
+    bannerGradient: 'bg-gradient-to-r from-[#251614] via-[#4F3C39] to-[#1A0F0D]',
+    bannerBorder: 'border-[#6B5754]',
+    modalHeaderBg: 'bg-[#4F3C39]',
+    accentBadge: 'bg-[#4F3C39] text-white',
+    accentRing: 'focus:ring-[#4F3C39]',
+    accentGlow: 'bg-[#4F3C39]/25',
+    // Rampe "slate" ci-dessus reproduite avec la même teinte chaude que la barre latérale
+    // (mêmes niveaux de clarté que le slate d'origine, teinte tournée + saturation réduite).
     hexRamp: {
-      '50': '#f8fafc', '100': '#f1f5f9', '200': '#e2e8f0', '300': '#cbd5e1', '400': '#94a3b8',
-      '500': '#64748b', '600': '#475569', '700': '#334155', '800': '#1e293b', '900': '#0f172a',
+      '50': '#fbf9f9', '100': '#f7f3f3', '200': '#ede6e5', '300': '#ddd1cf', '400': '#b19e9b',
+      '500': '#846f6b', '600': '#63504d', '700': '#4f3c39', '800': '#352624', '900': '#251614',
     },
-    // Admin — teinte or/ambre (identité "exécutif"), distincte du bleu Agent et du vert Superviseur.
-    motifStroke: '245, 197, 66',
   },
 };
 
-// === AMÉLIORATION AJOUTÉE : UI (retour utilisateur, 2026-09-07) — palette Superviseur alignée
-// sur celle d'Admin (gris ardoise), sur demande explicite ("l'ensemble de l'interface
-// superviseur doit être pareil que celle de Admin"). Auparavant une palette sarcelle/turquoise
-// distincte (conservée en commentaire juste au-dessus dans l'historique Git si besoin de
-// revenir en arrière) ; comme chaque vue lit ses couleurs exclusivement via getRoleTheme(), ce
-// seul changement suffit à harmoniser l'intégralité de l'interface Superviseur (barre latérale,
-// boutons, bandeaux, badges...) sans toucher à un seul composant. `role`/`displayName`
-// inchangés : le rôle réel et son libellé restent corrects, seule l'apparence est alignée.
-// === AMÉLIORATION AJOUTÉE : UI (retour utilisateur, 2026-09-07) — la teinte rouge ajoutée
-// ensuite à la barre latérale d'Admin (voir sidebarBg/sidebarGradient/sidebarBorder ci-dessus)
-// ne doit PAS se répercuter sur le Superviseur : "adopter les couleurs grises pour l'interface
-// superviseur ... ne rien changer pour l'interface admin". Le Superviseur garde donc le gris
-// neutre d'origine pour sa seule barre latérale ; tout le reste (boutons, badges, bandeaux...)
-// continue de suivre exactement la palette Admin via le spread ci-dessous.
+// === AMÉLIORATION AJOUTÉE : UI (retour utilisateur, 2026-09-07) — "adopter les couleurs grises
+// pour l'interface superviseur (comme précédemment pour l'interface admin) ; ne rien changer
+// pour l'interface admin". Le Superviseur reprend donc intégralement la palette grise neutre
+// d'origine (barre latérale, boutons, bandeaux, badges, fenêtres modales) — la même logique que
+// pour Admin ci-dessus, mais appliquée à sa propre couleur (gris) plutôt qu'au rouge. `role`/
+// `displayName` inchangés : seule l'apparence est alignée.
 export const SUPERVISOR_THEME: RoleThemeConfig = {
   role: 'Supervisor',
   displayName: 'Medical Advisor & Supervisor',
-  palette: {
-    ...ADMIN_THEME.palette,
-    sidebarBg: '#334155',
-    sidebarGradient: 'bg-gradient-to-b from-[#334155] via-[#3B485C] to-[#1E293B]',
-    sidebarBorder: 'border-slate-600/70',
-  },
+  palette: { ...NEUTRAL_GRAY_PALETTE },
 };
 
 export const AGENT_THEME: RoleThemeConfig = {
