@@ -15,13 +15,27 @@ export function SyncIssueBanner() {
 
   if (issues.length === 0) return null;
 
+  // === AMÉLIORATION AJOUTÉE : diagnostic (retour utilisateur, 2026-09-07) — le message d'erreur
+  // Firestore réel (ex. "Missing or insufficient permissions.") était déjà capturé
+  // (systemStatus.ts, reportSyncIssue) mais jamais affiché : seul console.warn le montrait,
+  // invisible pour quiconque n'ouvre pas les outils de développement. Affiché ici en toutes
+  // lettres pour que la cause exacte soit immédiatement visible à l'écran.
   return (
-    <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-300 text-amber-900 text-xs font-semibold px-4 py-2 shrink-0">
-      <AlertTriangle size={14} className="shrink-0" />
-      <span>
-        Data synchronization issue ({issues.map((i) => i.collectionName).join(', ')}) — some information may be
-        temporarily incomplete. This is NOT demonstration data.
-      </span>
+    <div className="flex items-start gap-2 bg-amber-50 border-b border-amber-300 text-amber-900 text-xs font-semibold px-4 py-2 shrink-0">
+      <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+      <div>
+        <div>
+          Data synchronization issue ({issues.map((i) => i.collectionName).join(', ')}) — some information may be
+          temporarily incomplete. This is NOT demonstration data.
+        </div>
+        <div className="mt-0.5 font-normal text-amber-800">
+          {issues.map((i) => (
+            <div key={i.collectionName}>
+              <span className="font-semibold">{i.collectionName}:</span> {i.message}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

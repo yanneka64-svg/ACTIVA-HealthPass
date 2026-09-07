@@ -3,10 +3,15 @@ import { Logo } from '../Logo';
 import { ShieldAlert, LogOut, UserX, AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface AuthBlockedScreenProps {
-  reason: 'inactive' | 'invalid_role' | 'not_found';
+  reason: 'inactive' | 'invalid_role' | 'not_found' | 'profile_mismatch';
   userEmail?: string;
   onLogout: () => void;
   onRetry?: () => void;
+  // === AMÉLIORATION AJOUTÉE : sécurité (retour utilisateur, 2026-09-07) — utilisés uniquement
+  // par reason="profile_mismatch" pour préciser le profil choisi sur la page de connexion et le
+  // vrai rôle du compte (App.tsx, onAuthStateChanged).
+  selectedProfile?: string;
+  actualProfile?: string;
 }
 
 export const AuthBlockedScreen: React.FC<AuthBlockedScreenProps> = ({
@@ -14,9 +19,24 @@ export const AuthBlockedScreen: React.FC<AuthBlockedScreenProps> = ({
   userEmail,
   onLogout,
   onRetry,
+  selectedProfile,
+  actualProfile,
 }) => {
   const getTitleAndMessage = () => {
     switch (reason) {
+      // === AMÉLIORATION AJOUTÉE : sécurité (retour utilisateur, 2026-09-07) ===
+      case 'profile_mismatch':
+        return {
+          title: 'Profile Mismatch',
+          subtitle: 'Selected profile does not match this account',
+          detail: `This account is registered as ${actualProfile || 'a different profile'}, not ${
+            selectedProfile || 'the profile you selected'
+          }. Please return to the login page and select "${
+            actualProfile || 'the correct profile'
+          }", or contact your administrator if this seems wrong.`,
+          icon: ShieldAlert,
+          badgeColor: 'bg-amber-50 text-amber-800 border-amber-200',
+        };
       case 'inactive':
         return {
           title: 'Account Deactivated',

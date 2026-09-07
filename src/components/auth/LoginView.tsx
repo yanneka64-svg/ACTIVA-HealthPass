@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff, Stethoscope, ShieldCheck } from 'lucide-react';
+import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff, Stethoscope, ShieldCheck, ChevronDown } from 'lucide-react';
 import { Language } from '../../types';
 import { Logo } from '../Logo';
 import { auth, functions, db } from '../../lib/firebase';
@@ -9,14 +9,17 @@ import { httpsCallable } from 'firebase/functions';
 import { getClientLocationInfo, parseUserAgent } from '../../utils/geoUtils';
 import { FirestoreService } from '../../services/firestore';
 import { getRoleTheme, UserRole } from '../../theme/roleTheme';
+import { normalizeRole } from '../../utils/authUtils';
+import { setPendingLoginProfile } from '../../utils/pendingLoginProfile';
 
 // === AMÉLIORATION AJOUTÉE : sélecteur de profil sur la page de connexion (sur demande
-// explicite) — purement visuel : le profil réellement appliqué après connexion reste
-// exclusivement déterminé par le compte réel de l'utilisateur (accounts/{uid}.profile),
-// exactement comme avant. Ce sélecteur ne fait que prévisualiser la couleur de l'interface
-// correspondante avant même de se connecter, en réutilisant le même système de thème par
-// rôle (src/theme/roleTheme.ts) que le reste de l'application — aucune nouvelle palette
-// créée, aucun risque d'incohérence avec les interfaces Agent/Superviseur/Admin réelles.
+// explicite) — prévisualise la couleur de l'interface correspondante avant même de se connecter,
+// en réutilisant le même système de thème par rôle (src/theme/roleTheme.ts) que le reste de
+// l'application. Depuis le retour utilisateur du 2026-09-07, ce choix n'est plus seulement
+// visuel : la connexion est refusée si le profil sélectionné ne correspond pas au VRAI rôle du
+// compte (accounts/{uid}.profile) — voir le contrôle plus bas dans attemptLogin, et surtout le
+// contrôle faisant réellement autorité dans App.tsx (onAuthStateChanged), qui seul décide si le
+// tableau de bord s'affiche.
 const PROFILE_OPTIONS: { role: UserRole; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { role: 'Agent', label: 'Agent', icon: User },
   { role: 'Supervisor', label: 'Supervisor', icon: Stethoscope },
@@ -110,6 +113,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const attemptLogin = async (cleanUsername: string): Promise<boolean> => {
     setIsLoggingIn(true);
     setError(null);
+
+    // === AMÉLIORATION AJOUTÉE : sécurité (retour utilisateur, 2026-09-07) — transmet le profil
+    // choisi dans la liste déroulante au listener global onAuthStateChanged (App.tsx) AVANT toute
+    // tentative de connexion Firebase Auth ci-dessous, afin qu'il puisse comparer ce choix au VRAI
+    // rôle du compte dès qu'il le connaît et refuser l'accès au tableau de bord en cas de
+    // désaccord (voir src/utils/pendingLoginProfile.ts pour le détail du fonctionnement).
+    setPendingLoginProfile(selectedProfile);
 
     const inputLower = cleanUsername.toLowerCase();
     const inputSanitized = inputLower.replace(/[^a-z0-9_.]/g, '');
@@ -295,6 +305,26 @@ export const LoginView: React.FC<LoginViewProps> = ({
           return false;
         }
 
+        // === AMÉLIORATION AJOUTÉE : sécurité/UX (retour utilisateur, 2026-09-07) — le
+        // sélecteur de profil (voir PROFILE_OPTIONS ci-dessus) n'était jusqu'ici qu'une
+        // préférence d'affichage : n'importe quel compte pouvait se connecter quel que soit le
+        // profil sélectionné. Désormais, la connexion est refusée si le profil réel du compte
+        // (accounts/{uid}.profile, normalisé — accepte les variantes/alias existants, voir
+        // normalizeRole) ne correspond pas au profil choisi. Comparaison uniquement quand le
+        // profil réel est déterminable ; un compte au profil manquant/invalide n'est jamais
+        // bloqué ici par cette vérification (un autre garde-fou existant s'en charge déjà en
+        // aval). Ne modifie ni la vérification Firebase Auth déjà effectuée ci-dessus, ni les
+        // règles Firestore : la source de vérité du profil reste exclusivement le compte réel,
+        // seule cette page de connexion applique ce contrôle supplémentaire.
+        const actualRole = normalizeRole(accountData?.profile);
+        if (actualRole && actualRole !== selectedProfile) {
+          setError(
+            `This account is registered as ${actualRole}, not ${selectedProfile}. Please select "${actualRole}" above, or contact your administrator if this seems wrong.`
+          );
+          setIsLoggingIn(false);
+          return false;
+        }
+
         onLoginSuccess(userCredential.user, accountData);
         return true;
       }
@@ -460,37 +490,33 @@ export const LoginView: React.FC<LoginViewProps> = ({
             </p>
 
             {/* === AMÉLIORATION AJOUTÉE : sélecteur de profil (Agent / Supervisor / Admin), sur
-                demande explicite — purement une préférence d'affichage : la couleur de la page
-                (panneau bleu, bouton, motif) adopte celle du profil choisi, mais le profil
-                réellement appliqué après connexion reste déterminé par le compte de
-                l'utilisateur, exactement comme avant. === */}
+                demande explicite — liste déroulante (remplace les 3 boutons initiaux, jugés
+                trop chargés). La couleur de la page (panneau bleu, bouton, motif) adopte celle
+                du profil choisi ; la connexion elle-même est désormais refusée si le compte
+                réel ne correspond pas au profil sélectionné (voir la vérification dans
+                attemptLogin ci-dessus). === */}
             <div className="mt-6">
-              <p className="text-[11px] font-bold text-[#5B7091] uppercase tracking-wide text-center mb-2">
+              <label htmlFor="login-profile-select" className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
                 Connect as
-              </p>
-              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Select the profile to connect as">
-                {PROFILE_OPTIONS.map(({ role, label, icon: Icon }) => {
-                  const isSelected = selectedProfile === role;
-                  const optionTheme = getRoleTheme(role);
-                  return (
-                    <button
-                      key={role}
-                      type="button"
-                      role="radio"
-                      aria-checked={isSelected}
-                      id={`login-profile-${role.toLowerCase()}`}
-                      onClick={() => setSelectedProfile(role)}
-                      className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[11px] font-bold transition-all duration-200 cursor-pointer ${
-                        isSelected
-                          ? `${optionTheme.palette.badgeBg} shadow-sm`
-                          : 'bg-[#F8FAFC] border border-[#E8EDF2] text-[#5B7091] hover:bg-slate-100'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span>{label}</span>
-                    </button>
-                  );
-                })}
+              </label>
+              <div className="relative">
+                {(() => {
+                  const SelectedIcon = PROFILE_OPTIONS.find((o) => o.role === selectedProfile)?.icon || User;
+                  return <SelectedIcon className="w-4 h-4 text-[#778FAF] absolute left-3.5 top-3.5 pointer-events-none" />;
+                })()}
+                <select
+                  id="login-profile-select"
+                  value={selectedProfile}
+                  onChange={(e) => setSelectedProfile(e.target.value as UserRole)}
+                  className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150 cursor-pointer appearance-none"
+                >
+                  {PROFILE_OPTIONS.map(({ role, label }) => (
+                    <option key={role} value={role}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-[#778FAF] absolute right-3.5 top-3.5 pointer-events-none" />
               </div>
             </div>
 

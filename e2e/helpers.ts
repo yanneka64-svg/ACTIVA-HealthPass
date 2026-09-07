@@ -31,24 +31,30 @@ async function logoutIfNeeded(page: Page): Promise<void> {
   await loginField.waitFor({ state: 'visible', timeout: 20_000 });
 }
 
+// === AMÉLIORATION AJOUTÉE : le sélecteur de profil de la page de connexion (retour
+// utilisateur, 2026-09-07) bloque désormais la connexion si le profil choisi dans la liste
+// déroulante ne correspond pas au profil réel du compte (voir LoginView.tsx) — il faut donc
+// le sélectionner explicitement ici, plutôt que de laisser la valeur par défaut ("Agent").
 export async function loginAs(
   page: Page,
-  account: { username: string; password: string }
+  account: { username: string; password: string },
+  profile: 'Agent' | 'Supervisor' | 'Admin' = 'Agent'
 ): Promise<void> {
   await page.goto('/');
   await logoutIfNeeded(page);
+  await page.selectOption('#login-profile-select', profile);
   await page.fill('#login-username', account.username);
   await page.fill('#login-password', account.password);
   await page.click('button:has-text("Sign In")');
 }
 
 export async function loginAsAgent(page: Page): Promise<void> {
-  await loginAs(page, E2E_AGENT);
+  await loginAs(page, E2E_AGENT, 'Agent');
   await page.waitForSelector('text=Member Identification', { timeout: 20_000 });
 }
 
 export async function loginAsSupervisor(page: Page): Promise<void> {
-  await loginAs(page, E2E_SUPERVISOR);
+  await loginAs(page, E2E_SUPERVISOR, 'Supervisor');
   await page.waitForSelector('#nav-item-enrollments_validation', { timeout: 20_000 });
 }
 
