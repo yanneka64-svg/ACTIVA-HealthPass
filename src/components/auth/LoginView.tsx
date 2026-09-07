@@ -380,14 +380,26 @@ export const LoginView: React.FC<LoginViewProps> = ({
         <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
 
         {/* Motif de courbes — copié tel quel de Sidebar.tsx. === AMÉLIORATION AJOUTÉE :
-            dérive lente et continue (login-motif-drift), sur demande explicite. === */}
-        <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0 login-motif-drift">
-          <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
-            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
-            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
-          </svg>
+            mouvement de vagues permanent (retour utilisateur, 2026-09-07) — remplace l'ancienne
+            micro-dérive (translation de quelques pixels en aller-retour, peu perceptible comme
+            "vague") par un défilement horizontal continu et sans à-coup : le motif est dupliqué
+            une fois à droite (mêmes 4 courbes, décalées d'une largeur de tuile) dans un
+            conteneur deux fois plus large que le panneau, animé en boucle de 0 à -50% — au
+            moment où la 2e copie atteint exactement la position de départ de la 1re, la boucle
+            recommence de façon invisible. Tracé, couleurs et opacité des courbes inchangés. === */}
+        <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
+          <div className="absolute inset-y-0 left-0 h-full w-[200%] login-motif-wave">
+            <svg className="w-full h-full" viewBox="0 0 500 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
+              <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
+              <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
+              <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
+              <path d="M210 320 C 280 240, 360 220, 520 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
+              <path d="M210 280 C 300 210, 380 190, 520 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
+              <path d="M210 240 C 320 180, 400 160, 520 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
+              <path d="M210 200 C 340 150, 420 130, 520 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
+            </svg>
+          </div>
         </div>
 
         {/* === AMÉLIORATION AJOUTÉE : entrée en fondu/glissement, en cascade, du badge, du

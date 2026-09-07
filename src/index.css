@@ -102,14 +102,15 @@
   }
 }
 
-@keyframes login-motif-drift {
-  0%, 100% {
-    transform: translateX(0) translateY(0);
-    opacity: 0.5;
+/* === AMÉLIORATION AJOUTÉE : remplace login-motif-drift (aller-retour de quelques pixels,
+   peu perceptible comme "vague") par un défilement horizontal continu en boucle parfaite —
+   voir LoginView.tsx pour le motif dupliqué qui rend la boucle invisible. === */
+@keyframes login-motif-wave {
+  from {
+    transform: translateX(0);
   }
-  50% {
-    transform: translateX(8px) translateY(-6px);
-    opacity: 0.65;
+  to {
+    transform: translateX(-50%);
   }
 }
 
@@ -123,8 +124,8 @@
 .login-anim-delay-3 { animation-delay: 0.4s; }
 .login-anim-delay-4 { animation-delay: 0.55s; }
 
-.login-motif-drift {
-  animation: login-motif-drift 12s ease-in-out infinite;
+.login-motif-wave {
+  animation: login-motif-wave 22s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -133,7 +134,7 @@
     animation: none;
     transform: none;
   }
-  .login-motif-drift {
+  .login-motif-wave {
     animation: none;
   }
 }
