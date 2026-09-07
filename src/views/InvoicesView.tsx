@@ -23,6 +23,7 @@ import { printBordereauSlip, downloadBordereauPDF } from '../utils/printUtils';
 // Direct Billing Voucher) — voir la modale "INVOICE SLIP MODAL" plus bas.
 import { LogoIcon } from '../components/Logo';
 import { ExportDropdown } from '../components/ExportDropdown';
+import { getRoleTheme } from '../theme/roleTheme';
 
 interface InvoicesViewProps {
   lang: Language;
@@ -83,17 +84,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const slipIsApproved = viewSlipInvoice ? viewSlipInvoice.status === 'valid' || (viewSlipInvoice.status as string) === 'approved' : false;
   const slipClaimRef = viewSlipInvoice ? viewSlipInvoice.claimId || `SIN-${viewSlipInvoice.id.substring(0, 8)}` : '';
 
-  // === AMÉLIORATION AJOUTÉE : gris de la barre latérale Admin (auparavant bg-slate-900,
-  // un noir quasi-pur perçu comme "noir" plutôt que gris par l'utilisateur) ===
+  // === AMÉLIORATION AJOUTÉE : harmonisation des couleurs de boutons — ce bouton utilisait un
+  // gris générique (bg-slate-700) identique pour Admin ET Superviseur, au lieu de suivre la
+  // couleur propre de la barre latérale de chaque rôle (rouge sombre pour Admin, gris pour
+  // Superviseur, comme partout ailleurs dans l'interface via roleTheme.palette.primaryColor).
+  const roleTheme = getRoleTheme(userRole);
   const primaryBtnClass = isAdmin || isSupervisor
-    ? 'bg-slate-700 hover:bg-slate-800 text-white'
+    ? `${roleTheme.palette.primaryColor} text-white`
     : 'bg-[#0A347B] hover:bg-[#072659] text-white';
 
   const activeTabClass = isAdmin || isSupervisor
-    ? 'bg-slate-700 text-white shadow-xs'
+    ? `${roleTheme.palette.primaryColor} text-white shadow-xs`
     : 'bg-[#0A347B] text-white shadow-xs';
 
-  const primaryTextClass = isAdmin || isSupervisor ? 'text-slate-700' : 'text-[#0A347B]';
+  const primaryTextClass = isAdmin || isSupervisor ? roleTheme.palette.primaryText : 'text-[#0A347B]';
 
   const handleDeleteConfirm = async () => {
     if (!invoiceToDelete || !onDeleteInvoice) return;

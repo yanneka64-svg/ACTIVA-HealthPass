@@ -40,6 +40,7 @@ import { Language, UserAccount, UserProfile, PermissionKey, ACTIVA_ENTITIES } fr
 import { useTranslation } from '../../i18n/translations';
 import { PERMISSIONS_MATRIX, MatrixRow } from '../../services/permissions';
 import { hashPassword } from '../../utils/passwordUtils';
+import { ADMIN_THEME } from '../../theme/roleTheme';
 
 export interface HabilitationDefinition {
   key: string;
@@ -737,7 +738,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
           <button
             type="button"
             onClick={handleOpenCreate}
-            className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            className={`px-3.5 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap`}
           >
             <UserPlus className="w-3.5 h-3.5" />
             <span>New Account</span>
@@ -1037,7 +1038,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <button
                 type="button"
                 onClick={() => setCredentialDialog((prev) => ({ ...prev, isOpen: false }))}
-                className="py-2.5 px-8 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+                className={`py-2.5 px-8 ${ADMIN_THEME.palette.primaryColor} text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer`}
               >
                 Done
               </button>
@@ -1357,7 +1358,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                  className={`px-6 py-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer`}
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>Save Changes</span>
@@ -1733,7 +1734,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                  className={`px-6 py-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer`}
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>Create Account & Assign</span>
@@ -1883,7 +1884,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <button
                 type="button"
                 onClick={() => setMatrixModalOpen(false)}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                className={`px-4 py-2 ${ADMIN_THEME.palette.primaryColor} text-white rounded-xl text-xs font-bold transition cursor-pointer`}
               >
                 Close Matrix
               </button>

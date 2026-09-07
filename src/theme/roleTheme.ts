@@ -95,32 +95,37 @@ export const ADMIN_THEME: RoleThemeConfig = {
   displayName: 'Administrator',
   palette: {
     ...NEUTRAL_GRAY_PALETTE,
-    // === AMÉLIORATION AJOUTÉE : léger fond rouge (retour utilisateur, 2026-09-07 puis affiné
-    // deux fois : intensité réduite, puis étendue à TOUTE l'interface — plus seulement la barre
-    // latérale). Même teinte chaude sourde (dérivée par rotation de teinte + réduction de
-    // saturation de la rampe "slate" ci-dessus) appliquée uniformément à la barre latérale, aux
-    // boutons, bandeaux, badges et fenêtres modales : tout ce qui était gris neutre suit
-    // désormais exactement la même couleur que la barre latérale.
-    sidebarBg: '#4F3C39',
-    sidebarGradient: 'bg-gradient-to-b from-[#4F3C39] via-[#63504D] to-[#251614]',
-    sidebarBorder: 'border-[#6B5754]/70',
-    badgeBg: 'bg-[#251614] text-white border border-[#6B5754]',
-    primaryColor: 'bg-[#4F3C39] hover:bg-[#251614]',
-    primaryHover: 'hover:bg-[#251614]',
-    primaryText: 'text-[#251614]',
-    pageTitleColor: 'text-[#251614]',
-    avatarBg: 'bg-[#4F3C39]',
-    bannerGradient: 'bg-gradient-to-r from-[#251614] via-[#4F3C39] to-[#1A0F0D]',
-    bannerBorder: 'border-[#6B5754]',
-    modalHeaderBg: 'bg-[#4F3C39]',
-    accentBadge: 'bg-[#4F3C39] text-white',
-    accentRing: 'focus:ring-[#4F3C39]',
-    accentGlow: 'bg-[#4F3C39]/25',
-    // Rampe "slate" ci-dessus reproduite avec la même teinte chaude que la barre latérale
-    // (mêmes niveaux de clarté que le slate d'origine, teinte tournée + saturation réduite).
+    // === AMÉLIORATION AJOUTÉE : léger fond rouge (retour utilisateur, 2026-09-07, affiné trois
+    // fois : intensité réduite, étendue à TOUTE l'interface, puis ici alignée exactement sur le
+    // dégradé de la bannière "Real-Time Eligibility Verification" de l'onglet Coverage Ceilings
+    // (voir CeilingsView.tsx : from-[#3F1212] via-[#2A0A0A] to-[#0D0404]) — cette bannière étant
+    // déjà la teinte la plus sombre/la moins rouge de l'interface Admin, on en fait ici la seule
+    // source de vérité : barre latérale, boutons, bandeaux, badges et fenêtres modales
+    // reprennent désormais très exactement ces trois mêmes tons, au lieu d'une teinte proche
+    // mais différente comme précédemment.
+    sidebarBg: '#2A0A0A',
+    sidebarGradient: 'bg-gradient-to-b from-[#3F1212] via-[#2A0A0A] to-[#0D0404]',
+    sidebarBorder: 'border-red-950/70',
+    badgeBg: 'bg-[#0D0404] text-white border border-[#3F1212]/70',
+    primaryColor: 'bg-[#2A0A0A] hover:bg-[#0D0404]',
+    primaryHover: 'hover:bg-[#0D0404]',
+    primaryText: 'text-[#0D0404]',
+    pageTitleColor: 'text-[#0D0404]',
+    avatarBg: 'bg-[#2A0A0A]',
+    bannerGradient: 'bg-gradient-to-r from-[#3F1212] via-[#2A0A0A] to-[#0D0404]',
+    bannerBorder: 'border-red-950/70',
+    modalHeaderBg: 'bg-[#2A0A0A]',
+    accentBadge: 'bg-[#2A0A0A] text-white',
+    accentRing: 'focus:ring-[#2A0A0A]',
+    accentGlow: 'bg-[#2A0A0A]/25',
+    // Rampe "slate" ci-dessus reproduite avec la même teinte que la bannière Coverage Ceilings :
+    // les tons 700/800/900 sont désormais très exactement les 3 couleurs de son dégradé
+    // (#3F1212/#2A0A0A/#0D0404), et les tons clairs (50-600) réduisent encore la saturation
+    // rouge par rapport à la version précédente, tout en gardant les mêmes niveaux de clarté
+    // que la rampe "slate" d'origine pour ne pas casser la lisibilité du texte/badges existants.
     hexRamp: {
-      '50': '#fbf9f9', '100': '#f7f3f3', '200': '#ede6e5', '300': '#ddd1cf', '400': '#b19e9b',
-      '500': '#846f6b', '600': '#63504d', '700': '#4f3c39', '800': '#352624', '900': '#251614',
+      '50': '#fafafa', '100': '#f6f4f4', '200': '#ebe7e7', '300': '#dcd0d0', '400': '#bb9191',
+      '500': '#a34c4c', '600': '#803030', '700': '#3f1212', '800': '#2a0a0a', '900': '#0d0404',
     },
   },
 };

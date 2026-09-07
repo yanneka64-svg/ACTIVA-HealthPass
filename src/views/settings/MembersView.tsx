@@ -42,6 +42,7 @@ import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import { checkMemberEligibility } from '../../services/eligibilityService';
 import { generateNextCardNumber, reserveExistingCardNumber } from '../../services/cardNumberService';
+import { ADMIN_THEME } from '../../theme/roleTheme';
 
 export interface FormattedDependent {
   id: string;
@@ -759,7 +760,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
             <button
               id="create-member-btn"
               onClick={openCreateModal}
-            className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className={`px-4 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer`}
           >
             <PlusCircle className="w-4 h-4" />
             <span>New Member</span>
@@ -1689,7 +1690,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       <button
                         type="button"
                         onClick={() => setIsWebcamModalOpen(true)}
-                        className="flex-1 py-2 px-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                        className={`flex-1 py-2 px-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs`}
                       >
                         <Camera className="w-3.5 h-3.5" />
                         <span>Webcam</span>
@@ -1759,7 +1760,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 <button
                   type="submit"
                   disabled={isSavingCard}
-                  className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-extrabold shadow-md shadow-slate-900/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  className={`px-6 py-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-extrabold shadow-md shadow-slate-900/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
                   <UserCheck className="w-4 h-4" />
                   <span>{isSavingCard ? 'Assigning card number…' : editingMember ? 'Update Member' : 'Submit Enrollment'}</span>

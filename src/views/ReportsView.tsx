@@ -800,7 +800,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   }}
                 />
               )}
-              <button onClick={() => setSelectedPolicyDetail(null)} className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold cursor-pointer">Close</button>
+              {/* === AMÉLIORATION AJOUTÉE : harmonisation des couleurs de boutons — ce bouton
+                  "Close" était figé en gris (bg-slate-800), désormais aligné sur
+                  roleTheme.palette.primaryColor comme les autres boutons de cette vue. === */}
+              <button onClick={() => setSelectedPolicyDetail(null)} className={`px-5 py-2 rounded-xl ${roleTheme.palette.primaryColor} text-white text-xs font-bold cursor-pointer`}>Close</button>
             </div>
           </div>
         </div>

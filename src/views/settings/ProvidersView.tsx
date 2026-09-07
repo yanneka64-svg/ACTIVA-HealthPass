@@ -19,6 +19,7 @@ import { Provider, Language, ProviderType, KYPStatus } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { ExportDropdown } from '../../components/ExportDropdown';
+import { ADMIN_THEME } from '../../theme/roleTheme';
 import {
   exportProvidersToCSV,
   exportProvidersToExcel,
@@ -181,7 +182,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
 
           <button
             onClick={openCreateModal}
-            className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className={`px-3.5 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer`}
           >
             <PlusCircle className="w-4 h-4" />
             <span>New Provider</span>
@@ -404,7 +405,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-md shadow-slate-900/20 cursor-pointer"
+                  className={`px-5 py-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-md shadow-slate-900/20 cursor-pointer`}
                 >
                   {t.save}
                 </button>

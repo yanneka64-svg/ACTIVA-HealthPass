@@ -32,6 +32,7 @@ import {
   parseOrganizationExcel,
 } from '../../utils/excelUtils';
 import { dedupeMembersByCardNo } from '../../utils/memberUtils';
+import { ADMIN_THEME } from '../../theme/roleTheme';
 
 interface OrganizationsViewProps {
   lang: Language;
@@ -456,7 +457,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
 
           <button
             onClick={openCreateModal}
-            className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className={`px-4 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer`}
           >
             <PlusCircle className="w-4 h-4" />
             <span>New Organization</span>
@@ -571,9 +572,14 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                               la police d'assurance santé (prime, échéancier, paiements) —
                               volontairement une section séparée (modale), jamais une colonne
                               ajoutée à ce tableau. === */}
+                          {/* === AMÉLIORATION AJOUTÉE : harmonisation des couleurs de boutons —
+                              ce bouton utilisait le bleu marine Agent (bg-blue-50/#0A347B) codé
+                              en dur ; cette vue étant réservée à Admin (section "Management" —
+                              voir Sidebar.tsx), il reprend désormais la même teinte rouge sombre
+                              que le reste de l'interface Admin (rampe ADMIN_THEME.hexRamp). === */}
                           <button
                             onClick={() => setPolicyConfigOrg(org)}
-                            className="px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer bg-blue-50 text-[#0A347B] hover:bg-blue-100 border border-blue-200"
+                            className="px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer bg-[#f6f4f4] text-[#3f1212] hover:bg-[#ebe7e7] border border-[#dcd0d0]"
                             title="Configure health insurance policy & premium"
                           >
                             <Shield className="w-3.5 h-3.5" />
@@ -917,7 +923,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-sm cursor-pointer"
+                  className={`px-5 py-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-sm cursor-pointer`}
                 >
                   {editingOrg ? 'Update Organization' : 'Save Organization'}
                 </button>
@@ -1039,7 +1045,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               <button
                 type="button"
                 onClick={closeViewMembersOrg}
-                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition cursor-pointer"
+                className={`px-5 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold transition cursor-pointer`}
               >
                 Close
               </button>
@@ -1130,7 +1136,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               <button
                 type="button"
                 onClick={() => setViewMemberDependents(null)}
-                className="px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
+                className={`px-5 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold transition cursor-pointer`}
               >
                 Close
               </button>

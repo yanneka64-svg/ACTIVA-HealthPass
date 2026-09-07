@@ -9,6 +9,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Member, Organization, CardNumberAssignment, CardNumberCounters } from '../types';
 import { getCurrentCounters, migrateCardNumberCounters, isValidCardNumberFormat, formatCardNumber, CardFormatMigrationSummary, getCardContinuityReport, CardContinuityReport } from '../services/cardNumberService';
+import { ADMIN_THEME } from '../theme/roleTheme';
 
 interface CardNumberManagementModalProps {
   organization: Organization;
@@ -228,7 +229,7 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
                 type="button"
                 onClick={handleValidateSequence}
                 disabled={validating}
-                className="shrink-0 px-3.5 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                className={`shrink-0 px-3.5 py-2 rounded-lg ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60`}
               >
                 {validating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                 <span>{validating ? 'Validating…' : 'Validate'}</span>
@@ -488,7 +489,7 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+            className={`px-5 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-semibold shadow-xs transition cursor-pointer`}
           >
             Close
           </button>

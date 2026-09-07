@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShieldAlert, Clock, LogOut, CheckCircle2 } from 'lucide-react';
+import { getRoleTheme } from '../theme/roleTheme';
 
 interface InactivityWarningModalProps {
   isOpen: boolean;
@@ -24,12 +25,18 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
   const seconds = remainingSeconds % 60;
   const formattedTime = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
-  // === AMÉLIORATION AJOUTÉE : accent gris pour Admin (au lieu du bleu marine Agent
+  // === AMÉLIORATION AJOUTÉE : accent Admin/Superviseur (au lieu du bleu marine Agent
   // #0A347B affiché auparavant peu importe le rôle connecté) ===
   const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
-  const accentTextClass = isAdmin || isSupervisor ? 'text-slate-800' : 'text-[#0A347B]';
-  const accentBtnClass = isAdmin || isSupervisor ? 'bg-slate-700 hover:bg-slate-800' : 'bg-[#0A347B] hover:bg-[#08285e]';
+  // === AMÉLIORATION AJOUTÉE : harmonisation des couleurs de boutons — ce bouton utilisait un
+  // gris générique (bg-slate-700) identique pour Admin ET Superviseur, différent de la couleur
+  // de leur propre barre latérale (rouge sombre pour Admin, gris pour Superviseur). Il suit
+  // maintenant exactement roleTheme.palette.primaryColor/primaryText, comme tous les autres
+  // boutons de l'interface.
+  const roleTheme = getRoleTheme(userRole);
+  const accentTextClass = isAdmin || isSupervisor ? roleTheme.palette.primaryText : 'text-[#0A347B]';
+  const accentBtnClass = isAdmin || isSupervisor ? roleTheme.palette.primaryColor : 'bg-[#0A347B] hover:bg-[#08285e]';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-in fade-in">

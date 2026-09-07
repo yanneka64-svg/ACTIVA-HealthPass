@@ -31,6 +31,7 @@ import {
 import { Ceiling, Language, Organization, PeriodicityType } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
+import { ADMIN_THEME } from '../../theme/roleTheme';
 
 interface CeilingsViewProps {
   lang?: Language;
@@ -1681,7 +1682,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setWizardStep((s) => (s + 1) as 1 | 2 | 3)}
-                    className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className={`px-4 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs`}
                   >
                     <span>{wizardStep === 1 ? 'Next: Benefits & Limits' : 'Next: Review & Save'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
