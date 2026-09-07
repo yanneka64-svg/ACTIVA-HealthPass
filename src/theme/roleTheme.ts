@@ -95,38 +95,30 @@ export const ADMIN_THEME: RoleThemeConfig = {
   displayName: 'Administrator',
   palette: {
     ...NEUTRAL_GRAY_PALETTE,
-    // === AMÉLIORATION AJOUTÉE : léger fond rouge (retour utilisateur, 2026-09-07, affiné trois
-    // fois : intensité réduite, étendue à TOUTE l'interface, puis ici alignée exactement sur le
-    // dégradé de la bannière "Real-Time Eligibility Verification" de l'onglet Coverage Ceilings
-    // (voir CeilingsView.tsx : from-[#3F1212] via-[#2A0A0A] to-[#0D0404]) — cette bannière étant
-    // déjà la teinte la plus sombre/la moins rouge de l'interface Admin, on en fait ici la seule
-    // source de vérité : barre latérale, boutons, bandeaux, badges et fenêtres modales
-    // reprennent désormais très exactement ces trois mêmes tons, au lieu d'une teinte proche
-    // mais différente comme précédemment.
-    sidebarBg: '#2A0A0A',
-    sidebarGradient: 'bg-gradient-to-b from-[#3F1212] via-[#2A0A0A] to-[#0D0404]',
-    sidebarBorder: 'border-red-950/70',
-    badgeBg: 'bg-[#0D0404] text-white border border-[#3F1212]/70',
-    primaryColor: 'bg-[#2A0A0A] hover:bg-[#0D0404]',
-    primaryHover: 'hover:bg-[#0D0404]',
-    primaryText: 'text-[#0D0404]',
-    pageTitleColor: 'text-[#0D0404]',
-    avatarBg: 'bg-[#2A0A0A]',
-    bannerGradient: 'bg-gradient-to-r from-[#3F1212] via-[#2A0A0A] to-[#0D0404]',
-    bannerBorder: 'border-red-950/70',
-    modalHeaderBg: 'bg-[#2A0A0A]',
-    accentBadge: 'bg-[#2A0A0A] text-white',
-    accentRing: 'focus:ring-[#2A0A0A]',
-    accentGlow: 'bg-[#2A0A0A]/25',
-    // Rampe "slate" ci-dessus reproduite avec la même teinte que la bannière Coverage Ceilings :
-    // les tons 700/800/900 sont désormais très exactement les 3 couleurs de son dégradé
-    // (#3F1212/#2A0A0A/#0D0404), et les tons clairs (50-600) réduisent encore la saturation
-    // rouge par rapport à la version précédente, tout en gardant les mêmes niveaux de clarté
-    // que la rampe "slate" d'origine pour ne pas casser la lisibilité du texte/badges existants.
-    hexRamp: {
-      '50': '#fafafa', '100': '#f6f4f4', '200': '#ebe7e7', '300': '#dcd0d0', '400': '#bb9191',
-      '500': '#a34c4c', '600': '#803030', '700': '#3f1212', '800': '#2a0a0a', '900': '#0d0404',
-    },
+    // === AMÉLIORATION AJOUTÉE : retour au gris (retour utilisateur, 2026-09-07) — le fond rouge
+    // (introduit puis affiné à plusieurs reprises) est abandonné : "revient au gris comme
+    // c'était avant mais en plus claire". On revient donc à la même famille slate que
+    // NEUTRAL_GRAY_PALETTE (celle utilisée "avant", et toujours utilisée telle quelle par
+    // Superviseur ci-dessous), mais éclaircie d'un cran (slate-500/600/700 au lieu de
+    // slate-700/800/900) afin de rester bien distincte du gris plus sombre du Superviseur tout
+    // en gardant un contraste suffisant avec le texte blanc de la barre latérale.
+    sidebarBg: '#475569',
+    sidebarGradient: 'bg-gradient-to-b from-[#64748B] via-[#475569] to-[#334155]',
+    sidebarBorder: 'border-slate-400/70',
+    badgeBg: 'bg-[#334155] text-white border border-slate-400',
+    primaryColor: 'bg-[#475569] hover:bg-[#334155]',
+    primaryHover: 'hover:bg-[#334155]',
+    primaryText: 'text-[#334155]',
+    pageTitleColor: 'text-[#334155]',
+    avatarBg: 'bg-[#475569]',
+    bannerGradient: 'bg-gradient-to-r from-[#334155] via-[#475569] to-[#1E293B]',
+    bannerBorder: 'border-slate-400',
+    modalHeaderBg: 'bg-[#475569]',
+    accentBadge: 'bg-[#475569] text-white',
+    accentRing: 'focus:ring-[#475569]',
+    accentGlow: 'bg-slate-400/25',
+    // hexRamp et motifStroke reviennent à ceux hérités de NEUTRAL_GRAY_PALETTE (rampe "slate"
+    // Tailwind standard, motif or/ambre) — aucune surcharge nécessaire ici.
   },
 };
 

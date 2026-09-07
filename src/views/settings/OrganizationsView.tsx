@@ -575,11 +575,11 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                           {/* === AMÉLIORATION AJOUTÉE : harmonisation des couleurs de boutons —
                               ce bouton utilisait le bleu marine Agent (bg-blue-50/#0A347B) codé
                               en dur ; cette vue étant réservée à Admin (section "Management" —
-                              voir Sidebar.tsx), il reprend désormais la même teinte rouge sombre
-                              que le reste de l'interface Admin (rampe ADMIN_THEME.hexRamp). === */}
+                              voir Sidebar.tsx), il reprend désormais la même teinte grise que le
+                              reste de l'interface Admin (rampe slate). === */}
                           <button
                             onClick={() => setPolicyConfigOrg(org)}
-                            className="px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer bg-[#f6f4f4] text-[#3f1212] hover:bg-[#ebe7e7] border border-[#dcd0d0]"
+                            className="px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer bg-slate-200 text-slate-700 hover:bg-slate-300 border border-slate-300"
                             title="Configure health insurance policy & premium"
                           >
                             <Shield className="w-3.5 h-3.5" />
