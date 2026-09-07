@@ -440,7 +440,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
               Sign in to access your ACTIVA HealthPass account.
             </p>
 
-            <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+            {/* === AMÉLIORATION AJOUTÉE : espace réduit (retour utilisateur, 2026-09-07) — moins
+                d'espace au-dessus du formulaire (mt-7 -> mt-5) et entre les champs Username/
+                Password/Sign In (space-y-4 -> space-y-3), champs et bouton plus compacts
+                (py-3 -> py-2.5) ; aucun champ ni comportement retiré. === */}
+            <form onSubmit={handleSubmit} className="mt-5 space-y-3">
               {/* Error Alert Box */}
               {error && (
                 <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
@@ -463,7 +467,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder=""
-                    className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
                     autoComplete="username"
                     required
                   />
@@ -483,7 +487,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder=""
-                    className="w-full pl-4 pr-12 py-3 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
+                    className="w-full pl-4 pr-12 py-2.5 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/20 focus:bg-white transition duration-150"
                     autoComplete="current-password"
                     required
                   />
@@ -509,12 +513,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </div>
 
               {/* Sign In Button */}
-              <div className="pt-1">
+              <div>
                 <button
                   id="login-submit-button"
                   type="submit"
                   disabled={isLoggingIn || lockoutRemainingSec > 0}
-                  className="w-full py-3 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-2.5 px-4 rounded-xl bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span>{lockoutRemainingSec > 0 ? `Try again in ${lockoutRemainingSec}s` : isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
                   <ArrowRight className="w-4 h-4" />
