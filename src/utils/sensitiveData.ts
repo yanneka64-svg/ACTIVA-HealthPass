@@ -14,7 +14,11 @@ import { MedicalForm } from '../types';
 import { recordServerFallback } from './fallbackTelemetry';
 
 // Doit rester identique à ENCRYPTED_FIELD_PREFIX dans functions/src/encryptionService.ts.
-const ENCRYPTED_FIELD_PREFIX = 'encv1:';
+export const ENCRYPTED_FIELD_PREFIX = 'encv1:';
+
+export function isEncryptedField(val: unknown): boolean {
+  return typeof val === 'string' && val.startsWith(ENCRYPTED_FIELD_PREFIX);
+}
 
 // Doit rester identique aux constantes de même nom dans src/services/firestore.ts.
 const MEDICAL_FORM_CLINICAL_SUBCOLLECTION = 'clinical';
@@ -62,13 +66,21 @@ async function callFieldsFunction(
   return res.data.fields;
 }
 
+export class MedicalDataEncryptionError extends Error {
+  constructor(message: string, public readonly cause?: unknown) {
+    super(message);
+    this.name = 'MedicalDataEncryptionError';
+  }
+}
+
 /**
  * Encrypts the clinical prescription fields of a medical form before it is written to
- * Firestore. Fail-open on any error (Cloud Function unavailable, network...): returns the form
- * UNCHANGED (plaintext) rather than blocking the issuance of a medical form — consistent with
- * every other server-fallback pattern already established in this codebase (see
- * fallbackTelemetry.ts) — but records a dedicated, more visible telemetry event, since a silent
- * plaintext write defeats the purpose of this correctif if it happens repeatedly unnoticed.
+ * Firestore.
+ * 
+ * STRICT FAIL-CLOSED POLICY (Audite Santé / ISO 27799 / RGPD Art. 9) :
+ * If the encryption Cloud Function is unreachable, misconfigured or returns invalid ciphertext,
+ * this function THROWS a MedicalDataEncryptionError. Under NO circumstances will unencrypted
+ * diagnostic or prescription data be written to Firestore or persisted in plaintext.
  */
 export async function encryptMedicalFormPrescription<T extends Partial<MedicalForm>>(form: T): Promise<T> {
   const prescription = form.doctorPrescription;
@@ -81,6 +93,14 @@ export async function encryptMedicalFormPrescription<T extends Partial<MedicalFo
 
   try {
     const encrypted = await callFieldsFunction('encryptSensitiveFields', toEncrypt);
+    
+    // Verify ciphertext format strictly (defense-in-depth)
+    for (const [key, val] of Object.entries(encrypted)) {
+      if (typeof val === 'string' && val.length > 0 && !isEncryptedField(val)) {
+        throw new Error(`Champ clinique non chiffré renvoyé par le service pour "${key}".`);
+      }
+    }
+
     return {
       ...form,
       doctorPrescription: {
@@ -88,10 +108,15 @@ export async function encryptMedicalFormPrescription<T extends Partial<MedicalFo
         ...(encrypted as Partial<PrescriptionFieldMap>),
       },
     };
-  } catch (err) {
-    console.warn('encryptMedicalFormPrescription: falling back to plaintext write:', err);
-    recordServerFallback('encryptSensitiveFields', 'Medical form written without field-level encryption.');
-    return form;
+  } catch (err: any) {
+    const errMsg = err?.message || 'Service de chiffrement indisponible';
+    console.error('CRITICAL: encryptMedicalFormPrescription failed (Fail-Closed enforced):', errMsg);
+    recordServerFallback('encryptSensitiveFields_BLOCKED', `Fail-closed triggered: ${errMsg}`);
+    
+    throw new MedicalDataEncryptionError(
+      `Échec du chiffrement sécurisé des données cliniques : ${errMsg}. L'enregistrement a été interrompu pour empêcher l'exposition de données médicales en clair (politique de protection stricte fail-closed).`,
+      err
+    );
   }
 }
 

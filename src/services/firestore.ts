@@ -6,6 +6,7 @@ import { isNewSecurityNumberFormat, normalizeMedicalFormSecurityNumber } from '.
 import { computeMedicalFormRetentionUntil } from '../config/dataRetention';
 import { isDemoFallbackAllowed } from '../config/demoFallback';
 import { reportSyncIssue, clearSyncIssue } from '../utils/systemStatus';
+import { computeLogIntegrityHash } from '../utils/auditIntegrity';
 
 // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5) —
 // voir deleteMedicalForm/deleteAllMedicalForms ci-dessous.
@@ -587,13 +588,26 @@ export const FirestoreService = {
     }
   },
 
-  // Logs & Audit Trail
+  // Logs & Audit Trail (Immuabilité et sceau cryptographique d'intégrité Go-Live Santé)
   addLog: async (data: Partial<AuditLog> | Partial<LoginLog>) => {
     try {
+      const timestamp = new Date().toISOString();
+      const userAgent = (data as any).userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : undefined);
+      const integrityHash = await computeLogIntegrityHash({
+        userId: (data as any).userId,
+        userEmail: (data as any).userEmail,
+        action: (data as any).action,
+        status: (data as any).status,
+        category: (data as any).category,
+        entityId: (data as any).entityId,
+        timestamp,
+      });
+
       return await addDoc(collection(db, 'auditLogs'), {
         ...data,
-        timestamp: new Date().toISOString(),
-        userAgent: (data as any).userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : undefined),
+        timestamp,
+        userAgent,
+        integrityHash,
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'auditLogs');
@@ -662,11 +676,12 @@ export const FirestoreService = {
             updatedAt: new Date().toISOString(),
           });
         } catch (clinicalErr) {
-          // Le document parent existe déjà et est fonctionnellement complet (identité, statut,
-          // solde...) — ne jamais faire échouer toute l'émission d'un formulaire médical si
-          // seule l'écriture du contenu clinique échoue ; le signaler distinctement suffit,
-          // cohérent avec le principe "jamais bloquer un flux légitime" déjà appliqué ailleurs.
+          // Si l'écriture des données cliniques échoue (ex: rejet par les règles de sécurité Firestore
+          // parce que les champs ne sont pas chiffrés ou permission refusée), nettoyer le document parent
+          // pour éviter un dossier incomplet et lever l'erreur (politique stricte fail-closed).
+          await deleteDoc(parentRef).catch(() => {});
           handleFirestoreError(clinicalErr, OperationType.CREATE, `medicalForms/${parentRef.id}/clinical/${MEDICAL_FORM_CLINICAL_DOC_ID}`);
+          throw clinicalErr;
         }
       }
 

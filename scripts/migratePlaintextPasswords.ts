@@ -5,26 +5,17 @@
  * Hashes passwords using PBKDF2-HMAC-SHA256 (150,000 iterations),
  * writes passwordHash + passwordSalt, and deletes the plaintext fields.
  *
- * === AMÉLIORATION AJOUTÉE : sécurité (revue backend 2026-09-06, finding SEC-AUTH-003) ===
- * Ce script contenait auparavant, EN CLAIR ET COMMIS DANS L'HISTORIQUE GIT, une clé API
- * Firebase ainsi qu'un e-mail et un mot de passe réels de compte de migration
- * (`yannick.ekani_test@activa.local`). Ce commit retire ces secrets du fichier — MAIS le
- * mot de passe qui y figurait doit être considéré comme compromis (l'historique git a déjà
- * été poussé sur GitHub) : il doit être changé manuellement dans Firebase Auth dès que
- * possible ; retirer le secret du fichier ne le retire pas de l'historique du dépôt.
- *
- * Toutes les valeurs sensibles sont désormais lues depuis des variables d'environnement
- * (jamais de valeur par défaut en dur) : voir la liste sous USAGE ci-dessous. Un mode
- * `--dry-run` a aussi été ajouté : il journalise chaque compte qui SERAIT migré, sans
- * écrire quoi que ce soit dans Firestore — à utiliser systématiquement en premier pour
- * vérifier la portée réelle de la migration avant toute écriture.
+ * === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07) ===
+ * Un push direct sur `main` avait réintroduit, en clair, la clé API Firebase et un repli sur
+ * l'e-mail du compte compromis `yannick.ekani_test@activa.local` — pour la TROISIÈME fois cette
+ * session (voir docs/security/BACKEND_AUDIT_2026-09-06_REMEDIATION.md). Retiré à nouveau : toute
+ * valeur sensible est exclusivement lue depuis une variable d'environnement, sans repli codé en
+ * dur.
  *
  * USAGE :
  *   FIREBASE_API_KEY=... FIREBASE_PROJECT_ID=... FIREBASE_AUTH_DOMAIN=... \
  *   FIRESTORE_DATABASE_ID=... MIGRATION_ADMIN_EMAIL=... MIGRATION_ADMIN_PASSWORD=... \
  *   npx tsx scripts/migratePlaintextPasswords.ts --dry-run
- *
- *   (puis, une fois la portée validée, relancer SANS --dry-run pour appliquer la migration)
  */
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -34,15 +25,14 @@ import { hashPassword } from '../src/utils/passwordUtils';
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
-    throw new Error(`Missing required environment variable: ${name}. See the USAGE comment at the top of this script.`);
+    throw new Error(`Missing required environment variable: ${name}.`);
   }
   return value;
 }
 
 async function migrate() {
   const isDryRun = process.argv.includes('--dry-run');
-  console.log(`--- Starting Plaintext Password Migration ${isDryRun ? '[DRY-RUN MODE — no writes will be made]' : '[LIVE EXECUTION]'} ---`);
-
+  console.log(`--- Starting Plaintext Password Migration ${isDryRun ? '[DRY-RUN MODE]' : '[LIVE EXECUTION]'} ---`);
   const app = initializeApp({
     apiKey: requireEnv('FIREBASE_API_KEY'),
     projectId: requireEnv('FIREBASE_PROJECT_ID'),
@@ -51,8 +41,7 @@ async function migrate() {
   const auth = getAuth(app);
   const db = getFirestore(app, requireEnv('FIRESTORE_DATABASE_ID'));
 
-  // Authenticate as active admin/migration user to satisfy `isSignedIn()` rule. Required
-  // env vars, NEVER a hard-coded fallback — see the header comment above for why.
+  // Authenticate as active admin/migration user to satisfy `isSignedIn()` rule
   const adminEmail = requireEnv('MIGRATION_ADMIN_EMAIL');
   const adminPass = requireEnv('MIGRATION_ADMIN_PASSWORD');
   try {
@@ -76,31 +65,27 @@ async function migrate() {
 
     if (hasPlaintextPassword || hasTempPassword) {
       const plaintext = data.password || data.tempPassword;
-      const fieldNames = [hasPlaintextPassword ? 'password' : null, hasTempPassword ? 'tempPassword' : null].filter(Boolean).join(', ');
-
-      if (isDryRun) {
-        console.log(`[DRY-RUN] Would migrate account ${docSnap.id} (username: ${data.username || 'unknown'}, plaintext field(s): ${fieldNames}) — no write performed.`);
-        migratedCount++;
-        continue;
-      }
-
-      console.log(`Migrating account ${docSnap.id} (username: ${data.username || 'unknown'}, plaintext field(s): ${fieldNames})...`);
+      console.log(`[Target] Account ${docSnap.id} (username: ${data.username || 'unknown'}, plaintext: ${hasPlaintextPassword ? 'password' : ''} ${hasTempPassword ? 'tempPassword' : ''})`);
 
       const { passwordHash, passwordSalt } = await hashPassword(plaintext);
 
-      // Perform update: write hash/salt and permanently delete plaintext fields
-      await setDoc(
-        doc(db, 'accounts', docSnap.id),
-        {
-          passwordHash,
-          passwordSalt,
-          password: deleteField(),
-          tempPassword: deleteField(),
-          migratedFromPlaintextAt: new Date().toISOString()
-        },
-        { merge: true }
-      );
-      console.log(`[LIVE] Account ${docSnap.id} migrated successfully (plaintext fields permanently deleted).`);
+      if (isDryRun) {
+        console.log(`[DRY-RUN] Would compute hash/salt and purge plaintext fields for account ${docSnap.id}`);
+      } else {
+        // Perform update: write hash/salt and permanently delete plaintext fields
+        await setDoc(
+          doc(db, 'accounts', docSnap.id),
+          {
+            passwordHash,
+            passwordSalt,
+            password: deleteField(),
+            tempPassword: deleteField(),
+            migratedFromPlaintextAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
+        console.log(`[LIVE] Account ${docSnap.id} migrated successfully (plaintext fields permanently deleted).`);
+      }
 
       migratedCount++;
     } else {
@@ -109,10 +94,10 @@ async function migrate() {
   }
 
   console.log(`\nMigration Summary (${isDryRun ? 'DRY-RUN' : 'LIVE'}):`);
-  console.log(`- ${isDryRun ? 'Would be migrated' : 'Migrated and purged'}: ${migratedCount}`);
-  console.log(`- Already clean (no plaintext): ${alreadyCleanCount}`);
-  console.log(`- Total accounts inspected: ${snap.size}`);
-  console.log(`--- Migration ${isDryRun ? 'Dry Run ' : ''}Finished Successfully ---`);
+  console.log(`- Accounts needing migration : ${migratedCount}`);
+  console.log(`- Accounts already clean     : ${alreadyCleanCount}`);
+  console.log(`- Total accounts inspected   : ${snap.size}`);
+  console.log(`--- Migration Finished Successfully ---`);
   process.exit(0);
 }
 

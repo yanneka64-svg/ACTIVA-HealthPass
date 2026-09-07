@@ -585,6 +585,9 @@ describe('Phase 2.3 — audit trail : create pré-authentification restreint à 
         entityId: 'c1',
         entityType: 'claim',
         details: 'Claim approved.',
+        // Requis depuis le renforcement anti-usurpation de la piste d'audit (voir
+        // isBusinessAuditLogValid() dans firestore.rules) : timestamp désormais obligatoire.
+        timestamp: new Date().toISOString(),
       })
     );
   });

@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import * as crypto from 'crypto';
 
 export interface AuditLogEntry {
   id?: string;
@@ -14,6 +15,7 @@ export interface AuditLogEntry {
   ip?: string;
   userAgent?: string;
   severity?: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+  integrityHash?: string;
 }
 
 export async function logAuditEventServer(
@@ -21,11 +23,23 @@ export async function logAuditEventServer(
   entry: Omit<AuditLogEntry, 'timestamp'>
 ): Promise<string> {
   const auditRef = db.collection('auditLogs').doc();
+  const timestamp = new Date().toISOString();
+  
+  const payload = [
+    timestamp,
+    entry.userId || 'system',
+    entry.action,
+    entry.category,
+    entry.entityId || 'none',
+  ].join('|');
+  const integrityHash = 'sha256:' + crypto.createHash('sha256').update(payload).digest('hex');
+
   const logDoc: AuditLogEntry = {
     ...entry,
     id: auditRef.id,
-    timestamp: new Date().toISOString(),
+    timestamp,
     severity: entry.severity || 'INFO',
+    integrityHash,
   };
 
   await auditRef.set(logDoc);

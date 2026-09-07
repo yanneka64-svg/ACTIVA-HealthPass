@@ -257,16 +257,25 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    // `generatedForm` reste la version en clair pour l'aperçu immédiat affiché dans cette même
-    // session (voir plus bas) — inutile de la déchiffrer, elle n'a jamais été chiffrée.
-    setGeneratedForm(newForm);
-
     if (onCreateMedicalForm) {
-      // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) —
-      // seule la copie envoyée à Firestore est chiffrée ; `newForm`/`generatedForm` ci-dessus
-      // restent en clair pour l'affichage local immédiat, sans aller-retour de déchiffrement.
-      const formToPersist = await encryptMedicalFormPrescription(newForm);
-      onCreateMedicalForm(formToPersist);
+      try {
+        // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05 & Go-Live Santé) —
+        // Le chiffrement applicatif est STRICTEMENT FAIL-CLOSED : en cas d'indisponibilité ou
+        // d'erreur du service de chiffrement, l'émission est bloquée pour interdire la persistance
+        // de données de santé en clair (RGPD Art. 9 / ISO 27799).
+        const formToPersist = await encryptMedicalFormPrescription(newForm);
+        onCreateMedicalForm(formToPersist);
+        setGeneratedForm(newForm);
+      } catch (err: any) {
+        setFormError(
+          err?.message ||
+          "Échec critique du chiffrement des données médicales. L'enregistrement a été interrompu pour garantir la confidentialité des données de santé du patient."
+        );
+        setGeneratedForm(null);
+        return;
+      }
+    } else {
+      setGeneratedForm(newForm);
     }
   };
 

@@ -4,46 +4,14 @@ import { createServer as createViteServer } from 'vite';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, DocumentData } from 'firebase-admin/firestore';
-import helmet from 'helmet';
 
 const app = express();
 const PORT = 3000;
 
-// === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.5) ===
-// Constat : aucun en-tête de sécurité HTTP n'était posé par ce serveur (ni Content-Security-
-// Policy, ni X-Frame-Options, ni Strict-Transport-Security...) — pour une application qui
-// affiche des données de santé à l'écran, ces en-têtes réduisent significativement l'impact
-// d'une éventuelle faille XSS ou d'un clickjacking. `contentSecurityPolicy` reste désactivée
-// ici : une CSP mal calibrée pourrait bloquer silencieusement les appels réseau du SDK Firebase
-// (Auth/Firestore/Functions/Storage, sur de nombreux sous-domaines *.googleapis.com) ou des
-// bibliothèques comme jsPDF/html2canvas — un risque de régression que cette session ne peut pas
-// entièrement écarter sans test visuel exhaustif de chaque écran. Les autres protections de
-// `helmet` (X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Strict-Transport-Security,
-// masquage de X-Powered-By...) sont, elles, sans risque de régression fonctionnelle et activées
-// immédiatement.
-app.use(
-  helmet({
-    contentSecurityPolicy: false,
-  })
-);
-
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.1/1.7) ===
-// Constat de docs/security/CODE_AUDIT_MAP.md (section 3.2) : AUCUNE route de ce serveur ne
-// vérifiait le jeton Firebase Auth envoyé par `src/services/apiClient.ts` (`Authorization:
-// Bearer ...`) — chaque route était donc accessible anonymement — et `/api/policies/evaluate`
-// / `/api/claims/validate-coverage` recalculaient un statut à partir de valeurs ENTIÈREMENT
-// fournies par le client, sans jamais lire les données réelles en base (aucune garantie
-// d'intégrité malgré les apparences). Corrigé ci-dessous : initialisation tolérante du SDK
-// Admin (n'empêche jamais le démarrage du serveur ni les routes qui n'en ont pas besoin —
-// `/api/health`, `/api/cards/verify-format`, `/api/cards/continuity-report` restent
-// inchangées), middleware de vérification de jeton pour les routes sensibles, et lecture
-// systématique de l'état réel en base plutôt que confiance dans le payload client.
-// Aucun appelant n'existe aujourd'hui pour ces routes (apiClient.ts est du code mort, voir
-// CODE_AUDIT_MAP.md) : ce correctif ferme une faille avant qu'elle ne soit jamais exploitée
-// en production, sans aucun risque de régression sur un usage existant.
+// Initialisation tolérante du SDK Firebase Admin pour les routes serveur sécurisées
 let adminInitError: string | null = null;
 try {
   if (!getApps().length) {
@@ -80,21 +48,6 @@ app.get('/api/health', (_req: Request, res: Response) => {
     version: '2.0.0',
   });
 });
-
-// === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-01/SEC-05) ===
-// Les routes /api/auth/lookup-account et /api/auth/verify-legacy-credentials qui existaient
-// ici ont été SUPPRIMÉES. Elles dupliquaient — avec un niveau de sécurité inférieur — ce que
-// la Cloud Function callable `resolveLoginIdentifier` (functions/src/index.ts) fait déjà
-// correctement (rate limiting persistant dans Firestore au lieu d'un Map en mémoire perdu à
-// chaque redémarrage, vérification PBKDF2 via l'Admin SDK, jamais de hash/sel renvoyé).
-// Constat critique lors de cet audit : la fonction `getNamedDb()`/`ensureServerServiceAuth()`
-// que ces deux routes utilisaient authentifiait le serveur avec un e-mail ET UN MOT DE PASSE
-// CODÉS EN DUR directement dans ce fichier source ('yannick.ekani_test@activa.local' /
-// 'ActivaJKC8Q@!2025'), donc versionnés dans l'historique Git. Ce secret doit être considéré
-// comme compromis : un administrateur doit changer ce mot de passe dans Firebase Auth
-// indépendamment de cette suppression de code. Aucun appelant n'existe pour ces deux routes
-// dans src/ (apiClient.ts, seul appelant historique, a également été retiré — voir
-// docs/security/CODE_AUDIT_MAP.md section 3.2 et STRUCT-02) : suppression sans régression.
 
 // Card Continuity & Format Verifier
 const CARD_REGEX = /^AMID-(\d{2})(\d{2})(\d{2})-(\d{5})$/;
