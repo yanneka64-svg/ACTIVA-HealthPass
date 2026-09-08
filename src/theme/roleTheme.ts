@@ -126,18 +126,6 @@ export const ADMIN_THEME: RoleThemeConfig = {
   },
 };
 
-// === AMÉLIORATION AJOUTÉE : UI (retour utilisateur, 2026-09-07) — "adopter les couleurs grises
-// pour l'interface superviseur (comme précédemment pour l'interface admin) ; ne rien changer
-// pour l'interface admin". Le Superviseur reprend donc intégralement la palette grise neutre
-// d'origine (barre latérale, boutons, bandeaux, badges, fenêtres modales) — la même logique que
-// pour Admin ci-dessus, mais appliquée à sa propre couleur (gris) plutôt qu'au rouge. `role`/
-// `displayName` inchangés : seule l'apparence est alignée.
-export const SUPERVISOR_THEME: RoleThemeConfig = {
-  role: 'Supervisor',
-  displayName: 'Medical Advisor & Supervisor',
-  palette: { ...NEUTRAL_GRAY_PALETTE },
-};
-
 export const AGENT_THEME: RoleThemeConfig = {
   role: 'Agent',
   displayName: 'Front Desk & Processing Agent',
@@ -172,6 +160,31 @@ export const AGENT_THEME: RoleThemeConfig = {
     // Agent — blanc, identique à l'existant (comportement inchangé, sert de référence à la
     // page de connexion qui reprend ce même motif).
     motifStroke: '255, 255, 255',
+  },
+};
+
+// === AMÉLIORATION AJOUTÉE : identité Superviseur alignée sur le bleu marine Agent, distinguée
+// par un liseré rouge (retour utilisateur, 2026-09-08 — aperçu validé avant implémentation,
+// voir l'Artifact "Supervisor Theme Proposal"). Remplace la palette grise neutre utilisée
+// depuis le 2026-09-07 ("adopter les couleurs grises pour l'interface superviseur ... ne rien
+// changer pour l'interface admin") : même remplissage bleu marine que AGENT_THEME (barre
+// latérale, boutons, badges, texte, rampe de couleurs, hérités via le spread ci-dessous) —
+// seuls les bords (barre latérale, boutons pleins, badges, bannière) et le motif de courbes
+// décoratif portent désormais un rouge brique, plus présent qu'un simple filet mais toujours
+// adouci sur retour utilisateur ("augmente encore le rouge mais adoucis-le" — décalé du rouge
+// vif #DC2626 vers ce rouge brique désaturé) : rgba(194,79,71,0.78) pour les bords, RGB
+// 194,79,71 pour le motif. `role`/`displayName` inchangés : seule l'apparence est alignée.
+export const SUPERVISOR_THEME: RoleThemeConfig = {
+  role: 'Supervisor',
+  displayName: 'Medical Advisor & Supervisor',
+  palette: {
+    ...AGENT_THEME.palette,
+    sidebarBorder: 'border-[rgba(194,79,71,0.78)]',
+    badgeBg: 'bg-[#2563EB] text-white border border-[rgba(194,79,71,0.78)]',
+    primaryColor: 'bg-[#0A347B] hover:bg-[#072659] border border-[rgba(194,79,71,0.78)]',
+    bannerBorder: 'border-[rgba(194,79,71,0.78)]',
+    accentBadge: 'bg-[#0A347B] text-white border border-[rgba(194,79,71,0.78)]',
+    motifStroke: '194, 79, 71',
   },
 };
 
