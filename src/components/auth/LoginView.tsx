@@ -331,6 +331,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
       // assurer le suivi ("Immutable security tracking"). Journalisée ici en tâche de fond
       // (jamais bloquant pour l'utilisateur), avec la même résolution IP/localisation que les
       // connexions réussies.
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse — .catch ajouté (retour utilisateur,
+      // "Uncaught (in promise) FirebaseError" en console) : cette journalisation en tâche de
+      // fond ne doit jamais faire remonter un rejet de promesse non intercepté, quelle qu'en
+      // soit la cause. ===
       getClientLocationInfo().then(({ ipAddress, location }) => {
         FirestoreService.addLog({
           userEmail: cleanUsername,
@@ -339,8 +343,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
           userAgent: navigator.userAgent,
           browser: parseUserAgent(navigator.userAgent),
           location,
-        });
-      });
+        }).catch((err) => console.warn('Failed-login audit log notice:', err));
+      }).catch((err) => console.warn('Failed-login geo lookup notice:', err));
       const remaining = getLockoutRemainingMs(cleanUsername);
       if (remaining > 0) {
         setLockoutRemainingSec(Math.ceil(remaining / 1000));

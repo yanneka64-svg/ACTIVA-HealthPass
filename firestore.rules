@@ -551,8 +551,18 @@ service cloud.firestore {
     // métier authentifiées : ENROLLMENT_APPROVED, CLAIM_APPROVED, etc. — voir
     // WorkflowService.logAction, dont la forme `{userId,userName,userRole,action,category,
     // entityId,entityType,details}` ne recoupe jamais celle d'un journal de connexion).
+    // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur — page blanche par
+    // moments, "Missing or insufficient permissions" sur auditLogs dans la console) — cause
+    // racine identifiée : FirestoreService.addLog (src/services/firestore.ts) ajoute
+    // TOUJOURS un champ `integrityHash` (scellé cryptographique d'intégrité) à CHAQUE écriture,
+    // y compris les journaux de connexion pré-authentification — mais ce champ n'était pas
+    // dans la liste `hasOnly` ci-dessous, donc CHAQUE tentative de connexion échouée (le seul
+    // cas d'usage pré-auth réel, voir LoginView.tsx) était systématiquement rejetée par cette
+    // règle, silencieusement (écriture "fire and forget", jamais affichée à l'écran) — la piste
+    // d'audit anti-brute-force ne journalisait donc en réalité JAMAIS un seul échec. Corrigé en
+    // autorisant ce champ, exactement comme le journal métier post-auth ci-dessous le fait déjà.
     function isPreAuthLoginLogValid(data) {
-      return data.keys().hasOnly(['userEmail', 'ipAddress', 'status', 'userAgent', 'browser', 'location', 'timestamp']) &&
+      return data.keys().hasOnly(['userEmail', 'ipAddress', 'status', 'userAgent', 'browser', 'location', 'timestamp', 'integrityHash']) &&
         'status' in data && (data.status == 'success' || data.status == 'failed');
     }
 

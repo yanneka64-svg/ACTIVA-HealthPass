@@ -449,6 +449,9 @@ export default function App() {
     // un service public de géolocalisation IP interrogé depuis le navigateur (voir
     // geoUtils.ts) ; repli sur 'Unknown' en cas d'échec, sans jamais bloquer la connexion
     // déjà réussie (l'appel est fait après coup, en tâche de fond).
+    // === AMÉLIORATION AJOUTÉE : sécurité/robustesse — .catch ajouté (retour utilisateur,
+    // "Uncaught (in promise) FirebaseError" en console) : cette journalisation en tâche de
+    // fond ne doit jamais faire remonter un rejet de promesse non intercepté.
     getClientLocationInfo().then(({ ipAddress, location }) => {
       FirestoreService.addLog({
         userEmail: user?.email || 'user@activa-assurance.com',
@@ -457,8 +460,8 @@ export default function App() {
         userAgent: navigator.userAgent,
         browser: parseUserAgent(navigator.userAgent),
         location,
-      });
-    });
+      }).catch((err) => console.warn('Successful-login audit log notice:', err));
+    }).catch((err) => console.warn('Successful-login geo lookup notice:', err));
   };
 
   const handleLogout = async () => {
