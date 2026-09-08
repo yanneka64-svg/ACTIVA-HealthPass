@@ -102,20 +102,24 @@ export const ADMIN_THEME: RoleThemeConfig = {
     // Superviseur ci-dessous), mais éclaircie d'un cran (slate-500/600/700 au lieu de
     // slate-700/800/900) afin de rester bien distincte du gris plus sombre du Superviseur tout
     // en gardant un contraste suffisant avec le texte blanc de la barre latérale.
-    sidebarBg: '#475569',
-    sidebarGradient: 'bg-gradient-to-b from-[#64748B] via-[#475569] to-[#334155]',
+    // === AMÉLIORATION AJOUTÉE : gris légèrement augmenté (retour utilisateur, 2026-09-08) —
+    // chaque teinte rapprochée d'environ 35% de celle du Superviseur (mélange HSL, pas un
+    // simple cran Tailwind entier), pour un gris un peu plus marqué qu'avant tout en restant
+    // clairement plus clair/distinct que le Superviseur.
+    sidebarBg: '#404e62',
+    sidebarGradient: 'bg-gradient-to-b from-[#536278] via-[#435064] to-[#2c394c]',
     sidebarBorder: 'border-slate-400/70',
-    badgeBg: 'bg-[#334155] text-white border border-slate-400',
-    primaryColor: 'bg-[#475569] hover:bg-[#334155]',
-    primaryHover: 'hover:bg-[#334155]',
-    primaryText: 'text-[#334155]',
-    pageTitleColor: 'text-[#334155]',
-    avatarBg: 'bg-[#475569]',
-    bannerGradient: 'bg-gradient-to-r from-[#334155] via-[#475569] to-[#1E293B]',
+    badgeBg: 'bg-[#2c394c] text-white border border-slate-400',
+    primaryColor: 'bg-[#404e62] hover:bg-[#2c394c]',
+    primaryHover: 'hover:bg-[#2c394c]',
+    primaryText: 'text-[#2c394c]',
+    pageTitleColor: 'text-[#2c394c]',
+    avatarBg: 'bg-[#404e62]',
+    bannerGradient: 'bg-gradient-to-r from-[#2c394c] via-[#404e62] to-[#1E293B]',
     bannerBorder: 'border-slate-400',
-    modalHeaderBg: 'bg-[#475569]',
-    accentBadge: 'bg-[#475569] text-white',
-    accentRing: 'focus:ring-[#475569]',
+    modalHeaderBg: 'bg-[#404e62]',
+    accentBadge: 'bg-[#404e62] text-white',
+    accentRing: 'focus:ring-[#404e62]',
     accentGlow: 'bg-slate-400/25',
     // hexRamp et motifStroke reviennent à ceux hérités de NEUTRAL_GRAY_PALETTE (rampe "slate"
     // Tailwind standard, motif or/ambre) — aucune surcharge nécessaire ici.
