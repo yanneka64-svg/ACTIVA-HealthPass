@@ -439,9 +439,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
               ci-dessous ("Compact & fin"). === */}
           <div className="w-full max-w-[360px]">
             {/* Logo agrandi et centré, mieux mis en valeur qu'avant. === AMÉLIORATION
-                AJOUTÉE : espace réduit entre le logo et "Welcome Back!" (mb-8 -> mb-5), sur
-                demande explicite. === */}
-            <div className="flex justify-center mb-5">
+                AJOUTÉE : espace réduit entre le logo et "Welcome Back!" (mb-8 -> mb-5, puis
+                mb-5 -> mb-4 sur nouvelle demande explicite), sur demande explicite. === */}
+            <div className="flex justify-center mb-4">
               <Logo size="2xl" showTagline={true} transparent={true} />
             </div>
 
@@ -476,8 +476,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
               {/* === AMÉLIORATION AJOUTÉE : libellé simplifié en "Username" et exemple d'adresse
                   e-mail retiré du placeholder (champ vide) — le champ accepte toujours email OU
                   nom d'utilisateur exactement comme avant, seul l'affichage change. === */}
+              {/* === AMÉLIORATION AJOUTÉE : interligne légèrement augmenté (retour utilisateur) —
+                  espace label -> champ (mb-1 -> mb-1.5) et hauteur interne du champ (py-1.5 ->
+                  py-2), pour Username comme pour Password ci-dessous ; largeur, style "fin" et
+                  couleurs strictement inchangés. === */}
               <div>
-                <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1">
+                <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
                   Username
                 </label>
                 <div className="relative">
@@ -487,7 +491,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder=""
-                    className="w-full pl-6 pr-2 py-1.5 bg-transparent border-0 border-b border-[#E8EDF2] rounded-none text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-b-[#0A34A3] transition duration-150"
+                    className="w-full pl-6 pr-2 py-2 bg-transparent border-0 border-b border-[#E8EDF2] rounded-none text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-b-[#0A34A3] transition duration-150"
                     autoComplete="username"
                     required
                   />
@@ -497,7 +501,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
               {/* Password */}
               <div>
-                <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1">
+                <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
                   Password
                 </label>
                 <div className="relative">
@@ -507,7 +511,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder=""
-                    className="w-full pl-6 pr-8 py-1.5 bg-transparent border-0 border-b border-[#E8EDF2] rounded-none text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-b-[#0A34A3] transition duration-150"
+                    className="w-full pl-6 pr-8 py-2 bg-transparent border-0 border-b border-[#E8EDF2] rounded-none text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-b-[#0A34A3] transition duration-150"
                     autoComplete="current-password"
                     required
                   />

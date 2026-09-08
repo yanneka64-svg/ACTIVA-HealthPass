@@ -170,20 +170,23 @@ export const AGENT_THEME: RoleThemeConfig = {
 // changer pour l'interface admin") : même remplissage bleu marine que AGENT_THEME (barre
 // latérale, boutons, badges, texte, rampe de couleurs, hérités via le spread ci-dessous) —
 // seuls les bords (barre latérale, boutons pleins, badges, bannière) et le motif de courbes
-// décoratif portent désormais un rouge brique, plus présent qu'un simple filet mais toujours
-// adouci sur retour utilisateur ("augmente encore le rouge mais adoucis-le" — décalé du rouge
-// vif #DC2626 vers ce rouge brique désaturé) : rgba(194,79,71,0.78) pour les bords, RGB
-// 194,79,71 pour le motif. `role`/`displayName` inchangés : seule l'apparence est alignée.
+// décoratif portent désormais un rouge brique. Couleur (RGB 194,79,71) affinée à deux reprises
+// sur retour utilisateur : d'abord assombrie/désaturée ("augmente encore le rouge mais
+// adoucis-le" — décalée du rouge vif #DC2626 vers ce rouge brique), puis les BORDS
+// spécifiquement rendus plus discrets ("adoucir encore les contours, je veux que le rouge soit
+// fin, excepté les motifs" — opacité des bords ramenée de 0.78 à 0.4 ; seul le motif de
+// courbes, qui doit rester visible pour marquer la différence avec Agent, garde ses propres
+// niveaux d'opacité inchangés dans Sidebar.tsx).
 export const SUPERVISOR_THEME: RoleThemeConfig = {
   role: 'Supervisor',
   displayName: 'Medical Advisor & Supervisor',
   palette: {
     ...AGENT_THEME.palette,
-    sidebarBorder: 'border-[rgba(194,79,71,0.78)]',
-    badgeBg: 'bg-[#2563EB] text-white border border-[rgba(194,79,71,0.78)]',
-    primaryColor: 'bg-[#0A347B] hover:bg-[#072659] border border-[rgba(194,79,71,0.78)]',
-    bannerBorder: 'border-[rgba(194,79,71,0.78)]',
-    accentBadge: 'bg-[#0A347B] text-white border border-[rgba(194,79,71,0.78)]',
+    sidebarBorder: 'border-[rgba(194,79,71,0.4)]',
+    badgeBg: 'bg-[#2563EB] text-white border border-[rgba(194,79,71,0.4)]',
+    primaryColor: 'bg-[#0A347B] hover:bg-[#072659] border border-[rgba(194,79,71,0.4)]',
+    bannerBorder: 'border-[rgba(194,79,71,0.4)]',
+    accentBadge: 'bg-[#0A347B] text-white border border-[rgba(194,79,71,0.4)]',
     motifStroke: '194, 79, 71',
   },
 };

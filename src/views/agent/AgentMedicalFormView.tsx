@@ -45,6 +45,7 @@ import {
 import { encryptMedicalFormPrescription, decryptMedicalFormPrescription } from '../../utils/sensitiveData';
 // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) ===
 import { DEFAULT_MEDICAL_FORM_RETENTION_YEARS, isPastRetention } from '../../config/dataRetention';
+import { getRoleTheme } from '../../theme/roleTheme';
 
 interface AgentMedicalFormViewProps {
   providers: Provider[];
@@ -107,9 +108,17 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   const [clearAllReason, setClearAllReason] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
-  // === AMÉLIORATION AJOUTÉE : la Fiche Médicale doit rester bleue côté Agent (branding Agent inchangé)
-  // mais s'afficher en vert/sarcelle aligné à la barre de menu côté Superviseur ===
-  const isSupervisorView = userRole === 'Supervisor';
+  // === AMÉLIORATION AJOUTÉE : couleurs alignées sur roleTheme.palette (retour utilisateur —
+  // "certains boutons sont encore en gris") — tout ce fichier utilisait un conditionnel figé
+  // (isSupervisorView ? gris #1F2937 : bleu Agent #0A347B), un reliquat d'une ancienne palette
+  // Superviseur jamais mis à jour depuis que Superviseur partage désormais le même bleu marine
+  // qu'Agent (voir SUPERVISOR_THEME). Remplacé partout par la même teinte bleue qu'Agent, pour
+  // les deux rôles — suit désormais automatiquement toute évolution de couleur par rôle, comme
+  // le reste de l'application. Seuls les boutons principaux ("New Medical Form"/"History"
+  // ci-dessous) suivent roleTheme.palette.primaryColor, qui porte déjà le liseré rouge fin côté
+  // Superviseur — le reste du formulaire (texte, bordures décoratives) reste volontairement
+  // identique entre les deux rôles, le rouge étant réservé aux éléments structurels.
+  const roleTheme = getRoleTheme(userRole);
 
   // Smart Autocomplete State for Member
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
@@ -489,7 +498,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             onClick={() => setActiveTab('create')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'create'
-                ? (isSupervisorView ? 'bg-[#1F2937] text-white shadow-xs' : 'bg-[#0A347B] text-white shadow-xs')
+                ? `${roleTheme.palette.primaryColor} text-white shadow-xs`
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -500,7 +509,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             onClick={() => setActiveTab('history')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'history'
-                ? (isSupervisorView ? 'bg-[#1F2937] text-white shadow-xs' : 'bg-[#0A347B] text-white shadow-xs')
+                ? `${roleTheme.palette.primaryColor} text-white shadow-xs`
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -549,15 +558,15 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   </label>
                   
                   {selectedMember ? (
-                    <div className={`p-3.5 ${isSupervisorView ? 'bg-slate-100/80' : 'bg-blue-50/80'} border-2 ${isSupervisorView ? 'border-[#1F2937]/40' : 'border-[#0A347B]/40'} rounded-xl space-y-2 animate-in fade-in`}>
+                    <div className={`p-3.5 ${'bg-blue-50/80'} border-2 ${'border-[#0A347B]/40'} rounded-xl space-y-2 animate-in fade-in`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-lg ${isSupervisorView ? 'bg-[#1F2937]' : 'bg-[#0A347B]'} text-white flex items-center justify-center font-bold text-xs`}>
+                          <div className={`w-8 h-8 rounded-lg ${'bg-[#0A347B]'} text-white flex items-center justify-center font-bold text-xs`}>
                             {selectedMember.principalName.charAt(0)}
                           </div>
                           <div>
                             <div className="font-extrabold text-xs text-slate-900">{selectedMember.principalName}</div>
-                            <div className={`text-[10.5px] font-mono font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>
+                            <div className={`text-[10.5px] font-mono font-bold ${'text-[#0A347B]'}`}>
                               N° {selectedMember.cardNo} • {selectedMember.organization}
                             </div>
                           </div>
@@ -577,7 +586,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       {/* === AMÉLIORATION AJOUTÉE : remplace le solde disponible (déjà affiché plus bas
                           dans la section "Care Modality & Coverage") par la date de naissance et le
                           sexe de l'assuré sélectionné === */}
-                      <div className={`pt-2 border-t ${isSupervisorView ? 'border-slate-300/60' : 'border-blue-200/60'} grid grid-cols-2 gap-2 text-xs`}>
+                      <div className={`pt-2 border-t ${'border-blue-200/60'} grid grid-cols-2 gap-2 text-xs`}>
                         <div>
                           <span className="text-slate-500 text-[11px] block">Date of Birth:</span>
                           <span className="font-bold text-slate-800">{selectedMember.birthDate || 'N/A'}</span>
@@ -603,7 +612,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                             setIsMemberDropdownOpen(true);
                           }}
                           placeholder="Type the name, card number or company to search..."
-                          className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 ${isSupervisorView ? 'focus:ring-[#1F2937]' : 'focus:ring-[#0A347B]'} focus:outline-none transition`}
+                          className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 ${'focus:ring-[#0A347B]'} focus:outline-none transition`}
                         />
                       </div>
 
@@ -623,11 +632,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                                   setIsMemberDropdownOpen(false);
                                   setMemberSearchQuery('');
                                 }}
-                                className={`p-3 ${isSupervisorView ? 'hover:bg-slate-100/70' : 'hover:bg-blue-50/70'} transition cursor-pointer flex items-center justify-between text-xs`}
+                                className={`p-3 ${'hover:bg-blue-50/70'} transition cursor-pointer flex items-center justify-between text-xs`}
                               >
                                 <div>
                                   <div className="font-bold text-slate-800">{m.principalName}</div>
-                                  <div className={`text-[10.5px] font-mono ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>
+                                  <div className={`text-[10.5px] font-mono ${'text-[#0A347B]'}`}>
                                     {m.cardNo} • {m.organization}
                                   </div>
                                 </div>
@@ -690,7 +699,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                             setIsProviderDropdownOpen(true);
                           }}
                           placeholder="Type the hospital, clinic or medical center name..."
-                          className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 ${isSupervisorView ? 'focus:ring-[#1F2937]' : 'focus:ring-[#0A347B]'} focus:outline-none transition`}
+                          className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 ${'focus:ring-[#0A347B]'} focus:outline-none transition`}
                         />
                       </div>
 
@@ -734,11 +743,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <Stethoscope className={`w-4 h-4 ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`} />
+                      <Stethoscope className={`w-4 h-4 ${'text-[#0A347B]'}`} />
                       <span>3. Type of Medical Consultation</span>
                       <span className="text-rose-500">*</span>
                     </label>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isSupervisorView ? 'bg-slate-200' : 'bg-blue-100'} ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${'bg-blue-100'} ${'text-[#0A347B]'}`}>
                       ACTIVA Agreement
                     </span>
                   </div>
@@ -749,14 +758,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       onClick={() => setPractitionerType('Generalist')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         practitionerType === 'Generalist'
-                          ? (isSupervisorView ? 'bg-slate-100/90 border-[#1F2937] ring-2 ring-[#1F2937]/20 shadow-xs' : 'bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs')
+                          ? ('bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs')
                           : 'bg-white border-slate-200 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-black ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>🩺 Generalist</span>
+                        <span className={`text-xs font-black ${'text-[#0A347B]'}`}>🩺 Generalist</span>
                         {practitionerType === 'Generalist' && (
-                          <CheckCircle2 className={`w-4 h-4 ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`} />
+                          <CheckCircle2 className={`w-4 h-4 ${'text-[#0A347B]'}`} />
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
@@ -769,14 +778,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       onClick={() => setPractitionerType('Specialist')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         practitionerType === 'Specialist'
-                          ? (isSupervisorView ? 'bg-slate-100/90 border-[#1F2937] ring-2 ring-[#1F2937]/20 shadow-xs' : 'bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs')
+                          ? ('bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs')
                           : 'bg-white border-slate-200 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-black ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>👨‍⚕️ Specialist</span>
+                        <span className={`text-xs font-black ${'text-[#0A347B]'}`}>👨‍⚕️ Specialist</span>
                         {practitionerType === 'Specialist' && (
-                          <CheckCircle2 className={`w-4 h-4 ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`} />
+                          <CheckCircle2 className={`w-4 h-4 ${'text-[#0A347B]'}`} />
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
@@ -788,13 +797,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* Specialty dropdown if Specialist is selected */}
                   {practitionerType === 'Specialist' && (
                     <div className="pt-2 border-t border-slate-200/80 space-y-2 animate-in fade-in">
-                      <label className={`block text-[11px] font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>
+                      <label className={`block text-[11px] font-bold ${'text-[#0A347B]'}`}>
                         Medical Specialty:
                       </label>
                       <select
                         value={doctorSpecialty}
                         onChange={(e) => setDoctorSpecialty(e.target.value)}
-                        className={`w-full px-3 py-2 bg-white border ${isSupervisorView ? 'border-slate-300' : 'border-blue-200'} rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 ${isSupervisorView ? 'focus:ring-[#1F2937]' : 'focus:ring-[#0A347B]'}`}
+                        className={`w-full px-3 py-2 bg-white border ${'border-blue-200'} rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 ${'focus:ring-[#0A347B]'}`}
                       >
                         {COMMON_SPECIALTIES.map((spec) => (
                           <option key={spec} value={spec}>
@@ -809,7 +818,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           value={customSpecialty}
                           onChange={(e) => setCustomSpecialty(e.target.value)}
                           placeholder="Enter the exact specialty..."
-                          className={`w-full px-3 py-1.5 bg-white border ${isSupervisorView ? 'border-slate-400' : 'border-blue-300'} rounded-lg text-xs`}
+                          className={`w-full px-3 py-1.5 bg-white border ${'border-blue-300'} rounded-lg text-xs`}
                           required
                         />
                       )}
@@ -836,19 +845,19 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       onClick={() => setCoverageType('Outpatient')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         coverageType === 'Outpatient'
-                          ? (isSupervisorView ? 'bg-slate-100/90 border-[#1F2937] ring-2 ring-[#1F2937]/20 shadow-xs' : 'bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs')
+                          ? ('bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs')
                           : 'bg-white border-slate-200 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-black ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>🏥 Outpatient</span>
+                        <span className={`text-xs font-black ${'text-[#0A347B]'}`}>🏥 Outpatient</span>
                         {coverageType === 'Outpatient' && (
-                          <CheckCircle2 className={`w-4 h-4 ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`} />
+                          <CheckCircle2 className={`w-4 h-4 ${'text-[#0A347B]'}`} />
                         )}
                       </div>
                       <div className="mt-2 text-xs">
                         <span className="text-[10px] text-slate-400 block">Available Balance:</span>
-                        <span className={`text-sm font-black ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>
+                        <span className={`text-sm font-black ${'text-[#0A347B]'}`}>
                           ${selectedMember?.outpatientBalanceUSD ?? 600} USD
                         </span>
                       </div>
@@ -880,11 +889,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 </div>
 
                 {/* 5. DIAGNOSTIC & PRESCRIPTIONS FRAMEWORK */}
-                <div className={`p-4 ${isSupervisorView ? 'bg-slate-100/40' : 'bg-blue-50/40'} rounded-xl border ${isSupervisorView ? 'border-slate-300' : 'border-blue-200'} space-y-3`}>
+                <div className={`p-4 ${'bg-blue-50/40'} rounded-xl border ${'border-blue-200'} space-y-3`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <FileText className={`w-4 h-4 ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`} />
-                      <span className={`text-xs font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>5. Physician Diagnosis & Prescriptions Panel</span>
+                      <FileText className={`w-4 h-4 ${'text-[#0A347B]'}`} />
+                      <span className={`text-xs font-bold ${'text-[#0A347B]'}`}>5. Physician Diagnosis & Prescriptions Panel</span>
                     </div>
                   </div>
 
@@ -972,14 +981,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     </button>
                     <button
                       onClick={() => handleShare(generatedForm)}
-                      className={`px-3 py-1.5 ${isSupervisorView ? 'bg-slate-100' : 'bg-blue-50'} border ${isSupervisorView ? 'border-slate-300' : 'border-blue-200'} ${isSupervisorView ? 'hover:bg-slate-200' : 'hover:bg-blue-100'} ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'} rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer`}
+                      className={`px-3 py-1.5 ${'bg-blue-50'} border ${'border-blue-200'} ${'hover:bg-blue-100'} ${'text-[#0A347B]'} rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer`}
                     >
                       <Share2 className="w-3.5 h-3.5" />
                       <span>Share</span>
                     </button>
                     <button
                       onClick={() => handleDownloadPDF(generatedForm)}
-                      className={`px-3.5 py-1.5 ${isSupervisorView ? 'bg-[#1F2937]' : 'bg-[#0A347B]'} ${isSupervisorView ? 'hover:bg-[#111827]' : 'hover:bg-[#08285e]'} text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer`}
+                      className={`px-3.5 py-1.5 ${'bg-[#0A347B]'} ${'hover:bg-[#08285e]'} text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer`}
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>PDF</span>
@@ -990,7 +999,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 {/* Simulated Paper */}
                 <div className="bg-white p-5 rounded-xl border-2 border-slate-200 shadow-lg font-sans text-xs space-y-3.5 relative">
                   {/* Header Bar */}
-                  <div className={`${isSupervisorView ? 'bg-[#1F2937]' : 'bg-[#0A347B]'} text-white p-3.5 rounded-lg flex items-center justify-between border-b-4 border-[#00A859]`}>
+                  <div className={`${'bg-[#0A347B]'} text-white p-3.5 rounded-lg flex items-center justify-between border-b-4 border-[#00A859]`}>
                     <div className="flex items-center gap-2.5">
                       {/* === AMÉLIORATION AJOUTÉE : logo Activa en BLANC (silhouette), posé directement
                           sur le bandeau coloré à la place de la mention texte "ACTIVA HealthPass" —
@@ -999,18 +1008,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <img src={ACTIVA_LOGO_WHITE_BASE64} alt="Activa" className="w-full h-full object-contain" />
                       </div>
                       <div>
-                        <div className={`text-[9.5px] ${isSupervisorView ? 'text-slate-200' : 'text-blue-100'} uppercase`}>Medical Coverage Authorization Form</div>
+                        <div className={`text-[9.5px] ${'text-blue-100'} uppercase`}>Medical Coverage Authorization Form</div>
                       </div>
                     </div>
                     <div className="text-right font-mono text-[9.5px]">
                       <div className="font-bold">{generatedForm.securityNumber}</div>
-                      <div className={`${isSupervisorView ? 'text-slate-300' : 'text-blue-200'}`}>{generatedForm.issueDate}</div>
+                      <div className={`${'text-blue-200'}`}>{generatedForm.issueDate}</div>
                     </div>
                   </div>
 
                   {/* 1. Insured Details & Treatment Modality */}
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
-                    <div className={`text-[10px] font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'} uppercase tracking-wide`}>
+                    <div className={`text-[10px] font-bold ${'text-[#0A347B]'} uppercase tracking-wide`}>
                       1. Insured Beneficiary & Care Modality
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -1020,7 +1029,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       </div>
                       <div>
                         <span className="text-slate-400 text-[10px] block">Health Card No.</span>
-                        <strong className={`${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'} font-mono`}>{generatedForm.memberCardNo}</strong>
+                        <strong className={`${'text-[#0A347B]'} font-mono`}>{generatedForm.memberCardNo}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 text-[10px] block">Employer / Sponsor</span>
@@ -1028,7 +1037,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       </div>
                       <div>
                         <span className="text-slate-400 text-[10px] block">Care Modality</span>
-                        <strong className={generatedForm.coverageType === 'Outpatient' ? (isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]') : 'text-[#00A859]'}>
+                        <strong className={generatedForm.coverageType === 'Outpatient' ? ('text-[#0A347B]') : 'text-[#00A859]'}>
                           {generatedForm.coverageType === 'Outpatient' ? '🏥 Outpatient' : '🛏️ Inpatient'}
                         </strong>
                       </div>
@@ -1037,7 +1046,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
                   {/* 2. Provider Details & Practitioner Type */}
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
-                    <div className={`text-[10px] font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'} uppercase tracking-wide`}>
+                    <div className={`text-[10px] font-bold ${'text-[#0A347B]'} uppercase tracking-wide`}>
                       2. Healthcare Provider & Practitioner
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -1047,7 +1056,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       </div>
                       <div>
                         <span className="text-slate-400 text-[10px] block">Practitioner Type</span>
-                        <strong className={generatedForm.practitionerType === 'Specialist' ? 'text-purple-700' : (isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]')}>
+                        <strong className={generatedForm.practitionerType === 'Specialist' ? 'text-purple-700' : ('text-[#0A347B]')}>
                           {generatedForm.practitionerType === 'Specialist'
                             ? `👨‍⚕️ Specialist (${generatedForm.doctorSpecialty || 'Medical'})`
                             : '🩺 General Practitioner'}
@@ -1061,10 +1070,10 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   </div>
 
                   {/* 3. DIAGNOSTIC & PRESCRIPTIONS FRAMEWORK */}
-                  <div className={`bg-white p-3.5 rounded-lg border-2 ${isSupervisorView ? 'border-[#1F2937]/20' : 'border-[#0A347B]/20'} space-y-2`}>
+                  <div className={`bg-white p-3.5 rounded-lg border-2 ${'border-[#0A347B]/20'} space-y-2`}>
                     <div className="flex items-center justify-between border-b border-slate-100 pb-1">
-                      <div className={`text-[10px] font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'} uppercase tracking-wide flex items-center gap-1.5`}>
-                        <PenTool className={`w-3 h-3 ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`} />
+                      <div className={`text-[10px] font-bold ${'text-[#0A347B]'} uppercase tracking-wide flex items-center gap-1.5`}>
+                        <PenTool className={`w-3 h-3 ${'text-[#0A347B]'}`} />
                         <span>3. Physician Reserved Section</span>
                       </div>
                     </div>
@@ -1107,9 +1116,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       <div className="text-[8px] text-slate-500 font-mono">Date: ____/____/2026</div>
                     </div>
 
-                    <div className={`p-3 ${isSupervisorView ? 'bg-slate-100/50' : 'bg-blue-50/50'} border-2 border-dashed ${isSupervisorView ? 'border-[#1F2937]/40' : 'border-[#0A347B]/40'} rounded-lg text-center h-24 flex flex-col justify-between`}>
-                      <div className={`flex items-center justify-center gap-1 text-[9.5px] font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>
-                        <PenTool className={`w-3 h-3 ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`} />
+                    <div className={`p-3 ${'bg-blue-50/50'} border-2 border-dashed ${'border-[#0A347B]/40'} rounded-lg text-center h-24 flex flex-col justify-between`}>
+                      <div className={`flex items-center justify-center gap-1 text-[9.5px] font-bold ${'text-[#0A347B]'}`}>
+                        <PenTool className={`w-3 h-3 ${'text-[#0A347B]'}`} />
                         <span>Physician Stamp & Signature</span>
                       </div>
                       <div className="text-[8px] text-slate-400 italic">Facility stamp required</div>
@@ -1120,7 +1129,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* Barcode & Security */}
                   <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <QrCode className={`w-7 h-7 ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`} />
+                      <QrCode className={`w-7 h-7 ${'text-[#0A347B]'}`} />
                       <div>
                         <div className="text-[9.5px] font-mono font-bold text-slate-800">{generatedForm.securityNumber}</div>
                         <div className="text-[8px] text-slate-400">ACTIVA Security Identifier</div>
@@ -1204,7 +1213,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
                   placeholder="Search member, card, ref..."
-                  className={`w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 ${isSupervisorView ? 'focus:ring-[#1F2937]' : 'focus:ring-[#0A347B]'}`}
+                  className={`w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 ${'focus:ring-[#0A347B]'}`}
                 />
               </div>
             </div>
@@ -1260,7 +1269,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     const isSpec = form.practitionerType === 'Specialist' || form.practitionerType === 'Spécialiste';
                     return (
                       <tr key={form.id} className="hover:bg-slate-50 transition">
-                        <td className={`py-3.5 px-4 font-mono font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'} whitespace-nowrap`}>
+                        <td className={`py-3.5 px-4 font-mono font-bold ${'text-[#0A347B]'} whitespace-nowrap`}>
                           {form.securityNumber}
                         </td>
                         <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
@@ -1278,7 +1287,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                             className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                               isSpec
                                 ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                : (isSupervisorView ? 'bg-slate-100 text-[#1F2937] border border-slate-300' : 'bg-blue-50 text-[#0A347B] border border-blue-200')
+                                : ('bg-blue-50 text-[#0A347B] border border-blue-200')
                             }`}
                           >
                             {isSpec ? `Specialist (${form.doctorSpecialty || 'Medical'})` : 'Generalist'}
@@ -1288,7 +1297,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           <span
                             className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                               form.coverageType === 'Outpatient'
-                                ? (isSupervisorView ? 'bg-slate-100 text-[#1F2937]' : 'bg-blue-50 text-[#0A347B]')
+                                ? ('bg-blue-50 text-[#0A347B]')
                                 : 'bg-emerald-50 text-[#00A859]'
                             }`}
                           >
@@ -1302,7 +1311,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : form.status === 'pending_return'
                                 ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : (isSupervisorView ? 'bg-slate-100 text-[#1F2937] border border-slate-300' : 'bg-blue-50 text-[#0A347B] border border-blue-200')
+                                : ('bg-blue-50 text-[#0A347B] border border-blue-200')
                             }`}
                           >
                             {form.status === 'completed'
@@ -1321,28 +1330,28 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                                 // avant affichage à l'écran (pas seulement pour le PDF).
                                 setPreviewModalForm(await decryptMedicalFormPrescription(form));
                               }}
-                              className={`p-1.5 text-slate-500 ${isSupervisorView ? 'hover:text-[#1F2937]' : 'hover:text-[#0A347B]'} ${isSupervisorView ? 'hover:bg-slate-100' : 'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
+                              className={`p-1.5 text-slate-500 ${'hover:text-[#0A347B]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
                               title="Preview"
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDownloadPDF(form)}
-                              className={`p-1.5 text-slate-500 ${isSupervisorView ? 'hover:text-[#1F2937]' : 'hover:text-[#0A347B]'} ${isSupervisorView ? 'hover:bg-slate-100' : 'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
+                              className={`p-1.5 text-slate-500 ${'hover:text-[#0A347B]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
                               title="Download PDF"
                             >
                               <Download className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handlePrint(form)}
-                              className={`p-1.5 text-slate-500 ${isSupervisorView ? 'hover:text-[#1F2937]' : 'hover:text-[#0A347B]'} ${isSupervisorView ? 'hover:bg-slate-100' : 'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
+                              className={`p-1.5 text-slate-500 ${'hover:text-[#0A347B]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
                               title="Print"
                             >
                               <Printer className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleShare(form)}
-                              className={`p-1.5 text-slate-500 ${isSupervisorView ? 'hover:text-[#1F2937]' : 'hover:text-[#0A347B]'} ${isSupervisorView ? 'hover:bg-slate-100' : 'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
+                              className={`p-1.5 text-slate-500 ${'hover:text-[#0A347B]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
                               title="Share"
                             >
                               <Share2 className="w-4 h-4" />
@@ -1379,7 +1388,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 sont adaptées à un fond blanc. */}
             <div className="bg-white border-b border-slate-200 p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg ${isSupervisorView ? 'bg-slate-100 text-[#1F2937]' : 'bg-[var(--brand-50)] text-[var(--brand-900)]'} flex items-center justify-center`}>
+                <div className={`w-8 h-8 rounded-lg ${'bg-[var(--brand-50)] text-[var(--brand-900)]'} flex items-center justify-center`}>
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
@@ -1416,7 +1425,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div>
                   <span className="text-slate-400 text-[10px] block font-semibold">Insured Beneficiary</span>
                   <span className="font-bold text-slate-800 text-sm">{previewModalForm.memberName}</span>
-                  <span className={`font-mono text-xs ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'} block`}>{previewModalForm.memberCardNo}</span>
+                  <span className={`font-mono text-xs ${'text-[#0A347B]'} block`}>{previewModalForm.memberCardNo}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] block font-semibold">Company / Sponsor</span>
@@ -1424,11 +1433,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] block font-semibold">Provider / Facility</span>
-                  <span className={`font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>{previewModalForm.providerName}</span>
+                  <span className={`font-bold ${'text-[#0A347B]'}`}>{previewModalForm.providerName}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] block font-semibold">Consultation Type</span>
-                  <span className={`font-bold ${previewModalForm.practitionerType === 'Specialist' ? 'text-purple-700' : (isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]')}`}>
+                  <span className={`font-bold ${previewModalForm.practitionerType === 'Specialist' ? 'text-purple-700' : ('text-[#0A347B]')}`}>
                     {previewModalForm.practitionerType === 'Specialist'
                       ? `👨‍⚕️ Specialist (${previewModalForm.doctorSpecialty || 'Medical'})`
                       : '🩺 General Practitioner'}
@@ -1443,7 +1452,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   </div>
                   <div className="text-right">
                     <span className="text-slate-400 text-[10px] block font-semibold">Available Balance</span>
-                    <span className={`font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`}>
+                    <span className={`font-bold ${'text-[#0A347B]'}`}>
                       ${previewModalForm.coverageType === 'Outpatient' ? previewModalForm.outpatientBalanceUSD : previewModalForm.inpatientBalanceUSD} USD
                     </span>
                   </div>
@@ -1452,8 +1461,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
               {/* Diagnostic & Prescriptions Section Preview */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className={`font-bold text-xs ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'} flex items-center gap-1.5`}>
-                  <PenTool className={`w-3.5 h-3.5 ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'}`} />
+                <div className={`font-bold text-xs ${'text-[#0A347B]'} flex items-center gap-1.5`}>
+                  <PenTool className={`w-3.5 h-3.5 ${'text-[#0A347B]'}`} />
                   <span>Physician Diagnosis & Prescriptions Panel</span>
                 </div>
                 <div className="text-slate-700 space-y-1.5">
@@ -1473,9 +1482,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               </div>
 
               {/* Status Update Control */}
-              <div className={`p-3 ${isSupervisorView ? 'bg-slate-100/70' : 'bg-blue-50/70'} border ${isSupervisorView ? 'border-slate-300' : 'border-blue-200'} rounded-xl flex items-center justify-between`}>
+              <div className={`p-3 ${'bg-blue-50/70'} border ${'border-blue-200'} rounded-xl flex items-center justify-between`}>
                 <div>
-                  <span className={`font-bold ${isSupervisorView ? 'text-[#1F2937]' : 'text-[#0A347B]'} block`}>Document Status:</span>
+                  <span className={`font-bold ${'text-[#0A347B]'} block`}>Document Status:</span>
                   <span className="text-[11px] text-slate-600">
                     {previewModalForm.status === 'completed'
                       ? 'Closed and signed off by the physician'
