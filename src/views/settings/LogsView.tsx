@@ -31,26 +31,44 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
   // complet reste consultable en un clic via ce bouton, et reste exportable en CSV/JSON.
   const [showFullHistory, setShowFullHistory] = useState(false);
 
+  // === AMÉLIORATION AJOUTÉE : robustesse (retour utilisateur — page blanche/"Cannot read
+  // properties of undefined (reading 'toLowerCase')") — cause racine : `logs` (venant de
+  // FirestoreService.subscribeToLogs) lit TOUTE la collection `auditLogs`, qui contient deux
+  // formes de documents différentes (voir firestore.rules) : les journaux de connexion
+  // (userEmail/ipAddress/userAgent/status) que cette page affiche, ET les journaux d'action
+  // métier (userId/action/category/entityType — ENROLLMENT_APPROVED, DATA_EXPORTED...) qui
+  // n'ont AUCUN de ces champs. Le composant traitait pourtant chaque entrée comme si elle
+  // avait forcément la forme "connexion" (cast `as LoginLog` côté service), donc dès qu'une
+  // entrée d'action métier apparaissait dans les données, le filtre plantait sur un champ
+  // manquant. Filtré ici aux seules entrées de connexion (mêmes champs que
+  // isPreAuthLoginLogValid dans firestore.rules) — les journaux d'action métier restent
+  // intacts en base, simplement pas affichés dans CETTE table dont les colonnes (IP/Browser/
+  // Location) ne les concernent pas.
+  const loginOnlyLogs = useMemo(
+    () => logs.filter((log) => log.status === 'success' || log.status === 'failed'),
+    [logs]
+  );
+
   const latestLoginPerUser = useMemo(() => {
     const byUser = new Map<string, LoginLog>();
-    for (const log of logs) {
+    for (const log of loginOnlyLogs) {
       const existing = byUser.get(log.userEmail);
       if (!existing || log.timestamp > existing.timestamp) {
         byUser.set(log.userEmail, log);
       }
     }
     return Array.from(byUser.values());
-  }, [logs]);
+  }, [loginOnlyLogs]);
 
-  const baseLogs = showFullHistory ? logs : latestLoginPerUser;
+  const baseLogs = showFullHistory ? loginOnlyLogs : latestLoginPerUser;
 
   const filteredLogs = useMemo(() => {
     return baseLogs
       .filter((log) => {
         const matchSearch =
-          log.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          log.ipAddress.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          log.userAgent.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (log.userEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (log.ipAddress || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (log.userAgent || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
           (log.location && log.location.toLowerCase().includes(searchTerm.toLowerCase()));
 
         const matchStatus = statusFilter === 'ALL' || log.status === statusFilter;
@@ -68,7 +86,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
       `"${l.userEmail}"`,
       `"${l.profile}"`,
       `"${l.ipAddress}"`,
-      `"${l.userAgent.replace(/"/g, '""')}"`,
+      `"${(l.userAgent || '').replace(/"/g, '""')}"`,
       `"${l.status}"`,
       // === AMÉLIORATION AJOUTÉE : sécurité (audit) — un repli sur une fausse localisation
       // fixe ("Monrovia, LR") faisait croire à une géolocalisation réelle même quand la
