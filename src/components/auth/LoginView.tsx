@@ -381,13 +381,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
         {/* Motif de courbes — copié tel quel de Sidebar.tsx. === AMÉLIORATION AJOUTÉE :
             mouvements retirés (retour utilisateur, 2026-09-07 — deux essais d'animation
-            n'étaient pas ce qui était voulu) : motif à nouveau parfaitement statique. À la
-            place, le motif est redescendu vers le bas du panneau (hauteur du SVG réduite à
-            65% de celle du panneau, toujours ancré à bottom-0) — les mêmes courbes occupent
-            désormais uniquement la partie basse, au lieu de remonter jusqu'à mi-hauteur.
-            Tracé, couleurs et opacité inchangés. === */}
+            n'étaient pas ce qui était voulu) : motif à nouveau parfaitement statique. La
+            position (hauteur/ancrage) a aussi été remise exactement comme avant tous ces
+            essais (retour utilisateur : "remettre les motifs là comme ils étaient avant") —
+            h-full au lieu du h-[65%] essayé entre-temps. Tracé, couleurs et opacité
+            inchangés. === */}
         <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
-          <svg className="absolute bottom-0 left-0 w-full h-[65%]" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
             <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
             <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
