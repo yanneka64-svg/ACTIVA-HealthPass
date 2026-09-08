@@ -380,19 +380,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
         <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
 
         {/* Motif de courbes — copié tel quel de Sidebar.tsx. === AMÉLIORATION AJOUTÉE :
-            ondulation verticale permanente (retour utilisateur, 2026-09-07 — le défilement
-            horizontal essayé juste avant "n'est pas ce qui était voulu") : chaque courbe se
-            déforme sur place (ses points de contrôle montent/descendent légèrement), sans
-            aucun déplacement horizontal, comme de vraies vagues qui respirent. Les 4 courbes
-            sont déphasées entre elles (délais négatifs) pour un mouvement de houle superposée
-            plutôt que 4 lignes bougeant en même temps. Tracé de départ, couleurs et opacité
-            inchangés. === */}
+            mouvements retirés (retour utilisateur, 2026-09-07 — deux essais d'animation
+            n'étaient pas ce qui était voulu) : motif à nouveau parfaitement statique. À la
+            place, le motif est redescendu vers le bas du panneau (hauteur du SVG réduite à
+            65% de celle du panneau, toujours ancré à bottom-0) — les mêmes courbes occupent
+            désormais uniquement la partie basse, au lieu de remonter jusqu'à mi-hauteur.
+            Tracé, couleurs et opacité inchangés. === */}
         <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
-          <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-            <path className="login-wave-path-1" d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
-            <path className="login-wave-path-2" d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-            <path className="login-wave-path-3" d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
-            <path className="login-wave-path-4" d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
+          <svg className="absolute bottom-0 left-0 w-full h-[65%]" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
+            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
+            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
+            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
           </svg>
         </div>
 

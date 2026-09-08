@@ -88,9 +88,10 @@
 
 /* === AMÉLIORATION AJOUTÉE : animation du panneau bleu de la page de connexion (badge,
    titre "Hello, ACTIVA HealthPass!", texte et copyright entrent en fondu/glissement à
-   l'affichage ; le motif de courbes décoratif dérive lentement en continu) — sur demande
-   explicite. Comportement du formulaire, mise en page et couleurs strictement inchangés,
-   seule une animation d'entrée/ambiance est ajoutée. Respecte prefers-reduced-motion. */
+   l'affichage) — sur demande explicite. Le motif de courbes décoratif, lui, est resté
+   statique après plusieurs essais d'animation jugés pas convaincants (voir LoginView.tsx) —
+   seule son ancrage vertical (redescendu vers le bas du panneau) a changé. Comportement du
+   formulaire, mise en page et couleurs strictement inchangés. Respecte prefers-reduced-motion. */
 @keyframes login-fade-up {
   from {
     opacity: 0;
@@ -100,29 +101,6 @@
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-/* === AMÉLIORATION AJOUTÉE : remplace le défilement horizontal essayé juste avant ("pas ce qui
-   était voulu") par une véritable ondulation verticale — chaque courbe déforme ses propres
-   points de contrôle sur place (anime la propriété CSS `d`), sans aucun déplacement latéral.
-   Une @keyframes par courbe (formes de départ différentes -> impossible de les faire partager
-   une seule règle), déphasées via animation-delay négatif dans les classes ci-dessous pour un
-   mouvement de houle superposée plutôt que 4 lignes synchronisées. */
-@keyframes login-wave-1 {
-  0%, 100% { d: path('M-40 320 C 30 240, 110 220, 270 250'); }
-  50% { d: path('M-40 320 C 30 227, 110 209, 270 250'); }
-}
-@keyframes login-wave-2 {
-  0%, 100% { d: path('M-40 280 C 50 210, 130 190, 270 220'); }
-  50% { d: path('M-40 280 C 50 223, 130 203, 270 220'); }
-}
-@keyframes login-wave-3 {
-  0%, 100% { d: path('M-40 240 C 70 180, 150 160, 270 190'); }
-  50% { d: path('M-40 240 C 70 167, 150 147, 270 190'); }
-}
-@keyframes login-wave-4 {
-  0%, 100% { d: path('M-40 200 C 90 150, 170 130, 270 160'); }
-  50% { d: path('M-40 200 C 90 163, 170 143, 270 160'); }
 }
 
 .login-anim-fade-up {
@@ -135,22 +113,11 @@
 .login-anim-delay-3 { animation-delay: 0.4s; }
 .login-anim-delay-4 { animation-delay: 0.55s; }
 
-.login-wave-path-1 { animation: login-wave-1 9s ease-in-out infinite; }
-.login-wave-path-2 { animation: login-wave-2 9s ease-in-out infinite; animation-delay: -2.25s; }
-.login-wave-path-3 { animation: login-wave-3 9s ease-in-out infinite; animation-delay: -4.5s; }
-.login-wave-path-4 { animation: login-wave-4 9s ease-in-out infinite; animation-delay: -6.75s; }
-
 @media (prefers-reduced-motion: reduce) {
   .login-anim-fade-up {
     opacity: 1;
     animation: none;
     transform: none;
-  }
-  .login-wave-path-1,
-  .login-wave-path-2,
-  .login-wave-path-3,
-  .login-wave-path-4 {
-    animation: none;
   }
 }
 
