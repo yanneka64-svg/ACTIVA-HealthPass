@@ -450,14 +450,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
             {/* === AMÉLIORATION AJOUTÉE : espace réduit davantage (retour utilisateur, 2026-09-07
                 — un premier resserrement mt-7/space-y-4/py-3 -> mt-5/space-y-3/py-2.5 était trop
-                léger pour être perceptible) : au-dessus du formulaire (mt-5 -> mt-4), entre les
-                champs Username/Password/Sign In (space-y-3 -> space-y-2), et champs/bouton plus
-                compacts (py-2.5 -> py-2) ; aucun champ ni comportement retiré.
+                léger pour être perceptible) : au-dessus du formulaire (mt-5 -> mt-4), et
+                champs/bouton plus compacts (py-2.5 -> py-2) ; aucun champ ni comportement retiré.
                 === AMÉLIORATION AJOUTÉE : style "Compact & fin" (retenu sur la maquette mobile,
                 appliqué ici au desktop) — les champs Username/Password passent d'un cadre rempli
                 (fond #F8FAFC, bordure pleine, angles arrondis) à un simple soulignement fin, sur
-                fond transparent, plus étroit et plus discret. === */}
-            <form onSubmit={handleSubmit} className="mt-4 space-y-2">
+                fond transparent, plus étroit et plus discret.
+                === AMÉLIORATION AJOUTÉE : espace entre les champs Username/Password/Sign In élargi
+                (space-y-2 -> space-y-6, retour utilisateur avec modèle de référence à l'appui)
+                pour reprendre le même espacement entre interlignes que ce modèle — largeur,
+                style et couleurs des champs strictement inchangés. === */}
+            <form onSubmit={handleSubmit} className="mt-4 space-y-6">
               {/* Error Alert Box */}
               {error && (
                 <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
