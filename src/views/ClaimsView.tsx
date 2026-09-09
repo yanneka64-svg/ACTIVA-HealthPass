@@ -47,6 +47,8 @@ import { computeFraudScore } from '../modules/fraud/fraudScore';
 import { FraudScoreBadge } from '../modules/fraud/FraudScoreBadge';
 import { checkPreauthorizationNeeded } from '../modules/preauthorization/preauthCheck';
 import { PreauthorizationBadge } from '../modules/preauthorization/PreauthorizationBadge';
+import { computeBillAudit } from '../modules/billaudit/billAuditCheck';
+import { BillAuditBadge } from '../modules/billaudit/BillAuditBadge';
 
 interface ClaimsViewProps {
   currentSection?: string;
@@ -166,6 +168,16 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
     pendingClaims.forEach((c) => map.set(c.id, checkPreauthorizationNeeded(c)));
     return map;
   }, [preauthEnabled, pendingClaims]);
+
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 2 — BillAudit (voir plus haut). Même
+  // traitement que Fraud Detection / Preauthorization ci-dessus.
+  const billAuditEnabled = isFeatureEnabled('hp2_bill_audit');
+  const billAuditByClaimId = useMemo(() => {
+    if (!billAuditEnabled) return new Map<string, ReturnType<typeof computeBillAudit>>();
+    const map = new Map<string, ReturnType<typeof computeBillAudit>>();
+    pendingClaims.forEach((c) => map.set(c.id, computeBillAudit(c)));
+    return map;
+  }, [billAuditEnabled, pendingClaims]);
   const historyClaims = filteredClaims.filter((c) => c.status !== 'pending');
 
   const openRejectModal = (claim: Claim) => {
@@ -450,6 +462,9 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   {preauthEnabled && preauthByClaimId.get(claim.id) && (
                     <PreauthorizationBadge result={preauthByClaimId.get(claim.id)!} className="ml-1.5" />
                   )}
+                  {billAuditEnabled && billAuditByClaimId.get(claim.id) && (
+                    <BillAuditBadge result={billAuditByClaimId.get(claim.id)!} className="ml-1.5" />
+                  )}
                   {claim.assignedAgentName && (
                     <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
                       Assigned: {claim.assignedAgentName}
@@ -572,6 +587,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                         {preauthEnabled && preauthByClaimId.get(claim.id) && (
                           <span className="block mt-1">
                             <PreauthorizationBadge result={preauthByClaimId.get(claim.id)!} />
+                          </span>
+                        )}
+                        {billAuditEnabled && billAuditByClaimId.get(claim.id) && (
+                          <span className="block mt-1">
+                            <BillAuditBadge result={billAuditByClaimId.get(claim.id)!} />
                           </span>
                         )}
                         {claim.assignedAgentName && (

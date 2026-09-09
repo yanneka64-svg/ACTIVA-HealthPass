@@ -65,8 +65,16 @@ facts rather than the plan's initial guesses.
   `approveClaim`/`rejectClaim` (`src/services/workflowService.ts`), which are untouched. Builds
   on two signals that already existed but only at Agent intake (`duplicateWarning` /
   `frequencyWarning` in `AgentClaimsView.tsx`), generalized for the Superviseur's full pending
-  queue, plus a third new signal (unusual amount vs. the member's own claim history). Preauth and
-  BillAudit not yet started.
+  queue, plus a third new signal (unusual amount vs. the member's own claim history).
+- **Second and third modules shipped (2026-09-09):** Preauthorization (`hp2_preauthorization`)
+  and BillAudit (`hp2_bill_audit`) — both same shadow-mode badge treatment as Fraud Detection,
+  shown together on the same pending-claim row/card. BillAudit's scope was deliberately kept to
+  duplicate line-item detection only: a total-vs-itemized-sum check was considered and dropped
+  because `Claim.medicalActs[].amount` is stored in whatever currency was selected at submission
+  (`Claim.currency`) while `Claim.amount` is always USD-converted — comparing them directly would
+  have produced a false finding on every LRD-submitted claim, which is not acceptable for
+  something presented as an audit. **Phase 2 is now complete** (all 3 planned modules shipped,
+  all off by default).
 
 ### Phase 3 — Provider ecosystem + digital HealthPass card
 - Reframed from "enrich thin Admin screens" to "add new sub-features (Tariffs sub-tab, card
@@ -101,8 +109,8 @@ needed on either — feature-flag foundation, `src/modules/` structure).
 | Tariff Engine | `hp2_tariff_engine` | Shipped, off by default |
 | Fraud Detection | `hp2_fraud_detection` | Shipped, off by default (shadow-mode score only) |
 | Preauthorization | `hp2_preauthorization` | Shipped, off by default (shadow-mode badge only, $500 USD threshold — provisional, not yet configurable by Admin) |
+| BillAudit | `hp2_bill_audit` | Shipped, off by default (shadow-mode badge only — duplicate line-item detection; amount-vs-tariff checks deliberately deferred, see section 3 note in the module) |
 | Eligibility / Coverage Engine | — | Not built — existing `eligibilityService.ts` + org-level coverage rate kept as-is (section 3) |
-| BillAudit | `hp2_bill_audit` | Not started |
 | Provider digital card / QR | `hp2_provider_digital_card` | Not started |
 
 All flags default to `false` in `src/config/featureFlags.ts` — no shipped module is visible to
@@ -110,5 +118,7 @@ any production user until explicitly enabled.
 
 ## 6. Next step
 
-Continuing Phase 2 with Preauthorization and/or BillAudit next. Per the process rule above, each
-new screen gets a preview presented and confirmed before real implementation.
+Phase 2 complete. Next up is Phase 3 (Provider ecosystem + digital HealthPass card with
+server-verifiable QR) — flagged in section 3 as genuinely new foundational security work, since
+no HMAC/signing infrastructure exists today. Per the process rule above, a preview is presented
+and confirmed before real implementation.
