@@ -440,8 +440,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
           <div className="w-full max-w-[360px]">
             {/* Logo agrandi et centré, mieux mis en valeur qu'avant. === AMÉLIORATION
                 AJOUTÉE : espace réduit entre le logo et "Welcome Back!" (mb-8 -> mb-5, puis
-                mb-5 -> mb-4 sur nouvelle demande explicite), sur demande explicite. === */}
-            <div className="flex justify-center mb-4">
+                mb-5 -> mb-4, puis mb-4 -> mb-3 sur nouvelle demande explicite : "faire remonter
+                Welcome Back et sign in to access... pour avoir un peu d'espace entre la mention
+                username et sign in to access") — le bloc titre/sous-titre remonte pour libérer
+                de l'espace en dessous, avant le formulaire (voir mt-4 -> mt-6 plus bas). === */}
+            <div className="flex justify-center mb-3">
               <Logo size="2xl" showTagline={true} transparent={true} />
             </div>
 
@@ -463,8 +466,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 === AMÉLIORATION AJOUTÉE : espace entre les champs Username/Password/Sign In élargi
                 (space-y-2 -> space-y-6, retour utilisateur avec modèle de référence à l'appui)
                 pour reprendre le même espacement entre interlignes que ce modèle — largeur,
-                style et couleurs des champs strictement inchangés. === */}
-            <form onSubmit={handleSubmit} className="mt-4 space-y-6">
+                style et couleurs des champs strictement inchangés.
+                === AMÉLIORATION AJOUTÉE : espace au-dessus du formulaire élargi (mt-4 -> mt-6,
+                puis mt-6 -> mt-7 sur nouvelle demande explicite : "plus d'espace mais pas trop"),
+                retour utilisateur : "avoir un peu d'espace entre la mention username et sign in
+                to access...") pour dégager le champ Username du sous-titre. === */}
+            <form onSubmit={handleSubmit} className="mt-7 space-y-6">
               {/* Error Alert Box */}
               {error && (
                 <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
