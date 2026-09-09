@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff } from 'lucide-react';
 import { Language } from '../../types';
 import { Logo } from '../Logo';
-import activaLogoWhite from '../../assets/logos/logo-activa-white.png';
+import activaLogoOriginal from '../../assets/logos/logo-activa.png';
 import { auth, functions, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -390,37 +390,21 @@ export const LoginView: React.FC<LoginViewProps> = ({
             titre, du texte et du copyright — sur demande explicite ("je veux que ces données
             soient animées"). Contenu, couleurs et mise en page strictement inchangés.
             === AMÉLIORATION AJOUTÉE : le badge "ACTIVA Cloud Secure Portal" est remplacé par
-            le logo Activa exact (asset src/assets/logos/logo-activa.png, déjà présent dans le
-            dépôt mais jamais câblé), recoloré en blanc uni (alpha conservé, RGB forcé à blanc)
-            — sur demande explicite ("reprend exactement le logo d'Activa et retire le drapeau
-            qui se trouve à côté"), uniquement sur cette page.
-            === AMÉLIORATION AJOUTÉE : agrandi (h-9 -> h-28) sur retour utilisateur explicite
-            ("le logo activa est petit et les écritures sur le logo ne sont pas très
-            lisibles"), puis ramené à une taille intermédiaire (h-28 -> h-16, retour
-            utilisateur : "comme sur le premier modèle mais que ça soit lisible"), puis réduit
-            encore (h-16 -> h-11, retour utilisateur : "diminue encore la taille et fait en
-            sorte que les mentions sur le logo ne soient pas floues"). La taille (h-11) est
-            restée bonne (retour utilisateur : "la taille est bonne") mais le slogan en
-            dessous ("our clients our passion" / "passionnément clients") restait illisible à
-            toute taille raisonnable — trop dense pour la résolution native du fichier source
-            (169x96), qui a donc été recadré pour ne garder QUE la signature "Activa" (image).
-            === AMÉLIORATION AJOUTÉE : slogan remis (retour utilisateur : "remets les mentions
-            mais rends-les plus lisibles et moins touffues"), d'abord reconstruit en texte
-            HTML séparé — écarté ensuite (retour utilisateur : "ne dénature pas le logo,
-            conserve la forme telle que c'était mais rends les écritures lisibles") pour
-            revenir à l'image du logo complète et unique, telle qu'à l'origine. Seul le
-            fichier source change : ré-échantillonné à 3x (Lanczos) + renforcement de la
-            netteté (unsharp mask) avant recolorisation en blanc, au lieu d'un agrandissement
-            brut par le navigateur depuis les 169x96 d'origine — la forme et la composition du
-            logo restent exactement identiques, seule leur définition est meilleure.
-            === AMÉLIORATION AJOUTÉE : taille réduite à nouveau (h-16 -> h-12, retour
-            utilisateur explicite) — l'asset ré-échantillonné/renforcé reste net même réduit,
-            contrairement à l'original brut. === */}
-        <img
-          src={activaLogoWhite}
-          alt="Activa"
-          className="relative z-10 h-12 w-auto self-start login-anim-fade-up login-anim-delay-1"
-        />
+            le logo Activa exact (asset src/assets/logos/logo-activa.png), uniquement sur
+            cette page. Après plusieurs essais de recolorisation en blanc (retouches
+            successives pour la taille et la netteté), retour à la version la plus simple sur
+            demande explicite ("faisons simple, adopte plutôt le logo activa original sous
+            fond blanc, conserve la taille du logo telle qu'il existe actuellement") :
+            couleurs d'origine du logo (jamais retouchées, donc jamais floues), posées sur une
+            plaque blanche pour rester lisibles sur le fond bleu marine du panneau. Taille de
+            l'image inchangée (h-12). === */}
+        <div className="relative z-10 self-start bg-white rounded-lg px-3 py-2 shadow-sm login-anim-fade-up login-anim-delay-1">
+          <img
+            src={activaLogoOriginal}
+            alt="Activa"
+            className="h-12 w-auto"
+          />
+        </div>
 
         <div className="relative z-10">
           <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight login-anim-fade-up login-anim-delay-2">
