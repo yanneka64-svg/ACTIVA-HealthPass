@@ -379,8 +379,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
       </div>
 
-      {/* LEFT PANEL — dégradé bleu + motif de courbes, identiques à la sidebar Agent */}
-      <div className="hidden lg:flex lg:w-[46%] xl:w-[44%] bg-gradient-to-b from-[#072659] via-[#0A347B] to-[#0D2B63] relative overflow-hidden flex-col justify-between p-10 xl:p-14">
+      {/* LEFT PANEL — dégradé bleu + motif de courbes, identiques à la sidebar Agent.
+          === AMÉLIORATION AJOUTÉE : élargi (46%/44% -> 56%/54%) pour réduire d'autant la
+          largeur du panneau blanc du formulaire (retour utilisateur explicite). === */}
+      <div className="hidden lg:flex lg:w-[56%] xl:w-[54%] bg-gradient-to-b from-[#072659] via-[#0A347B] to-[#0D2B63] relative overflow-hidden flex-col justify-between p-10 xl:p-14">
         {/* Halo lumineux — identique à Sidebar.tsx (accentGlow Agent: bg-blue-400/20) */}
         <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
 
