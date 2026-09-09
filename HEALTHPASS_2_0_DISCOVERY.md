@@ -82,6 +82,28 @@ facts rather than the plan's initial guesses.
 - Digital card QR/barcode signing is new foundational security work (no HMAC infra exists
   today) — to be scoped and built explicitly, not treated as a wiring task.
 - Any OTP/PIN verification flow, if kept in scope, is also net-new work for the same reason.
+- **First module shipped in code (2026-09-09):** Digital HealthPass Card + server-verifiable QR,
+  behind `hp2_provider_digital_card`. Mirrors the exact architecture already used for clinical
+  field encryption (`functions/src/encryptionService.ts`): a signing key defined via
+  `defineSecret`, loaded only inside Cloud Functions, that never reaches the browser. Two new
+  callable functions (`functions/src/index.ts`): `generateDigitalCardSignature` (HMAC-SHA256 over
+  card number + a 3-year provisional expiry) and `verifyDigitalCardSignature` (constant-time
+  signature check, then a **fresh** server-side member lookup by card number — the verifier never
+  trusts identity data embedded in the QR itself, so a suspended member's old card correctly
+  shows their current status). Client module `src/modules/digitalcard/` renders the card + a real
+  QR (new dependency: `qrcode` + `@types/qrcode`) and a verification UI accepting either the
+  currently-displayed card or a pasted code, wired into `AgentIdentificationView.tsx`.
+  - **Not yet usable — deployment gap, deliberately left undone:** this session has no Firebase
+    deploy access. Before this can work for real: `firebase functions:secrets:set
+    CARD_SIGNING_KEY` (a strong random value) and `firebase deploy --only functions`. Until then
+    the flag must stay off — turning it on would show users a "not yet deployed" error, not a
+    broken feature, since the client fails closed with a clear message rather than silently.
+  - Verified without deployment: `functions/src/digitalCardSigningService.test.ts` (9 unit tests,
+    all passing) proves the signing/verification math directly — correct round-trip, rejects a
+    changed card number or expiry, rejects a tampered signature, differs under a different key.
+    The client UI (card rendering, real QR image, verify-result states) was rendered and
+    screenshotted with the two Cloud Function calls stubbed at the network boundary, since they
+    cannot be exercised live pre-deployment.
 
 ### Phase 4 — Reimbursement / Payment reconciliation / SLA / Analytics
 - Not yet investigated in depth. To receive its own discovery pass once Phases 1–3 clarify
@@ -111,7 +133,7 @@ needed on either — feature-flag foundation, `src/modules/` structure).
 | Preauthorization | `hp2_preauthorization` | Shipped, off by default (shadow-mode badge only, $500 USD threshold — provisional, not yet configurable by Admin) |
 | BillAudit | `hp2_bill_audit` | Shipped, off by default (shadow-mode badge only — duplicate line-item detection; amount-vs-tariff checks deliberately deferred, see section 3 note in the module) |
 | Eligibility / Coverage Engine | — | Not built — existing `eligibilityService.ts` + org-level coverage rate kept as-is (section 3) |
-| Provider digital card / QR | `hp2_provider_digital_card` | Not started |
+| Provider digital card / QR | `hp2_provider_digital_card` | Shipped in code, off by default — **not usable until deployed** (see section 3 note: `CARD_SIGNING_KEY` secret + `firebase deploy --only functions` required, neither done by this session) |
 
 All flags default to `false` in `src/config/featureFlags.ts` — no shipped module is visible to
 any production user until explicitly enabled.

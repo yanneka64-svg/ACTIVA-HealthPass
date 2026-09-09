@@ -36,6 +36,15 @@ import { logAuditEventServer, AuditLogEntry } from './auditService';
 import { processBulkMemberImportServer, ImportRowInput } from './importService';
 import { validatePayload } from './validation';
 import { MEDICAL_FIELD_ENCRYPTION_KEY, encryptFieldMap, decryptFieldMap } from './encryptionService';
+// === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 3 — Digital Card & Server-Verifiable QR ===
+import {
+  CARD_SIGNING_KEY,
+  signCardPayload,
+  verifyCardSignature,
+  normalizeCardNo,
+  computeDefaultValidThrough,
+  isValidThroughExpired,
+} from './digitalCardSigningService';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -1104,6 +1113,83 @@ export const decryptSensitiveFields = onCall(
     } catch (error: any) {
       throw new HttpsError('internal', error?.message || 'Failed to decrypt fields.');
     }
+  }
+);
+
+/**
+ * === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 3 — Digital Card & Server-Verifiable QR
+ * (derrière le flag `hp2_provider_digital_card`, désactivé par défaut) ===
+ * Signe (cardNo, validThrough) avec une clé qui ne quitte jamais le serveur (voir
+ * digitalCardSigningService.ts) — le client encode ensuite {cardNo, validThrough, signature}
+ * dans le QR affiché sur la carte numérique de l'assuré. `cardNo` provient de l'écran
+ * d'identification déjà affiché à l'Agent (donnée déjà visible, pas de fuite) ; seule la validité
+ * de la CARTE (et non celle de l'assuré) est établie ici — `verifyDigitalCardSignature`
+ * ci-dessous revérifie l'état réel de l'assuré au moment du scan, pas seulement la signature.
+ */
+export const generateDigitalCardSignature = onCall(
+  { secrets: [CARD_SIGNING_KEY] },
+  async (request: CallableRequest<{ cardNo?: string }>) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
+    }
+    validatePayload(request.data, {
+      cardNo: { type: 'string', required: true, maxLength: 50 },
+    });
+
+    const cardNo = normalizeCardNo(request.data.cardNo!);
+    const validThrough = computeDefaultValidThrough();
+    const signature = signCardPayload(cardNo, validThrough);
+    return { cardNo, validThrough, signature };
+  }
+);
+
+/**
+ * === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 3 — Digital Card & Server-Verifiable QR ===
+ * Vérifie une signature de carte (voir generateDigitalCardSignature ci-dessus) puis, si elle est
+ * valide et non expirée, relit l'assuré CORRESPONDANT en base pour renvoyer son état ACTUEL
+ * (nom, organisation, statut) — jamais les valeurs embarquées dans le QR lui-même, qui ne
+ * seraient plus fiables si l'assuré a été suspendu depuis l'émission de la carte. Une carte dont
+ * la signature ne correspond plus (contenu modifié) échoue ici même si elle "a l'air" identique
+ * à l'original.
+ */
+export const verifyDigitalCardSignature = onCall(
+  { secrets: [CARD_SIGNING_KEY] },
+  async (request: CallableRequest<{ cardNo?: string; validThrough?: string; signature?: string }>) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated.');
+    }
+    validatePayload(request.data, {
+      cardNo: { type: 'string', required: true, maxLength: 50 },
+      validThrough: { type: 'string', required: true, maxLength: 20 },
+      signature: { type: 'string', required: true, maxLength: 256 },
+    });
+
+    const cardNo = normalizeCardNo(request.data.cardNo!);
+    const { validThrough, signature } = request.data;
+
+    const isSignatureValid = verifyCardSignature(cardNo, validThrough!, signature!);
+    if (!isSignatureValid) {
+      return { valid: false };
+    }
+
+    const expired = isValidThroughExpired(validThrough!);
+
+    let member: { name: string; organization: string; status: string } | null = null;
+    try {
+      const snap = await db.collection('members').where('cardNo', '==', cardNo).limit(1).get();
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        member = {
+          name: data.principalName || 'Unknown',
+          organization: data.organization || 'Unknown',
+          status: data.status || 'Unknown',
+        };
+      }
+    } catch (error) {
+      logger.warn('verifyDigitalCardSignature: member lookup failed', { cardNo, error });
+    }
+
+    return { valid: true, expired, cardNo, validThrough, member };
   }
 );
 
