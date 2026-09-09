@@ -39,6 +39,12 @@ import {
   canReturnRecord,
 } from '../services/permissions';
 import { getRoleTheme } from '../theme/roleTheme';
+// === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 2 — Fraud Detection, derrière le flag
+// `hp2_fraud_detection` (désactivé par défaut, voir src/config/featureFlags.ts). Badge purement
+// informatif, mode silencieux : n'intercepte jamais handleApproveAttempt/onReject ci-dessous.
+import { isFeatureEnabled } from '../config/featureFlags';
+import { computeFraudScore } from '../modules/fraud/fraudScore';
+import { FraudScoreBadge } from '../modules/fraud/FraudScoreBadge';
 
 interface ClaimsViewProps {
   currentSection?: string;
@@ -136,6 +142,18 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
   }, [claims, searchTerm, selectedOrgFilter, selectedStatusFilter]);
 
   const pendingClaims = filteredClaims.filter((c) => c.status === 'pending');
+
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 2 — Fraud Detection (voir plus haut). Calcul
+  // fait une seule fois par rendu pour l'ensemble des claims en attente, jamais à l'intérieur du
+  // .map() de rendu. Toujours calculé (coût négligeable, fonction pure) mais affiché uniquement
+  // si le flag est actif — évite un second garde répété à chaque badge.
+  const fraudEngineEnabled = isFeatureEnabled('hp2_fraud_detection');
+  const fraudScoreByClaimId = useMemo(() => {
+    if (!fraudEngineEnabled) return new Map<string, ReturnType<typeof computeFraudScore>>();
+    const map = new Map<string, ReturnType<typeof computeFraudScore>>();
+    pendingClaims.forEach((c) => map.set(c.id, computeFraudScore(c, claims)));
+    return map;
+  }, [fraudEngineEnabled, pendingClaims, claims]);
   const historyClaims = filteredClaims.filter((c) => c.status !== 'pending');
 
   const openRejectModal = (claim: Claim) => {
@@ -414,6 +432,9 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold">
                     {claim.careType}
                   </span>
+                  {fraudEngineEnabled && fraudScoreByClaimId.get(claim.id) && (
+                    <FraudScoreBadge result={fraudScoreByClaimId.get(claim.id)!} className="ml-1.5" />
+                  )}
                   {claim.assignedAgentName && (
                     <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
                       Assigned: {claim.assignedAgentName}
@@ -528,6 +549,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                         <span className="block text-[10px] text-slate-400 font-normal">
                           {claim.serviceDate}
                         </span>
+                        {fraudEngineEnabled && fraudScoreByClaimId.get(claim.id) && (
+                          <span className="block mt-1">
+                            <FraudScoreBadge result={fraudScoreByClaimId.get(claim.id)!} />
+                          </span>
+                        )}
                         {claim.assignedAgentName && (
                           <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
                             Assigned: {claim.assignedAgentName}

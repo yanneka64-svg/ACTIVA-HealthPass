@@ -37,16 +37,36 @@ facts rather than the plan's initial guesses.
 - `src/modules/` structure: kept, created incrementally, one module folder per phase — never in bulk.
 
 ### Phase 1 — Eligibility / Coverage / Tariff Engines
-- No conflicts found with current reality. Proceeds largely as originally scoped.
-- Tariff Engine shape already validated visually in the frontend preview: per-service tariff
-  entered in USD (the app's base currency, per `src/services/currency.tsx`), auto-converted
-  to LRD display at the existing exchange rate, with coverage rate per service, grouped by
-  category, and an "Add Service" path for services outside the starter catalog.
+- **Correction found during implementation (2026-09-09):** an Eligibility Engine already exists
+  and is already wired into the Agent claim form — `checkCareEligibility` /
+  `checkMemberEligibility` in `src/services/eligibilityService.ts` (organization suspension,
+  member/dependent status, dynamic age-limit checks against policy ceilings). A Coverage
+  calculation also already exists, at the organization level — a flat `Organization.coverageRate`
+  drives the "Automated ACTIVA Co-Pay Calculation" shown live in `AgentClaimsView.tsx`. Decision
+  (agreed 2026-09-09): leave this calculation as-is for now — the new per-service Tariff Engine
+  (below) stays Admin-only management and is not wired into the claim form's coverage
+  calculation in this pass. Revisit if/when per-service (rather than flat per-organization)
+  coverage becomes a priority.
+- Tariff Engine (Phase 1's first and, for now, only new module): implemented and shipped behind
+  `hp2_tariff_engine` (see section 6). Per-service tariff entered in USD (the app's base
+  currency, per `src/services/currency.tsx`), auto-converted to LRD display at the existing
+  exchange rate, with coverage rate per service, grouped by category, and an "Add Service" path
+  for services outside the starter catalog. Shape validated visually in the frontend preview
+  before implementation, then the real built component was rendered and screenshotted before
+  commit.
 
 ### Phase 2 — Preauthorization / BillAudit / FraudDetection
 - No direct conflicts found. One open dependency flagged: FraudDetection's "similar claims"
   signal needs enough historical claims volume to be meaningful — to be sized once Phase 1
   data is flowing, not assumed up front.
+- **First module shipped (2026-09-09):** FraudDetection, behind `hp2_fraud_detection` (see
+  section 6). Purely informational shadow-mode score (0-100) shown as a badge on pending claims
+  in the Superviseur validation screen (`ClaimsView.tsx`) — never intercepts or blocks
+  `approveClaim`/`rejectClaim` (`src/services/workflowService.ts`), which are untouched. Builds
+  on two signals that already existed but only at Agent intake (`duplicateWarning` /
+  `frequencyWarning` in `AgentClaimsView.tsx`), generalized for the Superviseur's full pending
+  queue, plus a third new signal (unusual amount vs. the member's own claim history). Preauth and
+  BillAudit not yet started.
 
 ### Phase 3 — Provider ecosystem + digital HealthPass card
 - Reframed from "enrich thin Admin screens" to "add new sub-features (Tariffs sub-tab, card
@@ -71,9 +91,24 @@ facts rather than the plan's initial guesses.
 - **Before any step that changes what a user sees, a visual preview of that interface is
   presented and confirmed — before it is implemented for real.** (Agreed 2026-09-09.)
 
-## 5. Next step
+## 5. Status
 
-Phase 0's remaining scope (SoD/audit review, `firestore.rules` review, feature-flag
-foundation, empty `src/modules/` structure) is non-UI groundwork. Per the process rule above,
-the next visible checkpoint will be at the start of Phase 1, when the first real Eligibility/
-Coverage/Tariff screens are ready to preview.
+Phase 0 complete (this document, SoD/audit review, `firestore.rules` review — no changes
+needed on either — feature-flag foundation, `src/modules/` structure).
+
+| Module | Flag | Status |
+|---|---|---|
+| Tariff Engine | `hp2_tariff_engine` | Shipped, off by default |
+| Fraud Detection | `hp2_fraud_detection` | Shipped, off by default (shadow-mode score only) |
+| Eligibility / Coverage Engine | — | Not built — existing `eligibilityService.ts` + org-level coverage rate kept as-is (section 3) |
+| Preauthorization | `hp2_preauthorization` | Not started |
+| BillAudit | `hp2_bill_audit` | Not started |
+| Provider digital card / QR | `hp2_provider_digital_card` | Not started |
+
+All flags default to `false` in `src/config/featureFlags.ts` — no shipped module is visible to
+any production user until explicitly enabled.
+
+## 6. Next step
+
+Continuing Phase 2 with Preauthorization and/or BillAudit next. Per the process rule above, each
+new screen gets a preview presented and confirmed before real implementation.
