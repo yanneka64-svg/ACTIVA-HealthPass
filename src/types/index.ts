@@ -539,24 +539,24 @@ export interface AppNotification {
 }
 
 // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
-// explicite. Voir src/services/cardNumberService.ts pour le moteur (génération
-// transactionnelle, migration, unicité).
+// explicite. Voir src/services/cardNumberService.ts pour le moteur (unicité, registre).
 //
-// === AMÉLIORATION AJOUTÉE (v2) : nouvelle structure de numéro AMID-YYMMDD-NNNNN — sur
-// demande explicite, remplace l'ancienne structure AMID-XXXXX-XXXX (deux séquences
-// indépendantes "printed"/"insured"). Le premier segment (6 chiffres) est désormais une
-// date d'émission (année, mois, jour) et non plus un compteur ; seul le second segment (5
-// chiffres, "assuredNumber") reste une séquence globale, unique et jamais réutilisée — un
-// registre d'unicité (une entrée par numéro complet) et une trace d'audit par attribution
-// (voir section 29 de la demande initiale) sont conservés à l'identique.
+// === AMÉLIORATION AJOUTÉE (v3 — saisie/import manuel) : sur demande explicite, les numéros
+// de carte ne sont plus générés automatiquement (ni à l'enrôlement, ni à l'import Excel) —
+// ils sont désormais intégrés manuellement (saisie à l'enrôlement) ou déjà présents dans le
+// fichier importé (template Admin), au format libre de 11 caractères alphanumériques (voir
+// CARD_NUMBER_REGEX dans cardNumberService.ts). `issueDate`/`assuredNumber` ci-dessous
+// deviennent optionnels : ils restent renseignés sur les attributions historiques
+// (ancienne structure AMID-YYMMDD-NNNNN) mais ne sont plus dérivables d'un numéro saisi
+// librement.
 export type CardAssignmentMethod = 'ENROLLMENT' | 'EXCEL_IMPORT' | 'MANUAL' | 'MIGRATION';
 
-// Document unique `counters/cardNumbers` — l'état courant de l'unique séquence restante
-// (assuredNumber, segment XXXXX). Le segment de date n'est plus un compteur : il est
-// recalculé à chaque émission à partir de la date d'émission de la carte concernée.
+// Document unique `counters/cardNumbers` — vestige de l'ancienne génération séquentielle
+// automatique (n'est plus lu ni écrit depuis le passage à la saisie/import manuel), conservé
+// uniquement pour ne pas casser la lecture d'un éventuel document historique.
 export interface CardNumberCounters {
-  lastAssuredNumber: number; // ex: 496 (segment XXXXX)
-  formatVersion?: 'v2'; // présent une fois la migration vers AMID-YYMMDD-NNNNN effectuée
+  lastAssuredNumber: number; // ex: 496 (segment XXXXX de l'ancienne structure)
+  formatVersion?: 'v2';
   updatedAt?: string;
 }
 
@@ -564,10 +564,10 @@ export interface CardNumberCounters {
 // document EST la contrainte d'unicité (deux assurés ne peuvent jamais créer le même id de
 // document). Sert aussi de trace d'audit ("Who / What / When / How", voir section 29).
 export interface CardNumberAssignment {
-  id: string; // = cardNumber, ex: "AMID-260903-00496"
+  id: string; // = cardNumber, ex: "A1B2C3D4E5F" (11 caractères alphanumériques)
   cardNumber: string;
-  issueDate: string; // "260903" (YYMMDD, segment XXXXXX)
-  assuredNumber: string; // "00496" (segment XXXXX)
+  issueDate?: string; // "260903" (YYMMDD) — présent uniquement sur les attributions historiques
+  assuredNumber?: string; // "00496" — présent uniquement sur les attributions historiques
   organization?: string | null;
   memberId?: string | null;
   insuredName?: string | null;

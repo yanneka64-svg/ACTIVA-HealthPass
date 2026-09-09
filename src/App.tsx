@@ -20,7 +20,6 @@ import {
 } from './types';
 import { FirestoreService } from './services/firestore';
 import { WorkflowService } from './services/workflowService';
-import { migrateCardNumberCounters, migrateAllCardsToNewCardNumberFormat } from './services/cardNumberService';
 import { seedInitialDemoDataIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
@@ -403,23 +402,6 @@ export default function App() {
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [authStatus, healthPolicies, members]);
-
-  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
-  // explicite. Bootstrap automatique, une seule fois par session, des deux compteurs de
-  // numéros de carte (sections 3/18) : relevés au maximum réellement présent dans TOUTE la
-  // base (jamais seulement le dernier enregistrement créé — voir
-  // cardNumberService.migrateCardNumberCounters), avec backfill du registre d'unicité pour
-  // les cartes créées avant ce système. Idempotent — peut aussi être relancé à tout moment
-  // depuis Admin > Organizations > Cards > "Validate Card Number Sequence".
-  const cardNumberMigrationRanRef = useRef(false);
-  useEffect(() => {
-    if (authStatus !== 'authenticated' || cardNumberMigrationRanRef.current || members.length === 0) return;
-    cardNumberMigrationRanRef.current = true;
-    migrateCardNumberCounters(members).catch((err) => {
-      console.warn('Card number sequence bootstrap failed:', err);
-      cardNumberMigrationRanRef.current = false; // allow a retry on the next members update
-    });
-  }, [authStatus, members]);
 
   // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
   // — CRITIQUE) ===
@@ -972,30 +954,6 @@ export default function App() {
     });
   };
 
-  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System (v2) — migration
-  // ponctuelle de toutes les cartes déjà existantes vers la structure AMID-YYMMDD-NNNNN, sur
-  // demande explicite. Orchestrée ici (et non dans cardNumberService.ts directement) car
-  // c'est le seul endroit disposant déjà en mémoire de toutes les collections impactées
-  // (membres, sinistres, factures, fiches médicales, inscriptions).
-  const handleMigrateAllCards = async () => {
-    const summary = await migrateAllCardsToNewCardNumberFormat(
-      members,
-      claims,
-      invoices,
-      medicalForms,
-      enrollments,
-      { uid: currentUser?.uid, name: currentUser?.fullName || currentUser?.displayName || currentUser?.email }
-    );
-    await WorkflowService.logAction(
-      'CARD_NUMBER_FORMAT_MIGRATED',
-      'system',
-      'card-number-format-v2',
-      `Card number format migration to AMID-YYMMDD-NNNNN completed: ${summary.migratedMembers} members and ${summary.migratedDependents} dependents renumbered; ${summary.claimsUpdated} claims, ${summary.invoicesUpdated} invoices, ${summary.medicalFormsUpdated} medical forms and ${summary.enrollmentsUpdated} enrollments updated to match.`,
-      currentUser
-    );
-    return summary;
-  };
-
   // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
   const handleSaveHealthPolicy = (organizationName: string, data: Partial<HealthPolicy>) => {
     FirestoreService.upsertHealthPolicy(organizationName, data);
@@ -1475,7 +1433,6 @@ export default function App() {
               onAddPolicyPayment={handleAddPolicyPayment}
               onDeletePolicyPayment={handleDeletePolicyPayment}
               currentUser={currentUser}
-              onMigrateAllCards={handleMigrateAllCards}
             />
           )}
 

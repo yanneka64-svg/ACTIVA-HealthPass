@@ -1,7 +1,6 @@
 import { Enrollment, Claim, Member, Organization, InvoiceItem, AppNotification, DependentItem, DependentRelationship, HealthPolicy } from '../types';
 import { FirestoreService } from './firestore';
 import { getPolicyCoverageStatus } from './policyEngine';
-import { generateNextCardNumber } from './cardNumberService';
 // === AMÉLIORATION AJOUTÉE : câblage des Cloud Functions (Phase 3/5), sur demande explicite.
 import { httpsCallable } from 'firebase/functions';
 import { runTransaction, doc } from 'firebase/firestore';
@@ -355,20 +354,15 @@ export const WorkflowService = {
           dependents: currentDeps,
         });
       } else {
-        // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
-        // explicite. Ce repli (déclenché quand l'ayant droit approuvé référence un assuré
-        // principal introuvable dans l'annuaire) générait auparavant un numéro aléatoire au
-        // format obsolète "ACT-PRI-XXXXX", contournant le système de numérotation
-        // centralisé. Génère désormais un numéro AMID-YYMMDD-NNNNN unique et transactionnel,
-        // uniquement dans ce cas de repli (si `mainInsuredCardNo` est déjà renseigné, il est
-        // conservé tel quel, sans y toucher).
-        const primaryCardNo =
-          enr.mainInsuredCardNo ||
-          (await generateNextCardNumber({
-            organization: enr.organization,
-            insuredName: enr.mainInsuredName || 'Principal Insured',
-            method: 'ENROLLMENT',
-          }));
+        // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — sur
+        // demande explicite, la génération automatique est retirée. Ce repli (déclenché
+        // quand l'ayant droit approuvé référence un assuré principal introuvable dans
+        // l'annuaire) n'est atteint QUE lorsque `enr.mainInsuredCardNo` est déjà renseigné —
+        // voir `isPrincipal` plus haut, qui traite un enrôlement sans `mainInsuredCardNo`
+        // comme son propre principal. Le numéro de carte du principal (déjà saisi
+        // manuellement/importé à l'enrôlement, jamais fabriqué ici) est donc simplement
+        // repris tel quel.
+        const primaryCardNo = enr.mainInsuredCardNo;
         // Create primary holder entry and attach dependent
         await FirestoreService.addMember({
           cardNo: primaryCardNo,

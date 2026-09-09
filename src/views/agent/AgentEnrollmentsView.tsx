@@ -24,7 +24,7 @@ import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
 import { dedupeMembersByCardNo } from '../../utils/memberUtils';
-import { generateNextCardNumber } from '../../services/cardNumberService';
+import { reserveExistingCardNumber, isValidCardNumberFormat, normalizeCardNumber } from '../../services/cardNumberService';
 import { uploadPhotoOrFallback } from '../../utils/storageUtils';
 
 interface AgentEnrollmentsViewProps {
@@ -58,12 +58,10 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
   const [selectedEnrDetails, setSelectedEnrDetails] = useState<Enrollment | null>(null);
 
   const [form, setForm] = useState({
-    // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — ce champ n'est
-    // plus rempli par saisie manuelle, il est renseigné automatiquement dans handleSubmit
-    // juste avant la création de l'enrôlement (voir cardNumberService.generateNextCardNumber).
-    // === AMÉLIORATION AJOUTÉE (v2) : la nouvelle structure AMID-YYMMDD-NNNNN n'a plus de
-    // "numéro physique" indépendant (le premier segment est désormais une date d'émission,
-    // toujours celle du jour) — le champ de saisie optionnelle correspondant a été retiré.
+    // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — retour à la
+    // saisie manuelle (11 caractères alphanumériques), sur demande explicite ; validé et
+    // réservé de façon unique/transactionnelle dans handleSubmit (voir
+    // cardNumberService.reserveExistingCardNumber).
     cardNo: '',
     // === AMÉLIORATION AJOUTÉE : nom scindé en Last Name / First Name côté saisie (le nom
     // complet reste stocké en un seul champ "fullName" sur l'Enrollment, comme avant).
@@ -145,11 +143,12 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     setHasBiometrics(true);
   };
 
-  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — handleSubmit est
-  // désormais asynchrone : le numéro de carte est généré et réservé de façon transactionnelle
-  // (unique, jamais réutilisé, jamais deux agents simultanés ne peuvent recevoir le même
-  // numéro — voir cardNumberService.generateNextCardNumber) AVANT que l'enrôlement ne soit
-  // créé. Le reste du workflow (Agent -> Superviseur -> Admin) est strictement inchangé.
+  // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System —
+  // handleSubmit reste asynchrone : le numéro de carte SAISI MANUELLEMENT est validé
+  // (format 11 caractères alphanumériques) puis réservé de façon transactionnelle (unique,
+  // jamais deux agents simultanés ne peuvent recevoir le même numéro — voir
+  // cardNumberService.reserveExistingCardNumber) AVANT que l'enrôlement ne soit créé. Le
+  // reste du workflow (Agent -> Superviseur -> Admin) est strictement inchangé.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -159,10 +158,15 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
       return;
     }
 
+    const generatedCardNo = normalizeCardNumber(form.cardNo);
+    if (!isValidCardNumberFormat(generatedCardNo)) {
+      setFormError('Health Card Number must be 11 alphanumeric characters (A-Z, 0-9).');
+      return;
+    }
+
     setIsGeneratingCard(true);
-    let generatedCardNo: string;
     try {
-      generatedCardNo = await generateNextCardNumber({
+      await reserveExistingCardNumber(generatedCardNo, {
         organization: form.organization,
         insuredName: fullName,
         assignedBy: currentUser?.uid,
@@ -170,7 +174,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
         method: 'ENROLLMENT',
       });
     } catch (err: any) {
-      setFormError(err?.message || 'Could not generate a card number. Please try again.');
+      setFormError(err?.message || 'Could not reserve this card number. Please try again.');
       setIsGeneratingCard(false);
       return;
     }
@@ -438,10 +442,12 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 </div>
 
                 {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur
-                    demande explicite. Le numéro de carte (AMID-YYMMDD-NNNNN, YYMMDD = date
-                    d'émission du jour) n'est plus saisi manuellement : il est désormais généré
-                    automatiquement, de façon unique et transactionnelle
-                    (src/services/cardNumberService.ts), au moment de la soumission. === */}
+                    demande explicite ("dorénavant les numéros de carte seront intégrés
+                    manuellement soit au moment de l'enrôlement ..."), retire la génération
+                    automatique : le numéro de carte est désormais saisi manuellement ici (11
+                    caractères alphanumériques), validé et réservé de façon unique et
+                    transactionnelle (src/services/cardNumberService.ts) au moment de la
+                    soumission. === */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-bold text-slate-700">Health Card Number</label>
@@ -449,10 +455,17 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                   </div>
                   <div className="relative">
                     <CreditCard className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <div className="w-full pl-10 pr-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-500 font-mono">
-                      Generated automatically on submission (AMID-YYMMDD-NNNNN)
-                    </div>
+                    <input
+                      type="text"
+                      value={form.cardNo}
+                      onChange={(e) => setForm({ ...form, cardNo: e.target.value.toUpperCase().slice(0, 11) })}
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 font-mono uppercase tracking-wide focus:ring-2 focus:ring-[#0a2e6b]"
+                      placeholder="e.g. A1B2C3D4E5F"
+                      maxLength={11}
+                      required
+                    />
                   </div>
+                  <p className="text-[10.5px] text-slate-400 mt-1">11 alphanumeric characters (A-Z, 0-9) — must be unique.</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

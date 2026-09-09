@@ -258,12 +258,13 @@ export async function parseMemberExcel(
         let ignored = 0;
         const updatedList: Member[] = [...existingMembers];
 
-        // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
-        // explicite. Pré-passe : détermine, pour chaque ligne portant un nom d'assuré, le
-        // numéro de carte final — conservé si déjà présent dans le fichier (après validation
-        // du format et vérification qu'il n'est pas déjà attribué à quelqu'un d'autre, en
-        // base ou ailleurs dans ce même fichier), généré automatiquement sinon (CASE 2,
-        // section 8 — auparavant une ligne sans "Card No." était silencieusement ignorée).
+        // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — sur
+        // demande explicite ("dorénavant les numéros de carte seront intégrés manuellement
+        // ... ou importés dans un template existant"). Pré-passe : détermine, pour chaque
+        // ligne portant un nom d'assuré, le numéro de carte final — conservé si déjà présent
+        // dans le fichier ET valide (11 caractères alphanumériques) ET non déjà attribué à
+        // quelqu'un d'autre (en base ou ailleurs dans ce même fichier), sinon la ligne est
+        // marquée invalide (plus aucune génération automatique pour une ligne vide).
         // Rien n'est réservé en base à ce stade : c'est un calcul en lecture seule (voir
         // planCardNumbersForImport), destiné à alimenter la prévisualisation obligatoire
         // avant import (section 10) — cardNumberPreview ci-dessous. La réservation réelle des
@@ -551,7 +552,11 @@ function parseDedicatedDependentsRows(
     const biometricsRaw = headerMap.biometrics ? String(row[headerMap.biometrics] || '').trim().toLowerCase() : '';
     const hasBiometrics = biometricsRaw ? !biometricsRaw.includes('no') && !biometricsRaw.includes('non') : true;
 
-    if (!depNameVal) {
+    // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — sur demande
+    // explicite, plus aucune génération/fabrication automatique de numéro de carte : une
+    // ligne sans son propre "Dependent Card No." explicite est désormais ignorée au lieu de
+    // recevoir un numéro fabriqué (ex: "DEP-1234", "{parentCard}-D123").
+    if (!depNameVal || !depCardVal) {
       ignored++;
       return;
     }
@@ -566,7 +571,7 @@ function parseDedicatedDependentsRows(
     }
 
     const age = parseAgeFromDob(dobVal);
-    const assignedDepCard = depCardVal || (parentCardVal ? `${parentCardVal}-D${Date.now().toString().slice(-3)}` : `DEP-${Date.now().toString().slice(-4)}`);
+    const assignedDepCard = depCardVal;
 
     const relLower = relVal.toLowerCase();
     const resolvedRel: DependentRelationship = (relLower.includes('conjoint') || relLower.includes('spouse') || relLower.includes('wife') || relLower.includes('husband'))
@@ -611,8 +616,15 @@ function parseDedicatedDependentsRows(
       };
       updated++;
     } else {
+      // === AMÉLIORATION AJOUTÉE (v3) : plus de numéro fabriqué pour le principal non trouvé
+      // — sans son propre "Principal Card No." explicite dans le fichier, la ligne est
+      // ignorée plutôt que de créer un assuré principal avec un numéro inventé.
+      if (!parentCardVal) {
+        ignored++;
+        return;
+      }
       // Create new principal with this dependent attached
-      const fallbackCardNo = parentCardVal || `ACT-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+      const fallbackCardNo = parentCardVal;
       const fallbackPrincipalName = parentNameVal || `Primary of ${depNameVal}`;
       const isSpouse = newDepItem.relationship === 'spouse';
 
@@ -679,7 +691,7 @@ export function generateMemberTemplateExcel() {
       'Statut',
     ],
     [
-      'AMID-00001-0001',
+      'A1B2C3D4E5F',
       'Samuel DOE',
       '14/05/1985',
       2,
@@ -688,7 +700,7 @@ export function generateMemberTemplateExcel() {
       '',
     ],
     [
-      'AMID-00002-0002',
+      'B2C3D4E5F6A',
       'Grace KOLLIE',
       '20/11/1992',
       1,
@@ -697,7 +709,7 @@ export function generateMemberTemplateExcel() {
       '',
     ],
     [
-      'AMID-00003-0003',
+      'C3D4E5F6A1B',
       'Alexander FREEMAN',
       '03/07/1980',
       0,
@@ -729,9 +741,9 @@ export function generateDependentsTemplateExcel() {
       'Biometrics',
     ],
     [
-      'ACT-2026-10350',
+      'DOE00010001',
       'Samuel DOE',
-      'ACT-2026-10350-SP',
+      'DOE00010002',
       'Mary DOE',
       'Spouse',
       '1988-09-22',
@@ -740,9 +752,9 @@ export function generateDependentsTemplateExcel() {
       'Yes',
     ],
     [
-      'ACT-2026-10350',
+      'DOE00010001',
       'Samuel DOE',
-      'ACT-2026-10350-C1',
+      'DOE00010003',
       'Lucas DOE',
       'Child',
       '2014-03-10',
@@ -751,9 +763,9 @@ export function generateDependentsTemplateExcel() {
       'Yes',
     ],
     [
-      'ACT-2026-10350',
+      'DOE00010001',
       'Samuel DOE',
-      'ACT-2026-10350-C2',
+      'DOE00010004',
       'Emma DOE',
       'Child',
       '2017-08-19',
@@ -762,9 +774,9 @@ export function generateDependentsTemplateExcel() {
       'Yes',
     ],
     [
-      'ACT-2026-10351',
+      'KOL00020001',
       'Grace KOLLIE',
-      'ACT-2026-10351-SP',
+      'KOL00020002',
       'Joseph KOLLIE',
       'Spouse',
       '1990-04-15',
@@ -773,9 +785,9 @@ export function generateDependentsTemplateExcel() {
       'Yes',
     ],
     [
-      'ACT-2026-10351',
+      'KOL00020001',
       'Grace KOLLIE',
-      'ACT-2026-10351-C1',
+      'KOL00020003',
       'Nathan KOLLIE',
       'Child',
       '2019-06-12',
@@ -1271,7 +1283,8 @@ export function generateMultiOrgTemplateExcel() {
     ['   (keep the spaces around the dash, as in the 2 example sheets provided)'],
     [''],
     ['2. Sheet "... - Staff" (1 row = 1 PRINCIPAL insured member):'],
-    ['   - Card No.: principal\'s card number (required, unique)'],
+    ['   - Card No.: principal\'s card number (required, unique, 11 alphanumeric characters —'],
+    ['     A-Z / 0-9, no auto-generation, must already be filled in this file)'],
     ['   - Primary Insured Name: principal\'s full name (required)'],
     ['   - Date of Birth: principal\'s date of birth (DD/MM/YYYY or YYYY-MM-DD)'],
     ['   - Contact: phone number (optional)'],
@@ -1285,7 +1298,8 @@ export function generateMultiOrgTemplateExcel() {
     [''],
     ['3. Sheet "... - Deps" (1 row = 1 dependent, spouse OR child) — gives each'],
     ['   dependent their OWN card number, used to identify/reimburse them:'],
-    ['   - Card No.: card number OWNED by the dependent (required, unique)'],
+    ['   - Card No.: card number OWNED by the dependent (required, unique, 11 alphanumeric'],
+    ['     characters — A-Z / 0-9)'],
     ['   - Relationship: "Spouse" for the spouse, or "Child 1" / "Child 2" / ... — the number'],
     ['     must EXACTLY match the "Child N Name" column on the Staff sheet'],
     ['   - Date of Birth: dependent\'s date of birth'],
@@ -1319,18 +1333,18 @@ export function generateMultiOrgTemplateExcel() {
   // staffBiometricsHeader dans parseActivaMultiOrgExcel.
   const staffData = [
     ['Card No.', 'Primary Insured Name', 'Date of Birth', 'Contact', 'Spouse Name', 'Spouse Date of Birth', 'Child 1 Name', 'Child 1 Date of Birth', 'Child 2 Name', 'Child 2 Date of Birth', 'Organization', 'Biometrics'],
-    ['EXG-00001-0001', 'Samuel DOE', '1985-05-14', '+231 88 000 1122', 'Mary DOE', '1987-02-20', 'James DOE', '2015-08-31', 'Linda DOE', '2018-12-11', 'Example Org', 'Yes'],
-    ['EXG-00002-0002', 'Grace KOLLIE', '1990-11-20', '+231 77 000 3344', '', '', 'Peter KOLLIE', '2020-04-04', '', '', 'Example Org', ''],
+    ['DOE00010001', 'Samuel DOE', '1985-05-14', '+231 88 000 1122', 'Mary DOE', '1987-02-20', 'James DOE', '2015-08-31', 'Linda DOE', '2018-12-11', 'Example Org', 'Yes'],
+    ['KOL00020001', 'Grace KOLLIE', '1990-11-20', '+231 77 000 3344', '', '', 'Peter KOLLIE', '2020-04-04', '', '', 'Example Org', ''],
   ];
   const wsStaff = XLSX.utils.aoa_to_sheet(staffData);
   XLSX.utils.book_append_sheet(wb, wsStaff, 'Example Org - Staff');
 
   const depsData = [
     ['Card No.', 'Relationship', 'Date of Birth', 'Primary Insured', 'Primary Card No.', 'Organization', 'Biometrics'],
-    ['EXG-00001-0002', 'Spouse', '1987-02-20', 'Samuel DOE', 'EXG-00001-0001', 'Example Org', ''],
-    ['EXG-00001-0003', 'Child 1', '2015-08-31', 'Samuel DOE', 'EXG-00001-0001', 'Example Org', ''],
-    ['EXG-00001-0004', 'Child 2', '2018-12-11', 'Samuel DOE', 'EXG-00001-0001', 'Example Org', ''],
-    ['EXG-00002-0005', 'Child 1', '2020-04-04', 'Grace KOLLIE', 'EXG-00002-0002', 'Example Org', ''],
+    ['DOE00010002', 'Spouse', '1987-02-20', 'Samuel DOE', 'DOE00010001', 'Example Org', ''],
+    ['DOE00010003', 'Child 1', '2015-08-31', 'Samuel DOE', 'DOE00010001', 'Example Org', ''],
+    ['DOE00010004', 'Child 2', '2018-12-11', 'Samuel DOE', 'DOE00010001', 'Example Org', ''],
+    ['KOL00020002', 'Child 1', '2020-04-04', 'Grace KOLLIE', 'KOL00020001', 'Example Org', ''],
   ];
   const wsDeps = XLSX.utils.aoa_to_sheet(depsData);
   XLSX.utils.book_append_sheet(wb, wsDeps, 'Example Org - Deps');

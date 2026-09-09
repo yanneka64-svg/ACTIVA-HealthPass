@@ -31,7 +31,7 @@ import {
   canDeleteRecord,
 } from '../services/permissions';
 import { getRoleTheme } from '../theme/roleTheme';
-import { generateNextCardNumber } from '../services/cardNumberService';
+import { reserveExistingCardNumber, isValidCardNumberFormat, normalizeCardNumber } from '../services/cardNumberService';
 
 interface EnrollmentsViewProps {
   lang: Language;
@@ -199,13 +199,12 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
     }
   };
 
-  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
-  // explicite. Ce formulaire (Admin/Superviseur, distinct du formulaire Agent déjà corrigé)
-  // ne proposait même pas de champ de saisie pour "Card No." : `newEnrForm.cardNo` était donc
-  // TOUJOURS vide et retombait systématiquement sur un numéro aléatoire au format obsolète
-  // "ACT-2026-XXXX", contournant entièrement le système de numérotation centralisé. Corrigé
-  // pour générer un numéro AMID-YYMMDD-NNNNN unique et transactionnel, comme dans le
-  // formulaire d'enrôlement Agent.
+  // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — sur demande
+  // explicite ("dorénavant les numéros de carte seront intégrés manuellement ..."). Ce
+  // formulaire (Admin/Superviseur, distinct du formulaire Agent) ne proposait auparavant
+  // aucun champ de saisie pour "Card No." (voir git history) — un champ manuel requis a été
+  // ajouté ci-dessus. Le numéro saisi est validé (11 caractères alphanumériques) puis réservé
+  // de façon unique et transactionnelle.
   const [isGeneratingEnrCard, setIsGeneratingEnrCard] = useState(false);
   const [newEnrError, setNewEnrError] = useState<string | null>(null);
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -214,10 +213,15 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
     const fullName = newEnrForm.fullName || 'New Beneficiary';
     const organization = newEnrForm.organization || (organizations[0]?.name || 'Standard');
 
+    const cardNo = normalizeCardNumber(newEnrForm.cardNo);
+    if (!isValidCardNumberFormat(cardNo)) {
+      setNewEnrError('Health Card Number must be 11 alphanumeric characters (A-Z, 0-9).');
+      return;
+    }
+
     setIsGeneratingEnrCard(true);
-    let cardNo: string;
     try {
-      cardNo = await generateNextCardNumber({
+      await reserveExistingCardNumber(cardNo, {
         organization,
         insuredName: fullName,
         assignedBy: currentUser?.uid,
@@ -225,7 +229,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
         method: 'ENROLLMENT',
       });
     } catch (err: any) {
-      setNewEnrError(err?.message || 'Could not generate a card number. Please try again.');
+      setNewEnrError(err?.message || 'Could not reserve this card number. Please try again.');
       setIsGeneratingEnrCard(false);
       return;
     }
@@ -1057,6 +1061,28 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                   required
                 />
+              </div>
+
+              {/* === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System —
+                  sur demande explicite ("dorénavant les numéros de carte seront intégrés
+                  manuellement ..."). Ce formulaire ne proposait auparavant aucun champ de
+                  saisie pour "Card No." (voir historique ci-dessus dans handleCreateSubmit) —
+                  ajouté ici, requis, 11 caractères alphanumériques, validé et réservé de façon
+                  unique/transactionnelle à la soumission. === */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Health Card Number
+                </label>
+                <input
+                  type="text"
+                  value={newEnrForm.cardNo}
+                  onChange={(e) => setNewEnrForm({ ...newEnrForm, cardNo: e.target.value.toUpperCase().slice(0, 11) })}
+                  placeholder="e.g. A1B2C3D4E5F"
+                  maxLength={11}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold font-mono uppercase tracking-wide"
+                  required
+                />
+                <p className="text-[10.5px] text-slate-400 mt-1">11 alphanumeric characters (A-Z, 0-9) — must be unique.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

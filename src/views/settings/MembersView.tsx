@@ -41,7 +41,7 @@ import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiome
 import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import { checkMemberEligibility } from '../../services/eligibilityService';
-import { generateNextCardNumber, reserveExistingCardNumber } from '../../services/cardNumberService';
+import { reserveExistingCardNumber, isValidCardNumberFormat, normalizeCardNumber } from '../../services/cardNumberService';
 import { ADMIN_THEME } from '../../theme/roleTheme';
 
 export interface FormattedDependent {
@@ -387,12 +387,9 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
 
   const openCreateModal = () => {
     setEditingMember(null);
-    // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — le champ était
-    // auparavant pré-rempli avec une valeur aléatoire au format obsolète "ACT-2026-XXXX",
-    // masquant le fait que le champ pouvait rester vide pour déclencher la génération
-    // automatique (AMID-YYMMDD-NNNNN) et risquant, si laissé tel quel, d'enregistrer un
-    // numéro de carte invalide. Laissé vide par défaut, comme l'indique désormais le
-    // libellé "leave blank to auto-generate".
+    // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — le champ
+    // est laissé vide par défaut ; il doit désormais être saisi manuellement (11 caractères
+    // alphanumériques), la génération automatique ayant été retirée.
     setFormCardNo('');
     setFormPrincipalName('');
     setFormBirthDate('');
@@ -473,11 +470,13 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     setFormChildren(formChildren.filter((_, i) => i !== index));
   };
 
-  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — handleSubmit est
-  // désormais asynchrone. En édition, le numéro de carte n'est jamais touché (le champ est
-  // d'ailleurs désactivé dans le formulaire). En création : vide -> génération automatique et
-  // transactionnelle ; saisi -> validation du format puis réservation transactionnelle
-  // (rejeté si déjà attribué à un autre assuré) — jamais fait confiance sans vérification.
+  // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — sur demande
+  // explicite ("dorénavant les numéros de carte seront intégrés manuellement ..."), la
+  // génération automatique (numéro laissé vide) est retirée : en création, le numéro est
+  // désormais TOUJOURS requis, saisi manuellement, validé (11 caractères alphanumériques)
+  // puis réservé de façon transactionnelle (rejeté si déjà attribué à un autre assuré). En
+  // édition, le numéro de carte n'est jamais touché (le champ est d'ailleurs désactivé dans
+  // le formulaire).
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -486,29 +485,23 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       return;
     }
 
-    let finalCardNo = formCardNo.trim();
+    const finalCardNo = normalizeCardNumber(formCardNo);
     if (!editingMember) {
+      if (!isValidCardNumberFormat(finalCardNo)) {
+        setFormError('Health Card No must be 11 alphanumeric characters (A-Z, 0-9).');
+        return;
+      }
       setIsSavingCard(true);
       try {
-        if (finalCardNo) {
-          await reserveExistingCardNumber(finalCardNo, {
-            organization: formOrg,
-            insuredName: formPrincipalName.trim(),
-            assignedBy: currentUser?.uid,
-            assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
-            method: 'MANUAL',
-          });
-        } else {
-          finalCardNo = await generateNextCardNumber({
-            organization: formOrg,
-            insuredName: formPrincipalName.trim(),
-            assignedBy: currentUser?.uid,
-            assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
-            method: 'MANUAL',
-          });
-        }
+        await reserveExistingCardNumber(finalCardNo, {
+          organization: formOrg,
+          insuredName: formPrincipalName.trim(),
+          assignedBy: currentUser?.uid,
+          assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+          method: 'MANUAL',
+        });
       } catch (err: any) {
-        setFormError(err?.message || 'Could not assign a card number. Please try again.');
+        setFormError(err?.message || 'Could not assign this card number. Please try again.');
         setIsSavingCard(false);
         return;
       }
@@ -1467,23 +1460,27 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur
-                      demande explicite. À la création, laisser vide génère automatiquement un
-                      numéro unique (AMID-XXXXX-XXXX) ; un numéro saisi manuellement est validé
-                      (format) et réservé (rejeté s'il est déjà attribué à quelqu'un d'autre).
-                      En modification, le numéro existant n'est jamais modifiable ici — un
-                      numéro déjà attribué est définitif (section 15 de la demande). === */}
+                  {/* === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System
+                      — sur demande explicite ("dorénavant les numéros de carte seront intégrés
+                      manuellement ..."). La génération automatique est retirée : à la création,
+                      le numéro est désormais TOUJOURS requis, saisi manuellement (11 caractères
+                      alphanumériques), validé (format) puis réservé (rejeté s'il est déjà
+                      attribué à quelqu'un d'autre). En modification, le numéro existant n'est
+                      jamais modifiable ici — un numéro déjà attribué est définitif (section 15
+                      de la demande). === */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Health Card No {editingMember ? '(cannot be changed)' : '(leave blank to auto-generate)'}
+                      Health Card No {editingMember ? '(cannot be changed)' : ''}
                     </label>
                     <input
                       type="text"
                       value={formCardNo}
-                      onChange={(e) => setFormCardNo(e.target.value)}
-                      placeholder={editingMember ? undefined : 'e.g. AMID-260903-00497 — leave blank to auto-assign'}
+                      onChange={(e) => setFormCardNo(e.target.value.toUpperCase().slice(0, 11))}
+                      placeholder={editingMember ? undefined : 'e.g. A1B2C3D4E5F (11 alphanumeric characters)'}
+                      maxLength={11}
                       disabled={!!editingMember}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-70 disabled:cursor-not-allowed"
+                      required={!editingMember}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 uppercase tracking-wide focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-70 disabled:cursor-not-allowed"
                     />
                   </div>
                   <div>
@@ -1611,7 +1608,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                         type="text"
                         value={mainInsuredCardNo}
                         onChange={(e) => setMainInsuredCardNo(e.target.value)}
-                        placeholder="e.g. AMID-260903-00001"
+                        placeholder="e.g. A1B2C3D4E5F"
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         required
                       />
