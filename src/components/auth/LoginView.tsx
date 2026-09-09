@@ -390,19 +390,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
             essais (retour utilisateur : "remettre les motifs là comme ils étaient avant") —
             h-full au lieu du h-[65%] essayé entre-temps. Tracé, couleurs et opacité
             inchangés.
-            === AMÉLIORATION AJOUTÉE : taille réduite (retour utilisateur, 2026-09-09 —
-            "réduis la grosseur des motifs ... je veux que ça soit fin et stylé") : le SVG
-            reprend désormais la même hauteur fixe (h-84) et le même ratio préservé (plus de
-            preserveAspectRatio="none") que le motif d'origine dans Sidebar.tsx, au lieu de
-            l'étirement plein panneau (w-full h-full, ratio déformé) utilisé jusqu'ici sur
-            cette page — motif plus discret, ancré en bas à gauche, sans déformation. Tracé,
-            couleurs et opacité inchangés. === */}
+            === AMÉLIORATION AJOUTÉE : retour à la position/taille d'étirement plein panneau
+            d'origine (retour utilisateur, 2026-09-09 — "non pas celui-ci mais celui d'avant
+            ... garde la même position initiale") après un essai intermédiaire de motif plus
+            petit (h-84) qui ne convenait pas non plus : w-full h-full
+            preserveAspectRatio="none" comme à l'origine. Seule l'épaisseur des traits change
+            (strokeWidth réduit — retour utilisateur : "diminue la grosseur des lignes je veux
+            que ça soit fin"), tracé, couleurs et opacité inchangés. === */}
         <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
-          <svg className="absolute bottom-0 left-0 w-full h-84" viewBox="0 0 250 320" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
-            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
-            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="1.2" />
+          <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="0.9" />
+            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="0.75" />
+            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="0.65" />
+            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="0.6" />
           </svg>
         </div>
 
