@@ -396,12 +396,27 @@ export const LoginView: React.FC<LoginViewProps> = ({
             qui se trouve à côté"), uniquement sur cette page.
             === AMÉLIORATION AJOUTÉE : agrandi (h-9 -> h-28) sur retour utilisateur explicite
             ("le logo activa est petit et les écritures sur le logo ne sont pas très
-            lisibles") — le fichier source (169x96) reste le facteur limitant de netteté au
-            -delà de cette taille. === */}
+            lisibles"), puis ramené à une taille intermédiaire (h-28 -> h-16, retour
+            utilisateur : "comme sur le premier modèle mais que ça soit lisible"), puis réduit
+            encore (h-16 -> h-11, retour utilisateur : "diminue encore la taille et fait en
+            sorte que les mentions sur le logo ne soient pas floues"). La taille (h-11) est
+            restée bonne (retour utilisateur : "la taille est bonne") mais le slogan en
+            dessous ("our clients our passion" / "passionnément clients") restait illisible à
+            toute taille raisonnable — trop dense pour la résolution native du fichier source
+            (169x96), qui a donc été recadré pour ne garder QUE la signature "Activa" (image).
+            === AMÉLIORATION AJOUTÉE : slogan remis (retour utilisateur : "remets les mentions
+            mais rends-les plus lisibles et moins touffues"), d'abord reconstruit en texte
+            HTML séparé — écarté ensuite (retour utilisateur : "ne dénature pas le logo,
+            conserve la forme telle que c'était mais rends les écritures lisibles") pour
+            revenir à l'image du logo complète et unique, telle qu'à l'origine. Seul le
+            fichier source change : ré-échantillonné à 3x (Lanczos) + renforcement de la
+            netteté (unsharp mask) avant recolorisation en blanc, au lieu d'un agrandissement
+            brut par le navigateur depuis les 169x96 d'origine — la forme et la composition du
+            logo restent exactement identiques, seule leur définition est meilleure. === */}
         <img
           src={activaLogoWhite}
           alt="Activa"
-          className="relative z-10 h-28 w-auto self-start login-anim-fade-up login-anim-delay-1"
+          className="relative z-10 h-16 w-auto self-start login-anim-fade-up login-anim-delay-1"
         />
 
         <div className="relative z-10">
