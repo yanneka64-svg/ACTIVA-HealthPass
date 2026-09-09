@@ -412,11 +412,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
             fichier source change : ré-échantillonné à 3x (Lanczos) + renforcement de la
             netteté (unsharp mask) avant recolorisation en blanc, au lieu d'un agrandissement
             brut par le navigateur depuis les 169x96 d'origine — la forme et la composition du
-            logo restent exactement identiques, seule leur définition est meilleure. === */}
+            logo restent exactement identiques, seule leur définition est meilleure.
+            === AMÉLIORATION AJOUTÉE : taille réduite à nouveau (h-16 -> h-12, retour
+            utilisateur explicite) — l'asset ré-échantillonné/renforcé reste net même réduit,
+            contrairement à l'original brut. === */}
         <img
           src={activaLogoWhite}
           alt="Activa"
-          className="relative z-10 h-16 w-auto self-start login-anim-fade-up login-anim-delay-1"
+          className="relative z-10 h-12 w-auto self-start login-anim-fade-up login-anim-delay-1"
         />
 
         <div className="relative z-10">
