@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff } from 'lucide-react';
 import { Language } from '../../types';
 import { Logo } from '../Logo';
+import activaLogoWhite from '../../assets/logos/logo-activa-white.png';
 import { auth, functions, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -383,36 +384,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
         {/* Halo lumineux — identique à Sidebar.tsx (accentGlow Agent: bg-blue-400/20) */}
         <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Motif de courbes — copié tel quel de Sidebar.tsx. === AMÉLIORATION AJOUTÉE :
-            mouvements retirés (retour utilisateur, 2026-09-07 — deux essais d'animation
-            n'étaient pas ce qui était voulu) : motif à nouveau parfaitement statique. La
-            position (hauteur/ancrage) a aussi été remise exactement comme avant tous ces
-            essais (retour utilisateur : "remettre les motifs là comme ils étaient avant") —
-            h-full au lieu du h-[65%] essayé entre-temps. Tracé, couleurs et opacité
-            inchangés.
-            === AMÉLIORATION AJOUTÉE : retour à la position/taille d'étirement plein panneau
-            d'origine (retour utilisateur, 2026-09-09 — "non pas celui-ci mais celui d'avant
-            ... garde la même position initiale") après un essai intermédiaire de motif plus
-            petit (h-84) qui ne convenait pas non plus : w-full h-full
-            preserveAspectRatio="none" comme à l'origine. Seule l'épaisseur des traits change
-            (strokeWidth réduit — retour utilisateur : "diminue la grosseur des lignes je veux
-            que ça soit fin"), tracé, couleurs et opacité inchangés. === */}
-        <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
-          <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="0.9" />
-            <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="0.75" />
-            <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="0.65" />
-            <path d="M-40 200 C 90 150, 170 130, 270 160" stroke="rgba(255,255,255,0.30)" strokeWidth="0.6" />
-          </svg>
-        </div>
-
         {/* === AMÉLIORATION AJOUTÉE : entrée en fondu/glissement, en cascade, du badge, du
             titre, du texte et du copyright — sur demande explicite ("je veux que ces données
-            soient animées"). Contenu, couleurs et mise en page strictement inchangés. === */}
-        <div className="relative z-10 flex items-center gap-1.5 self-start px-3 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-xs font-semibold text-white login-anim-fade-up login-anim-delay-1">
-          <Shield className="w-3.5 h-3.5" />
-          <span>ACTIVA Cloud Secure Portal</span>
-        </div>
+            soient animées"). Contenu, couleurs et mise en page strictement inchangés.
+            === AMÉLIORATION AJOUTÉE : le badge "ACTIVA Cloud Secure Portal" est remplacé par
+            le logo Activa exact (asset src/assets/logos/logo-activa.png, déjà présent dans le
+            dépôt mais jamais câblé), recoloré en blanc uni (alpha conservé, RGB forcé à blanc)
+            — sur demande explicite ("reprend exactement le logo d'Activa et retire le drapeau
+            qui se trouve à côté"), uniquement sur cette page. === */}
+        <img
+          src={activaLogoWhite}
+          alt="Activa"
+          className="relative z-10 h-9 w-auto self-start login-anim-fade-up login-anim-delay-1"
+        />
 
         <div className="relative z-10">
           <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight login-anim-fade-up login-anim-delay-2">
@@ -455,9 +439,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
               <Logo size="2xl" showTagline={true} transparent={true} />
             </div>
 
-            <h2 className="text-2xl sm:text-[28px] font-black text-[#0D2B63] tracking-tight text-center">
-              Welcome Back!
-            </h2>
+            {/* === AMÉLIORATION AJOUTÉE : titre "Welcome Back!" retiré (retour utilisateur
+                explicite) — le sous-titre seul introduit désormais le formulaire. === */}
             <p className="mt-1.5 text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
               Sign in to access your ACTIVA HealthPass account.
             </p>
