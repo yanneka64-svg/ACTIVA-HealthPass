@@ -1,6 +1,6 @@
 import { collection, collectionGroup, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, writeBatch, DocumentReference } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, AuditLog, MedicalForm, AppNotification, HealthPolicy, PolicyPayment } from '../types';
+import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, AuditLog, MedicalForm, AppNotification, HealthPolicy, PolicyPayment, MedicalTariff } from '../types';
 import { getFullDemoData, seedInitialDemoDataIfEmpty } from './seedData';
 import { isNewSecurityNumberFormat, normalizeMedicalFormSecurityNumber } from '../utils/medicalFormUtils';
 import { computeMedicalFormRetentionUntil } from '../config/dataRetention';
@@ -262,6 +262,27 @@ export const FirestoreService = {
           reportSyncIssue('ceilings', err);
           cb([]);
         }
+      }
+    ),
+
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 1 — Tariff Engine (module
+  // src/modules/tariffs/), derrière le flag `hp2_tariff_engine` (désactivé par défaut, voir
+  // src/config/featureFlags.ts). Nouvelle collection, aucun repli sur des données de
+  // démonstration (contrairement à `ceilings` ci-dessus) : une collection vide signifie
+  // simplement qu'aucun tarif n'a encore été saisi pour aucun prestataire.
+  subscribeToMedicalTariffs: (cb: (data: MedicalTariff[]) => void) =>
+    onSnapshot(
+      collection(db, 'medicalTariffs'),
+      (snap) => {
+        clearSyncIssue('medicalTariffs');
+        const map = new Map<string, MedicalTariff>();
+        snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as MedicalTariff));
+        cb(Array.from(map.values()));
+      },
+      (err) => {
+        handleFirestoreError(err, OperationType.GET, 'medicalTariffs');
+        reportSyncIssue('medicalTariffs', err);
+        cb([]);
       }
     ),
 
@@ -584,6 +605,35 @@ export const FirestoreService = {
       return await deleteDoc(doc(db, 'ceilings', id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `ceilings/${id}`);
+      throw err;
+    }
+  },
+
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 1 — Tariff Engine (module
+  // src/modules/tariffs/), derrière le flag `hp2_tariff_engine`. Écriture réservée à Admin côté
+  // firestore.rules, comme `organizations`/`providers`/`ceilings` (référentiel maître).
+  addMedicalTariff: async (data: Partial<MedicalTariff>) => {
+    try {
+      return await addDoc(collection(db, 'medicalTariffs'), data);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'medicalTariffs');
+      throw err;
+    }
+  },
+  updateMedicalTariff: async (data: MedicalTariff) => {
+    try {
+      const { id, ...rest } = data;
+      return await updateDoc(doc(db, 'medicalTariffs', id), rest);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `medicalTariffs/${data.id}`);
+      throw err;
+    }
+  },
+  deleteMedicalTariff: async (id: string) => {
+    try {
+      return await deleteDoc(doc(db, 'medicalTariffs', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `medicalTariffs/${id}`);
       throw err;
     }
   },

@@ -424,6 +424,26 @@ export interface Provider {
   status?: ProviderStatus;
 }
 
+// === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 1 — Tariff Engine (module
+// src/modules/tariffs/), derrière le flag `hp2_tariff_engine` (voir src/config/featureFlags.ts,
+// désactivé par défaut). Un tarif est toujours rattaché à un prestataire précis (`providerId`) —
+// les tarifs négociés diffèrent d'un prestataire à l'autre, jamais un référentiel unique partagé.
+// `tariffUsd` suit la même convention que le reste de l'application : montant stocké en USD (la
+// devise de base, voir src/services/currency.tsx), converti à l'affichage vers LRD au taux de
+// change courant.
+export interface MedicalTariff {
+  id: string;
+  providerId: string;
+  providerName: string;
+  category: string;
+  serviceName: string;
+  code: string;
+  tariffUsd: number;
+  coverageRate: number; // 0-100
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export type PeriodicityType = 'Annual' | 'Annuelle' | 'Per service' | 'Par acte' | 'Per stay' | 'Par séjour';
 
 export interface Ceiling {

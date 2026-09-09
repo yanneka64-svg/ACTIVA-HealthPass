@@ -17,6 +17,7 @@ import {
   AppNotification,
   HealthPolicy,
   PolicyPayment,
+  MedicalTariff, // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 1 — Tariff Engine ===
 } from './types';
 import { FirestoreService } from './services/firestore';
 import { WorkflowService } from './services/workflowService';
@@ -323,6 +324,10 @@ export default function App() {
   const [members, setMembers] = useState<Member[]>(() => (demoData.membersList || []) as Member[]);
   const [organizations, setOrganizations] = useState<Organization[]>(() => (demoData.orgs || []) as Organization[]);
   const [providers, setProviders] = useState<Provider[]>(() => (demoData.providers || []) as Provider[]);
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 1 — Tariff Engine, derrière le flag
+  // `hp2_tariff_engine` (voir src/config/featureFlags.ts). Pas de données de démonstration :
+  // vide tant qu'aucun Admin n'a saisi de tarif pour un prestataire.
+  const [medicalTariffs, setMedicalTariffs] = useState<MedicalTariff[]>([]);
   const [claims, setClaims] = useState<Claim[]>(() => (demoData.sampleClaims || []) as Claim[]);
   const [invoices, setInvoices] = useState<InvoiceItem[]>(() => (demoData.sampleInvoices || []) as InvoiceItem[]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -355,6 +360,7 @@ export default function App() {
       const unsubMembers = FirestoreService.subscribeToMembers(setMembers, assignedOrgs);
       const unsubOrgs = FirestoreService.subscribeToOrganizations(setOrganizations);
       const unsubProviders = FirestoreService.subscribeToProviders(setProviders);
+      const unsubMedicalTariffs = FirestoreService.subscribeToMedicalTariffs(setMedicalTariffs);
       const unsubClaims = FirestoreService.subscribeToClaims(setClaims, assignedOrgs);
       const unsubInvoices = FirestoreService.subscribeToInvoices(setInvoices, assignedOrgs);
       const unsubEnrollments = FirestoreService.subscribeToEnrollments(setEnrollments, assignedOrgs);
@@ -373,6 +379,7 @@ export default function App() {
         unsubMembers();
         unsubOrgs();
         unsubProviders();
+        unsubMedicalTariffs();
         unsubClaims();
         unsubInvoices();
         unsubEnrollments();
@@ -1440,6 +1447,7 @@ export default function App() {
             <ProvidersView
               lang={lang}
               providers={providers}
+              tariffs={medicalTariffs}
               onAddProvider={handleAddProvider}
               onUpdateProvider={handleUpdateProvider}
               onDeleteProvider={handleDeleteProvider}

@@ -531,6 +531,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (HealthPass 2.0, Phase 1 — Tariff Engine, module
+    // src/modules/tariffs/, derrière le flag `hp2_tariff_engine` désactivé par défaut) —
+    // référentiel maître non sensible (nom de service, code, tarif conventionné, taux de prise
+    // en charge) rattaché à un prestataire, même traitement que organizations/providers/
+    // ceilings ci-dessus : lecture ouverte à tout utilisateur actif (nécessaire à l'Agent pour
+    // le calcul de couverture lors de la saisie d'un claim), écriture strictement Admin-only.
+    match /medicalTariffs/{tariffId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // loginLogs & auditLogs (append-only, immutable)
     match /loginLogs/{logId} {
       allow read: if isSignedIn() && isAdmin();
