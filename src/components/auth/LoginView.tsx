@@ -389,9 +389,16 @@ export const LoginView: React.FC<LoginViewProps> = ({
             position (hauteur/ancrage) a aussi été remise exactement comme avant tous ces
             essais (retour utilisateur : "remettre les motifs là comme ils étaient avant") —
             h-full au lieu du h-[65%] essayé entre-temps. Tracé, couleurs et opacité
-            inchangés. === */}
+            inchangés.
+            === AMÉLIORATION AJOUTÉE : taille réduite (retour utilisateur, 2026-09-09 —
+            "réduis la grosseur des motifs ... je veux que ça soit fin et stylé") : le SVG
+            reprend désormais la même hauteur fixe (h-84) et le même ratio préservé (plus de
+            preserveAspectRatio="none") que le motif d'origine dans Sidebar.tsx, au lieu de
+            l'étirement plein panneau (w-full h-full, ratio déformé) utilisé jusqu'ici sur
+            cette page — motif plus discret, ancré en bas à gauche, sans déformation. Tracé,
+            couleurs et opacité inchangés. === */}
         <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
-          <svg className="absolute bottom-0 left-0 w-full h-full" viewBox="0 0 250 320" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <svg className="absolute bottom-0 left-0 w-full h-84" viewBox="0 0 250 320" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M-40 320 C 30 240, 110 220, 270 250" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" />
             <path d="M-40 280 C 50 210, 130 190, 270 220" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
             <path d="M-40 240 C 70 180, 150 160, 270 190" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" />
