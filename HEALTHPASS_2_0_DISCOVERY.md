@@ -100,8 +100,8 @@ needed on either — feature-flag foundation, `src/modules/` structure).
 |---|---|---|
 | Tariff Engine | `hp2_tariff_engine` | Shipped, off by default |
 | Fraud Detection | `hp2_fraud_detection` | Shipped, off by default (shadow-mode score only) |
+| Preauthorization | `hp2_preauthorization` | Shipped, off by default (shadow-mode badge only, $500 USD threshold — provisional, not yet configurable by Admin) |
 | Eligibility / Coverage Engine | — | Not built — existing `eligibilityService.ts` + org-level coverage rate kept as-is (section 3) |
-| Preauthorization | `hp2_preauthorization` | Not started |
 | BillAudit | `hp2_bill_audit` | Not started |
 | Provider digital card / QR | `hp2_provider_digital_card` | Not started |
 

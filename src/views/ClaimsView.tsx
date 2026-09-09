@@ -45,6 +45,8 @@ import { getRoleTheme } from '../theme/roleTheme';
 import { isFeatureEnabled } from '../config/featureFlags';
 import { computeFraudScore } from '../modules/fraud/fraudScore';
 import { FraudScoreBadge } from '../modules/fraud/FraudScoreBadge';
+import { checkPreauthorizationNeeded } from '../modules/preauthorization/preauthCheck';
+import { PreauthorizationBadge } from '../modules/preauthorization/PreauthorizationBadge';
 
 interface ClaimsViewProps {
   currentSection?: string;
@@ -154,6 +156,16 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
     pendingClaims.forEach((c) => map.set(c.id, computeFraudScore(c, claims)));
     return map;
   }, [fraudEngineEnabled, pendingClaims, claims]);
+
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 2 — Preauthorization (voir plus haut). Même
+  // traitement que Fraud Detection ci-dessus : calcul pur, affiché uniquement si le flag est actif.
+  const preauthEnabled = isFeatureEnabled('hp2_preauthorization');
+  const preauthByClaimId = useMemo(() => {
+    if (!preauthEnabled) return new Map<string, ReturnType<typeof checkPreauthorizationNeeded>>();
+    const map = new Map<string, ReturnType<typeof checkPreauthorizationNeeded>>();
+    pendingClaims.forEach((c) => map.set(c.id, checkPreauthorizationNeeded(c)));
+    return map;
+  }, [preauthEnabled, pendingClaims]);
   const historyClaims = filteredClaims.filter((c) => c.status !== 'pending');
 
   const openRejectModal = (claim: Claim) => {
@@ -435,6 +447,9 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   {fraudEngineEnabled && fraudScoreByClaimId.get(claim.id) && (
                     <FraudScoreBadge result={fraudScoreByClaimId.get(claim.id)!} className="ml-1.5" />
                   )}
+                  {preauthEnabled && preauthByClaimId.get(claim.id) && (
+                    <PreauthorizationBadge result={preauthByClaimId.get(claim.id)!} className="ml-1.5" />
+                  )}
                   {claim.assignedAgentName && (
                     <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
                       Assigned: {claim.assignedAgentName}
@@ -552,6 +567,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                         {fraudEngineEnabled && fraudScoreByClaimId.get(claim.id) && (
                           <span className="block mt-1">
                             <FraudScoreBadge result={fraudScoreByClaimId.get(claim.id)!} />
+                          </span>
+                        )}
+                        {preauthEnabled && preauthByClaimId.get(claim.id) && (
+                          <span className="block mt-1">
+                            <PreauthorizationBadge result={preauthByClaimId.get(claim.id)!} />
                           </span>
                         )}
                         {claim.assignedAgentName && (
