@@ -393,11 +393,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
             le logo Activa exact (asset src/assets/logos/logo-activa.png, déjà présent dans le
             dépôt mais jamais câblé), recoloré en blanc uni (alpha conservé, RGB forcé à blanc)
             — sur demande explicite ("reprend exactement le logo d'Activa et retire le drapeau
-            qui se trouve à côté"), uniquement sur cette page. === */}
+            qui se trouve à côté"), uniquement sur cette page.
+            === AMÉLIORATION AJOUTÉE : agrandi (h-9 -> h-28) sur retour utilisateur explicite
+            ("le logo activa est petit et les écritures sur le logo ne sont pas très
+            lisibles") — le fichier source (169x96) reste le facteur limitant de netteté au
+            -delà de cette taille. === */}
         <img
           src={activaLogoWhite}
           alt="Activa"
-          className="relative z-10 h-9 w-auto self-start login-anim-fade-up login-anim-delay-1"
+          className="relative z-10 h-28 w-auto self-start login-anim-fade-up login-anim-delay-1"
         />
 
         <div className="relative z-10">
@@ -442,9 +446,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
             </div>
 
             {/* === AMÉLIORATION AJOUTÉE : titre "Welcome Back!" retiré (retour utilisateur
-                explicite) — le sous-titre seul introduit désormais le formulaire. === */}
+                explicite) — le sous-titre seul introduit désormais le formulaire.
+                === AMÉLIORATION AJOUTÉE : mention "ACTIVA HealthPass" retirée du sous-titre
+                (retour utilisateur explicite). === */}
             <p className="mt-1.5 text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
-              Sign in to access your ACTIVA HealthPass account.
+              Sign in to access your account.
             </p>
 
             {/* === AMÉLIORATION AJOUTÉE : espace réduit davantage (retour utilisateur, 2026-09-07
