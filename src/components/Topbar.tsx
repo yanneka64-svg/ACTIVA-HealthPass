@@ -55,6 +55,21 @@ export const Topbar: React.FC<TopbarProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
+  // === AMÉLIORATION AJOUTÉE : le badge "Online" reflète désormais l'état réel de la connexion
+  // (navigator.onLine + événements 'online'/'offline'), au lieu d'être toujours affiché en vert
+  // quelle que soit la connectivité réelle — demande explicite de l'utilisateur, 2026-09-10.
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
   const role = normalizeRole(userRole || currentUser?.profile || currentUser?.role);
   const theme = getRoleTheme(role);
   // Dynamic user ACTIVA entity from authenticated profile (Single Source of Truth)
@@ -223,11 +238,18 @@ export const Topbar: React.FC<TopbarProps> = ({
           en dessous de md (768px), où seuls la cloche de notification et l'avatar restent
           visibles ; à partir de md elles réapparaissent comme avant === */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
-        {/* Online Status Badge */}
-        <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-[#ECFDF5] border border-emerald-200 rounded-full text-xs font-semibold text-[#047857]">
-          <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse"></div>
-          <span>Online</span>
-        </div>
+        {/* Online Status Badge — reflète navigator.onLine en direct (voir isOnline plus haut) */}
+        {isOnline ? (
+          <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-[#ECFDF5] border border-emerald-200 rounded-full text-xs font-semibold text-[#047857]">
+            <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse"></div>
+            <span>Online</span>
+          </div>
+        ) : (
+          <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 rounded-full text-xs font-semibold text-rose-700">
+            <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
+            <span>Offline</span>
+          </div>
+        )}
 
         {/* Language Pill */}
         {/* === AMÉLIORATION AJOUTÉE : masqué en dessous de sm (retour utilisateur, navigation
