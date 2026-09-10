@@ -152,7 +152,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       coverageRate: newRate,
     };
     onUpdateOrganization(updated);
-    showToast(`Coverage rate updated for ${org.name}: ${newRate}%`);
+    showToast(t.organizations.coverageUpdatedToast.replace('{org}', org.name).replace('{rate}', String(newRate)));
   };
 
   const handleToggleSuspend = (org: Organization) => {
@@ -172,14 +172,14 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
       } else {
         onUpdateOrganization({ ...org, status: 'Suspendu' });
       }
-      showToast(`Organization "${org.name}" has been SUSPENDED. All linked members and dependents are blocked.`);
+      showToast(t.organizations.suspendedToast.replace('{org}', org.name));
     } else {
       if (onReactivateOrganization) {
         onReactivateOrganization(org);
       } else {
         onUpdateOrganization({ ...org, status: 'Actif' });
       }
-      showToast(`Organization "${org.name}" has been REACTIVATED.`);
+      showToast(t.organizations.reactivatedToast.replace('{org}', org.name));
     }
     setConfirmOrgAction(null);
   };
@@ -188,7 +188,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
   const executeDeleteOrg = () => {
     if (!deleteOrgTarget) return;
     onDeleteOrganization(deleteOrgTarget.id);
-    showToast(`Organization "${deleteOrgTarget.name}" and all linked data have been permanently deleted.`);
+    showToast(t.organizations.deletedToast.replace('{org}', deleteOrgTarget.name));
     setDeleteOrgTarget(null);
     setDeleteConfirmInput('');
   };
@@ -342,7 +342,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
         contactPhone: formContactPhone,
         contactEmail: formContactEmail,
       });
-      showToast(`Organization ${formName} updated with ${formRate}% coverage rate.`);
+      showToast(t.organizations.updatedToast.replace('{name}', formName).replace('{rate}', formRate));
     } else {
       onAddOrganization({
         name: formName,
@@ -355,7 +355,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
         contactPhone: formContactPhone,
         contactEmail: formContactEmail,
       });
-      showToast(`Organization ${formName} registered successfully with ${formRate}% coverage.`);
+      showToast(t.organizations.registeredToast.replace('{name}', formName).replace('{rate}', formRate));
     }
 
     // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring —
@@ -419,7 +419,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search organization by name, policy..."
+              placeholder={t.organizations.searchPlaceholder}
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -430,10 +430,10 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
             onChange={(e) => setStatusFilter(e.target.value)}
             className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
-            <option value="ALL">All Statuses</option>
-            <option value="Actif">Active</option>
-            <option value="Suspendu">Suspended</option>
-            <option value="Expiré">Expired</option>
+            <option value="ALL">{t.organizations.allStatusesOption}</option>
+            <option value="Actif">{t.organizations.statusActive}</option>
+            <option value="Suspendu">{t.organizations.statusSuspended}</option>
+            <option value="Expiré">{t.organizations.statusExpired}</option>
           </select>
         </div>
 
@@ -449,7 +449,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
             className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#047857] border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
             <UploadCloud className="w-4 h-4 text-[#10B981]" />
-            <span>Import</span>
+            <span>{t.organizations.importExcel}</span>
           </button>
 
           <button
@@ -457,7 +457,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
             className={`px-4 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer`}
           >
             <PlusCircle className="w-4 h-4" />
-            <span>New Organization</span>
+            <span>{t.organizations.newOrgBtn}</span>
           </button>
         </div>
       </div>
@@ -467,7 +467,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Building className="w-5 h-5 text-slate-700" />
-            <h3 className="font-bold text-base text-slate-800">Partner & Client Organizations</h3>
+            <h3 className="font-bold text-base text-slate-800">{t.organizations.sectionTitle}</h3>
             <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
               {filteredOrgs.length}
             </span>
@@ -476,20 +476,20 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
 
         {filteredOrgs.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs font-medium">
-            No organizations match your search criteria.
+            {t.organizations.noOrgsMatch}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Organization Name</th>
-                  <th className="py-3.5 px-4">Policy Number</th>
-                  <th className="py-3.5 px-4">Declared Members</th>
-                  <th className="py-3.5 px-4">Coverage Rate (%)</th>
-                  <th className="py-3.5 px-4">Effective Period</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4">{t.organizations.name}</th>
+                  <th className="py-3.5 px-4">{t.organizations.colPolicyNumber}</th>
+                  <th className="py-3.5 px-4">{t.organizations.colDeclaredMembers}</th>
+                  <th className="py-3.5 px-4">{t.organizations.coverageRate}</th>
+                  <th className="py-3.5 px-4">{t.organizations.colEffectivePeriod}</th>
+                  <th className="py-3.5 px-4 text-center">{t.status}</th>
+                  <th className="py-3.5 px-4 text-right">{t.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -500,7 +500,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                       key={org.id}
                       onClick={() => setViewMembersOrg(org)}
                       className="hover:bg-slate-50 cursor-pointer transition-colors group"
-                      title="Click to view enrolled principal members for this organization"
+                      title={t.organizations.rowTitleTooltip}
                     >
                       <td className="py-3.5 px-4 font-bold text-slate-800">
                         <div className="flex items-center gap-2">
@@ -514,7 +514,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                       <td className="py-3.5 px-4 text-slate-800 font-semibold">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
                           <Users className="w-3 h-3 text-slate-500" />
-                          {org.declaredMembers} members
+                          {org.declaredMembers} {t.organizations.membersCountSuffix}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 font-semibold">
@@ -523,7 +523,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                             value={org.coverageRate}
                             onChange={(e) => handleQuickCoverageChange(org, parseInt(e.target.value, 10))}
                             className="bg-emerald-50 text-[#047857] font-bold text-xs px-2.5 py-1 rounded-lg border border-emerald-200 cursor-pointer hover:bg-emerald-100 transition focus:outline-none focus:ring-2 focus:ring-[#10B981]"
-                            title="Quick modify coverage rate"
+                            title={t.organizations.quickCoverageTitle}
                           >
                             <option value="50">50%</option>
                             <option value="60">60%</option>
@@ -536,7 +536,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                             <option value="100">100%</option>
                           </select>
                           <span className="text-[11px] text-[#64748B] font-medium">
-                            (Co-pay: {100 - org.coverageRate}%)
+                            {t.organizations.copaySuffixTemplate.replace('{pct}', String(100 - org.coverageRate))}
                           </span>
                         </div>
                       </td>
@@ -547,19 +547,19 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                         {!isSuspended && org.status !== 'Expiré' && org.status !== 'Expired' && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#ECFDF5] text-[#047857] border border-emerald-200 text-xs font-semibold">
                             <div className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></div>
-                            <span>Active</span>
+                            <span>{t.organizations.statusActive}</span>
                           </span>
                         )}
                         {isSuspended && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
                             <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
-                            <span>Suspended</span>
+                            <span>{t.organizations.statusSuspended}</span>
                           </span>
                         )}
                         {(org.status === 'Expiré' || org.status === 'Expired' || org.status === 'Inactive') && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold">
                             <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
-                            <span>Expired</span>
+                            <span>{t.organizations.statusExpired}</span>
                           </span>
                         )}
                       </td>
@@ -577,10 +577,10 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                           <button
                             onClick={() => setPolicyConfigOrg(org)}
                             className="px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer bg-slate-200 text-slate-700 hover:bg-slate-300 border border-slate-300"
-                            title="Configure health insurance policy & premium"
+                            title={t.organizations.policyBtnTitle}
                           >
                             <Shield className="w-3.5 h-3.5" />
-                            <span>Policy</span>
+                            <span>{t.organizations.policyBtnLabel}</span>
                           </button>
                           {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management
                               System — sur demande explicite. Même convention que le bouton
@@ -589,10 +589,10 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                           <button
                             onClick={() => setCardNumberOrg(org)}
                             className="px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
-                            title="Card Number Management"
+                            title={t.organizations.cardsBtnTitle}
                           >
                             <CreditCard className="w-3.5 h-3.5" />
-                            <span>Cards</span>
+                            <span>{t.organizations.cardsBtnLabel}</span>
                           </button>
                           <button
                             onClick={() => handleToggleSuspend(org)}
@@ -601,17 +601,17 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                                 ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
                                 : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
                             }`}
-                            title={isSuspended ? 'Reactivate organization' : 'Suspend organization policy'}
+                            title={isSuspended ? t.organizations.reactivateBtnTitle : t.organizations.suspendBtnTitle}
                           >
                             {isSuspended ? (
                               <>
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Reactivate</span>
+                                <span>{t.organizations.reactivateBtnLabel}</span>
                               </>
                             ) : (
                               <>
                                 <XCircle className="w-3.5 h-3.5 text-amber-600" />
-                                <span>Suspend</span>
+                                <span>{t.organizations.suspendBtnLabel}</span>
                               </>
                             )}
                           </button>
@@ -619,14 +619,14 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                           <button
                             onClick={() => openEditModal(org)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                            title="Edit organization & coverage"
+                            title={t.organizations.editOrgTitle}
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => { setDeleteOrgTarget(org); setDeleteConfirmInput(''); }}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                            title="Delete organization & all linked data"
+                            title={t.organizations.deleteOrgTitle}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -650,9 +650,9 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
             <div className="bg-white border-b border-slate-200 p-6 text-slate-900 flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-base text-slate-900">
-                  {editingOrg ? 'Edit Organization Policy' : 'Register New Organization'}
+                  {editingOrg ? t.organizations.editOrgPolicyTitle : t.organizations.registerNewOrgTitle}
                 </h3>
-                <p className="text-xs text-slate-500">Collective Group Insurance Policy & Coverage</p>
+                <p className="text-xs text-slate-500">{t.organizations.modalSubtitle}</p>
               </div>
               <button
                 onClick={() => setModalOpen(false)}
@@ -665,13 +665,13 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Organization / Company Name <span className="text-rose-500">*</span>
+                  {t.organizations.orgNameLabel} <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="e.g. Liberia Petroleum Refining Company"
+                  placeholder={t.organizations.orgNamePlaceholder}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                   required
                 />
@@ -680,7 +680,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Policy Number <span className="text-rose-500">*</span>
+                    {t.organizations.formPolicyNumberLabel} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -691,22 +691,22 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Policy Status</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.policyStatusLabel}</label>
                   <select
                     value={formStatus}
                     onChange={(e) => setFormStatus(e.target.value as OrgStatus)}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold"
                   >
-                    <option value="Actif">Active</option>
-                    <option value="Suspendu">Suspended</option>
-                    <option value="Expiré">Expired</option>
+                    <option value="Actif">{t.organizations.statusActive}</option>
+                    <option value="Suspendu">{t.organizations.statusSuspended}</option>
+                    <option value="Expiré">{t.organizations.statusExpired}</option>
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Declared Insured Members Count
+                  {t.organizations.declaredMembersCountLabel}
                 </label>
                 <input
                   type="number"
@@ -720,10 +720,10 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-extrabold text-slate-800">
-                    Coverage Rate: <span className="text-[#047857] text-sm font-black">{formRate}%</span>
+                    {t.organizations.coverageRateFormLabel} <span className="text-[#047857] text-sm font-black">{formRate}%</span>
                   </label>
                   <span className="text-[11px] font-bold text-slate-500">
-                    Patient Co-pay: <span className="text-amber-700">{100 - (parseInt(formRate, 10) || 0)}%</span>
+                    {t.organizations.patientCopayLabel} <span className="text-amber-700">{100 - (parseInt(formRate, 10) || 0)}%</span>
                   </span>
                 </div>
 
@@ -774,12 +774,12 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                   <div
                     style={{ width: `${Math.min(100, Math.max(0, parseInt(formRate, 10) || 80))}%` }}
                     className="bg-[#10B981] h-full"
-                    title={`Activa Coverage: ${formRate}%`}
+                    title={t.organizations.activaCoverageTooltip.replace('{rate}', formRate)}
                   />
                   <div
                     style={{ width: `${100 - Math.min(100, Math.max(0, parseInt(formRate, 10) || 80))}%` }}
                     className="bg-amber-400 h-full"
-                    title={`Patient Out-of-Pocket: ${100 - (parseInt(formRate, 10) || 80)}%`}
+                    title={t.organizations.patientOutOfPocketTooltip.replace('{rate}', String(100 - (parseInt(formRate, 10) || 80)))}
                   />
                 </div>
               </div>
@@ -787,7 +787,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Effective Start Date
+                    {t.organizations.effectiveStartDateLabel}
                   </label>
                   <input
                     type="date"
@@ -798,7 +798,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Expiration End Date
+                    {t.organizations.expirationEndDateLabel}
                   </label>
                   <input
                     type="date"
@@ -822,7 +822,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 >
                   <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
                     <ShieldAlert className="w-3.5 h-3.5 text-[#0A347B]" />
-                    <span>Health Insurance Policy Configuration (Optional)</span>
+                    <span>{t.organizations.policyConfigSectionTitle}</span>
                   </span>
                   <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${policySectionOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -831,24 +831,24 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                   <div className="p-3.5 space-y-3 bg-white">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Policy Type</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.policyTypeLabel}</label>
                         <input value={formPolicyType} onChange={(e) => setFormPolicyType(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Payment Frequency</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.reports.colPaymentFrequency}</label>
                         <select value={formPaymentFrequency} onChange={(e) => setFormPaymentFrequency(e.target.value as HealthPolicy['paymentFrequency'])} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
-                          <option value="Annual">Annual</option>
-                          <option value="Semi-Annual">Semi-Annual</option>
-                          <option value="Quarterly">Quarterly</option>
-                          <option value="Monthly">Monthly</option>
+                          <option value="Annual">{t.reports.freqAnnual}</option>
+                          <option value="Semi-Annual">{t.reports.freqSemiAnnual}</option>
+                          <option value="Quarterly">{t.reports.freqQuarterly}</option>
+                          <option value="Monthly">{t.reports.freqMonthly}</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Annual Premium</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.reports.colAnnualPremium}</label>
                         <input type="number" value={formAnnualPremium} onChange={(e) => setFormAnnualPremium(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Currency</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.ceilings.currency}</label>
                         <select value={formPolicyCurrency} onChange={(e) => setFormPolicyCurrency(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
                           <option value="USD">USD ($)</option>
                           <option value="LRD">LRD (L$)</option>
@@ -860,31 +860,31 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Installment Amount</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.installmentAmountLabel}</label>
                         <input type="number" value={formInstallmentAmount} onChange={(e) => setFormInstallmentAmount(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Next Payment Due Date</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.nextPaymentDueDateLabel}</label>
                         <input type="date" value={formNextPaymentDueDate} onChange={(e) => setFormNextPaymentDueDate(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Last Payment Date</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.lastPaymentDateLabel}</label>
                         <input type="date" value={formLastPaymentDate} onChange={(e) => setFormLastPaymentDate(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Last Payment Amount</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.lastPaymentAmountLabel}</label>
                         <input type="number" value={formLastPaymentAmount} onChange={(e) => setFormLastPaymentAmount(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Outstanding Amount</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.outstandingAmountLabel}</label>
                         <input type="number" value={formOutstandingAmount} onChange={(e) => setFormOutstandingAmount(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-rose-700" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Grace Period (days)</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.gracePeriodDaysLabel}</label>
                         <input type="number" value={formGracePeriodDays} onChange={(e) => setFormGracePeriodDays(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Expiring Soon Warning (days)</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.expiringSoonWarningDaysLabel}</label>
                         <input type="number" value={formExpiringSoonWarningDays} onChange={(e) => setFormExpiringSoonWarningDays(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                       </div>
                     </div>
@@ -892,19 +892,19 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={formManuallySuspended} onChange={(e) => setFormManuallySuspended(e.target.checked)} className="w-4 h-4 accent-amber-600" />
-                        <span className="text-xs font-extrabold text-amber-900">Manually suspend this policy (Administrative / Other)</span>
+                        <span className="text-xs font-extrabold text-amber-900">{t.organizations.manuallySuspendLabel}</span>
                       </label>
                       {formManuallySuspended && (
                         <select value={formSuspensionReason} onChange={(e) => setFormSuspensionReason(e.target.value as SuspensionReason)} className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-xs font-bold">
-                          <option value="Non-payment">Non-payment</option>
-                          <option value="Administrative">Administrative</option>
-                          <option value="Other">Other</option>
+                          <option value="Non-payment">{t.organizations.suspensionReasonNonPayment}</option>
+                          <option value="Administrative">{t.organizations.suspensionReasonAdministrative}</option>
+                          <option value="Other">{t.organizations.suspensionReasonOther}</option>
                         </select>
                       )}
                     </div>
 
                     <p className="text-[10.5px] text-slate-400 leading-relaxed">
-                      For payment history and the Q1–Q4 schedule, use the "Policy" button on this organization's row after saving.
+                      {t.organizations.paymentHistoryHint}
                     </p>
                   </div>
                 )}
@@ -916,13 +916,13 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                   onClick={() => setModalOpen(false)}
                   className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button
                   type="submit"
                   className={`px-5 py-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-sm cursor-pointer`}
                 >
-                  {editingOrg ? 'Update Organization' : 'Save Organization'}
+                  {editingOrg ? t.organizations.editBtn : t.organizations.createBtn}
                 </button>
               </div>
             </form>
@@ -956,7 +956,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 <div>
                   <h3 className="font-extrabold text-base text-slate-900">{viewMembersOrg.name}</h3>
                   <p className="text-xs text-slate-500 font-mono">
-                    Policy: {viewMembersOrg.policyNumber} • {viewMembersOrg.coverageRate}% Coverage Rate
+                    {t.organizations.policyPrefixTemplate.replace('{policy}', viewMembersOrg.policyNumber).replace('{rate}', String(viewMembersOrg.coverageRate))}
                   </p>
                 </div>
               </div>
@@ -973,29 +973,29 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-slate-600" />
                   <span className="font-extrabold text-sm text-slate-800">
-                    Enrolled Beneficiaries ({orgMembersList.length})
+                    {t.organizations.enrolledBeneficiariesTemplate.replace('{n}', String(orgMembersList.length))}
                   </span>
                 </div>
                 <span className="text-xs text-slate-500 font-semibold">
-                  Declared Headcount: {viewMembersOrg.declaredMembers}
+                  {t.organizations.declaredHeadcountLabel} {viewMembersOrg.declaredMembers}
                 </span>
               </div>
 
               {orgMembersList.length === 0 ? (
                 <div className="p-12 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                   <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                  <p className="text-xs font-semibold">No insured members registered yet under this organization.</p>
+                  <p className="text-xs font-semibold">{t.organizations.noMembersYet}</p>
                 </div>
               ) : (
                 <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-50 text-slate-500 font-bold uppercase text-[10.5px] border-b border-slate-200">
-                        <th className="py-3 px-4">Card #</th>
-                        <th className="py-3 px-4">Principal Insured</th>
-                        <th className="py-3 px-4">Birth Date</th>
-                        <th className="py-3 px-4">Dependents</th>
-                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4">{t.organizations.colCardNo}</th>
+                        <th className="py-3 px-4">{t.organizations.colPrincipalInsured}</th>
+                        <th className="py-3 px-4">{t.organizations.colBirthDate}</th>
+                        <th className="py-3 px-4">{t.organizations.colDependents}</th>
+                        <th className="py-3 px-4 text-center">{t.status}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
@@ -1006,26 +1006,26 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                             key={m.id || m.cardNo}
                             onClick={() => setViewMemberDependents(m)}
                             className="hover:bg-slate-50 transition cursor-pointer"
-                            title="Click to view this member's dependents"
+                            title={t.organizations.clickToViewDependentsTitle}
                           >
                             <td className="py-3 px-4 font-mono font-bold text-slate-700">{m.cardNo}</td>
                             <td className="py-3 px-4 font-bold text-slate-800">{m.principalName}</td>
                             <td className="py-3 px-4 text-slate-600">{m.birthDate || '—'}</td>
                             <td className="py-3 px-4 text-slate-600">
                               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
-                                {totalDeps} dep.
+                                {t.organizations.depCountSuffixTemplate.replace('{n}', String(totalDeps))}
                               </span>
                             </td>
                             <td className="py-3 px-4 text-center">
                               {m.status === 'Actif' || m.status === 'Active' ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200">
                                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                  Active
+                                  {t.organizations.statusActive}
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold text-[11px] border border-amber-200">
                                   <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                  Suspended
+                                  {t.organizations.statusSuspended}
                                 </span>
                               )}
                             </td>
@@ -1044,7 +1044,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 onClick={closeViewMembersOrg}
                 className={`px-5 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold transition cursor-pointer`}
               >
-                Close
+                {t.close}
               </button>
             </div>
           </div>
@@ -1066,7 +1066,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 <div>
                   <h3 className="font-extrabold text-base text-slate-900">{viewMemberDependents.principalName}</h3>
                   <p className="text-xs text-slate-500 font-mono">
-                    Card #: {viewMemberDependents.cardNo} • {viewMemberDependents.organization}
+                    {t.organizations.dependentsCardOrgTemplate.replace('{card}', viewMemberDependents.cardNo).replace('{org}', viewMemberDependents.organization)}
                   </p>
                 </div>
               </div>
@@ -1082,25 +1082,25 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-slate-600" />
                 <span className="font-extrabold text-sm text-slate-800">
-                  Dependents ({memberDependentsList.length})
+                  {t.organizations.dependentsTemplate.replace('{n}', String(memberDependentsList.length))}
                 </span>
               </div>
 
               {memberDependentsList.length === 0 ? (
                 <div className="p-12 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                   <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                  <p className="text-xs font-semibold">No dependents registered for this principal member.</p>
+                  <p className="text-xs font-semibold">{t.organizations.noDependentsYet}</p>
                 </div>
               ) : (
                 <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-50 text-slate-500 font-bold uppercase text-[10.5px] border-b border-slate-200">
-                        <th className="py-3 px-4">Full Name</th>
-                        <th className="py-3 px-4">Relationship</th>
-                        <th className="py-3 px-4">Birth Date</th>
-                        <th className="py-3 px-4">Gender</th>
-                        <th className="py-3 px-4 text-center">Biometrics</th>
+                        <th className="py-3 px-4">{t.organizations.colFullName}</th>
+                        <th className="py-3 px-4">{t.organizations.colRelationship}</th>
+                        <th className="py-3 px-4">{t.organizations.colBirthDate}</th>
+                        <th className="py-3 px-4">{t.organizations.colGender}</th>
+                        <th className="py-3 px-4 text-center">{t.organizations.colBiometrics}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
@@ -1113,7 +1113,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                           <td className="py-3 px-4 text-center">
                             {dep.hasBiometrics ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200">
-                                Captured
+                                {t.organizations.capturedBadge}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-bold text-[11px] border border-slate-200">
@@ -1135,7 +1135,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 onClick={() => setViewMemberDependents(null)}
                 className={`px-5 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold transition cursor-pointer`}
               >
-                Close
+                {t.close}
               </button>
             </div>
           </div>
@@ -1156,7 +1156,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
           onClose={() => setPolicyConfigOrg(null)}
           onSave={(data) => {
             if (onSaveHealthPolicy) onSaveHealthPolicy(policyConfigOrg.name, data);
-            showToast(`Health policy configuration saved for ${policyConfigOrg.name}.`);
+            showToast(t.organizations.policySavedToast.replace('{org}', policyConfigOrg.name));
             setPolicyConfigOrg(null);
           }}
           onAddPayment={(data) => onAddPolicyPayment && onAddPolicyPayment(data)}
@@ -1193,20 +1193,28 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               <div className="flex-1">
                 <h3 className="text-base font-extrabold text-slate-900">
                   {confirmOrgAction.action === 'suspend'
-                    ? 'Suspend Organization Policy?'
-                    : 'Reactivate Organization Policy?'}
+                    ? t.organizations.suspendConfirmTitle
+                    : t.organizations.reactivateConfirmTitle}
                 </h3>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   {confirmOrgAction.action === 'suspend' ? (
-                    <>
-                      Suspending <strong>{confirmOrgAction.org.name}</strong> will immediately block healthcare claims
-                      and benefit access for all associated principal members and their dependents across all provider clinics.
-                    </>
+                    (() => {
+                      const [before, after] = t.organizations.suspendConfirmDescTemplate.split('{org}');
+                      return (
+                        <>
+                          {before}<strong>{confirmOrgAction.org.name}</strong>{after}
+                        </>
+                      );
+                    })()
                   ) : (
-                    <>
-                      Reactivating <strong>{confirmOrgAction.org.name}</strong> will restore benefit access for all
-                      currently enrolled active members under policy <strong>{confirmOrgAction.org.policyNumber}</strong>.
-                    </>
+                    (() => {
+                      const parts = t.organizations.reactivateConfirmDescTemplate.split(/\{org\}|\{policy\}/);
+                      return (
+                        <>
+                          {parts[0]}<strong>{confirmOrgAction.org.name}</strong>{parts[1]}<strong>{confirmOrgAction.org.policyNumber}</strong>{parts[2]}
+                        </>
+                      );
+                    })()
                   )}
                 </p>
               </div>
@@ -1218,7 +1226,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 onClick={() => setConfirmOrgAction(null)}
                 className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
-                Cancel
+                {t.cancel}
               </button>
               <button
                 type="button"
@@ -1229,7 +1237,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
                 }`}
               >
-                {confirmOrgAction.action === 'suspend' ? 'Confirm Suspension' : 'Confirm Reactivation'}
+                {confirmOrgAction.action === 'suspend' ? t.organizations.confirmSuspensionBtn : t.organizations.confirmReactivationBtn}
               </button>
             </div>
           </div>
@@ -1246,19 +1254,30 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 <Trash2 className="w-6 h-6" />
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-extrabold text-slate-900">Permanently Delete Organization?</h3>
+                <h3 className="text-base font-extrabold text-slate-900">{t.organizations.deleteOrgConfirmTitle}</h3>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  This will permanently delete <strong>{deleteOrgTarget.name}</strong> and{' '}
-                  <strong>ALL</strong> of its linked data: insured members & dependents, claims,
-                  enrollments, invoices, medical forms, coverage ceilings, and its health policy
-                  & payment history. This action cannot be undone.
+                  {(() => {
+                    const [before, after] = t.organizations.deleteOrgConfirmDescTemplate.split('{org}');
+                    return (
+                      <>
+                        {before}<strong>{deleteOrgTarget.name}</strong>{after}
+                      </>
+                    );
+                  })()}
                 </p>
               </div>
             </div>
 
             <div>
               <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">
-                Type <span className="text-rose-600">{deleteOrgTarget.name}</span> to confirm
+                {(() => {
+                  const [before, after] = t.organizations.typeToConfirmTemplate.split('{name}');
+                  return (
+                    <>
+                      {before}<span className="text-rose-600">{deleteOrgTarget.name}</span>{after}
+                    </>
+                  );
+                })()}
               </label>
               <input
                 type="text"
@@ -1276,7 +1295,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 onClick={() => { setDeleteOrgTarget(null); setDeleteConfirmInput(''); }}
                 className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
-                Cancel
+                {t.cancel}
               </button>
               <button
                 type="button"
@@ -1284,7 +1303,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 onClick={executeDeleteOrg}
                 className="px-5 py-2 rounded-xl text-white text-xs font-bold shadow-md cursor-pointer transition bg-rose-600 hover:bg-rose-700 shadow-rose-600/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-600"
               >
-                Delete Permanently
+                {t.organizations.deletePermanentlyBtn}
               </button>
             </div>
           </div>
