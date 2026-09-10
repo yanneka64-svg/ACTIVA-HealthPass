@@ -7,7 +7,7 @@
 // de la facture (`amount`) n'est jamais modifié — seul un nouveau `payableAmountUSD` dérivé est
 // écrit, utilisé ensuite pour le paiement et la réconciliation.
 import React, { useState } from 'react';
-import { X, ScanSearch } from 'lucide-react';
+import { X, ScanSearch, Plus, Trash2 } from 'lucide-react';
 import { InvoiceItem, InvoiceActRefaction } from '../../types';
 import { FirestoreService } from '../../services/firestore';
 import { useCurrency } from '../../services/currency';
@@ -26,20 +26,32 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
   onClose,
 }) => {
   const { formatAmount } = useCurrency();
-  // Repli sur une ligne unique quand la facture n'a pas de détail par acte (factures
-  // antérieures à ce correctif) — même logique de repli que le bordereau de règlement.
-  const acts = invoice.medicalActs && invoice.medicalActs.length > 0
-    ? invoice.medicalActs
+  // === AMÉLIORATION AJOUTÉE : quand la facture n'a pas de détail par acte (facture créée via
+  // un formulaire à montant unique, ex. "New Claim" côté Admin/Superviseur — voir
+  // ClaimsView.tsx), elle retombait sur UNE SEULE ligne en lecture seule ("Pharmacy &
+  // Prescription Drugs", montant total figé), rendant la réfaction impossible à détailler acte
+  // par acte (retour utilisateur, 2026-09-10 : "ce n'est pas aussi détaillé"). La réfaction
+  // portant sur le CONTRÔLE MÉDICAL post-service — indépendant de la façon dont la réclamation a
+  // été saisie en amont — cette ligne de repli devient désormais scindable directement ici :
+  // nom et montant éditables, ajout/suppression de lignes, tant que leur somme reste égale au
+  // montant original de la facture (jamais modifié). Une facture qui a déjà un détail par acte
+  // réel (`invoice.medicalActs`, hérité du formulaire Agent détaillé) reste en lecture seule
+  // sur nom/montant, comme avant — seuls Retained/Rejected/Reason y sont éditables.
+  const hasOriginalBreakdown = !!(invoice.medicalActs && invoice.medicalActs.length > 0);
+  const initialActs = hasOriginalBreakdown
+    ? invoice.medicalActs!.map((a) => ({ name: a.name, amount: a.amount, category: a.category }))
     : [{ name: invoice.careType, amount: invoice.amount, category: undefined as string | undefined }];
 
-  const [retained, setRetained] = useState<number[]>(acts.map((a) => a.amount));
-  const [reasons, setReasons] = useState<string[]>(acts.map(() => ''));
+  const [acts, setActs] = useState(initialActs);
+  const [retained, setRetained] = useState<number[]>(initialActs.map((a) => a.amount));
+  const [reasons, setReasons] = useState<string[]>(initialActs.map(() => ''));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const totalOriginal = acts.reduce((s, a) => s + a.amount, 0);
   const totalRetained = retained.reduce((s, v) => s + v, 0);
   const totalRefacted = Math.max(0, totalOriginal - totalRetained);
+  const linesMismatch = Math.abs(totalOriginal - invoice.amount) > 0.01;
 
   const handleRetainedChange = (i: number, raw: string) => {
     const max = acts[i].amount;
@@ -57,21 +69,50 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
     setRetained((r) => r.map((x, idx) => (idx === i ? max - rejected : x)));
   };
 
+  const handleActNameChange = (i: number, name: string) => {
+    setActs((prev) => prev.map((a, idx) => (idx === i ? { ...a, name } : a)));
+  };
+
+  const handleActAmountChange = (i: number, raw: string) => {
+    const v = Math.max(0, Number(raw) || 0);
+    setActs((prev) => prev.map((a, idx) => (idx === i ? { ...a, amount: v } : a)));
+    // Le montant retenu de cette ligne ne peut jamais dépasser son nouveau montant original.
+    setRetained((prev) => prev.map((r, idx) => (idx === i ? Math.min(r, v) : r)));
+  };
+
+  const addActLine = () => {
+    setActs((prev) => [...prev, { name: '', amount: 0, category: undefined }]);
+    setRetained((prev) => [...prev, 0]);
+    setReasons((prev) => [...prev, '']);
+  };
+
+  const removeActLine = (i: number) => {
+    if (acts.length <= 1) return;
+    setActs((prev) => prev.filter((_, idx) => idx !== i));
+    setRetained((prev) => prev.filter((_, idx) => idx !== i));
+    setReasons((prev) => prev.filter((_, idx) => idx !== i));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (linesMismatch) {
+      setError(`Line amounts must add up to the original invoice total (${formatAmount(invoice.amount)}). Currently: ${formatAmount(totalOriginal)}.`);
+      return;
+    }
 
     const refactions: InvoiceActRefaction[] = [];
     for (let i = 0; i < acts.length; i++) {
       const rejected = Math.max(0, acts[i].amount - retained[i]);
       if (rejected > 0) {
         if (!reasons[i].trim()) {
-          setError(`A reason is required for "${acts[i].name}" — its retained amount is below the original.`);
+          setError(`A reason is required for "${acts[i].name || `Line ${i + 1}`}" — its retained amount is below the original.`);
           return;
         }
         refactions.push({
           actIndex: i,
-          actName: acts[i].name,
+          actName: acts[i].name || `Line ${i + 1}`,
           originalAmountUSD: acts[i].amount,
           retainedAmountUSD: retained[i],
           rejectedAmountUSD: rejected,
@@ -126,6 +167,11 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
           <div className="p-6 space-y-4 overflow-y-auto">
             <p className="text-[11px] text-slate-500 leading-relaxed">
               Review each medical act following the post-service medical control. Reduce the retained amount and give a reason for any act that is partially or fully rejected. Only the retained total will be paid — the refacted portion is tracked separately and can be recovered later if the provider provides justification.
+              {!hasOriginalBreakdown && (
+                <>
+                  {' '}This invoice has no itemized breakdown from the original claim — you can split the line below into several medical acts before applying the réfaction.
+                </>
+              )}
             </p>
 
             {error && (
@@ -138,15 +184,50 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
               {acts.map((act, i) => {
                 const rejected = Math.max(0, act.amount - retained[i]);
                 return (
-                  <div key={`${act.name}-${i}`} className={`p-3.5 rounded-xl border space-y-2.5 ${rejected > 0 ? 'border-orange-200 bg-orange-50/30' : 'border-slate-200'}`}>
+                  <div key={i} className={`p-3.5 rounded-xl border space-y-2.5 ${rejected > 0 ? 'border-orange-200 bg-orange-50/30' : 'border-slate-200'}`}>
                     <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="font-bold text-xs text-slate-900 truncate">{act.name}</div>
-                        {act.category && <div className="text-[10px] text-slate-400">{act.category}</div>}
+                      <div className="min-w-0 flex-1">
+                        {hasOriginalBreakdown ? (
+                          <>
+                            <div className="font-bold text-xs text-slate-900 truncate">{act.name}</div>
+                            {act.category && <div className="text-[10px] text-slate-400">{act.category}</div>}
+                          </>
+                        ) : (
+                          <input
+                            type="text"
+                            value={act.name}
+                            onChange={(e) => handleActNameChange(i, e.target.value)}
+                            placeholder={`Medical act / item name (e.g. Amoxicillin 500mg)`}
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900"
+                          />
+                        )}
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Original</div>
-                        <div className="font-bold text-xs text-slate-700">{formatAmount(act.amount)}</div>
+                      <div className="text-right shrink-0 flex items-start gap-1.5">
+                        <div>
+                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Original</div>
+                          {hasOriginalBreakdown ? (
+                            <div className="font-bold text-xs text-slate-700">{formatAmount(act.amount)}</div>
+                          ) : (
+                            <input
+                              type="number"
+                              value={act.amount}
+                              min={0}
+                              step="0.01"
+                              onChange={(e) => handleActAmountChange(i, e.target.value)}
+                              className="w-24 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-right"
+                            />
+                          )}
+                        </div>
+                        {!hasOriginalBreakdown && acts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeActLine(i)}
+                            className="p-1 mt-4 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Remove this line"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -188,6 +269,23 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                 );
               })}
             </div>
+
+            {!hasOriginalBreakdown && (
+              <button
+                type="button"
+                onClick={addActLine}
+                className="w-full py-2 rounded-xl border border-dashed border-slate-300 text-slate-500 hover:text-orange-700 hover:border-orange-300 hover:bg-orange-50/40 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Split into another line</span>
+              </button>
+            )}
+
+            {!hasOriginalBreakdown && (
+              <p className={`text-[10.5px] font-semibold ${linesMismatch ? 'text-rose-600' : 'text-slate-400'}`}>
+                Lines total: {formatAmount(totalOriginal)} of {formatAmount(invoice.amount)} — must match the original invoice amount exactly.
+              </p>
+            )}
 
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
               <div>
