@@ -266,22 +266,28 @@ export const FirestoreService = {
     ),
 
   // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 1 — Tariff Engine (module
-  // src/modules/tariffs/), derrière le flag `hp2_tariff_engine` (désactivé par défaut, voir
-  // src/config/featureFlags.ts). Nouvelle collection, aucun repli sur des données de
-  // démonstration (contrairement à `ceilings` ci-dessus) : une collection vide signifie
-  // simplement qu'aucun tarif n'a encore été saisi pour aucun prestataire.
+  // src/modules/tariffs/), derrière le flag `hp2_tariff_engine`. Nouvelle collection, aucun
+  // repli sur des données de démonstration (contrairement à `ceilings` ci-dessus) : une
+  // collection vide signifie simplement qu'aucun tarif n'a encore été saisi pour aucun
+  // prestataire.
+  // === AMÉLIORATION AJOUTÉE : correctif (2026-09-10) — `reportSyncIssue` déclenche une
+  // bannière globale "Data synchronization issue" visible par TOUS les utilisateurs
+  // (src/utils/systemStatus.ts), pensée pour un vrai incident sur une collection déjà en
+  // production. Tant que la règle Firestore de `medicalTariffs` n'est pas déployée (voir
+  // HEALTHPASS_2_0_DISCOVERY.md, Phase 3), une erreur de permission ici est un état ATTENDU du
+  // déploiement en cours, pas un incident — ne doit donc plus déclencher cette bannière globale.
+  // L'échec reste visible localement (retombe sur une liste vide, donc "No tariffs set" dans
+  // ProviderTariffsModal.tsx plutôt qu'un blocage) et journalisé en console pour le diagnostic.
   subscribeToMedicalTariffs: (cb: (data: MedicalTariff[]) => void) =>
     onSnapshot(
       collection(db, 'medicalTariffs'),
       (snap) => {
-        clearSyncIssue('medicalTariffs');
         const map = new Map<string, MedicalTariff>();
         snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as MedicalTariff));
         cb(Array.from(map.values()));
       },
       (err) => {
-        handleFirestoreError(err, OperationType.GET, 'medicalTariffs');
-        reportSyncIssue('medicalTariffs', err);
+        console.warn('[firestore.ts] medicalTariffs subscription failed (expected until Firestore rules are deployed — see HEALTHPASS_2_0_DISCOVERY.md):', err);
         cb([]);
       }
     ),
