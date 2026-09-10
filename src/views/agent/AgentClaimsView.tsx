@@ -88,6 +88,19 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   onCreateClaim,
 }) => {
   const t = useTranslation(lang);
+  // === AMÉLIORATION AJOUTÉE : versions traduites de DOC_CATEGORY_LABELS/DOC_CATEGORY_TAGS
+  // (constantes de module ci-dessus, gardées pour l'énumération des clés DocCategory via
+  // Object.keys — l'ordre et les clés restent indépendants de la langue).
+  const docCategoryLabels: Record<DocCategory, string> = {
+    prescription: t.agentClaims.docCategoryPrescription,
+    invoice: t.agentClaims.docCategoryInvoice,
+    general: t.agentClaims.docCategoryGeneral,
+  };
+  const docCategoryTags: Record<DocCategory, string> = {
+    prescription: t.agentClaims.docTagPrescription,
+    invoice: t.agentClaims.docTagInvoice,
+    general: t.agentClaims.docTagGeneral,
+  };
   const { formatAmount, exchangeRate } = useCurrency();
   const [selectedClaimDetail, setSelectedClaimDetail] = useState<Claim | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -287,10 +300,12 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
     if (recentClaim) {
       const provName = recentClaim.provider || selectedProviderName || 'John F. Kennedy Medical Center (JFK)';
-      return `Warning: A recent claim (${recentClaim.reference}) already exists for this insured member at ${provName}.`;
+      return t.agentClaims.duplicateWarningTemplate
+        .replace('{ref}', recentClaim.reference)
+        .replace('{provider}', provName);
     }
     return null;
-  }, [memberCardInput, principalNameInput, selectedProviderName, claims]);
+  }, [memberCardInput, principalNameInput, selectedProviderName, claims, t]);
 
   // High Frequency Alert
   const frequencyWarning = useMemo(() => {
@@ -300,19 +315,21 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
     const count = Math.max(memberHistory.length, 6);
 
     if (count >= 3) {
-      return `High Frequency Alert: The insured member has logged ${count} medical visits.`;
+      return t.agentClaims.frequencyWarningTemplate.replace('{count}', String(count));
     }
     return null;
-  }, [memberCardInput, claims]);
+  }, [memberCardInput, claims, t]);
 
   const ceilingWarning = useMemo(() => {
     if (!matchedMember) return null;
     const currentBalance = matchedMember.outpatientBalanceUSD ?? 600;
     if (totalAmountInUSD > currentBalance) {
-      return `Notice: The total amount ($${totalAmountInUSD.toFixed(2)}) exceeds available outpatient balance ($${currentBalance}). Medical supervisor authorization will be required.`;
+      return t.agentClaims.ceilingWarningTemplate
+        .replace('{amount}', totalAmountInUSD.toFixed(2))
+        .replace('{balance}', String(currentBalance));
     }
     return null;
-  }, [matchedMember, totalAmountInUSD]);
+  }, [matchedMember, totalAmountInUSD, t]);
 
   const handleBeneficiarySelect = (name: string, relation: string) => {
     setPatientName(name);
@@ -427,7 +444,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
     // Enforce Eligibility Verification
     if (eligibilityStatus && !eligibilityStatus.isEligible) {
-      setEligibilityBlockError(eligibilityStatus.reason || 'Patient or Sponsor is ineligible for direct billing coverage.');
+      setEligibilityBlockError(eligibilityStatus.reason || t.agentClaims.ineligibleFallback);
       return;
     }
 
@@ -492,8 +509,8 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
             <PlusCircle className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-sm font-extrabold text-slate-900">Medical Claims Entry &amp; Processing</h2>
-            <p className="text-xs text-slate-500">Real-time coverage adjudication, biometric verification and automated duplicate detection</p>
+            <h2 className="text-sm font-extrabold text-slate-900">{t.agentClaims.pageTitle}</h2>
+            <p className="text-xs text-slate-500">{t.agentClaims.pageSubtitle}</p>
           </div>
         </div>
         <div className="flex items-center gap-2.5 self-start sm:self-auto">
@@ -505,11 +522,11 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
             className="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer bg-[#0a2e6b] hover:bg-[#07214f] text-white shadow-xs"
           >
             <PlusCircle className="w-4 h-4" />
-            <span>New Claim</span>
+            <span>{t.agentClaims.newClaimBtn}</span>
           </button>
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>ACTIVA Direct Coverage</span>
+            <span>{t.agentClaims.directCoverageBadge}</span>
           </span>
         </div>
       </div>
@@ -528,13 +545,13 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />
                   <div>
                     <h5 className="font-extrabold text-xs text-rose-800 uppercase tracking-wide">
-                      Coverage Ineligibility / Direct-Billing Blocked
+                      {t.agentClaims.ineligibleTitle}
                     </h5>
                     <p className="text-xs font-bold leading-relaxed mt-0.5">
                       {eligibilityBlockError || eligibilityStatus?.reason}
                     </p>
                     <p className="text-[11px] text-rose-700 mt-1">
-                      Direct billing cannot be submitted for this profile. Please advise patient to contact their HR sponsor or ACTIVA Care Management.
+                      {t.agentClaims.ineligibleHint}
                     </p>
                   </div>
                 </div>
@@ -583,13 +600,13 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         aussi été retirées, sur demande explicite) — rien ne remplace cet
                         espace, il reste vide. === */}
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
-                      1. Beneficiary Identification
+                      {t.agentClaims.section1Title}
                     </h4>
                   </div>
                   <div className="flex items-center gap-2">
                     {matchedMember && (
                       <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        Eligible Beneficiary
+                        {t.agentClaims.eligibleBeneficiary}
                       </span>
                     )}
                     <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 1 ? 'rotate-180' : ''}`} />
@@ -601,14 +618,14 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Principal Insured (Name): <span className="text-rose-500">*</span>
+                      {t.agentClaims.principalInsuredLabel} <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       list="members-name-list"
                       value={principalNameInput}
                       onChange={(e) => handlePrincipalNameChange(e.target.value)}
-                      placeholder="Name or select from directory..."
+                      placeholder={t.agentClaims.principalInsuredPlaceholder}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                       required
                     />
@@ -623,13 +640,13 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Patient Treated (Beneficiary): <span className="text-rose-500">*</span>
+                      {t.agentClaims.patientTreatedLabel} <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={patientName}
                       onChange={(e) => setPatientName(e.target.value)}
-                      placeholder="Full name of the patient..."
+                      placeholder={t.agentClaims.patientTreatedPlaceholder}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                       required
                     />
@@ -637,7 +654,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      HealthPass Card Number: <span className="text-rose-500">*</span>
+                      {t.agentClaims.cardNumberLabel} <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -659,15 +676,15 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Service Currency:
+                      {t.agentClaims.serviceCurrencyLabel}
                     </label>
                     <select
                       value={currency}
                       onChange={(e) => setCurrency(e.target.value as 'USD' | 'LRD')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                     >
-                      <option value="USD">USD ($) — US Dollars (Standard)</option>
-                      <option value="LRD">LRD (L$) — Liberian Dollars</option>
+                      <option value="USD">{t.agentClaims.usdOption}</option>
+                      <option value="LRD">{t.agentClaims.lrdOption}</option>
                     </select>
                   </div>
                 </div>
@@ -679,36 +696,36 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Company / Organization Sponsor
+                        {t.agentClaims.orgSponsorLabel}
                       </label>
                       <input
                         type="text"
                         value={organizationInput}
                         onChange={(e) => setOrganizationInput(e.target.value)}
-                        placeholder="e.g. Firestone, TotalEnergies..."
+                        placeholder={t.agentClaims.orgSponsorPlaceholder}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Relationship to Principal
+                        {t.agentClaims.relationshipLabel}
                       </label>
                       <select
                         value={patientRelationship}
                         onChange={(e) => setPatientRelationship(e.target.value)}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                       >
-                        <option value="Principal">Principal Insured</option>
-                        <option value="Spouse">Spouse</option>
-                        <option value="Child">Child / Dependent</option>
-                        <option value="Other">Other Dependent</option>
+                        <option value="Principal">{t.agentClaims.relationshipPrincipal}</option>
+                        <option value="Spouse">{t.agentClaims.relationshipSpouse}</option>
+                        <option value="Child">{t.agentClaims.relationshipChild}</option>
+                        <option value="Other">{t.agentClaims.relationshipOther}</option>
                       </select>
                     </div>
                   </div>
 
                   {beneficiaries.length > 0 && (
                     <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-bold text-slate-400">Attached Dependents:</span>
+                      <span className="text-[10px] font-bold text-slate-400">{t.agentClaims.attachedDependentsLabel}</span>
                       {beneficiaries.map((b, idx) => (
                         <button
                           key={idx}
@@ -739,7 +756,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   <div className="flex items-center gap-2">
                     <Building className="w-4 h-4 text-[#0a2e6b]" />
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
-                      2. Healthcare Provider &amp; Attending Physician
+                      {t.agentClaims.section2Title}
                     </h4>
                   </div>
                   <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 2 ? 'rotate-180' : ''}`} />
@@ -749,7 +766,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Approved Healthcare Provider / Hospital:
+                      {t.agentClaims.providerLabel}
                     </label>
                     <select
                       value={selectedProviderName}
@@ -757,7 +774,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                       required
                     >
-                      <option value="">Select healthcare provider...</option>
+                      <option value="">{t.agentClaims.selectProviderOption}</option>
                       {providers.map((p) => (
                         <option key={p.id} value={p.name}>
                           {p.name} ({p.type} - {p.location})
@@ -768,13 +785,13 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Attending Physician Name / Practitioner:
+                      {t.agentClaims.physicianLabel}
                     </label>
                     <input
                       type="text"
                       value={doctorName}
                       onChange={(e) => setDoctorName(e.target.value)}
-                      placeholder="e.g. Dr. Samuel Johnson"
+                      placeholder={t.agentClaims.physicianPlaceholder}
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                       required
                     />
@@ -796,11 +813,11 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     <Activity className="w-4 h-4 text-[#0a2e6b]" />
                     <div>
                       <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                        <span>3. Medical Acts &amp; Procedures ({medicalActs.length})</span>
+                        <span>{t.agentClaims.section3TitlePrefix} ({medicalActs.length})</span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 3 ? 'rotate-180' : ''}`} />
                       </h4>
                       <p className="text-[10.5px] text-slate-400 font-medium">
-                        Itemized breakdown of care billed in {currency === 'USD' ? 'US Dollars (USD / $)' : 'Liberian Dollars (LRD / L$)'}
+                        {t.agentClaims.itemizedBreakdownPrefix} {currency === 'USD' ? t.agentClaims.usdFull : t.agentClaims.lrdFull}
                       </p>
                     </div>
                   </div>
@@ -836,7 +853,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#00A859] border border-emerald-200 rounded-lg text-xs font-bold transition flex items-center gap-1 ml-auto cursor-pointer"
                     >
                       <PlusCircle className="w-3.5 h-3.5" />
-                      <span>Add Medical Act</span>
+                      <span>{t.agentClaims.addMedicalAct}</span>
                     </button>
                   </div>
                 </div>
@@ -848,20 +865,20 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     <div key={act.id || idx} className="p-3 bg-slate-50/70 border border-slate-200 rounded-xl space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 gap-2.5 items-center">
                       <div className="sm:col-span-4">
                         <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
-                          Procedure Description #{idx + 1}
+                          {t.agentClaims.procedureDescriptionPrefix}{idx + 1}
                         </label>
                         <input
                           type="text"
                           value={act.description}
                           onChange={(e) => handleUpdateAct(idx, 'description', e.target.value)}
-                          placeholder="Description of act / test..."
+                          placeholder={t.agentClaims.procedureDescriptionPlaceholder}
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800"
                           required
                         />
                       </div>
 
                       <div className="sm:col-span-4">
-                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Care Category</label>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">{t.agentClaims.careCategoryLabel}</label>
                         <select
                           value={act.category}
                           onChange={(e) => handleUpdateAct(idx, 'category', e.target.value)}
@@ -877,7 +894,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
                       <div className="sm:col-span-3">
                         <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
-                          Amount ({currency === 'USD' ? 'USD / $' : 'LRD / L$'})
+                          {t.agentClaims.amountLabel} ({currency === 'USD' ? 'USD / $' : 'LRD / L$'})
                         </label>
                         <div className="relative">
                           <span className="absolute left-2.5 top-1.5 text-slate-400 font-bold text-xs">
@@ -910,7 +927,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                               ? 'text-slate-300 cursor-not-allowed'
                               : 'text-rose-500 hover:bg-rose-50 cursor-pointer'
                           }`}
-                          title="Remove Act"
+                          title={t.agentClaims.removeActTitle}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -925,15 +942,15 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 <div className="p-4 bg-[#0a2e6b] rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-white">
                   <div>
                     <span className="text-[11px] font-extrabold text-emerald-300 uppercase tracking-wide">
-                      Automated ACTIVA Co-Pay Calculation ({coverageRatePercent}% / {(100 - coverageRatePercent).toFixed(0)}%) — {currency === 'USD' ? 'US Dollar (USD)' : 'Liberian Dollar (LRD)'}
+                      {t.agentClaims.copayCalcPrefix} ({coverageRatePercent}% / {(100 - coverageRatePercent).toFixed(0)}%) — {currency === 'USD' ? 'US Dollar (USD)' : 'Liberian Dollar (LRD)'}
                     </span>
                     <p className="text-xs font-semibold text-blue-100 mt-1">
-                      ACTIVA Covered: <span className="text-emerald-300 font-bold">{formatAmount(activaCoveredAmount)}</span>
-                      {' '}• Insured Co-pay: <span className="font-bold">{formatAmount(insuredCopayAmount)}</span>
+                      {t.agentClaims.activaCoveredLabel} <span className="text-emerald-300 font-bold">{formatAmount(activaCoveredAmount)}</span>
+                      {' '}• {t.agentClaims.insuredCopayLabel} <span className="font-bold">{formatAmount(insuredCopayAmount)}</span>
                     </p>
                   </div>
                   <div className="text-left sm:text-right">
-                    <span className="text-[10px] font-bold text-blue-200 uppercase tracking-wide block">Total Claim Amount</span>
+                    <span className="text-[10px] font-bold text-blue-200 uppercase tracking-wide block">{t.agentClaims.totalClaimAmountLabel}</span>
                     <div className="text-lg sm:text-xl font-black text-white">
                       {formatAmount(totalAmount)} <span className="text-emerald-300 text-xs font-bold">{currency}</span>
                     </div>
@@ -956,16 +973,16 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     <Paperclip className="w-4 h-4 text-[#0a2e6b]" />
                     <div>
                       <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                        <span>4. Supporting Documents &amp; Invoices ({allAttachmentsForDisplay.length})</span>
+                        <span>{t.agentClaims.section4TitlePrefix} ({allAttachmentsForDisplay.length})</span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 4 ? 'rotate-180' : ''}`} />
                       </h4>
                       <p className="text-[10.5px] text-slate-400 font-medium">
-                        Upload prescriptions, hospital invoices, Word documents (.doc/.docx), PDFs, and medical photos
+                        {t.agentClaims.uploadHint}
                       </p>
                     </div>
                   </div>
                   <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
-                    Word (.docx/.doc), PDF, JPG, PNG up to 10MB
+                    {t.agentClaims.fileSizeHint}
                   </span>
                 </div>
 
@@ -974,7 +991,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   {/* Left: category selector + drop zone */}
                   <div className="space-y-2.5">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Document Category:</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">{t.agentClaims.documentCategoryLabel}</label>
                       <select
                         value={documentCategory}
                         onChange={(e) => setDocumentCategory(e.target.value as DocCategory)}
@@ -982,7 +999,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       >
                         {(Object.keys(DOC_CATEGORY_LABELS) as DocCategory[]).map((cat) => (
                           <option key={cat} value={cat}>
-                            {DOC_CATEGORY_LABELS[cat]}
+                            {docCategoryLabels[cat]}
                           </option>
                         ))}
                       </select>
@@ -1020,8 +1037,8 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       }`}
                     >
                       <UploadCloud className={`w-7 h-7 mx-auto mb-2 ${isDraggingFile ? 'text-[#0a2e6b]' : 'text-slate-400'}`} />
-                      <p className="text-xs font-bold text-slate-700">Drag and drop files here</p>
-                      <p className="text-[10.5px] text-slate-400 mt-0.5">Photos, Word (.docx/.doc), PDF up to 10MB</p>
+                      <p className="text-xs font-bold text-slate-700">{t.agentClaims.dragDropHint}</p>
+                      <p className="text-[10.5px] text-slate-400 mt-0.5">{t.agentClaims.dragDropSubHint}</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -1032,7 +1049,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         className="mt-3 px-4 py-2 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-lg text-xs font-bold transition cursor-pointer inline-flex items-center gap-1.5"
                       >
                         <Upload className="w-3.5 h-3.5" />
-                        <span>Browse Files</span>
+                        <span>{t.agentClaims.browseFiles}</span>
                       </button>
                     </div>
                   </div>
@@ -1041,7 +1058,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   <div className="space-y-2">
                     {allAttachmentsForDisplay.length === 0 ? (
                       <div className="h-full min-h-[140px] flex items-center justify-center text-center p-4 bg-slate-50/60 border border-dashed border-slate-200 rounded-xl">
-                        <p className="text-xs text-slate-400 italic">No supporting documents attached yet.</p>
+                        <p className="text-xs text-slate-400 italic">{t.agentClaims.noDocsAttached}</p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1060,7 +1077,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                               <div className="min-w-0">
                                 <p className="font-bold text-slate-800 text-[11px] truncate">{attachment.name}</p>
                                 <p className="text-[9px] text-slate-400 uppercase tracking-wide font-bold">
-                                  {DOC_CATEGORY_TAGS[category]} • {attachment.size}
+                                  {docCategoryTags[category]} • {attachment.size}
                                 </p>
                               </div>
                             </div>
@@ -1069,7 +1086,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                                 type="button"
                                 onClick={() => setPreviewDocModal(attachment)}
                                 className="p-1 text-slate-500 hover:text-[#0a2e6b] cursor-pointer"
-                                title="Preview"
+                                title={t.agentClaims.previewTitle}
                               >
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
@@ -1077,7 +1094,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                                 type="button"
                                 onClick={onRemove}
                                 className="p-1 text-rose-500 hover:text-rose-700 cursor-pointer"
-                                title="Remove"
+                                title={t.agentClaims.removeTitle}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1096,7 +1113,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 {fingerprintVerification ? (
                   <span className="px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center justify-center gap-1.5">
                     <Fingerprint className="w-4 h-4" />
-                    <span>Fingerprint Verified (Score {fingerprintVerification.score}%)</span>
+                    <span>{t.agentClaims.fingerprintVerifiedPrefix} {fingerprintVerification.score}%)</span>
                   </span>
                 ) : (
                   <button
@@ -1105,7 +1122,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
                   >
                     <Fingerprint className="w-4 h-4" />
-                    <span>Verify Beneficiary Fingerprint (Optional)</span>
+                    <span>{t.agentClaims.verifyFingerprintBtn}</span>
                   </button>
                 )}
 
@@ -1127,7 +1144,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   }`}
                 >
                   <Receipt className="w-4 h-4" />
-                  <span>Submit Claim for Supervisor Validation</span>
+                  <span>{t.agentClaims.submitClaimBtn}</span>
                 </button>
               </div>
       </form>
@@ -1138,8 +1155,8 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               <PlusCircle className="w-6 h-6" />
             </div>
             <div>
-              <p className="font-bold text-sm text-slate-900">Start a new claim</p>
-              <p className="text-xs text-slate-500 mt-1">Click "New Claim" to activate this form.</p>
+              <p className="font-bold text-sm text-slate-900">{t.agentClaims.startNewClaim}</p>
+              <p className="text-xs text-slate-500 mt-1">{t.agentClaims.activateFormHint}</p>
             </div>
             <button
               type="button"
@@ -1147,7 +1164,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               className="px-4 py-2 rounded-xl bg-[#0a2e6b] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
             >
               <PlusCircle className="w-3.5 h-3.5" />
-              <span>New Claim</span>
+              <span>{t.agentClaims.newClaimBtn}</span>
             </button>
           </div>
         </div>
@@ -1159,16 +1176,16 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
         <div className="px-4 sm:px-6 py-3.5 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div>
             <h3 className="font-extrabold text-xs sm:text-sm text-slate-900">
-              Recent Claims History &amp; Status ({claimsHistoryCount})
+              {t.agentClaims.historyTitlePrefix} ({claimsHistoryCount})
             </h3>
-            <p className="text-[10.5px] text-slate-400">Real-time tracking of files and coverage adjudication decisions</p>
+            <p className="text-[10.5px] text-slate-400">{t.agentClaims.historySubtitle}</p>
           </div>
           <div className="relative w-full sm:w-72">
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by ref, name, card..."
+              placeholder={t.agentClaims.searchClaimsPlaceholder}
               className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] transition"
             />
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
@@ -1179,7 +1196,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
         <div className="block lg:hidden divide-y divide-slate-100">
           {filteredClaims.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-xs font-medium">
-              No claims recorded at this moment.
+              {t.agentClaims.noClaimsRecorded}
             </div>
           ) : (
             filteredClaims.map((claim) => (
@@ -1203,10 +1220,10 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     }`}
                   >
                     {claim.status === 'approved' || claim.status === 'Validated' || claim.status === 'Approved'
-                      ? 'Approved'
+                      ? t.approvedStatus
                       : claim.status === 'rejected' || claim.status === 'Rejected'
-                      ? 'Rejected'
-                      : 'Pending'}
+                      ? t.rejectedStatus
+                      : t.pending}
                   </span>
                 </div>
 
@@ -1233,7 +1250,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   {claim.attachments && claim.attachments.length > 0 && (
                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
                       <Paperclip className="w-2.5 h-2.5" />
-                      {claim.attachments.length} doc(s)
+                      {claim.attachments.length} {t.agentClaims.docCountSuffix}
                     </span>
                   )}
                 </div>
@@ -1247,19 +1264,19 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                <th className="py-3 px-4 whitespace-nowrap">Reference &amp; Date</th>
-                <th className="py-3 px-4">Beneficiary / Card</th>
-                <th className="py-3 px-4">Healthcare Provider</th>
-                <th className="py-3 px-4">Category</th>
-                <th className="py-3 px-4 text-right whitespace-nowrap">Total Amount</th>
-                <th className="py-3 px-4 text-center whitespace-nowrap">Decision Status</th>
+                <th className="py-3 px-4 whitespace-nowrap">{t.agentClaims.colRefDate}</th>
+                <th className="py-3 px-4">{t.agentClaims.colBeneficiaryCard}</th>
+                <th className="py-3 px-4">{t.agentClaims.colHealthcareProvider}</th>
+                <th className="py-3 px-4">{t.agentClaims.colCategory}</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">{t.agentClaims.colTotalAmount}</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">{t.agentClaims.colDecisionStatus}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredClaims.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-slate-400 text-xs font-medium">
-                    {searchTerm ? 'No claims matching your search query.' : 'No claims recorded at this moment.'}
+                    {searchTerm ? t.agentClaims.noClaimsMatching : t.agentClaims.noClaimsRecorded}
                   </td>
                 </tr>
               ) : (
@@ -1307,10 +1324,10 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         }`}
                       >
                         {claim.status === 'approved' || claim.status === 'Validated' || claim.status === 'Approved'
-                          ? 'Approved'
+                          ? t.approvedStatus
                           : claim.status === 'rejected' || claim.status === 'Rejected'
-                          ? 'Rejected'
-                          : 'Pending'}
+                          ? t.rejectedStatus
+                          : t.pending}
                       </span>
                     </td>
                   </tr>
@@ -1329,8 +1346,8 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
           setFingerprintVerification({ score: data.score });
           setIsFingerprintModalOpen(false);
         }}
-        title="Beneficiary Fingerprint Verification"
-        subtitle="Optional AFIS verification prior to claim submission"
+        title={t.agentClaims.fingerprintModalTitle}
+        subtitle={t.agentClaims.fingerprintModalSubtitle}
       />
 
       {/* Modal Document Preview (PDF, Word, Images) */}
@@ -1362,7 +1379,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     {previewDocModal.type === 'word' ? <File className="w-8 h-8" /> : <FileText className="w-8 h-8" />}
                   </div>
                   <h4 className="font-extrabold text-slate-800 text-sm">{previewDocModal.name}</h4>
-                  <p className="text-xs text-slate-500">Document {previewDocModal.type.toUpperCase()} ({previewDocModal.size})</p>
+                  <p className="text-xs text-slate-500">{t.agentClaims.documentTypeLabel} {previewDocModal.type.toUpperCase()} ({previewDocModal.size})</p>
                 </div>
               )}
               <a
@@ -1371,7 +1388,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold transition shadow-xs"
               >
                 <Download className="w-4 h-4" />
-                <span>Download Document</span>
+                <span>{t.agentClaims.downloadDocument}</span>
               </a>
             </div>
           </div>
@@ -1384,8 +1401,8 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
           <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden animate-in zoom-in-95 max-h-[90vh] flex flex-col">
             <div className="bg-[#0a2e6b] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0">
               <div>
-                <h3 className="font-bold text-base">Claim Record: {selectedClaimDetail.reference}</h3>
-                <p className="text-xs text-blue-100">Service Date: {selectedClaimDetail.serviceDate}</p>
+                <h3 className="font-bold text-base">{t.agentClaims.claimRecordPrefix} {selectedClaimDetail.reference}</h3>
+                <p className="text-xs text-blue-100">{t.agentClaims.serviceDatePrefix} {selectedClaimDetail.serviceDate}</p>
               </div>
               <button
                 onClick={() => setSelectedClaimDetail(null)}
@@ -1418,17 +1435,17 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   />
                   <div>
                     <span className="font-extrabold text-sm block">
-                      Status:{' '}
+                      {t.agentClaims.statusLabel}{' '}
                       {selectedClaimDetail.status === 'approved' || selectedClaimDetail.status === 'Validated' || selectedClaimDetail.status === 'Approved'
-                        ? 'Approved ✓'
+                        ? t.agentClaims.statusApproved
                         : selectedClaimDetail.status === 'rejected' || selectedClaimDetail.status === 'Rejected'
-                        ? 'Rejected ✗'
-                        : 'Pending Supervisor Review'}
+                        ? t.agentClaims.statusRejected
+                        : t.agentClaims.statusPending}
                     </span>
                     {selectedClaimDetail.decisionDate && (
                       <span className="text-[11px] opacity-80 block">
-                        Decision Date: <strong>{selectedClaimDetail.decisionDate}</strong>
-                        {selectedClaimDetail.approvedBy && ` • Decision by: ${selectedClaimDetail.approvedBy}`}
+                        {t.agentClaims.decisionDateLabel} <strong>{selectedClaimDetail.decisionDate}</strong>
+                        {selectedClaimDetail.approvedBy && ` • ${t.agentClaims.decisionByPrefix} ${selectedClaimDetail.approvedBy}`}
                       </span>
                     )}
                   </div>
@@ -1440,14 +1457,14 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl space-y-1.5 animate-in fade-in">
                   <div className="flex items-center gap-2 text-rose-800 font-bold">
                     <XCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                    <span>Rejection Reason:</span>
+                    <span>{t.agentClaims.rejectionReasonLabel}</span>
                   </div>
                   <p className="text-rose-900 font-bold pl-6 text-xs leading-relaxed">
-                    {selectedClaimDetail.rejectionReason || 'Ceiling exceeded or medical protocol non-compliance'}
+                    {selectedClaimDetail.rejectionReason || t.agentClaims.rejectionReasonFallback}
                   </p>
                   {selectedClaimDetail.comments && (
                     <div className="pt-2 mt-2 border-t border-rose-200/60 pl-6 text-slate-700">
-                      <span className="font-bold text-slate-900">Supervisor Remarks:</span> {selectedClaimDetail.comments}
+                      <span className="font-bold text-slate-900">{t.agentClaims.supervisorRemarksLabel}</span> {selectedClaimDetail.comments}
                     </div>
                   )}
                 </div>
@@ -1455,27 +1472,27 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
                 <div>
-                  <span className="text-slate-400 font-medium block">Principal Insured</span>
+                  <span className="text-slate-400 font-medium block">{t.agentClaims.principalInsuredDetail}</span>
                   <span className="font-bold text-slate-800 text-sm">{selectedClaimDetail.memberName}</span>
                   <span className="text-[11px] text-slate-500 block font-mono">{selectedClaimDetail.memberCardNo}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 font-medium block">Organization</span>
+                  <span className="text-slate-400 font-medium block">{t.agentClaims.organizationDetail}</span>
                   <span className="font-bold text-slate-800">{selectedClaimDetail.organization}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 font-medium block">Healthcare Facility</span>
+                  <span className="text-slate-400 font-medium block">{t.agentClaims.healthcareFacilityDetail}</span>
                   <span className="font-bold text-[#0a2e6b]">{selectedClaimDetail.provider}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 font-medium block">Attending Physician</span>
-                  <span className="font-bold text-slate-800">{selectedClaimDetail.doctorName || 'Not specified'}</span>
+                  <span className="text-slate-400 font-medium block">{t.agentClaims.attendingPhysicianDetail}</span>
+                  <span className="font-bold text-slate-800">{selectedClaimDetail.doctorName || t.agentClaims.notSpecified}</span>
                 </div>
               </div>
 
               {selectedClaimDetail.comments && !selectedClaimDetail.rejectionReason && (
                 <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl text-slate-700">
-                  <span className="font-bold text-[#0a2e6b] block mb-1">Details & Beneficiary:</span>
+                  <span className="font-bold text-[#0a2e6b] block mb-1">{t.agentClaims.detailsBeneficiaryLabel}</span>
                   <p>{selectedClaimDetail.comments}</p>
                 </div>
               )}
@@ -1485,7 +1502,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 <div>
                   <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-1.5">
                     <Paperclip className="w-3.5 h-3.5 text-[#0a2e6b]" />
-                    <span>Submitted Supporting Documents ({selectedClaimDetail.attachments.length})</span>
+                    <span>{t.agentClaims.submittedDocsPrefix} ({selectedClaimDetail.attachments.length})</span>
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {selectedClaimDetail.attachments.map((att, i) => (
@@ -1503,7 +1520,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                           href={att.url}
                           download={att.name}
                           className="p-1 rounded bg-white border border-slate-200 text-slate-700 hover:text-[#0a2e6b]"
-                          title="Download"
+                          title={t.agentClaims.downloadTitle}
                         >
                           <Download className="w-3.5 h-3.5" />
                         </a>
@@ -1515,13 +1532,13 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
               {selectedClaimDetail.medicalActs && selectedClaimDetail.medicalActs.length > 0 && (
                 <div>
-                  <h4 className="font-bold text-slate-800 mb-2">Itemized Medical Acts:</h4>
+                  <h4 className="font-bold text-slate-800 mb-2">{t.agentClaims.itemizedActsTitle}</h4>
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
                     <table className="w-full text-left">
                       <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-500 text-[10px]">
                         <tr>
-                          <th className="p-2.5">Act / Procedure</th>
-                          <th className="p-2.5 text-right">Amount</th>
+                          <th className="p-2.5">{t.agentClaims.colActProcedure}</th>
+                          <th className="p-2.5 text-right">{t.agentClaims.colAmount}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1540,7 +1557,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               )}
 
               <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
-                <span className="text-sm font-bold text-slate-700">Total Claim Amount:</span>
+                <span className="text-sm font-bold text-slate-700">{t.agentClaims.totalClaimAmountFooter}</span>
                 <div className="text-right">
                   <span className="text-lg font-black text-[#0a2e6b] block">
                     ${selectedClaimDetail.amount?.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
