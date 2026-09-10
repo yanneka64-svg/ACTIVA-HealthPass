@@ -161,9 +161,29 @@ needed on either — feature-flag foundation, `src/modules/` structure).
 All flags default to `false` in `src/config/featureFlags.ts` — no shipped module is visible to
 any production user until explicitly enabled.
 
-## 6. Next step
+## 6. Status as of pausing (2026-09-10)
 
-Phases 1–3 substantively complete (Phase 3's Digital Card is code-complete but undeployed, see
-section 3). Phase 4's SLA Tracking module shipped. Remaining open: Reimbursement / Payment
-Reconciliation, intentionally deferred pending a clearer, less financially-sensitive scope — to
-be picked up only once that scope is defined with the user.
+Work on HealthPass 2.0 is paused here at the user's request — a deliberate stopping point, not
+an incomplete one. Summary of the engagement:
+
+- **Phase 0** (Stabilization & Security): complete. Discovery report, SoD/audit review,
+  `firestore.rules` review (no changes needed on either), feature-flag foundation,
+  `src/modules/` structure.
+- **Phase 1** (Eligibility/Coverage/Tariff Engines): Tariff Engine shipped
+  (`hp2_tariff_engine`). Eligibility/Coverage intentionally left on the existing
+  `eligibilityService.ts` + org-level coverage rate — already solid, not rebuilt.
+- **Phase 2** (Preauthorization/BillAudit/FraudDetection): all 3 shipped
+  (`hp2_preauthorization`, `hp2_bill_audit`, `hp2_fraud_detection`) — complete.
+- **Phase 3** (Provider ecosystem + digital card): Digital HealthPass Card + server-verifiable
+  QR shipped in code (`hp2_provider_digital_card`) — **not usable until deployed** (see section
+  3: `CARD_SIGNING_KEY` secret + `firebase deploy --only functions`, neither done by this
+  session). Provider/Organization screens confirmed already substantial, not rebuilt.
+- **Phase 4** (Reimbursement/Reconciliation/SLA/Analytics): SLA Tracking shipped
+  (`hp2_sla_tracking`). Analytics confirmed already mature, not rebuilt. Reimbursement/Payment
+  Reconciliation deliberately deferred — real financial workflows without a defined scope yet;
+  pick up only once that scope is worked out with the user.
+
+Every shipped module ships behind a flag in `src/config/featureFlags.ts`, all `false` by
+default — **nothing here is visible to any production user today.** To resume this work later,
+start from this document; the plan-vs-reality corrections in section 2 and the per-phase notes
+in section 3 remain the source of truth for what's real vs. what the original plan assumed.
