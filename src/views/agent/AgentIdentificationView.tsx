@@ -91,7 +91,28 @@ const CircularGauge: React.FC<{
   consumedLabel: string;
   usedPct: number;
   unitLabel: string;
-}> = ({ label, icon, ringColor, balanceLabel, ceilingLabel, consumedLabel, usedPct, unitLabel }) => {
+  // === AMÉLIORATION AJOUTÉE : libellés traduits en props optionnelles (repli en anglais si
+  // non fournis) pour ne rien changer au comportement existant.
+  remainingBalanceText?: string;
+  ofText?: string;
+  ceilingSuffixText?: string;
+  consumedText?: string;
+  usedText?: string;
+}> = ({
+  label,
+  icon,
+  ringColor,
+  balanceLabel,
+  ceilingLabel,
+  consumedLabel,
+  usedPct,
+  unitLabel,
+  remainingBalanceText = 'Remaining Balance',
+  ofText = 'of',
+  ceilingSuffixText = 'ceiling',
+  consumedText = 'Consumed:',
+  usedText = 'used',
+}) => {
   const r = 34;
   const c = 2 * Math.PI * r;
   const offset = c - (usedPct / 100) * c;
@@ -128,17 +149,17 @@ const CircularGauge: React.FC<{
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-sm font-black text-slate-800">{usedPct}%</span>
-            <span className="text-[8px] font-bold text-slate-400 uppercase">used</span>
+            <span className="text-[8px] font-bold text-slate-400 uppercase">{usedText}</span>
           </div>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Remaining Balance</div>
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{remainingBalanceText}</div>
           <div className="text-lg font-black text-[#00A859] truncate">{balanceLabel}</div>
-          <div className="text-[10.5px] text-slate-500 font-medium truncate">of {ceilingLabel} ceiling</div>
+          <div className="text-[10.5px] text-slate-500 font-medium truncate">{ofText} {ceilingLabel} {ceilingSuffixText}</div>
         </div>
       </div>
       <div className="text-[10.5px] text-slate-500 font-medium pt-1 border-t border-slate-100">
-        Consumed: <span className="font-bold text-slate-700">{consumedLabel}</span>
+        {consumedText} <span className="font-bold text-slate-700">{consumedLabel}</span>
       </div>
     </div>
   );
@@ -278,7 +299,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
       setSelectedBeneficiary(matched);
       setSearchQuery(matched.cardNo);
       setBiometricMatchMessage(
-        `Biometric AFIS 1:N Match Verified (${data.score}% confidence) for ${matched.fullName} (Card #${matched.cardNo}) via ${data.finger.replace('_', ' ')}.`
+        t.agentId.biometricMatchTemplate
+          .replace('{score}', String(data.score))
+          .replace('{name}', matched.fullName)
+          .replace('{cardNo}', matched.cardNo)
+          .replace('{finger}', data.finger.replace('_', ' '))
       );
     }
   };
@@ -348,7 +373,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   // === AMÉLIORATION AJOUTÉE : historique limité au mois calendaire en cours ("CURRENT MONTH
   // CARE HISTORY"), au lieu des 5 derniers actes toutes périodes confondues.
   const now = new Date();
-  const currentMonthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const currentMonthLabel = now.toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' });
   const currentMonthClaims = useMemo(() => {
     return memberClaims.filter((c) => {
       const d = new Date(c.serviceDate);
@@ -381,7 +406,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by Card Number (e.g. ACT-2025-0012), Insured Name, Policy or Organization..."
+            placeholder={t.agentId.searchPlaceholder}
             className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A347B] focus:bg-white transition"
           />
         </form>
@@ -393,7 +418,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             className="px-4 py-3 rounded-xl font-bold text-xs shadow-2xs transition flex items-center justify-center gap-2 cursor-pointer bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 whitespace-nowrap"
           >
             <Fingerprint className="w-4 h-4" />
-            <span>Scan Biometric Sensor</span>
+            <span>{t.agentId.scanBiometric}</span>
           </button>
           {onNewEnrollment && (
             <button
@@ -402,7 +427,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
               className="px-4 py-3 rounded-xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#0A347B] hover:bg-[#08285e] text-white whitespace-nowrap"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>New Enrollment</span>
+              <span>{t.agentId.newEnrollment}</span>
             </button>
           )}
         </div>
@@ -419,7 +444,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             onClick={() => setBiometricMatchMessage(null)}
             className="text-emerald-700 hover:text-emerald-900 text-xs underline"
           >
-            Dismiss
+            {t.agentId.dismiss}
           </button>
         </div>
       )}
@@ -436,16 +461,16 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
-              Insured Directory ({filteredDirectory.length})
+              {t.agentId.insuredDirectory} ({filteredDirectory.length})
             </h3>
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              {activeCount} Active
+              {activeCount} {t.active}
             </span>
           </div>
 
           {filteredDirectory.length === 0 ? (
             <div className="p-6 text-center text-slate-400 text-xs font-medium">
-              No insured member matches your search.
+              {t.agentId.noSearchMatch}
             </div>
           ) : (
             <div className="space-y-2 max-h-[640px] overflow-y-auto pr-0.5">
@@ -481,7 +506,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         <span className="truncate">{b.organization}</span>
                       </div>
                       <div className="text-[10.5px] text-slate-400">
-                        {age !== null ? `${age} yrs` : '—'} • Gender: {b.gender === 'F' ? 'F' : 'M'}
+                        {age !== null ? `${age} ${t.agentId.ageUnit}` : '—'} • {t.agentId.genderLabel} {b.gender === 'F' ? 'F' : 'M'}
                       </div>
                     </div>
                     <span
@@ -504,13 +529,13 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         {!selectedBeneficiary ? (
           <div className="bg-white rounded-2xl border border-dashed border-slate-300 shadow-xs p-12 flex flex-col items-center justify-center text-center gap-2">
             <Users className="w-8 h-8 text-slate-300" />
-            <p className="text-sm font-bold text-slate-500">Identify an insured member</p>
+            <p className="text-sm font-bold text-slate-500">{t.agentId.identifyMember}</p>
             {/* === AMÉLIORATION AJOUTÉE : copie ajustée (2026-09-10) — l'annuaire n'étant plus
                 affiché du tout sur mobile (voir plus haut), le renvoi vers "on the left" ne
                 s'applique qu'à partir de `lg`. */}
             <p className="text-xs text-slate-400 max-w-sm">
-              Search by card number or name, or scan a biometric fingerprint to identify a beneficiary and view their coverage.
-              <span className="hidden lg:inline"> You can also browse the directory on the left.</span>
+              {t.agentId.identifyMemberDesc}
+              <span className="hidden lg:inline">{t.agentId.browseDirectoryHint}</span>
             </p>
           </div>
         ) : (
@@ -524,7 +549,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
               className="lg:hidden flex items-center gap-1.5 text-xs font-bold text-[#0A347B] hover:text-[#08285e] cursor-pointer"
             >
               <ChevronRight className="w-3.5 h-3.5 rotate-180" />
-              <span>New Search</span>
+              <span>{t.agentId.newSearch}</span>
             </button>
 
             {/* === AMÉLIORATION AJOUTÉE : refonte complète de la page ("Proposition B", choisie
@@ -565,16 +590,16 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         }`}
                       >
                         {policyCoverage.coverageBlocked ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                        {policyCoverage.status === 'Active' && 'Active — Access to Healthcare'}
-                        {policyCoverage.status === 'Expiring Soon' && 'Expiring Soon'}
-                        {policyCoverage.status === 'Expired' && 'Access Blocked'}
-                        {policyCoverage.status === 'Suspended' && 'Access Suspended'}
-                        {policyCoverage.status === 'Pending Renewal' && 'Pending Renewal'}
+                        {policyCoverage.status === 'Active' && t.agentId.coverageActive}
+                        {policyCoverage.status === 'Expiring Soon' && t.agentId.coverageExpiringSoon}
+                        {policyCoverage.status === 'Expired' && t.agentId.coverageBlockedBadge}
+                        {policyCoverage.status === 'Suspended' && t.agentId.coverageSuspendedBadge}
+                        {policyCoverage.status === 'Pending Renewal' && t.agentId.coveragePendingRenewal}
                       </span>
                     )}
                     {(selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore) && (
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-[#0A347B] border border-blue-200">
-                        ICAO Biometrics Compliant
+                        {t.agentId.icaoCompliant}
                       </span>
                     )}
                   </div>
@@ -584,18 +609,18 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                       Birth — mêmes valeurs, mêmes libellés, juste plus compact. === */}
                   <div className="space-y-2.5">
                     <div className="min-w-0">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Policy Number</div>
-                      <div className="font-mono font-bold text-[11px] text-slate-800 truncate" title={policyNumber || 'N/A'}>{policyNumber || 'N/A'}</div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{t.agentId.policyNumber}</div>
+                      <div className="font-mono font-bold text-[11px] text-slate-800 truncate" title={policyNumber || t.agentId.notAvailable}>{policyNumber || t.agentId.notAvailable}</div>
                     </div>
                     <div className="min-w-0">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Age &amp; Gender</div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{t.agentId.ageGender}</div>
                       <div className="font-bold text-[11px] text-slate-800 truncate">
-                        {calculateAgeNumber(selectedBeneficiary.birthDate) ?? '—'} yrs ({selectedBeneficiary.gender === 'F' ? 'Female' : 'Male'})
+                        {calculateAgeNumber(selectedBeneficiary.birthDate) ?? '—'} {t.agentId.ageUnit} ({selectedBeneficiary.gender === 'F' ? t.agentId.female : t.agentId.male})
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Date of Birth</div>
-                      <div className="font-bold text-[11px] text-slate-800 truncate">{selectedBeneficiary.birthDate || 'N/A'}</div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{t.agentId.dateOfBirth}</div>
+                      <div className="font-bold text-[11px] text-slate-800 truncate">{selectedBeneficiary.birthDate || t.agentId.notAvailable}</div>
                     </div>
                   </div>
 
@@ -621,7 +646,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         className="w-full px-3.5 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white whitespace-nowrap"
                       >
                         <FileCheck className="w-3.5 h-3.5" />
-                        <span>Generate Medical Form</span>
+                        <span>{t.agentId.generateMedicalForm}</span>
                       </button>
                     )}
                     {/* === AMÉLIORATION AJOUTÉE : bouton "New Claim" retiré de l'affichage
@@ -666,48 +691,48 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                       >
                         {policyCoverage.coverageBlocked ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
                         <span>
-                          {policyCoverage.status === 'Active' && 'Member Verified — Access to Healthcare'}
-                          {policyCoverage.status === 'Expiring Soon' && 'Member Verified — Policy Expiring Soon'}
-                          {policyCoverage.status === 'Expired' && 'Healthcare Access Blocked'}
-                          {policyCoverage.status === 'Suspended' && 'Healthcare Access Suspended'}
-                          {policyCoverage.status === 'Pending Renewal' && 'Policy Pending Renewal'}
+                          {policyCoverage.status === 'Active' && t.agentId.memberVerifiedActive}
+                          {policyCoverage.status === 'Expiring Soon' && t.agentId.memberVerifiedExpiring}
+                          {policyCoverage.status === 'Expired' && t.agentId.healthcareBlocked}
+                          {policyCoverage.status === 'Suspended' && t.agentId.healthcareSuspended}
+                          {policyCoverage.status === 'Pending Renewal' && t.agentId.policyPendingRenewal}
                         </span>
                       </h4>
-                      <span className="text-[9.5px] font-mono font-bold text-slate-500 shrink-0">Policy: {selectedPolicy.policyNumber}</span>
+                      <span className="text-[9.5px] font-mono font-bold text-slate-500 shrink-0">{t.agentId.policyLabel} {selectedPolicy.policyNumber}</span>
                     </div>
 
                     {policyCoverage.status === 'Active' && (
                       <p className="text-[11px] text-emerald-800 font-medium">
-                        Policy Status: <strong>ACTIVE</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong>
+                        {t.agentId.policyStatusLabel} <strong>{t.agentId.statusActiveWord}</strong> &bull; {t.agentId.coverageValidUntil} <strong>{selectedPolicy.expirationDate}</strong>
                         {selectedPolicy.nextPaymentDueDate && (
                           <>
-                            {' '}&bull; Next Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong>
+                            {' '}&bull; {t.agentId.nextPremiumDue} <strong>{selectedPolicy.nextPaymentDueDate}</strong>
                           </>
                         )}
                       </p>
                     )}
                     {policyCoverage.status === 'Expiring Soon' && (
                       <p className="text-[11px] text-amber-800 font-medium">
-                        Policy Status: <strong>EXPIRING SOON</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong> ({policyCoverage.daysUntilExpiration} day(s) left)
+                        {t.agentId.policyStatusLabel} <strong>{t.agentId.statusExpiringSoonWord}</strong> &bull; {t.agentId.coverageValidUntil} <strong>{selectedPolicy.expirationDate}</strong> ({policyCoverage.daysUntilExpiration} {t.agentId.daysLeftSuffix})
                       </p>
                     )}
                     {policyCoverage.status === 'Expired' && (
                       <p className="text-[11px] text-rose-800 font-medium leading-relaxed">
-                        Status: <strong>EXPIRED</strong> &bull; Expired on: <strong>{selectedPolicy.expirationDate}</strong>
+                        {t.status}: <strong>{t.agentId.statusExpiredWord}</strong> &bull; {t.agentId.expiredOn} <strong>{selectedPolicy.expirationDate}</strong>
                         <br />
-                        This insured member and all covered dependents are not eligible for healthcare services under this policy.
+                        {t.agentId.notEligibleNotice}
                       </p>
                     )}
                     {policyCoverage.status === 'Suspended' && (
                       <p className="text-[11px] text-rose-800 font-medium leading-relaxed">
-                        Status: <strong>SUSPENDED</strong> &bull; Reason: <strong>{(policyCoverage.suspensionReason || 'ADMINISTRATIVE').toUpperCase()}</strong>
+                        {t.status}: <strong>{t.agentId.statusSuspendedWord}</strong> &bull; {t.agentId.reasonLabel} <strong>{(policyCoverage.suspensionReason || t.agentId.administrative).toUpperCase()}</strong>
                         {selectedPolicy.nextPaymentDueDate && (
                           <>
-                            <br />Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong> &bull; Amount Due: <strong>{selectedPolicy.currency} {(selectedPolicy.outstandingAmount ?? 0).toLocaleString()}</strong>
+                            <br />{t.agentId.premiumDue} <strong>{selectedPolicy.nextPaymentDueDate}</strong> &bull; {t.agentId.amountDue} <strong>{selectedPolicy.currency} {(selectedPolicy.outstandingAmount ?? 0).toLocaleString()}</strong>
                           </>
                         )}
                         <br />
-                        Healthcare services are currently unavailable for the principal insured and all covered dependents.
+                        {t.agentId.servicesUnavailableNotice}
                       </p>
                     )}
                   </div>
@@ -719,14 +744,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                       <Shield className="w-4 h-4 text-[#0A347B]" />
-                      <span>Coverage Balances &amp; Ceiling Limits (USD)</span>
+                      <span>{t.agentId.coverageBalancesTitle}</span>
                     </h4>
-                    <span className="text-[11px] font-semibold text-slate-400">Contractual Annual Ceilings</span>
+                    <span className="text-[11px] font-semibold text-slate-400">{t.agentId.contractualCeilings}</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <CircularGauge
-                      label="Outpatient Consultation"
+                      label={t.agentId.outpatientConsultation}
                       icon={<Stethoscope className="w-3.5 h-3.5" />}
                       ringColor="#0A347B"
                       unitLabel="USD ($)"
@@ -744,9 +769,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                             100
                         )
                       )}
+                      remainingBalanceText={t.agentId.remainingBalance}
+                      ofText={t.agentId.ofCeiling}
+                      ceilingSuffixText={t.agentId.ceilingSuffix}
+                      consumedText={t.agentId.consumedLabel}
+                      usedText={t.agentId.usedLabel}
                     />
                     <CircularGauge
-                      label="Inpatient Hospitalization"
+                      label={t.agentId.inpatientHospitalization}
                       icon={<HeartPulse className="w-3.5 h-3.5" />}
                       ringColor="#00A859"
                       unitLabel="USD ($)"
@@ -764,6 +794,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                             100
                         )
                       )}
+                      remainingBalanceText={t.agentId.remainingBalance}
+                      ofText={t.agentId.ofCeiling}
+                      ceilingSuffixText={t.agentId.ceilingSuffix}
+                      consumedText={t.agentId.consumedLabel}
+                      usedText={t.agentId.usedLabel}
                     />
                   </div>
                 </div>
@@ -780,10 +815,10 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                         <Users className="w-4 h-4 text-[#0A347B]" />
-                        <span>Family &amp; Dependents ({dependentsList.length + 1})</span>
+                        <span>{t.agentId.familyDependents} ({dependentsList.length + 1})</span>
                       </h4>
                     </div>
-                    <span className="block text-[10.5px] font-semibold text-slate-400 -mt-2">Click to select beneficiary</span>
+                    <span className="block text-[10.5px] font-semibold text-slate-400 -mt-2">{t.agentId.clickToSelect}</span>
 
                     <div className="grid grid-cols-2 gap-2.5">
                       {/* Principal (Self) */}
@@ -814,9 +849,9 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                               )}
                             </div>
                             <div className="font-bold text-[11px] text-slate-900 truncate">{principalSelf.fullName}</div>
-                            <div className="text-[9.5px] font-bold text-[#0A347B]">Principal (Self)</div>
+                            <div className="text-[9.5px] font-bold text-[#0A347B]">{t.agentId.principalSelf}</div>
                             <div className="text-[9.5px] text-slate-400 font-mono">
-                              {calculateAgeNumber(principalSelf.birthDate) ?? '—'} yrs
+                              {calculateAgeNumber(principalSelf.birthDate) ?? '—'} {t.agentId.ageUnit}
                             </div>
                           </button>
                         );
@@ -847,7 +882,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                             <div className="font-bold text-[11px] text-slate-900 truncate">{dep.fullName}</div>
                             <div className="text-[9.5px] font-bold text-slate-500 truncate">{formatRelationship(dep.relationship)}</div>
                             <div className="text-[9.5px] text-slate-400 font-mono">
-                              {dep.age ? `${dep.age} yrs` : '—'}
+                              {dep.age ? `${dep.age} ${t.agentId.ageUnit}` : '—'}
                             </div>
                           </button>
                         );
@@ -867,14 +902,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                         <Clock className="w-4 h-4 text-[#0A347B]" />
-                        <span>Care History</span>
+                        <span>{t.agentId.careHistory}</span>
                       </h4>
                       <span className="text-[10px] font-semibold text-slate-400">{currentMonthLabel}</span>
                     </div>
 
                     {currentMonthClaims.length === 0 ? (
                       <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50 rounded-xl border border-slate-100">
-                        No medical services recorded for this member in {currentMonthLabel}.
+                        {t.agentId.noHistoryPrefix} {currentMonthLabel}.
                       </div>
                     ) : (
                       <div className="space-y-2.5">
@@ -895,10 +930,10 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                                 }`}
                               >
                                 {claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
-                                  ? 'Approved'
+                                  ? t.approvedStatus
                                   : claim.status === 'Rejected' || claim.status === 'rejected'
-                                  ? 'Rejected'
-                                  : 'Pending'}
+                                  ? t.rejectedStatus
+                                  : t.pending}
                               </span>
                             </div>
                             <div className="font-bold text-xs text-slate-800">{claim.careType}</div>
@@ -924,8 +959,8 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         isOpen={isFingerprintModalOpen}
         onClose={() => setIsFingerprintModalOpen(false)}
         onCapture={handleFingerprintCaptured}
-        title="Biometric Insured Identification"
-        subtitle="AFIS 1:N Biometric Fingerprint Matcher"
+        title={t.agentId.biometricModalTitle}
+        subtitle={t.agentId.biometricModalSubtitle}
       />
 
       {/* === AMÉLIORATION AJOUTÉE : alerte bloquante affichée avant de laisser l'agent
@@ -941,30 +976,30 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 </div>
                 <div>
                   <h3 className="text-base font-black text-rose-800 uppercase tracking-wide">
-                    {policyCoverage.status === 'Expired' ? 'Healthcare Access Blocked' : 'Healthcare Access Suspended'}
+                    {policyCoverage.status === 'Expired' ? t.agentId.healthcareBlocked : t.agentId.healthcareSuspended}
                   </h3>
                   <p className="text-xs font-bold text-slate-700 mt-1">{selectedBeneficiary.fullName}</p>
-                  <p className="text-[11px] font-mono text-slate-500">Policy: {selectedPolicy.policyNumber}</p>
+                  <p className="text-[11px] font-mono text-slate-500">{t.agentId.policyLabel} {selectedPolicy.policyNumber}</p>
                 </div>
               </div>
 
               <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-medium leading-relaxed">
                 {policyCoverage.status === 'Expired' ? (
                   <>
-                    Status: <strong>EXPIRED</strong> &bull; Expired on: <strong>{selectedPolicy.expirationDate}</strong>
+                    {t.status}: <strong>{t.agentId.statusExpiredWord}</strong> &bull; {t.agentId.expiredOn} <strong>{selectedPolicy.expirationDate}</strong>
                     <br /><br />
-                    This insured member and all covered dependents are not eligible for healthcare services under this policy.
+                    {t.agentId.notEligibleNotice}
                   </>
                 ) : (
                   <>
-                    Status: <strong>SUSPENDED</strong> &bull; Reason: <strong>{(policyCoverage.suspensionReason || 'ADMINISTRATIVE').toUpperCase()}</strong>
+                    {t.status}: <strong>{t.agentId.statusSuspendedWord}</strong> &bull; {t.agentId.reasonLabel} <strong>{(policyCoverage.suspensionReason || t.agentId.administrative).toUpperCase()}</strong>
                     {selectedPolicy.nextPaymentDueDate && (
                       <>
-                        <br />Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong> &bull; Amount Due: <strong>{selectedPolicy.currency} {(selectedPolicy.outstandingAmount ?? 0).toLocaleString()}</strong>
+                        <br />{t.agentId.premiumDue} <strong>{selectedPolicy.nextPaymentDueDate}</strong> &bull; {t.agentId.amountDue} <strong>{selectedPolicy.currency} {(selectedPolicy.outstandingAmount ?? 0).toLocaleString()}</strong>
                       </>
                     )}
                     <br /><br />
-                    Healthcare services are currently unavailable for the principal insured and all covered dependents.
+                    {t.agentId.servicesUnavailableNotice}
                   </>
                 )}
               </div>
@@ -976,14 +1011,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 onClick={() => setBlockedActionAlert(null)}
                 className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white cursor-pointer"
               >
-                View Policy
+                {t.agentId.viewPolicy}
               </button>
               <button
                 type="button"
                 onClick={() => setBlockedActionAlert(null)}
                 className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition cursor-pointer"
               >
-                Close
+                {t.close}
               </button>
             </div>
           </div>
