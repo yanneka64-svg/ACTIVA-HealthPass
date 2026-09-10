@@ -24,6 +24,15 @@ import { printBordereauSlip, downloadBordereauPDF } from '../utils/printUtils';
 import { LogoIcon } from '../components/Logo';
 import { ExportDropdown } from '../components/ExportDropdown';
 import { getRoleTheme } from '../theme/roleTheme';
+// === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation, derrière
+// le flag `hp2_reimbursement_tracking` (désactivé par défaut, voir src/config/featureFlags.ts).
+// Panneau, badge et bouton ni affichés ni montés tant que le flag reste désactivé —
+// comportement de cet écran strictement inchangé pour tout utilisateur en production aujourd'hui.
+import { isFeatureEnabled } from '../config/featureFlags';
+import { computeReconciliationSummary } from '../modules/reimbursement/reconciliation';
+import { ReconciliationSummary } from '../modules/reimbursement/ReconciliationSummary';
+import { MarkAsPaidModal } from '../modules/reimbursement/MarkAsPaidModal';
+import { Wallet } from 'lucide-react';
 
 interface InvoicesViewProps {
   lang: Language;
@@ -48,10 +57,14 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const [viewSlipInvoice, setViewSlipInvoice] = useState<InvoiceItem | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<InvoiceItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation ===
+  const [markingPaidInvoice, setMarkingPaidInvoice] = useState<InvoiceItem | null>(null);
+  const reimbursementTrackingEnabled = isFeatureEnabled('hp2_reimbursement_tracking');
 
   const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
   const canDeleteInvoice = isAdmin || isSupervisor;
+  const canMarkPaid = isAdmin || isSupervisor;
 
   // === AMÉLIORATION AJOUTÉE : lignes du détail "Medical Benefits Coverage Breakdown" du
   // nouveau bordereau de règlement — une ligne par acte médical (Claim.medicalActs, reporté sur
@@ -162,6 +175,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   const coverageRate = totalInvoiced > 0 ? ((totalCovered / totalInvoiced) * 100).toFixed(1) : '0.0';
 
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation, sur le
+  // même périmètre filtré que les cartes KPI ci-dessus.
+  const reconciliationSummary = useMemo(() => computeReconciliationSummary(filteredInvoices), [filteredInvoices]);
+
   // Grouping by Patient
   const patientGroups = useMemo(() => {
     const map = new Map<string, { key: string; name: string; org: string; items: InvoiceItem[] }>();
@@ -258,6 +275,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation === */}
+      {reimbursementTrackingEnabled && <ReconciliationSummary summary={reconciliationSummary} />}
 
       {/* 3. TABS & FILTER TOOLBAR */}
       {/* === AMÉLIORATION AJOUTÉE : sur mobile, la barre passait en dépassement horizontal
@@ -397,6 +417,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     {inv.careType}
                   </span>
 
+                  {reimbursementTrackingEnabled && inv.paymentStatus === 'paid' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10.5px] font-bold text-emerald-700">
+                      <Wallet className="w-3 h-3" />
+                      Paid to {inv.payee === 'member' ? 'insured' : 'provider'} · {inv.paymentReference}
+                    </span>
+                  )}
+
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#E8EDF2] text-center">
                     <div>
                       <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Invoiced</div>
@@ -420,6 +447,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       <Eye className="w-3.5 h-3.5 text-slate-700" />
                       <span>View Slip</span>
                     </button>
+                    {reimbursementTrackingEnabled && canMarkPaid && (inv.status === 'valid' || inv.status === 'approved') && inv.paymentStatus !== 'paid' && (
+                      <button
+                        onClick={() => setMarkingPaidInvoice(inv)}
+                        className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                      >
+                        <Wallet className="w-3.5 h-3.5" />
+                        <span>Mark Paid</span>
+                      </button>
+                    )}
                     {canDeleteInvoice && (
                       <button
                         onClick={() => setInvoiceToDelete(inv)}
@@ -458,13 +494,14 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   <th className="py-3 px-4 text-right text-[#00A878] whitespace-nowrap">Covered ($)</th>
                   <th className="py-3 px-4 text-right whitespace-nowrap">Copay ($)</th>
                   <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                  {reimbursementTrackingEnabled && <th className="py-3 px-4 text-center whitespace-nowrap">Payment</th>}
                   <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8EDF2] text-xs">
                 {filteredInvoices.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-[#778FAF] font-medium">
+                    <td colSpan={reimbursementTrackingEnabled ? 10 : 9} className="py-12 text-center text-[#778FAF] font-medium">
                       No invoices found matching your criteria.
                     </td>
                   </tr>
@@ -550,6 +587,28 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                           )}
                         </td>
 
+                        {/* === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation === */}
+                        {reimbursementTrackingEnabled && (
+                          <td className="py-3 px-4 text-center align-middle whitespace-nowrap">
+                            {inv.paymentStatus === 'paid' ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold"
+                                title={`Paid to ${inv.payee === 'member' ? 'insured' : 'provider'} — ref ${inv.paymentReference}`}
+                              >
+                                <Wallet className="w-3 h-3" />
+                                <span>Paid</span>
+                              </span>
+                            ) : inv.status === 'valid' || inv.status === 'approved' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold">
+                                <Clock className="w-3 h-3" />
+                                <span>Outstanding</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-300 text-[11px]">—</span>
+                            )}
+                          </td>
+                        )}
+
                         {/* ACTIONS */}
                         <td className="py-3 px-4 text-center align-middle whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1.5">
@@ -561,6 +620,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                               <Eye className="w-3.5 h-3.5 text-slate-700" />
                               <span>Slip</span>
                             </button>
+
+                            {reimbursementTrackingEnabled && canMarkPaid && (inv.status === 'valid' || inv.status === 'approved') && inv.paymentStatus !== 'paid' && (
+                              <button
+                                onClick={() => setMarkingPaidInvoice(inv)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                title="Mark as paid"
+                              >
+                                <Wallet className="w-3.5 h-3.5" />
+                                <span>Mark Paid</span>
+                              </button>
+                            )}
 
                             {canDeleteInvoice && (
                               <button
@@ -802,6 +872,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation === */}
+      {reimbursementTrackingEnabled && markingPaidInvoice && (
+        <MarkAsPaidModal invoice={markingPaidInvoice} onClose={() => setMarkingPaidInvoice(null)} />
       )}
 
       {/* 6. DELETE CONFIRMATION MODAL */}

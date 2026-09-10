@@ -129,6 +129,26 @@ facts rather than the plan's initial guesses.
   claim whose `submissionDate` is more than 48h old (the same 48h target already shown in
   `ReportsView.tsx` — reused, not invented) with an "SLA breached (Xh over 48h target)" badge on
   the Superviseur validation screen. Never blocks approval/rejection.
+- **Reimbursement / Payment Reconciliation scope confirmed with the user (2026-09-10):** unlike
+  the shadow-mode badges above, this is a real Admin-facing workflow, not a read-only indicator —
+  scoped narrowly on purpose:
+  - **Payee**: confirmed as "both, depending on the case" — some claims are direct-billed to the
+    provider, some reimburse the insured who paid upfront. `InvoiceItem` gained a `payee:
+    'provider' | 'member'` field recorded per payment rather than assuming one model app-wide.
+  - **Reconciliation target**: confirmed as "claims paid vs. approved" specifically (not premium
+    payments — `PolicyPayment` already covers those separately, out of scope here).
+  - **Data source**: confirmed as manual Admin entry only — no bank statement import, no
+    automatic matching. An Admin/Supervisor explicitly records a payment reference + date per
+    invoice.
+  - **Shipped module**, behind `hp2_reimbursement_tracking`: `InvoiceItem` gained
+    `paymentStatus`/`payee`/`paidAt`/`paymentReference` (all optional, additive — every existing
+    invoice reads as "unpaid" by default, no migration, no regression on the `status` field
+    already used everywhere else in `InvoicesView.tsx`/`printUtils.ts`). A "Mark as Paid" action
+    (Admin/Supervisor only) records the payment; a new "Payment Reconciliation" panel shows
+    Approved vs. Paid vs. Outstanding totals, computed for real from the data — not the
+    decorative "100% verified disbursements" caption the existing "PROCESSED INVOICES" KPI card
+    already displays without any real number behind it (left untouched, this panel sits
+    alongside it with the genuine figure).
 
 ## 4. Process rules carried forward from the original plan
 
@@ -156,15 +176,14 @@ needed on either — feature-flag foundation, `src/modules/` structure).
 | Eligibility / Coverage Engine | — | Not built — existing `eligibilityService.ts` + org-level coverage rate kept as-is (section 3) |
 | Provider digital card / QR | `hp2_provider_digital_card` | Shipped in code, off by default — **not usable until deployed** (see section 3 note: `CARD_SIGNING_KEY` secret + `firebase deploy --only functions` required, neither done by this session) |
 | SLA Tracking | `hp2_sla_tracking` | Shipped, off by default (shadow-mode badge only) |
-| Reimbursement / Payment Reconciliation | — | Deferred — scope intentionally not yet defined (section 3) |
+| Reimbursement / Payment Reconciliation | `hp2_reimbursement_tracking` | Shipped (2026-09-10), off by default — manual payment tracking + reconciliation summary |
 
 All flags default to `false` in `src/config/featureFlags.ts` — no shipped module is visible to
 any production user until explicitly enabled.
 
-## 6. Status as of pausing (2026-09-10)
+## 6. Status (2026-09-10)
 
-Work on HealthPass 2.0 is paused here at the user's request — a deliberate stopping point, not
-an incomplete one. Summary of the engagement:
+Summary of the engagement so far:
 
 - **Phase 0** (Stabilization & Security): complete. Discovery report, SoD/audit review,
   `firestore.rules` review (no changes needed on either), feature-flag foundation,
@@ -178,12 +197,15 @@ an incomplete one. Summary of the engagement:
   QR shipped in code (`hp2_provider_digital_card`) — **not usable until deployed** (see section
   3: `CARD_SIGNING_KEY` secret + `firebase deploy --only functions`, neither done by this
   session). Provider/Organization screens confirmed already substantial, not rebuilt.
-- **Phase 4** (Reimbursement/Reconciliation/SLA/Analytics): SLA Tracking shipped
-  (`hp2_sla_tracking`). Analytics confirmed already mature, not rebuilt. Reimbursement/Payment
-  Reconciliation deliberately deferred — real financial workflows without a defined scope yet;
-  pick up only once that scope is worked out with the user.
+- **Phase 4** (Reimbursement/Reconciliation/SLA/Analytics): complete. SLA Tracking
+  (`hp2_sla_tracking`) and Reimbursement/Payment Reconciliation (`hp2_reimbursement_tracking`,
+  scope confirmed with the user before building — see section 3) both shipped. Analytics
+  confirmed already mature, not rebuilt.
 
 Every shipped module ships behind a flag in `src/config/featureFlags.ts`, all `false` by
-default — **nothing here is visible to any production user today.** To resume this work later,
-start from this document; the plan-vs-reality corrections in section 2 and the per-phase notes
-in section 3 remain the source of truth for what's real vs. what the original plan assumed.
+default — **nothing here is visible to any production user today.** The only module that is
+code-complete but not yet *usable* is Phase 3's Digital Card (needs `CARD_SIGNING_KEY` +
+`firebase deploy --only functions`, neither done by this session — see section 3). This document
+remains the source of truth for what's real vs. what the original plan assumed; the
+plan-vs-reality corrections in section 2 and the per-phase notes in section 3 apply to any future
+work here.

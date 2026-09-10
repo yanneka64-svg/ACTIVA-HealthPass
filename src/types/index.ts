@@ -203,6 +203,18 @@ export interface InvoiceItem {
   // Optionnel : les factures antérieures à ce correctif n'en disposent pas et retombent sur un
   // affichage à ligne unique (careType/amount/coveredAmount).
   medicalActs?: { name: string; amount: number; category?: string; description?: string }[];
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation (module
+  // src/modules/reimbursement/), derrière le flag `hp2_reimbursement_tracking` (désactivé par
+  // défaut, voir src/config/featureFlags.ts). Suivi du DÉCAISSEMENT réel, volontairement séparé
+  // du champ `status` existant ci-dessus (workflow d'approbation) — `status` garde son sens
+  // actuel partout où il est déjà lu (InvoicesView.tsx, printUtils.ts...), aucune régression.
+  // `payee` capture le cas réel confirmé par l'utilisateur (2026-09-10) : selon le prestataire/la
+  // police, ACTIVA règle soit directement le prestataire (facturation directe), soit rembourse
+  // l'assuré qui a payé d'avance — les deux cas coexistent, jamais un seul modèle imposé.
+  paymentStatus?: 'unpaid' | 'paid';
+  payee?: 'provider' | 'member';
+  paidAt?: string;
+  paymentReference?: string;
 }
 
 export interface Enrollment {
