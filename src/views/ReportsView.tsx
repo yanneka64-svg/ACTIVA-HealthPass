@@ -67,6 +67,25 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   members = [],
 }) => {
   const t = useTranslation(lang);
+  // === AMÉLIORATION AJOUTÉE : libellés traduits pour le statut de police (HealthPolicyStatus)
+  // — la VALEUR stockée/calculée (policy.status, filtres) reste en anglais (type métier), seul
+  // le texte affiché (badge, option de filtre) est traduit via cette table.
+  const policyStatusLabels: Record<string, string> = {
+    Active: t.reports.statusActive,
+    'Expiring Soon': t.reports.statusExpiringSoon,
+    Expired: t.reports.statusExpired,
+    Suspended: t.reports.statusSuspended,
+    'Pending Renewal': t.reports.statusPendingRenewal,
+  };
+  // === AMÉLIORATION AJOUTÉE : même principe que policyStatusLabels ci-dessus, appliqué à la
+  // fréquence de paiement (policy.paymentFrequency) — la VALEUR stockée/comparée reste en
+  // anglais, seul le texte affiché est traduit.
+  const paymentFrequencyLabels: Record<string, string> = {
+    Annual: t.reports.freqAnnual,
+    'Semi-Annual': t.reports.freqSemiAnnual,
+    Quarterly: t.reports.freqQuarterly,
+    Monthly: t.reports.freqMonthly,
+  };
   const { formatAmount } = useCurrency();
   // === AMÉLIORATION AJOUTÉE : couleurs alignées sur le rôle connecté (gris Admin / teal
   // Supervisor) au lieu du bleu marine Agent affiché en dur auparavant.
@@ -334,7 +353,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           }`}
         >
           <BarChart3 className="w-4 h-4" />
-          <span>Overview</span>
+          <span>{t.reports.overviewTab}</span>
         </button>
         <button
           type="button"
@@ -344,7 +363,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           }`}
         >
           <ShieldAlert className="w-4 h-4" />
-          <span>Policies &amp; Premiums</span>
+          <span>{t.reports.policiesPremiumsTab}</span>
           {(policyKpis.suspended + policyKpis.expired) > 0 && (
             <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black">
               {policyKpis.suspended + policyKpis.expired}
@@ -360,7 +379,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             }`}
           >
             <Wallet className="w-4 h-4" />
-            <span>Reconciliation</span>
+            <span>{t.reports.reconciliationTab}</span>
             {reconciliationSummary.pendingRecoveryCount > 0 && (
               <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black">
                 {reconciliationSummary.pendingRecoveryCount}
@@ -379,7 +398,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             {t.reports.title}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Statistical analytics, expenditure insights, and medical claims consolidation
+            {t.reports.statsSubtitle}
           </p>
         </div>
 
@@ -387,7 +406,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           {/* Integrated Date Pickers (From / To Calendar) */}
           <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">
             <Calendar className={`w-3.5 h-3.5 ${roleTheme.palette.primaryText}`} />
-            <span className="text-xs font-bold text-slate-500">From:</span>
+            <span className="text-xs font-bold text-slate-500">{t.reports.fromLabel}</span>
             <input
               id="report-start-date"
               type="date"
@@ -398,7 +417,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">
-            <span className="text-xs font-bold text-slate-500">To:</span>
+            <span className="text-xs font-bold text-slate-500">{t.reports.toLabel}</span>
             <input
               id="report-end-date"
               type="date"
@@ -416,7 +435,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           {canExport && (
             <ExportDropdown
               lang={lang}
-              label="Export"
+              label={t.reports.exportLabel}
               accentButtonClass={roleTheme.palette.primaryColor}
               onExportPDF={handleExportPDF}
               onExportExcel={handleExportExcel}
@@ -443,7 +462,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1 font-medium">
-            {'Consolidated submitted invoices'}
+            {t.reports.kpiConsolidatedInvoices}
           </p>
         </div>
 
@@ -463,7 +482,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1 font-medium">
-            {'Disbursed insurance coverage'}
+            {t.reports.kpiDisbursedCoverage}
           </p>
         </div>
 
@@ -481,7 +500,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <span className="text-2xl font-black text-slate-900">{avgProcessingTime}</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1 font-medium">
-            {'Target SLA turnaround < 48h'}
+            {t.reports.kpiTargetSla}
           </p>
         </div>
 
@@ -499,7 +518,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <span className="text-2xl font-black text-rose-600">{rejectionRate}</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1 font-medium">
-            {'Prescription compliance rate'}
+            {t.reports.kpiPrescriptionCompliance}
           </p>
         </div>
       </div>
@@ -518,7 +537,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </h3>
             </div>
             <span className="text-[11px] font-bold text-slate-400">
-              {'Amounts'}
+              {t.reports.amountsLabel}
             </span>
           </div>
 
@@ -551,10 +570,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
           <div className="pt-4 mt-6 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
             <span>
-              {'Accredited provider network'}
+              {t.reports.accreditedNetwork}
             </span>
             <span className="font-semibold text-slate-600">
-              {`Total: ${providers.length} centers`}
+              {`${t.reports.totalPrefix} ${providers.length} ${t.reports.centersSuffix}`}
             </span>
           </div>
         </div>
@@ -569,7 +588,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <h3 className="font-extrabold text-sm text-slate-900">{t.reports.invoicesByOrg}</h3>
             </div>
             <span className="text-[11px] font-bold text-slate-400">
-              {'Breakdown'}
+              {t.reports.breakdownLabel}
             </span>
           </div>
 
@@ -602,10 +621,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
           <div className="pt-4 mt-6 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
             <span>
-              {'Subscribed companies & policies'}
+              {t.reports.subscribedCompanies}
             </span>
             <span className="font-semibold text-slate-600">
-              {`Total: ${organizations.length} policies`}
+              {`${t.reports.totalPrefix} ${organizations.length} ${t.reports.policiesSuffix}`}
             </span>
           </div>
         </div>
@@ -619,13 +638,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <>
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Policy & Premium Monitoring</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Automatic policy status, premium schedules, and payment tracking across all organizations</p>
+              <h2 className="text-base font-extrabold text-slate-900 tracking-tight">{t.reports.policyPremiumMonitoringTitle}</h2>
+              <p className="text-xs text-slate-500 mt-0.5">{t.reports.policyPremiumMonitoringSubtitle}</p>
             </div>
             {canExport && (
               <ExportDropdown
                 lang={lang}
-                label="Export"
+                label={t.reports.exportLabel}
                 accentButtonClass={roleTheme.palette.primaryColor}
                 onExportExcel={() => {
                   exportPoliciesToExcel(filteredPolicies.map((p) => p.policy));
@@ -639,56 +658,56 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4.5">
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Policies</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.activePoliciesKpi}</span>
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><ShieldCheck className="w-5 h-5" /></div>
               </div>
               <div className="mt-3"><span className="text-2xl font-black text-emerald-600">{policyKpis.active}</span></div>
             </div>
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expiring Soon</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.expiringSoonKpi}</span>
                 <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><Clock className="w-5 h-5" /></div>
               </div>
               <div className="mt-3"><span className="text-2xl font-black text-amber-600">{policyKpis.expiringSoon}</span></div>
             </div>
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Suspended Policies</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.suspendedPoliciesKpi}</span>
                 <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><AlertTriangle className="w-5 h-5" /></div>
               </div>
               <div className="mt-3"><span className="text-2xl font-black text-rose-600">{policyKpis.suspended}</span></div>
             </div>
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expired Policies</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.expiredPoliciesKpi}</span>
                 <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center"><XCircle className="w-5 h-5" /></div>
               </div>
               <div className="mt-3"><span className="text-2xl font-black text-red-700">{policyKpis.expired}</span></div>
             </div>
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Annual Premium</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.totalAnnualPremiumKpi}</span>
                 <div className={`w-10 h-10 rounded-xl bg-slate-100 ${roleTheme.palette.primaryText} flex items-center justify-center`}><DollarSign className="w-5 h-5" /></div>
               </div>
               <div className="mt-3"><span className="text-2xl font-black text-slate-900">{formatAmount(policyKpis.totalAnnualPremium)}</span></div>
             </div>
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Outstanding Premium</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.outstandingPremiumKpi}</span>
                 <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><AlertTriangle className="w-5 h-5" /></div>
               </div>
               <div className="mt-3"><span className="text-2xl font-black text-rose-600">{formatAmount(policyKpis.outstandingPremium)}</span></div>
             </div>
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Premium Paid</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.premiumPaidKpi}</span>
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><CheckCircle2 className="w-5 h-5" /></div>
               </div>
               <div className="mt-3"><span className="text-2xl font-black text-emerald-600">{formatAmount(policyKpis.premiumPaid)}</span></div>
             </div>
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Overdue Premium</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.overduePremiumKpi}</span>
                 <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center"><XCircle className="w-5 h-5" /></div>
               </div>
               <div className="mt-3"><span className="text-2xl font-black text-red-700">{formatAmount(policyKpis.overduePremium)}</span></div>
@@ -698,26 +717,26 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           {/* Filters */}
           <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-wrap gap-2.5 items-center">
             <select value={policyOrgFilter} onChange={(e) => setPolicyOrgFilter(e.target.value)} className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700">
-              <option value="ALL">All Organizations</option>
+              <option value="ALL">{t.claims.orgFilterAll}</option>
               {organizations.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
             </select>
             <input
               type="text"
               value={policyNumberFilter}
               onChange={(e) => setPolicyNumberFilter(e.target.value)}
-              placeholder="Policy number..."
+              placeholder={t.reports.policyNumberPlaceholder}
               className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400"
             />
             <select value={policyStatusFilter} onChange={(e) => setPolicyStatusFilter(e.target.value)} className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700">
-              <option value="ALL">All Statuses</option>
-              <option value="Active">Active</option>
-              <option value="Expiring Soon">Expiring Soon</option>
-              <option value="Suspended">Suspended</option>
-              <option value="Expired">Expired</option>
-              <option value="Pending Renewal">Pending Renewal</option>
+              <option value="ALL">{t.claims.statusFilterAll}</option>
+              <option value="Active">{t.reports.statusActive}</option>
+              <option value="Expiring Soon">{t.reports.statusExpiringSoon}</option>
+              <option value="Suspended">{t.reports.statusSuspended}</option>
+              <option value="Expired">{t.reports.statusExpired}</option>
+              <option value="Pending Renewal">{t.reports.statusPendingRenewal}</option>
             </select>
             <select value={policyCurrencyFilter} onChange={(e) => setPolicyCurrencyFilter(e.target.value)} className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700">
-              <option value="ALL">All Currencies</option>
+              <option value="ALL">{t.reports.allCurrenciesOption}</option>
               <option value="USD">USD</option>
               <option value="LRD">LRD</option>
               <option value="XAF">XAF</option>
@@ -732,7 +751,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             {filteredPolicies.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-xs font-medium">
-                No health insurance policies configured yet. Open an organization's "Policy" button to configure one.
+                {t.reports.noPoliciesConfigured}
               </div>
             ) : (
               <>
@@ -748,16 +767,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <p className="font-bold text-sm text-slate-800 truncate">{policy.organizationId}</p>
                         <p className="text-[11px] text-slate-500 font-mono">{policy.policyNumber}</p>
                       </div>
-                      <span className={`shrink-0 px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${POLICY_STATUS_BADGE[coverage.status]}`}>{coverage.status}</span>
+                      <span className={`shrink-0 px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${POLICY_STATUS_BADGE[coverage.status]}`}>{policyStatusLabels[coverage.status] || coverage.status}</span>
                     </div>
                     <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
                       <span>{policy.effectiveDate} &rarr; {policy.expirationDate}</span>
-                      <span className="font-bold text-slate-800">{formatAmount(policy.annualPremium)}/yr</span>
+                      <span className="font-bold text-slate-800">{formatAmount(policy.annualPremium)}{t.reports.perYearSuffix}</span>
                     </div>
                     {(policy.outstandingAmount || 0) > 0 && (
                       <div className="flex items-center justify-between gap-2 text-[11px]">
-                        <span className="text-slate-500">Next due {policy.nextPaymentDueDate || '—'} &bull; {policy.paymentFrequency}</span>
-                        <span className="font-bold text-rose-600">{formatAmount(policy.outstandingAmount || 0)} due</span>
+                        <span className="text-slate-500">{t.reports.nextDuePrefix} {policy.nextPaymentDueDate || '—'} &bull; {paymentFrequencyLabels[policy.paymentFrequency] || policy.paymentFrequency}</span>
+                        <span className="font-bold text-rose-600">{formatAmount(policy.outstandingAmount || 0)} {t.reports.dueSuffix}</span>
                       </div>
                     )}
                   </div>
@@ -768,15 +787,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th className="py-3.5 px-4">Organization</th>
-                      <th className="py-3.5 px-4">Policy Number</th>
-                      <th className="py-3.5 px-4">Effective Date</th>
-                      <th className="py-3.5 px-4">Expiration Date</th>
-                      <th className="py-3.5 px-4 text-right">Annual Premium</th>
-                      <th className="py-3.5 px-4">Payment Frequency</th>
-                      <th className="py-3.5 px-4">Next Payment Due</th>
-                      <th className="py-3.5 px-4 text-right">Outstanding</th>
-                      <th className="py-3.5 px-4 text-center">Policy Status</th>
+                      <th className="py-3.5 px-4">{t.members.organization}</th>
+                      <th className="py-3.5 px-4">{t.reports.colPolicyNumber}</th>
+                      <th className="py-3.5 px-4">{t.reports.colEffectiveDate}</th>
+                      <th className="py-3.5 px-4">{t.reports.colExpirationDate}</th>
+                      <th className="py-3.5 px-4 text-right">{t.reports.colAnnualPremium}</th>
+                      <th className="py-3.5 px-4">{t.reports.colPaymentFrequency}</th>
+                      <th className="py-3.5 px-4">{t.reports.colNextPaymentDue}</th>
+                      <th className="py-3.5 px-4 text-right">{t.reports.colOutstanding}</th>
+                      <th className="py-3.5 px-4 text-center">{t.reports.colPolicyStatus}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -787,11 +806,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <td className="py-3 px-4 text-slate-600">{policy.effectiveDate}</td>
                         <td className="py-3 px-4 text-slate-600">{policy.expirationDate}</td>
                         <td className="py-3 px-4 text-right font-bold text-slate-800">{formatAmount(policy.annualPremium)}</td>
-                        <td className="py-3 px-4 text-slate-600">{policy.paymentFrequency}</td>
+                        <td className="py-3 px-4 text-slate-600">{paymentFrequencyLabels[policy.paymentFrequency] || policy.paymentFrequency}</td>
                         <td className="py-3 px-4 text-slate-600">{policy.nextPaymentDueDate || '—'}</td>
                         <td className="py-3 px-4 text-right font-bold text-rose-600">{formatAmount(policy.outstandingAmount || 0)}</td>
                         <td className="py-3 px-4 text-center">
-                          <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${POLICY_STATUS_BADGE[coverage.status]}`}>{coverage.status}</span>
+                          <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${POLICY_STATUS_BADGE[coverage.status]}`}>{policyStatusLabels[coverage.status] || coverage.status}</span>
                         </td>
                       </tr>
                     ))}
@@ -811,13 +830,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <>
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Payment Reconciliation Report</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Approved invoices matched against recorded disbursements, réfactions and pending recoveries</p>
+              <h2 className="text-base font-extrabold text-slate-900 tracking-tight">{t.reports.reconciliationReportTitle}</h2>
+              <p className="text-xs text-slate-500 mt-0.5">{t.reports.reconciliationReportSubtitle}</p>
             </div>
             {canExport && (
               <ExportDropdown
                 lang={lang}
-                label="Export"
+                label={t.reports.exportLabel}
                 accentButtonClass={roleTheme.palette.primaryColor}
                 onExportExcel={() => {
                   exportReconciliationToExcel(reconciliationInvoices, reconciliationSummary);
@@ -834,37 +853,37 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           {/* KPI Cards — mêmes chiffres et mêmes couleurs que ReconciliationSummary.tsx (écran Factures) */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Approved</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t.invoices.reconciliationApproved}</p>
               <p className="text-lg font-black text-slate-900 mt-1">{formatAmount(reconciliationSummary.approvedAmount)}</p>
-              <p className="text-[10.5px] text-slate-400 mt-0.5">{reconciliationSummary.approvedCount} invoice(s)</p>
+              <p className="text-[10.5px] text-slate-400 mt-0.5">{reconciliationSummary.approvedCount} {t.invoices.invoiceCountSuffix}</p>
             </div>
             <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
               <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Paid
+                <CheckCircle2 className="w-3 h-3" /> {t.invoices.paidBadge}
               </p>
               <p className="text-lg font-black text-emerald-700 mt-1">{formatAmount(reconciliationSummary.paidAmount)}</p>
-              <p className="text-[10.5px] text-emerald-600/80 mt-0.5">{reconciliationSummary.paidCount} invoice(s)</p>
+              <p className="text-[10.5px] text-emerald-600/80 mt-0.5">{reconciliationSummary.paidCount} {t.invoices.invoiceCountSuffix}</p>
             </div>
             <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
               <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" /> Outstanding
+                <AlertCircle className="w-3 h-3" /> {t.invoices.outstandingBadge}
               </p>
               <p className="text-lg font-black text-amber-700 mt-1">{formatAmount(reconciliationSummary.outstandingAmount)}</p>
-              <p className="text-[10.5px] text-amber-600/80 mt-0.5">{reconciliationSummary.outstandingCount} invoice(s)</p>
+              <p className="text-[10.5px] text-amber-600/80 mt-0.5">{reconciliationSummary.outstandingCount} {t.invoices.invoiceCountSuffix}</p>
             </div>
             <div className="p-3.5 rounded-xl bg-orange-50 border border-orange-200">
               <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wide flex items-center gap-1">
-                <ScanSearch className="w-3 h-3" /> Refacted
+                <ScanSearch className="w-3 h-3" /> {t.invoices.reconciliationRefacted}
               </p>
               <p className="text-lg font-black text-orange-700 mt-1">{formatAmount(reconciliationSummary.refactedAmount)}</p>
-              <p className="text-[10.5px] text-orange-600/80 mt-0.5">{reconciliationSummary.refactedCount} invoice(s)</p>
+              <p className="text-[10.5px] text-orange-600/80 mt-0.5">{reconciliationSummary.refactedCount} {t.invoices.invoiceCountSuffix}</p>
             </div>
             <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200">
               <p className="text-[10px] font-bold text-rose-700 uppercase tracking-wide flex items-center gap-1">
-                <Undo2 className="w-3 h-3" /> Pending Recovery
+                <Undo2 className="w-3 h-3" /> {t.invoices.reconciliationPendingRecovery}
               </p>
               <p className="text-lg font-black text-rose-700 mt-1">{formatAmount(reconciliationSummary.pendingRecoveryAmount)}</p>
-              <p className="text-[10.5px] text-rose-600/80 mt-0.5">{reconciliationSummary.pendingRecoveryCount} invoice(s)</p>
+              <p className="text-[10.5px] text-rose-600/80 mt-0.5">{reconciliationSummary.pendingRecoveryCount} {t.invoices.invoiceCountSuffix}</p>
             </div>
           </div>
 
@@ -872,7 +891,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             {reconciliationInvoices.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-xs font-medium">
-                No approved invoices in the selected date range.
+                {t.reports.noApprovedInvoicesRange}
               </div>
             ) : (
               <>
@@ -885,7 +904,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <p className="text-[11px] text-slate-500 truncate">{inv.organization}</p>
                       </div>
                       <span className={`shrink-0 px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${inv.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                        {inv.paymentStatus === 'paid' ? 'Paid' : 'Outstanding'}
+                        {inv.paymentStatus === 'paid' ? t.invoices.paidBadge : t.invoices.outstandingBadge}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
@@ -894,8 +913,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     </div>
                     {inv.refactionApplied && (
                       <div className="text-[10.5px] text-orange-700 font-semibold">
-                        Refacted {formatAmount(inv.refactionTotalUSD || 0)}
-                        {(inv.refactionTotalUSD || 0) - (inv.recoveredTotalUSD || 0) > 0 && ` — ${formatAmount((inv.refactionTotalUSD || 0) - (inv.recoveredTotalUSD || 0))} pending recovery`}
+                        {t.invoices.reconciliationRefacted} {formatAmount(inv.refactionTotalUSD || 0)}
+                        {(inv.refactionTotalUSD || 0) - (inv.recoveredTotalUSD || 0) > 0 && ` — ${formatAmount((inv.refactionTotalUSD || 0) - (inv.recoveredTotalUSD || 0))} ${t.reports.pendingRecoverySuffix}`}
                       </div>
                     )}
                   </div>
@@ -906,13 +925,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th className="py-3.5 px-4">Reference</th>
-                      <th className="py-3.5 px-4">Organization</th>
-                      <th className="py-3.5 px-4">Provider</th>
-                      <th className="py-3.5 px-4 text-right">Payable Amount</th>
-                      <th className="py-3.5 px-4 text-center">Payment Status</th>
-                      <th className="py-3.5 px-4 text-right">Refacted</th>
-                      <th className="py-3.5 px-4 text-right">Pending Recovery</th>
+                      <th className="py-3.5 px-4">{t.reports.colReference}</th>
+                      <th className="py-3.5 px-4">{t.members.organization}</th>
+                      <th className="py-3.5 px-4">{t.reports.colProvider}</th>
+                      <th className="py-3.5 px-4 text-right">{t.reports.colPayableAmount}</th>
+                      <th className="py-3.5 px-4 text-center">{t.reports.colPaymentStatus}</th>
+                      <th className="py-3.5 px-4 text-right">{t.invoices.reconciliationRefacted}</th>
+                      <th className="py-3.5 px-4 text-right">{t.invoices.reconciliationPendingRecovery}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -926,7 +945,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           <td className="py-3 px-4 text-right font-bold text-slate-800">{formatAmount(inv.payableAmountUSD ?? inv.amount)}</td>
                           <td className="py-3 px-4 text-center">
                             <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${inv.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                              {inv.paymentStatus === 'paid' ? 'Paid' : 'Outstanding'}
+                              {inv.paymentStatus === 'paid' ? t.invoices.paidBadge : t.invoices.outstandingBadge}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right text-orange-700 font-semibold">{inv.refactionApplied ? formatAmount(inv.refactionTotalUSD || 0) : '—'}</td>
@@ -950,7 +969,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[88vh]">
             <div className="px-6 py-4.5 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-base font-black text-slate-900">Policy Details</h3>
+                <h3 className="text-base font-black text-slate-900">{t.reports.policyDetailsTitle}</h3>
                 <p className="text-xs text-slate-500">{selectedPolicyDetail.organizationId} — {selectedPolicyDetail.policyNumber}</p>
               </div>
               <button onClick={() => setSelectedPolicyDetail(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer">
@@ -959,21 +978,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
 
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
-              <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border ${POLICY_STATUS_BADGE[detailCoverage.status]}`}>{detailCoverage.status}</span>
+              <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold border ${POLICY_STATUS_BADGE[detailCoverage.status]}`}>{policyStatusLabels[detailCoverage.status] || detailCoverage.status}</span>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div><span className="text-slate-400 font-bold block">Coverage Period</span><span className="font-semibold text-slate-800">{selectedPolicyDetail.effectiveDate} → {selectedPolicyDetail.expirationDate}</span></div>
-                <div><span className="text-slate-400 font-bold block">Annual Premium</span><span className="font-semibold text-slate-800">{formatAmount(selectedPolicyDetail.annualPremium)}</span></div>
-                <div><span className="text-slate-400 font-bold block">Payment Frequency</span><span className="font-semibold text-slate-800">{selectedPolicyDetail.paymentFrequency}</span></div>
-                <div><span className="text-slate-400 font-bold block">Installment Amount</span><span className="font-semibold text-slate-800">{formatAmount(selectedPolicyDetail.installmentAmount)}</span></div>
-                <div><span className="text-slate-400 font-bold block">Outstanding Amount</span><span className="font-semibold text-rose-700">{formatAmount(selectedPolicyDetail.outstandingAmount || 0)}</span></div>
+                <div><span className="text-slate-400 font-bold block">{t.reports.coveragePeriod}</span><span className="font-semibold text-slate-800">{selectedPolicyDetail.effectiveDate} → {selectedPolicyDetail.expirationDate}</span></div>
+                <div><span className="text-slate-400 font-bold block">{t.reports.colAnnualPremium}</span><span className="font-semibold text-slate-800">{formatAmount(selectedPolicyDetail.annualPremium)}</span></div>
+                <div><span className="text-slate-400 font-bold block">{t.reports.colPaymentFrequency}</span><span className="font-semibold text-slate-800">{paymentFrequencyLabels[selectedPolicyDetail.paymentFrequency] || selectedPolicyDetail.paymentFrequency}</span></div>
+                <div><span className="text-slate-400 font-bold block">{t.reports.installmentAmount}</span><span className="font-semibold text-slate-800">{formatAmount(selectedPolicyDetail.installmentAmount)}</span></div>
+                <div><span className="text-slate-400 font-bold block">{t.reports.outstandingAmountLabel}</span><span className="font-semibold text-rose-700">{formatAmount(selectedPolicyDetail.outstandingAmount || 0)}</span></div>
               </div>
 
               {selectedPolicyDetail.paymentFrequency === 'Quarterly' && (
                 <div className="grid grid-cols-4 gap-2">
                   {([1, 2, 3, 4] as const).map((q) => {
                     const p = detailPayments.find((pp) => pp.quarter === q);
-                    const status = p?.status || 'Pending';
+                    const status = p?.status || t.pending;
                     return (
                       <div key={q} className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-center">
                         <div className="text-[10px] font-black uppercase text-slate-400">Q{q}</div>
@@ -985,8 +1004,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               )}
 
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                <div className="flex items-center gap-2"><Users className="w-4 h-4 text-slate-600" /><span className="text-xs font-extrabold text-slate-800">Covered Population</span></div>
-                <span className="text-xs font-bold text-slate-600">{detailCoveredMembers.principals} principal &bull; {detailCoveredMembers.dependents} dependents &bull; {detailCoveredMembers.principals + detailCoveredMembers.dependents} total</span>
+                <div className="flex items-center gap-2"><Users className="w-4 h-4 text-slate-600" /><span className="text-xs font-extrabold text-slate-800">{t.reports.coveredPopulation}</span></div>
+                <span className="text-xs font-bold text-slate-600">{detailCoveredMembers.principals} {t.reports.principalSuffix} &bull; {detailCoveredMembers.dependents} {t.reports.dependentsSuffix} &bull; {detailCoveredMembers.principals + detailCoveredMembers.dependents} {t.reports.totalSuffix}</span>
               </div>
             </div>
 
@@ -994,7 +1013,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               {canExport && (
                 <ExportDropdown
                   lang={lang}
-                  label="Export"
+                  label={t.reports.exportLabel}
                   onExportExcel={() => {
                     exportPoliciesToExcel([selectedPolicyDetail]);
                     logExportEvent('Excel', `Policy Detail (${selectedPolicyDetail.organizationId})`);
@@ -1008,7 +1027,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               {/* === AMÉLIORATION AJOUTÉE : harmonisation des couleurs de boutons — ce bouton
                   "Close" était figé en gris (bg-slate-800), désormais aligné sur
                   roleTheme.palette.primaryColor comme les autres boutons de cette vue. === */}
-              <button onClick={() => setSelectedPolicyDetail(null)} className={`px-5 py-2 rounded-xl ${roleTheme.palette.primaryColor} text-white text-xs font-bold cursor-pointer`}>Close</button>
+              <button onClick={() => setSelectedPolicyDetail(null)} className={`px-5 py-2 rounded-xl ${roleTheme.palette.primaryColor} text-white text-xs font-bold cursor-pointer`}>{t.close}</button>
             </div>
           </div>
         </div>
