@@ -14,9 +14,8 @@ import {
   Phone,
   MapPin,
   FileCheck,
-  Receipt, // === AMÉLIORATION AJOUTÉE : bouton "Medical Tariffs" (HealthPass 2.0, Phase 1) ===
 } from 'lucide-react';
-import { Provider, Language, ProviderType, KYPStatus, MedicalTariff } from '../../types';
+import { Provider, Language, ProviderType, KYPStatus } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { ExportDropdown } from '../../components/ExportDropdown';
@@ -26,17 +25,10 @@ import {
   exportProvidersToExcel,
   parseProviderExcel,
 } from '../../utils/excelUtils';
-// === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 1 — Tariff Engine, derrière le flag
-// `hp2_tariff_engine` (désactivé par défaut, voir src/config/featureFlags.ts). Le bouton et la
-// modale ne sont ni affichés ni montés tant que le flag reste désactivé — comportement de cet
-// écran strictement inchangé pour tout utilisateur en production aujourd'hui.
-import { isFeatureEnabled } from '../../config/featureFlags';
-import { ProviderTariffsModal } from '../../modules/tariffs/ProviderTariffsModal';
 
 interface ProvidersViewProps {
   lang: Language;
   providers: Provider[];
-  tariffs?: MedicalTariff[];
   onAddProvider: (provider: Partial<Provider>) => void;
   onUpdateProvider: (provider: Provider) => void;
   onDeleteProvider: (id: string) => void;
@@ -46,7 +38,6 @@ interface ProvidersViewProps {
 export const ProvidersView: React.FC<ProvidersViewProps> = ({
   lang,
   providers,
-  tariffs = [],
   onAddProvider,
   onUpdateProvider,
   onDeleteProvider,
@@ -59,8 +50,6 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
-  const [tariffsProvider, setTariffsProvider] = useState<Provider | null>(null);
-  const tariffEngineEnabled = isFeatureEnabled('hp2_tariff_engine');
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -272,15 +261,6 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
-                        {tariffEngineEnabled && (
-                          <button
-                            onClick={() => setTariffsProvider(p)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition cursor-pointer"
-                            title="Medical Tariffs"
-                          >
-                            <Receipt className="w-3.5 h-3.5" />
-                          </button>
-                        )}
                         <button
                           onClick={() => openEditModal(p)}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
@@ -433,15 +413,6 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
             </form>
           </div>
         </div>
-      )}
-
-      {/* === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 1 — Tariff Engine (voir plus haut) === */}
-      {tariffEngineEnabled && tariffsProvider && (
-        <ProviderTariffsModal
-          provider={tariffsProvider}
-          tariffs={tariffs}
-          onClose={() => setTariffsProvider(null)}
-        />
       )}
 
       {/* EXCEL IMPORT MODAL */}

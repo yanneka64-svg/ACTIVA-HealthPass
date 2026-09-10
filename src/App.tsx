@@ -17,9 +17,7 @@ import {
   AppNotification,
   HealthPolicy,
   PolicyPayment,
-  MedicalTariff, // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 1 — Tariff Engine ===
 } from './types';
-import { isFeatureEnabled } from './config/featureFlags';
 import { FirestoreService } from './services/firestore';
 import { WorkflowService } from './services/workflowService';
 import { seedInitialDemoDataIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
@@ -325,10 +323,6 @@ export default function App() {
   const [members, setMembers] = useState<Member[]>(() => (demoData.membersList || []) as Member[]);
   const [organizations, setOrganizations] = useState<Organization[]>(() => (demoData.orgs || []) as Organization[]);
   const [providers, setProviders] = useState<Provider[]>(() => (demoData.providers || []) as Provider[]);
-  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 1 — Tariff Engine, derrière le flag
-  // `hp2_tariff_engine` (voir src/config/featureFlags.ts). Pas de données de démonstration :
-  // vide tant qu'aucun Admin n'a saisi de tarif pour un prestataire.
-  const [medicalTariffs, setMedicalTariffs] = useState<MedicalTariff[]>([]);
   const [claims, setClaims] = useState<Claim[]>(() => (demoData.sampleClaims || []) as Claim[]);
   const [invoices, setInvoices] = useState<InvoiceItem[]>(() => (demoData.sampleInvoices || []) as InvoiceItem[]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -361,20 +355,6 @@ export default function App() {
       const unsubMembers = FirestoreService.subscribeToMembers(setMembers, assignedOrgs);
       const unsubOrgs = FirestoreService.subscribeToOrganizations(setOrganizations);
       const unsubProviders = FirestoreService.subscribeToProviders(setProviders);
-      // === AMÉLIORATION AJOUTÉE : correctif (2026-09-10) — cet abonnement tournait pour TOUT
-      // utilisateur, y compris avec le flag `hp2_tariff_engine` désactivé (défaut de
-      // production). Les règles Firestore pour `medicalTariffs` sont commitées dans le dépôt
-      // mais n'ont jamais été déployées sur le projet Firebase réel (cette session n'a pas
-      // d'accès de déploiement — voir HEALTHPASS_2_0_DISCOVERY.md, Phase 3) : chaque session
-      // authentifiée recevait donc une erreur "Missing or insufficient permissions" sur une
-      // collection vide dont personne n'a besoin tant que le flag est désactivé, remontée comme
-      // bannière "Data synchronization issue" bien visible en production (voir
-      // src/utils/systemStatus.ts::reportSyncIssue). Corrigé en ne s'abonnant que si le module
-      // est explicitement activé — comportement strictement inchangé une fois le flag actif.
-      let unsubMedicalTariffs: (() => void) | undefined;
-      if (isFeatureEnabled('hp2_tariff_engine')) {
-        unsubMedicalTariffs = FirestoreService.subscribeToMedicalTariffs(setMedicalTariffs);
-      }
       const unsubClaims = FirestoreService.subscribeToClaims(setClaims, assignedOrgs);
       const unsubInvoices = FirestoreService.subscribeToInvoices(setInvoices, assignedOrgs);
       const unsubEnrollments = FirestoreService.subscribeToEnrollments(setEnrollments, assignedOrgs);
@@ -393,7 +373,6 @@ export default function App() {
         unsubMembers();
         unsubOrgs();
         unsubProviders();
-        if (unsubMedicalTariffs) unsubMedicalTariffs();
         unsubClaims();
         unsubInvoices();
         unsubEnrollments();
@@ -1461,7 +1440,6 @@ export default function App() {
             <ProvidersView
               lang={lang}
               providers={providers}
-              tariffs={medicalTariffs}
               onAddProvider={handleAddProvider}
               onUpdateProvider={handleUpdateProvider}
               onDeleteProvider={handleDeleteProvider}

@@ -36,13 +36,8 @@ import { formatRelationship, getMemberDependents } from '../settings/MembersView
 // existant, en réutilisant le même moteur centralisé que partout ailleurs (Claims, Reports,
 // Organizations, règles Firestore).
 import { getPolicyCoverageStatus } from '../../services/policyEngine';
-// === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 3 — Digital Card & Server-Verifiable QR,
-// derrière le flag `hp2_provider_digital_card` (désactivé par défaut, voir
-// src/config/featureFlags.ts). Bouton et modale ni affichés ni montés tant que le flag reste
-// désactivé — comportement de cet écran strictement inchangé pour tout utilisateur aujourd'hui.
-import { isFeatureEnabled } from '../../config/featureFlags';
-import { DigitalCardModal } from '../../modules/digitalcard/DigitalCardModal';
-import { IdCard } from 'lucide-react';
+// === AMÉLIORATION AJOUTÉE : visuel de carte membre — voir MemberIdCard.tsx pour le détail.
+import { MemberIdCard } from '../../modules/membercard/MemberIdCard';
 
 interface AgentIdentificationViewProps {
   members: Member[];
@@ -99,9 +94,6 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   const [selectedBeneficiary, setSelectedBeneficiary] = useState<InsuredBeneficiary | null>(null);
   const [isFingerprintModalOpen, setIsFingerprintModalOpen] = useState(false);
   const [biometricMatchMessage, setBiometricMatchMessage] = useState<string | null>(null);
-  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 3 — Digital Card & Server-Verifiable QR ===
-  const [isDigitalCardModalOpen, setIsDigitalCardModalOpen] = useState(false);
-  const digitalCardEnabled = isFeatureEnabled('hp2_provider_digital_card');
   // === AMÉLIORATION AJOUTÉE : alerte bloquante affichée AVANT de laisser l'agent poursuivre
   // vers un flux de soin (Medical Form / New Claim) quand la police est Expired/Suspended.
   const [blockedActionAlert, setBlockedActionAlert] = useState<'medical_form' | 'new_claim' | null>(null);
@@ -593,28 +585,20 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                       <span>New Claim</span>
                     </button>
                   )}
-                  {digitalCardEnabled && (
-                    <button
-                      type="button"
-                      onClick={() => setIsDigitalCardModalOpen(true)}
-                      className="w-full sm:w-auto px-3.5 py-2 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 whitespace-nowrap"
-                    >
-                      <IdCard className="w-3.5 h-3.5" />
-                      <span>Digital Card</span>
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
 
-            {digitalCardEnabled && isDigitalCardModalOpen && (
-              <DigitalCardModal
-                cardNo={selectedBeneficiary.cardNo}
-                memberName={selectedBeneficiary.fullName}
-                organization={selectedBeneficiary.organization}
-                onClose={() => setIsDigitalCardModalOpen(false)}
-              />
-            )}
+            {/* === AMÉLIORATION AJOUTÉE : visuel de carte membre, affiché automatiquement dès
+                qu'un assuré est sélectionné — voir MemberIdCard.tsx. Purement visuel (aucune
+                donnée qui n'est pas déjà affichée ci-dessus), aucune dépendance serveur. === */}
+            <MemberIdCard
+              fullName={selectedBeneficiary.fullName}
+              organization={selectedBeneficiary.organization}
+              cardNo={selectedBeneficiary.cardNo}
+              status={selectedBeneficiary.status}
+              relationship={!selectedBeneficiary.isPrincipal ? formatRelationship(selectedBeneficiary.relationship) : undefined}
+            />
 
             {/* === AMÉLIORATION AJOUTÉE : bandeau de statut de couverture, calculé
                 immédiatement après identification via le moteur centralisé de police

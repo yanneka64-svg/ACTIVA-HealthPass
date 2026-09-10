@@ -47,13 +47,13 @@ facts rather than the plan's initial guesses.
   (below) stays Admin-only management and is not wired into the claim form's coverage
   calculation in this pass. Revisit if/when per-service (rather than flat per-organization)
   coverage becomes a priority.
-- Tariff Engine (Phase 1's first and, for now, only new module): implemented and shipped behind
-  `hp2_tariff_engine` (see section 6). Per-service tariff entered in USD (the app's base
-  currency, per `src/services/currency.tsx`), auto-converted to LRD display at the existing
-  exchange rate, with coverage rate per service, grouped by category, and an "Add Service" path
-  for services outside the starter catalog. Shape validated visually in the frontend preview
-  before implementation, then the real built component was rendered and screenshotted before
-  commit.
+- ~~Tariff Engine~~ — **built (2026-09-09) then removed (2026-09-10), at the user's explicit
+  request.** A per-service, Admin-managed tariff catalog was shipped behind `hp2_tariff_engine`,
+  validated visually, and confirmed working in the real component. The user then decided tariffs
+  should stay under the control of medical providers rather than a centralized catalog in the
+  app, since they're dynamic — the module (`src/modules/tariffs/`, the `medicalTariffs`
+  collection, its Firestore rule, the `MedicalTariff` type, and the flag) was fully removed from
+  the codebase. Phase 1 has no Tariff Engine going forward.
 
 ### Phase 2 — Preauthorization / BillAudit / FraudDetection
 - No direct conflicts found. One open dependency flagged: FraudDetection's "similar claims"
@@ -82,28 +82,29 @@ facts rather than the plan's initial guesses.
 - Digital card QR/barcode signing is new foundational security work (no HMAC infra exists
   today) — to be scoped and built explicitly, not treated as a wiring task.
 - Any OTP/PIN verification flow, if kept in scope, is also net-new work for the same reason.
-- **First module shipped in code (2026-09-09):** Digital HealthPass Card + server-verifiable QR,
-  behind `hp2_provider_digital_card`. Mirrors the exact architecture already used for clinical
-  field encryption (`functions/src/encryptionService.ts`): a signing key defined via
-  `defineSecret`, loaded only inside Cloud Functions, that never reaches the browser. Two new
-  callable functions (`functions/src/index.ts`): `generateDigitalCardSignature` (HMAC-SHA256 over
-  card number + a 3-year provisional expiry) and `verifyDigitalCardSignature` (constant-time
-  signature check, then a **fresh** server-side member lookup by card number — the verifier never
-  trusts identity data embedded in the QR itself, so a suspended member's old card correctly
-  shows their current status). Client module `src/modules/digitalcard/` renders the card + a real
-  QR (new dependency: `qrcode` + `@types/qrcode`) and a verification UI accepting either the
-  currently-displayed card or a pasted code, wired into `AgentIdentificationView.tsx`.
-  - **Not yet usable — deployment gap, deliberately left undone:** this session has no Firebase
-    deploy access. Before this can work for real: `firebase functions:secrets:set
-    CARD_SIGNING_KEY` (a strong random value) and `firebase deploy --only functions`. Until then
-    the flag must stay off — turning it on would show users a "not yet deployed" error, not a
-    broken feature, since the client fails closed with a clear message rather than silently.
-  - Verified without deployment: `functions/src/digitalCardSigningService.test.ts` (9 unit tests,
-    all passing) proves the signing/verification math directly — correct round-trip, rejects a
-    changed card number or expiry, rejects a tampered signature, differs under a different key.
-    The client UI (card rendering, real QR image, verify-result states) was rendered and
-    screenshotted with the two Cloud Function calls stubbed at the network boundary, since they
-    cannot be exercised live pre-deployment.
+- ~~Digital HealthPass Card + server-verifiable QR~~ — **built (2026-09-09) then removed
+  (2026-09-10), at the user's explicit request.** HMAC-SHA256 signing via `defineSecret` (mirroring
+  `functions/src/encryptionService.ts`), two callable functions, a client card+QR UI — all
+  implemented, unit-tested (9 passing tests on the signing/verification math), and confirmed
+  working end to end in production once flags were enabled (visible "Digital Card" button,
+  correct graceful "not yet deployed" message when clicked, exactly as designed). The user then
+  asked to remove it: it depended on a Cloud Functions deployment (`CARD_SIGNING_KEY` secret +
+  `firebase deploy --only functions`) outside this session's reach, and wasn't the actual need.
+  `functions/src/digitalCardSigningService.ts` (+ test), the two callable functions in
+  `functions/src/index.ts`, `src/modules/digitalcard/`, the `qrcode`/`@types/qrcode` dependency,
+  and the flag were all removed.
+- **Replaced with (2026-09-10):** `MemberIdCard` (`src/modules/membercard/MemberIdCard.tsx`) — a
+  purely visual "member card" (navy gradient, chip, avatar, name, organization, card number,
+  status), reusing the visual design validated earlier but with no signing, no Cloud Functions,
+  no Firestore dependency at all. Shown automatically (no button, no flag) whenever an Agent
+  selects an insured member on the Identification screen, right below the existing profile
+  header.
+  - **QR code added back (2026-09-10, same day, on request):** the user asked for the QR
+    specifically — but as a plain, unsigned code that just encodes the same general information
+    already on the card (name, card number, organization, status) as readable text, generated
+    client-side with the `qrcode` package. No server round-trip, no verification claim, no
+    deployment dependency — a standard QR scanner reads the member's information directly.
+    Deliberately distinct from the removed Digital Card: no HMAC signature, nothing to deploy.
 
 ### Phase 4 — Reimbursement / Payment reconciliation / SLA / Analytics
 - **Correction found during discovery (2026-09-10):** Analytics is already mature — `ReportsView.tsx`
@@ -169,17 +170,19 @@ needed on either — feature-flag foundation, `src/modules/` structure).
 
 | Module | Flag | Status |
 |---|---|---|
-| Tariff Engine | `hp2_tariff_engine` | Shipped, off by default |
-| Fraud Detection | `hp2_fraud_detection` | Shipped, off by default (shadow-mode score only) |
-| Preauthorization | `hp2_preauthorization` | Shipped, off by default (shadow-mode badge only, $500 USD threshold — provisional, not yet configurable by Admin) |
-| BillAudit | `hp2_bill_audit` | Shipped, off by default (shadow-mode badge only — duplicate line-item detection; amount-vs-tariff checks deliberately deferred, see section 3 note in the module) |
+| ~~Tariff Engine~~ | — | **Removed (2026-09-10)** — tariffs stay under provider control, not a centralized catalog |
+| Fraud Detection | `hp2_fraud_detection` | Live for all users (shadow-mode score only) |
+| Preauthorization | `hp2_preauthorization` | Live for all users (shadow-mode badge only, $500 USD threshold — provisional, not yet configurable by Admin) |
+| BillAudit | `hp2_bill_audit` | Live for all users (shadow-mode badge only — duplicate line-item detection; amount-vs-tariff checks deliberately deferred) |
 | Eligibility / Coverage Engine | — | Not built — existing `eligibilityService.ts` + org-level coverage rate kept as-is (section 3) |
-| Provider digital card / QR | `hp2_provider_digital_card` | Shipped in code, off by default — **not usable until deployed** (see section 3 note: `CARD_SIGNING_KEY` secret + `firebase deploy --only functions` required, neither done by this session) |
-| SLA Tracking | `hp2_sla_tracking` | Shipped, off by default (shadow-mode badge only) |
-| Reimbursement / Payment Reconciliation | `hp2_reimbursement_tracking` | Shipped (2026-09-10), off by default — manual payment tracking + reconciliation summary |
+| ~~Provider digital card / QR~~ | — | **Removed (2026-09-10)** — depended on a Cloud Functions deployment out of reach; replaced by `MemberIdCard` (pure visual, no backend) |
+| SLA Tracking | `hp2_sla_tracking` | Live for all users (shadow-mode badge only) |
+| Reimbursement / Payment Reconciliation | `hp2_reimbursement_tracking` | Live for all users — manual payment tracking + reconciliation summary |
+| Member ID Card visual | — | Live for all Agents — no flag, pure UI, always shown when a member is selected |
 
-All flags default to `false` in `src/config/featureFlags.ts` — no shipped module is visible to
-any production user until explicitly enabled.
+All remaining flags default to `true` in `src/config/featureFlags.ts` (promoted 2026-09-10, at
+the user's explicit request — "rendre tout ça visible... pour que tout le monde puisse le
+voir"). `hp2_eligibility_engine`/`hp2_coverage_engine` remain unused by any module.
 
 ## 6. Status (2026-09-10)
 
@@ -188,24 +191,27 @@ Summary of the engagement so far:
 - **Phase 0** (Stabilization & Security): complete. Discovery report, SoD/audit review,
   `firestore.rules` review (no changes needed on either), feature-flag foundation,
   `src/modules/` structure.
-- **Phase 1** (Eligibility/Coverage/Tariff Engines): Tariff Engine shipped
-  (`hp2_tariff_engine`). Eligibility/Coverage intentionally left on the existing
-  `eligibilityService.ts` + org-level coverage rate — already solid, not rebuilt.
-- **Phase 2** (Preauthorization/BillAudit/FraudDetection): all 3 shipped
+- **Phase 1** (Eligibility/Coverage/Tariff Engines): Tariff Engine built, then removed at the
+  user's request (tariffs stay under provider control). Eligibility/Coverage intentionally left
+  on the existing `eligibilityService.ts` + org-level coverage rate — already solid, not rebuilt.
+- **Phase 2** (Preauthorization/BillAudit/FraudDetection): all 3 shipped and live for every user
   (`hp2_preauthorization`, `hp2_bill_audit`, `hp2_fraud_detection`) — complete.
-- **Phase 3** (Provider ecosystem + digital card): Digital HealthPass Card + server-verifiable
-  QR shipped in code (`hp2_provider_digital_card`) — **not usable until deployed** (see section
-  3: `CARD_SIGNING_KEY` secret + `firebase deploy --only functions`, neither done by this
-  session). Provider/Organization screens confirmed already substantial, not rebuilt.
+- **Phase 3** (Provider ecosystem + digital card): Digital HealthPass Card + server-verifiable QR
+  built, unit-tested, confirmed working end to end in production (correct graceful failure with
+  Cloud Functions undeployed) — then removed at the user's request, replaced by `MemberIdCard`
+  (pure visual, live for every Agent, no backend dependency at all). Provider/Organization screens
+  confirmed already substantial, not rebuilt.
 - **Phase 4** (Reimbursement/Reconciliation/SLA/Analytics): complete. SLA Tracking
   (`hp2_sla_tracking`) and Reimbursement/Payment Reconciliation (`hp2_reimbursement_tracking`,
-  scope confirmed with the user before building — see section 3) both shipped. Analytics
+  scope confirmed with the user before building) both shipped and live for every user. Analytics
   confirmed already mature, not rebuilt.
 
-Every shipped module ships behind a flag in `src/config/featureFlags.ts`, all `false` by
-default — **nothing here is visible to any production user today.** The only module that is
-code-complete but not yet *usable* is Phase 3's Digital Card (needs `CARD_SIGNING_KEY` +
-`firebase deploy --only functions`, neither done by this session — see section 3). This document
+**Current live state (2026-09-10):** Fraud Detection, Preauthorization, BillAudit, SLA Tracking,
+and Reimbursement & Reconciliation are all enabled by default in `src/config/featureFlags.ts` and
+fully functional for every user — promoted at the user's explicit request, after each was
+individually previewed and verified. The Member ID Card visual is always on for Agents, no flag.
+Tariff Engine and Digital Card were built, verified working, and then deliberately removed rather
+than kept behind a flag — they are gone from the codebase, not just disabled. This document
 remains the source of truth for what's real vs. what the original plan assumed; the
 plan-vs-reality corrections in section 2 and the per-phase notes in section 3 apply to any future
 work here.
