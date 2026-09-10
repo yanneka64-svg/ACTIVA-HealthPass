@@ -105,6 +105,15 @@ facts rather than the plan's initial guesses.
     client-side with the `qrcode` package. No server round-trip, no verification claim, no
     deployment dependency — a standard QR scanner reads the member's information directly.
     Deliberately distinct from the removed Digital Card: no HMAC signature, nothing to deploy.
+  - **Card-shaped redesign, "Option A" (2026-09-10, same day, on request):** the user reported the
+    card rendered as a full-width stretched block ("je veux vraiment que la carte s'affiche comme
+    une carte") and asked for proposals. Three real, rendered variants were built and screenshotted
+    side by side (A: classic layout, QR in the corner; B: same ratio with a security-pattern
+    texture and a larger QR; C: portrait badge style); the user picked **Option A**. Implemented as
+    fixed card proportions (`aspect-ratio: 340 / 214`, close to the ISO/IEC 7810 ID-1 ratio,
+    `max-w-[340px]` instead of stretching full width), with the card number restyled monospace/
+    tracked ("embossed" look) and the QR code moved to a small corner tile. No props/usage changes
+    in `AgentIdentificationView.tsx` — only `MemberIdCard.tsx`'s internal layout changed.
 
 ### Phase 4 — Reimbursement / Payment reconciliation / SLA / Analytics
 - **Correction found during discovery (2026-09-10):** Analytics is already mature — `ReportsView.tsx`
