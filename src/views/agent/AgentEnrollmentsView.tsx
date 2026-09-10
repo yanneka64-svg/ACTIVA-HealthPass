@@ -53,6 +53,12 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
 }) => {
   const t = useTranslation('en');
   const [activeTab, setActiveTab] = useState<'create' | 'list'>('create');
+  // === AMÉLIORATION AJOUTÉE : le formulaire d'enrôlement reste grisé/inactif tant que l'agent
+  // n'a pas explicitement cliqué sur "New Beneficiary Enrollment" (demande explicite de
+  // l'utilisateur, 2026-09-10) — au lieu d'être actif par défaut simplement en arrivant sur cet
+  // écran. Remis à `false` après chaque soumission réussie (voir handleSubmit) pour que la
+  // prochaine ouverture nécessite à nouveau un clic explicite.
+  const [formActivated, setFormActivated] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'pending' | 'approved' | 'rejected'>('ALL');
   const [selectedEnrDetails, setSelectedEnrDetails] = useState<Enrollment | null>(null);
@@ -244,6 +250,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
       setHasBiometrics(false);
       setPhotoData(null);
       setBiometricData(null);
+      setFormActivated(false);
       setActiveTab('list'); // Switch to list so agent sees the pending submission
     }, 1500);
   };
@@ -287,7 +294,11 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => setActiveTab('create')}
+            onClick={() => {
+              setActiveTab('create');
+              // === AMÉLIORATION AJOUTÉE : active le formulaire (demande explicite) ===
+              setFormActivated(true);
+            }}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
               activeTab === 'create'
                 ? 'bg-[#0a2e6b] text-white shadow-xs'
@@ -332,7 +343,16 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+          {/* === AMÉLIORATION AJOUTÉE : formulaire grisé/inactif tant que "New Beneficiary
+              Enrollment" n'a pas été cliqué (voir formActivated plus haut) — conteneur relatif
+              pour l'incrustation du message d'invite ci-dessous. === */}
+          <div className="relative">
+          <form
+            onSubmit={handleSubmit}
+            className={`grid grid-cols-1 lg:grid-cols-5 gap-6 items-start transition ${
+              !formActivated ? 'opacity-50 grayscale-[60%] pointer-events-none select-none' : ''
+            }`}
+          >
             {formError && (
               <div className="lg:col-span-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -671,6 +691,30 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
               </div>
             </div>
           </form>
+          {!formActivated && (
+            <div className="absolute inset-0 z-10 flex items-start justify-center pt-16 px-4">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xl px-6 py-5 flex flex-col items-center gap-3 text-center max-w-sm">
+                <div className="w-12 h-12 rounded-2xl bg-[#0a2e6b]/10 flex items-center justify-center text-[#0a2e6b]">
+                  <PlusCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-slate-900">Start a new enrollment</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Click "New Beneficiary Enrollment" to activate this form.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormActivated(true)}
+                  className="px-4 py-2 rounded-xl bg-[#0a2e6b] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>New Beneficiary Enrollment</span>
+                </button>
+              </div>
+            </div>
+          )}
+          </div>
         </div>
       ) : (
         /* Tab 2: Submitted Requests History */

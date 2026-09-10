@@ -92,6 +92,14 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   const [selectedClaimDetail, setSelectedClaimDetail] = useState<Claim | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [eligibilityBlockError, setEligibilityBlockError] = useState<string | null>(null);
+  // === AMÉLIORATION AJOUTÉE : le formulaire de réclamation reste grisé/inactif tant que
+  // l'agent n'a pas explicitement cliqué sur "New Claim" (demande explicite de l'utilisateur,
+  // 2026-09-10) — au lieu d'être actif par défaut simplement en arrivant sur cet écran. Remis à
+  // `false` après une soumission réussie (voir resetForm) pour que la prochaine réclamation
+  // nécessite à nouveau un clic explicite. Activé automatiquement quand l'agent arrive avec un
+  // assuré déjà présélectionné (voir preselectedMember ci-dessous) : l'intention est déjà
+  // explicite dans ce cas.
+  const [formActivated, setFormActivated] = useState(false);
   // === AMÉLIORATION AJOUTÉE : sur mobile, les 4 sections du formulaire se replient en
   // accordéon (une seule ouverte à la fois, la première par défaut) pour réduire le nombre
   // d'éléments visibles en même temps — sur desktop (lg+), les 4 sections restent toutes
@@ -173,6 +181,9 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       setOrganizationInput(preselectedMember.organization);
       setPatientName(preselectedMember.principalName);
       setPatientRelationship('Principal');
+      // === AMÉLIORATION AJOUTÉE : arriver avec un assuré présélectionné vaut déjà "New Claim"
+      // cliqué — pas besoin d'un second clic pour activer le formulaire.
+      setFormActivated(true);
     }
   }, [preselectedMember]);
 
@@ -454,6 +465,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
     });
 
     // Reset form
+    setFormActivated(false);
     setMemberCardInput('');
     setPrincipalNameInput('');
     setOrganizationInput('');
@@ -484,13 +496,32 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
             <p className="text-xs text-slate-500">Real-time coverage adjudication, biometric verification and automated duplicate detection</p>
           </div>
         </div>
-        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>ACTIVA Direct Coverage</span>
-        </span>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          {/* === AMÉLIORATION AJOUTÉE : bouton "New Claim" (demande explicite, 2026-09-10) —
+              active le formulaire, jusque-là grisé/inactif par défaut. === */}
+          <button
+            type="button"
+            onClick={() => setFormActivated(true)}
+            className="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer bg-[#0a2e6b] hover:bg-[#07214f] text-white shadow-xs"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>New Claim</span>
+          </button>
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>ACTIVA Direct Coverage</span>
+          </span>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6 text-xs">
+      {/* === AMÉLIORATION AJOUTÉE : formulaire grisé/inactif tant que "New Claim" n'a pas été
+          cliqué (voir formActivated plus haut) — conteneur relatif pour l'incrustation du
+          message d'invite ci-dessous. === */}
+      <div className="relative">
+      <form
+        onSubmit={handleSubmit}
+        className={`space-y-6 text-xs transition ${!formActivated ? 'opacity-50 grayscale-[60%] pointer-events-none select-none' : ''}`}
+      >
               {/* BLOCKING ELIGIBILITY ERROR */}
               {(eligibilityBlockError || (eligibilityStatus && !eligibilityStatus.isEligible)) && (
                 <div className="bg-rose-50 border-2 border-rose-400 text-rose-900 p-4 rounded-2xl flex gap-3.5 items-start animate-in zoom-in-95 shadow-sm">
@@ -1100,6 +1131,28 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 </button>
               </div>
       </form>
+      {!formActivated && (
+        <div className="absolute inset-0 z-10 flex items-start justify-center pt-16 px-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl px-6 py-5 flex flex-col items-center gap-3 text-center max-w-sm">
+            <div className="w-12 h-12 rounded-2xl bg-[#0a2e6b]/10 flex items-center justify-center text-[#0a2e6b]">
+              <PlusCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-slate-900">Start a new claim</p>
+              <p className="text-xs text-slate-500 mt-1">Click "New Claim" to activate this form.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormActivated(true)}
+              className="px-4 py-2 rounded-xl bg-[#0a2e6b] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>New Claim</span>
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
 
       {/* Recent Claims History & Status */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
