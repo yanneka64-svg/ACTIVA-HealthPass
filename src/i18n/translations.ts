@@ -590,6 +590,15 @@ export const translations = {
         dental: 'Dental Center',
         optical: 'Optical Center',
       },
+      // === AMÉLIORATION AJOUTÉE : dernières chaînes non traduites de l'écran Prestataires
+      // (ProvidersView.tsx, 2026-09-10) — barre de recherche/filtres et modale.
+      searchPlaceholder: 'Search provider by name, location, convention...',
+      allProviderTypesOption: 'All Provider Types',
+      allKypStatusesOption: 'All KYP Statuses',
+      editProviderTitle: 'Edit Healthcare Provider',
+      modalSubtitle: 'Healthcare facility accreditation & contract',
+      namePlaceholder: 'e.g. JFK Medical Center',
+      locationPlaceholder: 'e.g. Monrovia — Sinkor',
     },
 
     // Ceilings
@@ -899,6 +908,18 @@ export const translations = {
       readOnlyNotice: 'This audit ledger is encrypted and strictly read-only.',
       success: 'Success',
       failed: 'Failed',
+      // === AMÉLIORATION AJOUTÉE : dernières chaînes non traduites de l'écran Journaux d'audit
+      // (LogsView.tsx, 2026-09-10).
+      searchPlaceholder: 'Search logs by email, IP address, user agent, location...',
+      allStatusesOption: 'All Statuses',
+      showLatestOnlyTitle: 'Show only the latest login per user',
+      showFullHistoryTitle: 'Show every recorded login attempt',
+      latestPerUserOnlyBtn: 'Latest per user only',
+      showFullHistoryBtn: 'Show full history',
+      latestLoginTitleSuffix: 'Latest login per user',
+      totalEntriesKeptTemplate: '{n} total entries kept in the immutable audit trail',
+      location: 'Location',
+      unknownLocation: 'Unknown',
     },
 
     // Excel
@@ -1904,6 +1925,13 @@ export const translations = {
         dental: 'Centre dentaire',
         optical: 'Centre optique',
       },
+      searchPlaceholder: 'Rechercher un prestataire par nom, localisation, convention...',
+      allProviderTypesOption: 'Tous les types de prestataires',
+      allKypStatusesOption: 'Tous les statuts KYP',
+      editProviderTitle: 'Modifier le prestataire de santé',
+      modalSubtitle: 'Agrément et contrat de l\'établissement de santé',
+      namePlaceholder: 'ex. JFK Medical Center',
+      locationPlaceholder: 'ex. Monrovia — Sinkor',
     },
 
     ceilings: {
@@ -2198,6 +2226,16 @@ export const translations = {
       readOnlyNotice: 'Ce registre d\'audit est chiffré et strictement en lecture seule.',
       success: 'Succès',
       failed: 'Échec',
+      searchPlaceholder: 'Rechercher un journal par e-mail, adresse IP, agent utilisateur, localisation...',
+      allStatusesOption: 'Tous les statuts',
+      showLatestOnlyTitle: 'Afficher uniquement la dernière connexion par utilisateur',
+      showFullHistoryTitle: 'Afficher toutes les tentatives de connexion enregistrées',
+      latestPerUserOnlyBtn: 'Dernière par utilisateur',
+      showFullHistoryBtn: 'Afficher tout l\'historique',
+      latestLoginTitleSuffix: 'Dernière connexion par utilisateur',
+      totalEntriesKeptTemplate: '{n} entrées au total conservées dans le journal d\'audit immuable',
+      location: 'Localisation',
+      unknownLocation: 'Inconnue',
     },
 
     excel: {
