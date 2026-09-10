@@ -49,6 +49,8 @@ import { checkPreauthorizationNeeded } from '../modules/preauthorization/preauth
 import { PreauthorizationBadge } from '../modules/preauthorization/PreauthorizationBadge';
 import { computeBillAudit } from '../modules/billaudit/billAuditCheck';
 import { BillAuditBadge } from '../modules/billaudit/BillAuditBadge';
+import { checkSlaBreach } from '../modules/sla/slaCheck';
+import { SlaBadge } from '../modules/sla/SlaBadge';
 
 interface ClaimsViewProps {
   currentSection?: string;
@@ -178,6 +180,16 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
     pendingClaims.forEach((c) => map.set(c.id, computeBillAudit(c)));
     return map;
   }, [billAuditEnabled, pendingClaims]);
+
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — SLA Tracking (voir plus haut). Même
+  // traitement que Fraud Detection / Preauthorization / BillAudit ci-dessus.
+  const slaTrackingEnabled = isFeatureEnabled('hp2_sla_tracking');
+  const slaByClaimId = useMemo(() => {
+    if (!slaTrackingEnabled) return new Map<string, ReturnType<typeof checkSlaBreach>>();
+    const map = new Map<string, ReturnType<typeof checkSlaBreach>>();
+    pendingClaims.forEach((c) => map.set(c.id, checkSlaBreach(c)));
+    return map;
+  }, [slaTrackingEnabled, pendingClaims]);
   const historyClaims = filteredClaims.filter((c) => c.status !== 'pending');
 
   const openRejectModal = (claim: Claim) => {
@@ -465,6 +477,9 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   {billAuditEnabled && billAuditByClaimId.get(claim.id) && (
                     <BillAuditBadge result={billAuditByClaimId.get(claim.id)!} className="ml-1.5" />
                   )}
+                  {slaTrackingEnabled && slaByClaimId.get(claim.id) && (
+                    <SlaBadge result={slaByClaimId.get(claim.id)!} className="ml-1.5" />
+                  )}
                   {claim.assignedAgentName && (
                     <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
                       Assigned: {claim.assignedAgentName}
@@ -592,6 +607,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                         {billAuditEnabled && billAuditByClaimId.get(claim.id) && (
                           <span className="block mt-1">
                             <BillAuditBadge result={billAuditByClaimId.get(claim.id)!} />
+                          </span>
+                        )}
+                        {slaTrackingEnabled && slaByClaimId.get(claim.id) && (
+                          <span className="block mt-1">
+                            <SlaBadge result={slaByClaimId.get(claim.id)!} />
                           </span>
                         )}
                         {claim.assignedAgentName && (

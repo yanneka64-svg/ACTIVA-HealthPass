@@ -106,8 +106,29 @@ facts rather than the plan's initial guesses.
     cannot be exercised live pre-deployment.
 
 ### Phase 4 — Reimbursement / Payment reconciliation / SLA / Analytics
-- Not yet investigated in depth. To receive its own discovery pass once Phases 1–3 clarify
-  what data and workflows actually exist to reconcile/report on.
+- **Correction found during discovery (2026-09-10):** Analytics is already mature — `ReportsView.tsx`
+  has real, computed KPIs (Total Billed, Total Reimbursed, a genuinely computed average claim
+  processing time from real submission/decision dates — not a static placeholder, someone already
+  fixed that — rejection rate, provider/organization spend distribution charts) plus a full
+  "Policies & Premiums" tab (active/expiring/suspended/expired policy counts, quarterly premium
+  payment tracking via `PolicyPayment`). Basic reimbursement already exists too: an invoice is
+  auto-generated with coverage %/amount when a claim is approved.
+- What's genuinely missing: **SLA tracking** — a static "Target SLA turnaround < 48h" caption
+  exists next to the real average, but nothing flags an individual pending claim that is actually
+  breaching that target right now. **Payment Reconciliation** — the screen is literally titled
+  "Invoices & Reconciliation" (`t.reports` / `InvoicesView.tsx`) but there is no actual
+  matching/discrepancy-detection logic behind that name; a real reconciliation engine needs a
+  clearer, less financially-sensitive scope before being built. **Reimbursement workflow** — no
+  disbursement-status tracking (was the provider/member actually paid), only the invoice record
+  itself.
+- Decision (agreed 2026-09-10): scope Phase 4 down to SLA tracking first — the cleanest,
+  self-contained module. Reimbursement/Reconciliation intentionally deferred pending clearer
+  requirements.
+- **First module shipped (2026-09-10):** SLA Tracking, behind `hp2_sla_tracking`. Same
+  shadow-mode badge pattern as Fraud Detection/Preauthorization/BillAudit: flags a `pending`
+  claim whose `submissionDate` is more than 48h old (the same 48h target already shown in
+  `ReportsView.tsx` — reused, not invented) with an "SLA breached (Xh over 48h target)" badge on
+  the Superviseur validation screen. Never blocks approval/rejection.
 
 ## 4. Process rules carried forward from the original plan
 
@@ -134,13 +155,15 @@ needed on either — feature-flag foundation, `src/modules/` structure).
 | BillAudit | `hp2_bill_audit` | Shipped, off by default (shadow-mode badge only — duplicate line-item detection; amount-vs-tariff checks deliberately deferred, see section 3 note in the module) |
 | Eligibility / Coverage Engine | — | Not built — existing `eligibilityService.ts` + org-level coverage rate kept as-is (section 3) |
 | Provider digital card / QR | `hp2_provider_digital_card` | Shipped in code, off by default — **not usable until deployed** (see section 3 note: `CARD_SIGNING_KEY` secret + `firebase deploy --only functions` required, neither done by this session) |
+| SLA Tracking | `hp2_sla_tracking` | Shipped, off by default (shadow-mode badge only) |
+| Reimbursement / Payment Reconciliation | — | Deferred — scope intentionally not yet defined (section 3) |
 
 All flags default to `false` in `src/config/featureFlags.ts` — no shipped module is visible to
 any production user until explicitly enabled.
 
 ## 6. Next step
 
-Phase 2 complete. Next up is Phase 3 (Provider ecosystem + digital HealthPass card with
-server-verifiable QR) — flagged in section 3 as genuinely new foundational security work, since
-no HMAC/signing infrastructure exists today. Per the process rule above, a preview is presented
-and confirmed before real implementation.
+Phases 1–3 substantively complete (Phase 3's Digital Card is code-complete but undeployed, see
+section 3). Phase 4's SLA Tracking module shipped. Remaining open: Reimbursement / Payment
+Reconciliation, intentionally deferred pending a clearer, less financially-sensitive scope — to
+be picked up only once that scope is defined with the user.

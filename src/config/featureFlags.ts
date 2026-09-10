@@ -19,7 +19,8 @@ export type FeatureFlagKey =
   | 'hp2_preauthorization'
   | 'hp2_bill_audit'
   | 'hp2_fraud_detection'
-  | 'hp2_provider_digital_card';
+  | 'hp2_provider_digital_card'
+  | 'hp2_sla_tracking';
 
 // Tous désactivés par défaut : chaque module ne s'active qu'explicitement, une fois prêt à être
 // montré en shadow mode (voir règle de processus dans HEALTHPASS_2_0_DISCOVERY.md, section 4 :
@@ -32,6 +33,7 @@ const DEFAULT_FLAGS: Record<FeatureFlagKey, boolean> = {
   hp2_bill_audit: false,
   hp2_fraud_detection: false,
   hp2_provider_digital_card: false,
+  hp2_sla_tracking: false,
 };
 
 const STORAGE_KEY_PREFIX = 'activa_ff_';
