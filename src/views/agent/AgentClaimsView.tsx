@@ -509,8 +509,11 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
             <PlusCircle className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-sm font-extrabold text-slate-900">{t.agentClaims.pageTitle}</h2>
-            <p className="text-xs text-slate-500">{t.agentClaims.pageSubtitle}</p>
+            {/* === AMÉLIORATION AJOUTÉE : taille harmonisée avec les titres de page utilisés
+                ailleurs dans l'app (ReportsView, AccountsView, OrganizationsView…) —
+                text-base font-extrabold tracking-tight, au lieu de text-sm ici seulement. === */}
+            <h2 className="text-base font-extrabold text-slate-900 tracking-tight">{t.agentClaims.pageTitle}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{t.agentClaims.pageSubtitle}</p>
           </div>
         </div>
         <div className="flex items-center gap-2.5 self-start sm:self-auto">
@@ -1148,27 +1151,12 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 </button>
               </div>
       </form>
-      {!formActivated && (
-        <div className="absolute inset-0 z-10 flex items-start justify-center pt-16 px-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl px-6 py-5 flex flex-col items-center gap-3 text-center max-w-sm">
-            <div className="w-12 h-12 rounded-2xl bg-[#0a2e6b]/10 flex items-center justify-center text-[#0a2e6b]">
-              <PlusCircle className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="font-bold text-sm text-slate-900">{t.agentClaims.startNewClaim}</p>
-              <p className="text-xs text-slate-500 mt-1">{t.agentClaims.activateFormHint}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setFormActivated(true)}
-              className="px-4 py-2 rounded-xl bg-[#0a2e6b] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>{t.agentClaims.newClaimBtn}</span>
-            </button>
-          </div>
-        </div>
-      )}
+      {/* === AMÉLIORATION AJOUTÉE : fenêtre/popup "Start a new claim" retirée (2026-09-10,
+          demande explicite de l'utilisateur — "je ne veux pas la fenêtre"). L'activation du
+          formulaire reste pilotée par formActivated (voir plus haut) et ne se déclenche plus
+          que via le bouton "New Claim" en haut de page — le formulaire grisé/inactif
+          (opacity-50, ci-dessus) suffit désormais seul à indiquer qu'il faut cliquer ce bouton,
+          sans superposer de fenêtre par-dessus. === */}
       </div>
 
       {/* Recent Claims History & Status */}

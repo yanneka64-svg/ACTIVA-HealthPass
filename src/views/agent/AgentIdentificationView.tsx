@@ -562,7 +562,12 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 plein-largeur. AUCUNE logique métier n'a changé : guardHealthcareAction, l'alerte
                 de couverture bloquante (voir blockedActionAlert plus bas), le calcul des soldes et
                 l'historique du mois en cours restent strictement identiques à avant. === */}
-            <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 items-start">
+            {/* === AMÉLIORATION AJOUTÉE : colonne gauche alignée sur la largeur FIXE de la carte
+                (300px, voir MemberIdCard.tsx) — auparavant la colonne faisait 320px alors que la
+                carte ne mesurait que 300px, créant un décalage visuel avec le bandeau blanc juste
+                en dessous (ICAO/Policy Number/etc.), qui lui occupait toute la largeur de la
+                colonne. La carte et ce bandeau ont désormais exactement la même largeur. === */}
+            <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-start">
               {/* LEFT: repère d'identité fixe (carte + infos complémentaires + actions) */}
               <div className="lg:sticky lg:top-4 space-y-4">
                 <MemberIdCard
