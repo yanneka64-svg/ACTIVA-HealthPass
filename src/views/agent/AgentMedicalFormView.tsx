@@ -32,6 +32,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Member, Provider, Organization, MedicalForm, UserProfile, Language } from '../../types';
+import { useTranslation } from '../../i18n/translations';
 import { generateMedicalFormPDF } from '../../utils/pdfMedicalForm';
 import { LogoIcon } from '../../components/Logo';
 import { ACTIVA_LOGO_WHITE_BASE64 } from '../../assets/logos'; // === AMÉLIORATION AJOUTÉE : logo Activa (blanc) pour la fiche médicale ===
@@ -85,7 +86,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   organizations,
   medicalForms = [],
   userRole = 'Agent',
-  lang = 'en',
+  lang = 'en' as Language,
   preselectedMember,
   onCreateMedicalForm,
   onUpdateMedicalForm,
@@ -94,6 +95,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   initialMemberCardNo,
   onConsumedInitialMember,
 }) => {
+  const t = useTranslation(lang);
   const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
 
   // Deletion modals state
@@ -218,7 +220,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
     e.preventDefault();
     setFormError(null);
     if (!selectedMember || !selectedProvider) {
-      setFormError('Please select both the insured member and the healthcare provider using smart search.');
+      setFormError(t.agentMedForm.selectBothError);
       return;
     }
 
@@ -276,10 +278,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
         onCreateMedicalForm(formToPersist);
         setGeneratedForm(newForm);
       } catch (err: any) {
-        setFormError(
-          err?.message ||
-          "Échec critique du chiffrement des données médicales. L'enregistrement a été interrompu pour garantir la confidentialité des données de santé du patient."
-        );
+        setFormError(err?.message || t.agentMedForm.encryptionFailError);
         setGeneratedForm(null);
         return;
       }
@@ -364,7 +363,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
           text: shareText,
           files: [pdfFile],
         });
-        setShareFeedback('Medical form PDF shared successfully!');
+        setShareFeedback(t.agentMedForm.shareSuccessMsg);
         setTimeout(() => setShareFeedback(null), 3000);
         return;
       } catch (err) {
@@ -379,7 +378,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
     // This device/browser cannot share files directly — download the PDF instead so the
     // person still gets the actual document, which they can then share manually.
     handleDownloadPDF(form);
-    setShareFeedback('Direct file sharing is not supported on this device — the PDF was downloaded instead.');
+    setShareFeedback(t.agentMedForm.shareFallbackMsg);
     setTimeout(() => setShareFeedback(null), 4000);
   };
 
@@ -489,8 +488,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             <FileText className="w-5 h-5 text-[var(--brand-900)]" />
           </div>
           <div>
-            <h2 className="font-bold text-sm sm:text-base text-slate-900">Medical Form Generation (Coverage Authorization)</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Smart search for member, practitioner and coverage limits</p>
+            <h2 className="font-bold text-sm sm:text-base text-slate-900">{t.agentMedForm.pageTitle}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{t.agentMedForm.pageSubtitle}</p>
           </div>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
@@ -503,7 +502,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             }`}
           >
             <PlusCircle className="w-3.5 h-3.5" />
-            <span>New Medical Form</span>
+            <span>{t.agentMedForm.newFormTab}</span>
           </button>
           <button
             onClick={() => setActiveTab('history')}
@@ -513,7 +512,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>History ({normalizedForms.length})</span>
+            <span>{t.agentMedForm.historyTabPrefix} ({normalizedForms.length})</span>
           </button>
         </div>
       </div>
@@ -554,7 +553,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 {/* 1. SMART AUTOCOMPLETE FOR INSURED BENEFICIARY */}
                 <div className="space-y-1.5" ref={memberSearchRef}>
                   <label className="block text-xs font-bold text-slate-700">
-                    1. Smart Search for Insured Beneficiary <span className="text-rose-500">*</span>
+                    {t.agentMedForm.section1Title} <span className="text-rose-500">*</span>
                   </label>
                   
                   {selectedMember ? (
@@ -579,7 +578,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           }}
                           className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-600 text-[11px] font-bold transition cursor-pointer"
                         >
-                          Change
+                          {t.agentMedForm.changeBtn}
                         </button>
                       </div>
 
@@ -588,13 +587,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           sexe de l'assuré sélectionné === */}
                       <div className={`pt-2 border-t ${'border-blue-200/60'} grid grid-cols-2 gap-2 text-xs`}>
                         <div>
-                          <span className="text-slate-500 text-[11px] block">Date of Birth:</span>
-                          <span className="font-bold text-slate-800">{selectedMember.birthDate || 'N/A'}</span>
+                          <span className="text-slate-500 text-[11px] block">{t.agentMedForm.dateOfBirthLabel}</span>
+                          <span className="font-bold text-slate-800">{selectedMember.birthDate || t.agentMedForm.naLabel}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-slate-500 text-[11px] block">Gender:</span>
+                          <span className="text-slate-500 text-[11px] block">{t.agentMedForm.genderLabel}</span>
                           <span className="font-bold text-slate-800">
-                            {selectedMember.gender === 'F' ? 'Female' : selectedMember.gender === 'M' ? 'Male' : 'N/A'}
+                            {selectedMember.gender === 'F' ? t.agentMedForm.genderFemale : selectedMember.gender === 'M' ? t.agentMedForm.genderMale : t.agentMedForm.naLabel}
                           </span>
                         </div>
                       </div>
@@ -611,7 +610,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                             setMemberSearchQuery(e.target.value);
                             setIsMemberDropdownOpen(true);
                           }}
-                          placeholder="Type the name, card number or company to search..."
+                          placeholder={t.agentMedForm.memberSearchPlaceholder}
                           className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 ${'focus:ring-[#0A347B]'} focus:outline-none transition`}
                         />
                       </div>
@@ -621,7 +620,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-slate-100">
                           {suggestedMembers.length === 0 ? (
                             <div className="p-4 text-center text-xs text-slate-400 italic">
-                              No member found matching "{memberSearchQuery}".
+                              {t.agentMedForm.noMemberFoundPrefix} "{memberSearchQuery}".
                             </div>
                           ) : (
                             suggestedMembers.map((m) => (
@@ -657,7 +656,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 {/* 2. SMART AUTOCOMPLETE FOR HEALTHCARE PROVIDER */}
                 <div className="space-y-1.5" ref={providerSearchRef}>
                   <label className="block text-xs font-bold text-slate-700">
-                    2. Smart Search for Healthcare Provider <span className="text-rose-500">*</span>
+                    {t.agentMedForm.section2Title} <span className="text-rose-500">*</span>
                   </label>
 
                   {selectedProvider ? (
@@ -682,7 +681,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           }}
                           className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-600 text-[11px] font-bold transition cursor-pointer"
                         >
-                          Change
+                          {t.agentMedForm.changeBtn}
                         </button>
                       </div>
                     </div>
@@ -698,7 +697,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                             setProviderSearchQuery(e.target.value);
                             setIsProviderDropdownOpen(true);
                           }}
-                          placeholder="Type the hospital, clinic or medical center name..."
+                          placeholder={t.agentMedForm.providerSearchPlaceholder}
                           className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 ${'focus:ring-[#0A347B]'} focus:outline-none transition`}
                         />
                       </div>
@@ -708,7 +707,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-slate-100">
                           {suggestedProviders.length === 0 ? (
                             <div className="p-4 text-center text-xs text-slate-400 italic">
-                              No provider found matching "{providerSearchQuery}".
+                              {t.agentMedForm.noProviderFoundPrefix} "{providerSearchQuery}".
                             </div>
                           ) : (
                             suggestedProviders.map((p) => (
@@ -728,7 +727,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                                   </div>
                                 </div>
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-[#00A859] border border-emerald-200">
-                                  ACTIVA Approved
+                                  {t.agentMedForm.activaApproved}
                                 </span>
                               </div>
                             ))
@@ -744,11 +743,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <Stethoscope className={`w-4 h-4 ${'text-[#0A347B]'}`} />
-                      <span>3. Type of Medical Consultation</span>
+                      <span>{t.agentMedForm.section3Title}</span>
                       <span className="text-rose-500">*</span>
                     </label>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${'bg-blue-100'} ${'text-[#0A347B]'}`}>
-                      ACTIVA Agreement
+                      {t.agentMedForm.activaAgreement}
                     </span>
                   </div>
 
@@ -763,13 +762,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-black ${'text-[#0A347B]'}`}>🩺 Generalist</span>
+                        <span className={`text-xs font-black ${'text-[#0A347B]'}`}>{t.agentMedForm.generalistLabel}</span>
                         {practitionerType === 'Generalist' && (
                           <CheckCircle2 className={`w-4 h-4 ${'text-[#0A347B]'}`} />
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        General medicine, standard examination & referral
+                        {t.agentMedForm.generalistDesc}
                       </p>
                     </button>
 
@@ -783,13 +782,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-black ${'text-[#0A347B]'}`}>👨‍⚕️ Specialist</span>
+                        <span className={`text-xs font-black ${'text-[#0A347B]'}`}>{t.agentMedForm.specialistLabel}</span>
                         {practitionerType === 'Specialist' && (
                           <CheckCircle2 className={`w-4 h-4 ${'text-[#0A347B]'}`} />
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Specialist physician (Cardiology, Pediatrics, Gynecology...)
+                        {t.agentMedForm.specialistDesc}
                       </p>
                     </button>
                   </div>
@@ -798,7 +797,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {practitionerType === 'Specialist' && (
                     <div className="pt-2 border-t border-slate-200/80 space-y-2 animate-in fade-in">
                       <label className={`block text-[11px] font-bold ${'text-[#0A347B]'}`}>
-                        Medical Specialty:
+                        {t.agentMedForm.medicalSpecialtyLabel}
                       </label>
                       <select
                         value={doctorSpecialty}
@@ -817,7 +816,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           type="text"
                           value={customSpecialty}
                           onChange={(e) => setCustomSpecialty(e.target.value)}
-                          placeholder="Enter the exact specialty..."
+                          placeholder={t.agentMedForm.otherSpecialtyPlaceholder}
                           className={`w-full px-3 py-1.5 bg-white border ${'border-blue-300'} rounded-lg text-xs`}
                           required
                         />
@@ -831,11 +830,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <Activity className="w-4 h-4 text-[#00A859]" />
-                      <span>4. Care Modality & Coverage</span>
+                      <span>{t.agentMedForm.section4Title}</span>
                       <span className="text-rose-500">*</span>
                     </label>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                      Balance Check
+                      {t.agentMedForm.balanceCheck}
                     </span>
                   </div>
 
@@ -850,13 +849,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-black ${'text-[#0A347B]'}`}>🏥 Outpatient</span>
+                        <span className={`text-xs font-black ${'text-[#0A347B]'}`}>{t.agentMedForm.outpatientLabel}</span>
                         {coverageType === 'Outpatient' && (
                           <CheckCircle2 className={`w-4 h-4 ${'text-[#0A347B]'}`} />
                         )}
                       </div>
                       <div className="mt-2 text-xs">
-                        <span className="text-[10px] text-slate-400 block">Available Balance:</span>
+                        <span className="text-[10px] text-slate-400 block">{t.agentMedForm.availableBalanceLabel}</span>
                         <span className={`text-sm font-black ${'text-[#0A347B]'}`}>
                           ${selectedMember?.outpatientBalanceUSD ?? 600} USD
                         </span>
@@ -873,13 +872,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-[#00A859]">🛏️ Inpatient</span>
+                        <span className="text-xs font-black text-[#00A859]">{t.agentMedForm.inpatientLabel}</span>
                         {coverageType === 'Inpatient' && (
                           <CheckCircle2 className="w-4 h-4 text-[#00A859]" />
                         )}
                       </div>
                       <div className="mt-2 text-xs">
-                        <span className="text-[10px] text-slate-400 block">Available Balance:</span>
+                        <span className="text-[10px] text-slate-400 block">{t.agentMedForm.availableBalanceLabel}</span>
                         <span className="text-sm font-black text-[#00A859]">
                           ${selectedMember?.inpatientBalanceUSD ?? 8500} USD
                         </span>
@@ -893,52 +892,52 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <FileText className={`w-4 h-4 ${'text-[#0A347B]'}`} />
-                      <span className={`text-xs font-bold ${'text-[#0A347B]'}`}>5. Physician Diagnosis & Prescriptions Panel</span>
+                      <span className={`text-xs font-bold ${'text-[#0A347B]'}`}>{t.agentMedForm.section5Title}</span>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Attending Physician Name</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">{t.agentMedForm.attendingPhysicianNameLabel}</label>
                     <input
                       type="text"
                       value={doctorName}
                       onChange={(e) => setDoctorName(e.target.value)}
-                      placeholder={practitionerType === 'Generalist' ? 'e.g. Dr. Arthur Miller, General Medicine' : `e.g. Dr. Arthur Miller, ${effectiveSpecialty}`}
+                      placeholder={practitionerType === 'Generalist' ? t.agentMedForm.physicianPlaceholderGeneralist : `${t.agentMedForm.physicianPlaceholderSpecialist} ${effectiveSpecialty}`}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
-                      Presumed Diagnosis / Reason for Consultation
+                      {t.agentMedForm.presumedDiagnosisLabel}
                     </label>
                     <input
                       type="text"
                       value={presumedDiagnosis}
                       onChange={(e) => setPresumedDiagnosis(e.target.value)}
-                      placeholder="e.g. Health checkup, feverish syndrome, cardiology consultation..."
+                      placeholder={t.agentMedForm.presumedDiagnosisPlaceholder}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Prescribed Tests & Exams</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">{t.agentMedForm.prescribedTestsLabel}</label>
                     <input
                       type="text"
                       value={requestedExams}
                       onChange={(e) => setRequestedExams(e.target.value)}
-                      placeholder="e.g. CBC, Lipid panel, Chest X-ray, Ultrasound..."
+                      placeholder={t.agentMedForm.prescribedTestsPlaceholder}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Medication Orders & Prescriptions</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">{t.agentMedForm.medicationOrdersLabel}</label>
                     <textarea
                       rows={2}
                       value={treatmentOrder}
                       onChange={(e) => setTreatmentOrder(e.target.value)}
-                      placeholder="e.g. 1. Dosage, daily regimen and treatment duration..."
+                      placeholder={t.agentMedForm.medicationOrdersPlaceholder}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 resize-none"
                     />
                   </div>
@@ -954,7 +953,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   }`}
                 >
                   <FileCheck className="w-4 h-4" />
-                  <span>Generate Coverage Authorization Voucher</span>
+                  <span>{t.agentMedForm.generateVoucherBtn}</span>
                 </button>
               </form>
             </div>
@@ -968,7 +967,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-100">
                   <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Medical Form Ready</span>
+                    <span>{t.agentMedForm.formReady}</span>
                   </span>
                   
                   <div className="flex items-center gap-2">
@@ -977,21 +976,21 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      <span>Print</span>
+                      <span>{t.agentMedForm.printBtn}</span>
                     </button>
                     <button
                       onClick={() => handleShare(generatedForm)}
                       className={`px-3 py-1.5 ${'bg-blue-50'} border ${'border-blue-200'} ${'hover:bg-blue-100'} ${'text-[#0A347B]'} rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer`}
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Share</span>
+                      <span>{t.agentMedForm.shareBtn}</span>
                     </button>
                     <button
                       onClick={() => handleDownloadPDF(generatedForm)}
                       className={`px-3.5 py-1.5 ${'bg-[#0A347B]'} ${'hover:bg-[#08285e]'} text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer`}
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>PDF</span>
+                      <span>{t.agentMedForm.pdfBtn}</span>
                     </button>
                   </div>
                 </div>
@@ -1008,7 +1007,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <img src={ACTIVA_LOGO_WHITE_BASE64} alt="Activa" className="w-full h-full object-contain" />
                       </div>
                       <div>
-                        <div className={`text-[9.5px] ${'text-blue-100'} uppercase`}>Medical Coverage Authorization Form</div>
+                        <div className={`text-[9.5px] ${'text-blue-100'} uppercase`}>{t.agentMedForm.voucherHeaderSubtitle}</div>
                       </div>
                     </div>
                     <div className="text-right font-mono text-[9.5px]">
@@ -1020,25 +1019,25 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* 1. Insured Details & Treatment Modality */}
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
                     <div className={`text-[10px] font-bold ${'text-[#0A347B]'} uppercase tracking-wide`}>
-                      1. Insured Beneficiary & Care Modality
+                      {t.agentMedForm.voucherSection1Title}
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Primary Insured</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.primaryInsured}</span>
                         <strong className="text-slate-800">{generatedForm.memberName}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Health Card No.</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.healthCardNo}</span>
                         <strong className={`${'text-[#0A347B]'} font-mono`}>{generatedForm.memberCardNo}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Employer / Sponsor</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.employerSponsor}</span>
                         <strong>{generatedForm.organization}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Care Modality</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.careModality}</span>
                         <strong className={generatedForm.coverageType === 'Outpatient' ? ('text-[#0A347B]') : 'text-[#00A859]'}>
-                          {generatedForm.coverageType === 'Outpatient' ? '🏥 Outpatient' : '🛏️ Inpatient'}
+                          {generatedForm.coverageType === 'Outpatient' ? t.agentMedForm.outpatientLabel : t.agentMedForm.inpatientLabel}
                         </strong>
                       </div>
                     </div>
@@ -1047,23 +1046,23 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* 2. Provider Details & Practitioner Type */}
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
                     <div className={`text-[10px] font-bold ${'text-[#0A347B]'} uppercase tracking-wide`}>
-                      2. Healthcare Provider & Practitioner
+                      {t.agentMedForm.voucherSection2Title}
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Facility / Hospital</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.facilityHospital}</span>
                         <strong className="text-slate-800">{generatedForm.providerName}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Practitioner Type</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.practitionerTypeLabel}</span>
                         <strong className={generatedForm.practitionerType === 'Specialist' ? 'text-purple-700' : ('text-[#0A347B]')}>
                           {generatedForm.practitionerType === 'Specialist'
-                            ? `👨‍⚕️ Specialist (${generatedForm.doctorSpecialty || 'Medical'})`
-                            : '🩺 General Practitioner'}
+                            ? `👨‍⚕️ ${t.agentMedForm.specialistWithSpecialty} (${generatedForm.doctorSpecialty || t.agentMedForm.medicalFallback})`
+                            : t.agentMedForm.generalPractitionerLabel}
                         </strong>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-slate-400 text-[10px] block">Attending Physician</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.attendingPhysicianLabel}</span>
                         <strong>{generatedForm.doctorName || 'Dr. _______________________'}</strong>
                       </div>
                     </div>
@@ -1074,13 +1073,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     <div className="flex items-center justify-between border-b border-slate-100 pb-1">
                       <div className={`text-[10px] font-bold ${'text-[#0A347B]'} uppercase tracking-wide flex items-center gap-1.5`}>
                         <PenTool className={`w-3 h-3 ${'text-[#0A347B]'}`} />
-                        <span>3. Physician Reserved Section</span>
+                        <span>{t.agentMedForm.voucherSection3Title}</span>
                       </div>
                     </div>
 
                     <div className="text-[10px] space-y-2">
                       <div className="p-2 bg-slate-50 rounded border border-slate-200">
-                        <span className="font-bold text-slate-700 block mb-0.5">Diagnosis / Reason:</span>
+                        <span className="font-bold text-slate-700 block mb-0.5">{t.agentMedForm.diagnosisReasonLabel}</span>
                         <div className="text-slate-800 font-medium">
                           {generatedForm.doctorPrescription?.presumedDiagnosis || (
                             <span className="text-slate-400 italic">____________________________________________________________________</span>
@@ -1089,7 +1088,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       </div>
 
                       <div className="p-2 bg-slate-50 rounded border border-slate-200">
-                        <span className="font-bold text-slate-700 block mb-0.5">Lab Tests / Imaging:</span>
+                        <span className="font-bold text-slate-700 block mb-0.5">{t.agentMedForm.labTestsImagingLabel}</span>
                         <div className="text-slate-800 font-medium">
                           {generatedForm.doctorPrescription?.requestedExams || (
                             <span className="text-slate-400 italic">____________________________________________________________________</span>
@@ -1098,7 +1097,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       </div>
 
                       <div className="p-2 bg-slate-50 rounded border border-slate-200">
-                        <span className="font-bold text-slate-700 block mb-0.5">Treatments & Prescriptions:</span>
+                        <span className="font-bold text-slate-700 block mb-0.5">{t.agentMedForm.treatmentsPrescriptionsLabel}</span>
                         <div className="text-slate-800 font-medium">
                           {generatedForm.doctorPrescription?.treatmentOrder || (
                             <span className="text-slate-400 italic">1. _________________________________________________________________</span>
@@ -1111,18 +1110,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* 4. SIGNATURES */}
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg text-center h-24 flex flex-col justify-between">
-                      <span className="text-[9.5px] font-bold text-slate-700">Patient / Insured Signature</span>
-                      <div className="text-[8px] text-slate-400 italic">Read and approved</div>
-                      <div className="text-[8px] text-slate-500 font-mono">Date: ____/____/2026</div>
+                      <span className="text-[9.5px] font-bold text-slate-700">{t.agentMedForm.patientSignatureLabel}</span>
+                      <div className="text-[8px] text-slate-400 italic">{t.agentMedForm.readApproved}</div>
+                      <div className="text-[8px] text-slate-500 font-mono">{t.agentMedForm.dateLabel} ____/____/2026</div>
                     </div>
 
                     <div className={`p-3 ${'bg-blue-50/50'} border-2 border-dashed ${'border-[#0A347B]/40'} rounded-lg text-center h-24 flex flex-col justify-between`}>
                       <div className={`flex items-center justify-center gap-1 text-[9.5px] font-bold ${'text-[#0A347B]'}`}>
                         <PenTool className={`w-3 h-3 ${'text-[#0A347B]'}`} />
-                        <span>Physician Stamp & Signature</span>
+                        <span>{t.agentMedForm.physicianStampLabel}</span>
                       </div>
-                      <div className="text-[8px] text-slate-400 italic">Facility stamp required</div>
-                      <div className="text-[8px] text-slate-500 font-mono">Date: ____/____/2026</div>
+                      <div className="text-[8px] text-slate-400 italic">{t.agentMedForm.facilityStampRequired}</div>
+                      <div className="text-[8px] text-slate-500 font-mono">{t.agentMedForm.dateLabel} ____/____/2026</div>
                     </div>
                   </div>
 
@@ -1132,18 +1131,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       <QrCode className={`w-7 h-7 ${'text-[#0A347B]'}`} />
                       <div>
                         <div className="text-[9.5px] font-mono font-bold text-slate-800">{generatedForm.securityNumber}</div>
-                        <div className="text-[8px] text-slate-400">ACTIVA Security Identifier</div>
+                        <div className="text-[8px] text-slate-400">{t.agentMedForm.activaSecurityId}</div>
                       </div>
                     </div>
                     <div className="text-[8.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      VALID 48H
+                      {t.agentMedForm.valid48h}
                     </div>
                   </div>
 
                   {/* Mandatory Instruction */}
                   <div className="p-2 bg-rose-50 border border-rose-300 rounded-lg text-center">
                     <p className="text-[9px] font-extrabold text-rose-700 leading-tight">
-                      "This document must be returned to the medical agent after physician sign-off."
+                      "{t.agentMedForm.mandatoryReturnNotice}"
                     </p>
                   </div>
                 </div>
@@ -1153,9 +1152,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div className="w-14 h-14 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-center mb-3">
                   <FileText className="w-7 h-7 text-slate-400" />
                 </div>
-                <h4 className="font-bold text-sm text-slate-700 mb-1">Live Preview</h4>
+                <h4 className="font-bold text-sm text-slate-700 mb-1">{t.agentMedForm.livePreviewTitle}</h4>
                 <p className="text-xs text-slate-400 max-w-xs">
-                  Search for the member and healthcare facility using smart search to instantly generate the coverage authorization voucher.
+                  {t.agentMedForm.livePreviewDesc}
                 </p>
               </div>
             )}
@@ -1168,8 +1167,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4 p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
             <div>
-              <h3 className="font-bold text-sm text-slate-900">Issued Coverage Vouchers ({filteredForms.length})</h3>
-              <p className="text-xs text-slate-500">Full traceability by practitioner and care modality</p>
+              <h3 className="font-bold text-sm text-slate-900">{t.agentMedForm.issuedVouchersTitle} ({filteredForms.length})</h3>
+              <p className="text-xs text-slate-500">{t.agentMedForm.fullTraceability}</p>
             </div>
 
             {/* Filters and Actions */}
@@ -1179,10 +1178,10 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   type="button"
                   onClick={() => setIsClearAllModalOpen(true)}
                   className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Delete all medical forms history"
+                  title={t.agentMedForm.deleteAllHistoryTitle}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear History</span>
+                  <span>{t.agentMedForm.clearHistoryBtn}</span>
                 </button>
               )}
 
@@ -1191,9 +1190,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 onChange={(e) => setFilterCoverage(e.target.value as any)}
                 className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
               >
-                <option value="all">All Modalities (Outpatient / Inpatient)</option>
-                <option value="Outpatient">Outpatient</option>
-                <option value="Inpatient">Inpatient</option>
+                <option value="all">{t.agentMedForm.allModalitiesOption}</option>
+                <option value="Outpatient">{t.agentMedForm.outpatientOption}</option>
+                <option value="Inpatient">{t.agentMedForm.inpatientOption}</option>
               </select>
 
               <select
@@ -1201,9 +1200,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 onChange={(e) => setFilterPractitioner(e.target.value as any)}
                 className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
               >
-                <option value="all">All Practitioners</option>
-                <option value="Generalist">Generalist</option>
-                <option value="Specialist">Specialist</option>
+                <option value="all">{t.agentMedForm.allPractitionersOption}</option>
+                <option value="Generalist">{t.agentMedForm.generalistOption}</option>
+                <option value="Specialist">{t.agentMedForm.specialistOption}</option>
               </select>
 
               <div className="relative w-full sm:w-60">
@@ -1212,7 +1211,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   type="text"
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  placeholder="Search member, card, ref..."
+                  placeholder={t.agentMedForm.searchHistoryPlaceholder}
                   className={`w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 ${'focus:ring-[#0A347B]'}`}
                 />
               </div>
@@ -1230,9 +1229,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               <Clock className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
               <p className="text-xs text-amber-800">
                 <span className="font-bold">
-                  {pastRetentionForms.length} medical form{pastRetentionForms.length > 1 ? 's have' : ' has'} passed the indicative retention period
+                  {pastRetentionForms.length} {pastRetentionForms.length > 1 ? t.agentMedForm.retentionWarningPlural : t.agentMedForm.retentionWarningSingular}
                 </span>{' '}
-                ({DEFAULT_MEDICAL_FORM_RETENTION_YEARS} years since issuance) and should be reviewed manually. No automatic deletion is performed.
+                ({DEFAULT_MEDICAL_FORM_RETENTION_YEARS} {t.agentMedForm.retentionWarningSuffix}
               </p>
             </div>
           )}
@@ -1241,14 +1240,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">SECURITY NO.</th>
-                  <th className="py-3 px-4">DATE</th>
-                  <th className="py-3 px-4">MEMBER & CARD</th>
-                  <th className="py-3 px-4">FACILITY</th>
-                  <th className="py-3 px-4">CONSULTATION</th>
-                  <th className="py-3 px-4">MODALITY</th>
-                  <th className="py-3 px-4 text-center">STATUS</th>
-                  <th className="py-3 px-4 text-right">ACTIONS</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colSecurityNo}</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colDate}</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colMemberCard}</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colFacility}</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colConsultation}</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colModality}</th>
+                  <th className="py-3 px-4 text-center">{t.agentMedForm.colStatus}</th>
+                  <th className="py-3 px-4 text-right">{t.agentMedForm.colActions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1259,8 +1258,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                           <FileText className="w-5 h-5" />
                         </div>
-                        <p className="font-semibold text-slate-600">No medical forms in history</p>
-                        <p className="text-slate-400 text-[11px]">The history of medical coverage authorization forms is empty.</p>
+                        <p className="font-semibold text-slate-600">{t.agentMedForm.noFormsInHistory}</p>
+                        <p className="text-slate-400 text-[11px]">{t.agentMedForm.historyEmptyDesc}</p>
                       </div>
                     </td>
                   </tr>
@@ -1290,7 +1289,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                                 : ('bg-blue-50 text-[#0A347B] border border-blue-200')
                             }`}
                           >
-                            {isSpec ? `Specialist (${form.doctorSpecialty || 'Medical'})` : 'Generalist'}
+                            {isSpec ? `${t.agentMedForm.specialistWithSpecialty} (${form.doctorSpecialty || t.agentMedForm.medicalFallback})` : t.agentMedForm.generalistOption}
                           </span>
                         </td>
                         <td className="py-3.5 px-4">
@@ -1301,7 +1300,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                                 : 'bg-emerald-50 text-[#00A859]'
                             }`}
                           >
-                            {form.coverageType === 'Outpatient' ? 'Outpatient' : 'Inpatient'}
+                            {form.coverageType === 'Outpatient' ? t.agentMedForm.outpatientOption : t.agentMedForm.inpatientOption}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">
@@ -1315,10 +1314,10 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                             }`}
                           >
                             {form.status === 'completed'
-                              ? 'Closed'
+                              ? t.agentMedForm.statusClosed
                               : form.status === 'pending_return'
-                              ? 'Awaiting Signed Return'
-                              : 'Issued / Active'}
+                              ? t.agentMedForm.statusAwaitingReturn
+                              : t.agentMedForm.statusIssuedActive}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
@@ -1331,28 +1330,28 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                                 setPreviewModalForm(await decryptMedicalFormPrescription(form));
                               }}
                               className={`p-1.5 text-slate-500 ${'hover:text-[#0A347B]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
-                              title="Preview"
+                              title={t.agentMedForm.previewTitle}
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDownloadPDF(form)}
                               className={`p-1.5 text-slate-500 ${'hover:text-[#0A347B]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
-                              title="Download PDF"
+                              title={t.agentMedForm.downloadPdfTitle}
                             >
                               <Download className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handlePrint(form)}
                               className={`p-1.5 text-slate-500 ${'hover:text-[#0A347B]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
-                              title="Print"
+                              title={t.agentMedForm.printBtn}
                             >
                               <Printer className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleShare(form)}
                               className={`p-1.5 text-slate-500 ${'hover:text-[#0A347B]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
-                              title="Share"
+                              title={t.agentMedForm.shareBtn}
                             >
                               <Share2 className="w-4 h-4" />
                             </button>
@@ -1360,7 +1359,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                               <button
                                 onClick={() => setFormToDelete(form)}
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                                title="Delete from history"
+                                title={t.agentMedForm.deleteFromHistoryTitle}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -1392,8 +1391,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-900">Medical Form — {previewModalForm.securityNumber}</h3>
-                  <p className="text-[10px] text-slate-500">Beneficiary: {previewModalForm.memberName}</p>
+                  <h3 className="font-bold text-sm text-slate-900">{t.agentMedForm.medicalFormPrefix} {previewModalForm.securityNumber}</h3>
+                  <p className="text-[10px] text-slate-500">{t.agentMedForm.beneficiaryPrefix} {previewModalForm.memberName}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1402,14 +1401,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Print</span>
+                  <span>{t.agentMedForm.printBtn}</span>
                 </button>
                 <button
                   onClick={() => handleDownloadPDF(previewModalForm)}
                   className="px-2.5 py-1 bg-[#00A859] hover:bg-[#008f4c] text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>PDF</span>
+                  <span>{t.agentMedForm.pdfBtn}</span>
                 </button>
                 <button
                   onClick={() => setPreviewModalForm(null)}
@@ -1423,35 +1422,35 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             <div className="p-6 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Insured Beneficiary</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.insuredBeneficiary}</span>
                   <span className="font-bold text-slate-800 text-sm">{previewModalForm.memberName}</span>
                   <span className={`font-mono text-xs ${'text-[#0A347B]'} block`}>{previewModalForm.memberCardNo}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Company / Sponsor</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.companySponsor}</span>
                   <span className="font-bold text-slate-800">{previewModalForm.organization}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Provider / Facility</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.providerFacility}</span>
                   <span className={`font-bold ${'text-[#0A347B]'}`}>{previewModalForm.providerName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Consultation Type</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.consultationType}</span>
                   <span className={`font-bold ${previewModalForm.practitionerType === 'Specialist' ? 'text-purple-700' : ('text-[#0A347B]')}`}>
                     {previewModalForm.practitionerType === 'Specialist'
-                      ? `👨‍⚕️ Specialist (${previewModalForm.doctorSpecialty || 'Medical'})`
-                      : '🩺 General Practitioner'}
+                      ? `👨‍⚕️ ${t.agentMedForm.specialistWithSpecialty} (${previewModalForm.doctorSpecialty || t.agentMedForm.medicalFallback})`
+                      : t.agentMedForm.generalPractitionerLabel}
                   </span>
                 </div>
                 <div className="col-span-2 pt-2 border-t border-slate-200 flex items-center justify-between">
                   <div>
-                    <span className="text-slate-400 text-[10px] block font-semibold">Care Modality</span>
+                    <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.careModality}</span>
                     <span className="font-bold text-[#00A859]">
-                      {previewModalForm.coverageType === 'Outpatient' ? '🏥 Outpatient' : '🛏️ Inpatient'}
+                      {previewModalForm.coverageType === 'Outpatient' ? t.agentMedForm.outpatientLabel : t.agentMedForm.inpatientLabel}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-slate-400 text-[10px] block font-semibold">Available Balance</span>
+                    <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.availableBalanceLabel}</span>
                     <span className={`font-bold ${'text-[#0A347B]'}`}>
                       ${previewModalForm.coverageType === 'Outpatient' ? previewModalForm.outpatientBalanceUSD : previewModalForm.inpatientBalanceUSD} USD
                     </span>
@@ -1463,20 +1462,20 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <div className={`font-bold text-xs ${'text-[#0A347B]'} flex items-center gap-1.5`}>
                   <PenTool className={`w-3.5 h-3.5 ${'text-[#0A347B]'}`} />
-                  <span>Physician Diagnosis & Prescriptions Panel</span>
+                  <span>{t.agentMedForm.section5Title}</span>
                 </div>
                 <div className="text-slate-700 space-y-1.5">
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Presumed Diagnosis:</span>
-                    <span className="font-semibold">{previewModalForm.doctorPrescription?.presumedDiagnosis || 'To be completed by the physician'}</span>
+                    <span className="text-slate-400 text-[10px] block">{t.agentMedForm.presumedDiagnosisColon}</span>
+                    <span className="font-semibold">{previewModalForm.doctorPrescription?.presumedDiagnosis || t.agentMedForm.toBeCompletedByPhysician}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Tests & Exams:</span>
-                    <span className="font-semibold">{previewModalForm.doctorPrescription?.requestedExams || 'To be completed by the physician'}</span>
+                    <span className="text-slate-400 text-[10px] block">{t.agentMedForm.testsExamsColon}</span>
+                    <span className="font-semibold">{previewModalForm.doctorPrescription?.requestedExams || t.agentMedForm.toBeCompletedByPhysician}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Treatments & Medications:</span>
-                    <span className="font-semibold">{previewModalForm.doctorPrescription?.treatmentOrder || 'To be completed by the physician'}</span>
+                    <span className="text-slate-400 text-[10px] block">{t.agentMedForm.treatmentsMedicationsColon}</span>
+                    <span className="font-semibold">{previewModalForm.doctorPrescription?.treatmentOrder || t.agentMedForm.toBeCompletedByPhysician}</span>
                   </div>
                 </div>
               </div>
@@ -1484,13 +1483,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               {/* Status Update Control */}
               <div className={`p-3 ${'bg-blue-50/70'} border ${'border-blue-200'} rounded-xl flex items-center justify-between`}>
                 <div>
-                  <span className={`font-bold ${'text-[#0A347B]'} block`}>Document Status:</span>
+                  <span className={`font-bold ${'text-[#0A347B]'} block`}>{t.agentMedForm.documentStatusLabel}</span>
                   <span className="text-[11px] text-slate-600">
                     {previewModalForm.status === 'completed'
-                      ? 'Closed and signed off by the physician'
+                      ? t.agentMedForm.statusClosedSignedOff
                       : previewModalForm.status === 'pending_return'
-                      ? 'Awaiting signed physical return'
-                      : 'Issued - Consultation in progress'}
+                      ? t.agentMedForm.statusAwaitingPhysicalReturn
+                      : t.agentMedForm.statusIssuedInProgress}
                   </span>
                 </div>
                 <div className="flex gap-1.5">
@@ -1501,7 +1500,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     }}
                     className="px-2.5 py-1 bg-white border border-amber-200 text-amber-700 rounded-lg text-xs font-bold hover:bg-amber-50 cursor-pointer"
                   >
-                    Awaiting Return
+                    {t.agentMedForm.awaitingReturnBtn}
                   </button>
                   <button
                     onClick={() => {
@@ -1510,7 +1509,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     }}
                     className="px-2.5 py-1 bg-[#00A859] text-white rounded-lg text-xs font-bold hover:bg-[#008f4c] cursor-pointer"
                   >
-                    Close Form
+                    {t.agentMedForm.closeFormBtn}
                   </button>
                 </div>
               </div>
@@ -1518,7 +1517,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               {/* Obligatory Notice */}
               <div className="p-3 bg-rose-50 border-2 border-rose-400 rounded-xl text-center">
                 <p className="text-xs font-extrabold text-rose-700">
-                  "This document must be returned to the medical agent after physician sign-off."
+                  "{t.agentMedForm.mandatoryReturnNotice}"
                 </p>
               </div>
             </div>
@@ -1535,22 +1534,22 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <Trash2 className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 text-sm">Delete Medical Form</h4>
-                <p className="text-xs text-slate-500">This action will remove the voucher from history.</p>
+                <h4 className="font-bold text-slate-900 text-sm">{t.agentMedForm.deleteFormTitle}</h4>
+                <p className="text-xs text-slate-500">{t.agentMedForm.deleteFormDesc}</p>
               </div>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
               <div className="flex justify-between">
-                <span className="text-slate-500">Security No:</span>
+                <span className="text-slate-500">{t.agentMedForm.securityNoLabel}</span>
                 <span className="font-mono font-bold text-slate-800">{formToDelete.securityNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Beneficiary:</span>
+                <span className="text-slate-500">{t.agentMedForm.beneficiaryLabel}</span>
                 <span className="font-semibold text-slate-800">{formToDelete.memberName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Facility:</span>
+                <span className="text-slate-500">{t.agentMedForm.facilityLabel}</span>
                 <span className="text-slate-700">{formToDelete.providerName}</span>
               </div>
             </div>
@@ -1562,7 +1561,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 disabled={isDeleting}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
-                Cancel
+                {t.agentMedForm.cancelBtn}
               </button>
               <button
                 type="button"
@@ -1573,12 +1572,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 {isDeleting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Deleting...</span>
+                    <span>{t.agentMedForm.deletingBtn}</span>
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete</span>
+                    <span>{t.agentMedForm.deleteBtn}</span>
                   </>
                 )}
               </button>
@@ -1596,18 +1595,17 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <AlertTriangle className="w-5 h-5 text-rose-600" />
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 text-sm">Clear Medical Form History</h4>
-                <p className="text-xs text-slate-500">Permanent deletion of all records</p>
+                <h4 className="font-bold text-slate-900 text-sm">{t.agentMedForm.clearHistoryTitle}</h4>
+                <p className="text-xs text-slate-500">{t.agentMedForm.permanentDeletionDesc}</p>
               </div>
             </div>
 
             <div className="p-3.5 bg-rose-50/70 rounded-xl border border-rose-200 text-xs text-rose-800 space-y-1">
               <p className="font-semibold">
-                Are you sure you want to delete all {normalizedForms.length} medical forms from history?
+                {t.agentMedForm.confirmDeleteAllPrefix} {normalizedForms.length} {t.agentMedForm.confirmDeleteAllSuffix}
               </p>
               <p className="text-[11px] text-rose-600 leading-relaxed">
-                Each record is archived (full content, who, when, why) before deletion — see Admin
-                audit trail — but this removes it from active history permanently.
+                {t.agentMedForm.archivedNotice}
               </p>
             </div>
 
@@ -1617,7 +1615,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             <div className="space-y-2.5">
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Reason for this deletion (required, kept in the audit trail)
+                  {t.agentMedForm.reasonForDeletionLabel}
                 </label>
                 <textarea
                   value={clearAllReason}
@@ -1625,12 +1623,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   disabled={isDeleting}
                   rows={2}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
-                  placeholder="e.g. End-of-period cleanup approved by..."
+                  placeholder={t.agentMedForm.reasonPlaceholder}
                 />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Type <span className="font-mono text-rose-700">{CLEAR_ALL_CONFIRM_PHRASE}</span> to confirm
+                  {t.agentMedForm.typeToConfirmPrefix} <span className="font-mono text-rose-700">{CLEAR_ALL_CONFIRM_PHRASE}</span> {t.agentMedForm.typeToConfirmSuffix}
                 </label>
                 <input
                   type="text"
@@ -1655,7 +1653,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 disabled={isDeleting}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
-                Cancel
+                {t.agentMedForm.cancelBtn}
               </button>
               <button
                 type="button"
@@ -1666,12 +1664,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 {isDeleting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Clearing...</span>
+                    <span>{t.agentMedForm.clearingBtn}</span>
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear All History</span>
+                    <span>{t.agentMedForm.clearAllHistoryBtn}</span>
                   </>
                 )}
               </button>
