@@ -406,6 +406,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
         {/* === AMÉLIORATION AJOUTÉE : entrée en fondu/glissement, en cascade, du badge, du
             titre, du texte et du copyright — sur demande explicite ("je veux que ces données
             soient animées"). Contenu, couleurs et mise en page strictement inchangés.
+            === AMÉLIORATION AJOUTÉE : animation changée pour un glissement LATÉRAL plus lent
+            (2026-09-10, retour utilisateur — proposition "B" choisie parmi 5 alternatives
+            présentées via un aperçu, avec la consigne explicite "plus lent") — voir
+            src/index.css (.login-anim-slide-left, .login-anim-delay-1..4).
             === AMÉLIORATION AJOUTÉE : le badge "ACTIVA Cloud Secure Portal" est remplacé par
             le logo Activa exact (asset src/assets/logos/logo-activa.png), uniquement sur
             cette page. Après plusieurs essais de recolorisation en blanc (retouches
@@ -415,7 +419,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
             couleurs d'origine du logo (jamais retouchées, donc jamais floues), posées sur une
             plaque blanche pour rester lisibles sur le fond bleu marine du panneau. Taille de
             l'image inchangée (h-12). === */}
-        <div className="relative z-10 self-start bg-white rounded-lg px-3 py-2 shadow-sm login-anim-fade-up login-anim-delay-1">
+        <div className="relative z-10 self-start bg-white rounded-lg px-3 py-2 shadow-sm login-anim-slide-left login-anim-delay-1">
           <img
             src={activaLogoOriginal}
             alt="Activa"
@@ -424,15 +428,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
 
         <div className="relative z-10">
-          <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight login-anim-fade-up login-anim-delay-2">
+          <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight login-anim-slide-left login-anim-delay-2">
             {t.auth.heroGreetingLine1}<br />ACTIVA HealthPass!
           </h1>
-          <p className="mt-5 text-sm xl:text-[15px] text-[#EAF2FF]/90 font-medium leading-relaxed max-w-sm login-anim-fade-up login-anim-delay-3">
+          <p className="mt-5 text-sm xl:text-[15px] text-[#EAF2FF]/90 font-medium leading-relaxed max-w-sm login-anim-slide-left login-anim-delay-3">
             {t.auth.heroDescription}
           </p>
         </div>
 
-        <div className="relative z-10 text-xs text-white/60 font-medium login-anim-fade-up login-anim-delay-4">
+        <div className="relative z-10 text-xs text-white/60 font-medium login-anim-slide-left login-anim-delay-4">
           {t.auth.copyright}
         </div>
       </div>

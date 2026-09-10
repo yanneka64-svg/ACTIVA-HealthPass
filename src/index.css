@@ -87,34 +87,39 @@
 }
 
 /* === AMÉLIORATION AJOUTÉE : animation du panneau bleu de la page de connexion (badge,
-   titre "Hello, ACTIVA HealthPass!", texte et copyright entrent en fondu/glissement à
+   titre "Hello, ACTIVA HealthPass!", texte et copyright entrent en glissement latéral à
    l'affichage) — sur demande explicite. Le motif de courbes décoratif, lui, est resté
    statique après plusieurs essais d'animation jugés pas convaincants (voir LoginView.tsx) —
    seule son ancrage vertical (redescendu vers le bas du panneau) a changé. Comportement du
-   formulaire, mise en page et couleurs strictement inchangés. Respecte prefers-reduced-motion. */
-@keyframes login-fade-up {
+   formulaire, mise en page et couleurs strictement inchangés. Respecte prefers-reduced-motion.
+   === AMÉLIORATION AJOUTÉE : remplace l'ancienne animation "fondu + glissement vertical"
+   (2026-09-10, retour utilisateur — proposition "B" choisie parmi 5 alternatives présentées
+   via un aperçu, avec la consigne explicite "plus lent") par un glissement LATÉRAL (les blocs
+   entrent depuis la gauche), en cascade plus lente qu'avant : durée 0.7s -> 1s, et délais
+   nettement espacés (0.1/0.25/0.4/0.55s -> 0.15/0.4/0.65/0.9s). === */
+@keyframes login-slide-left {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateX(-30px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
 }
 
-.login-anim-fade-up {
+.login-anim-slide-left {
   opacity: 0;
-  animation: login-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: login-slide-left 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-.login-anim-delay-1 { animation-delay: 0.1s; }
-.login-anim-delay-2 { animation-delay: 0.25s; }
-.login-anim-delay-3 { animation-delay: 0.4s; }
-.login-anim-delay-4 { animation-delay: 0.55s; }
+.login-anim-delay-1 { animation-delay: 0.15s; }
+.login-anim-delay-2 { animation-delay: 0.4s; }
+.login-anim-delay-3 { animation-delay: 0.65s; }
+.login-anim-delay-4 { animation-delay: 0.9s; }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-anim-fade-up {
+  .login-anim-slide-left {
     opacity: 1;
     animation: none;
     transform: none;
