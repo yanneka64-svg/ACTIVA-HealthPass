@@ -177,6 +177,13 @@ export const AGENT_THEME: RoleThemeConfig = {
 // fin, excepté les motifs" — opacité des bords ramenée de 0.78 à 0.4 ; seul le motif de
 // courbes, qui doit rester visible pour marquer la différence avec Agent, garde ses propres
 // niveaux d'opacité inchangés dans Sidebar.tsx).
+// === AMÉLIORATION AJOUTÉE : rouge du motif de courbes de la sidebar Superviseur intensifié
+// (retour utilisateur, 2026-09-10 — "augmente la couleur rouge des motifs de l'interface
+// superviseur (sidebar)") — uniquement `motifStroke` (194,79,71 -> 214,52,44), qui gouverne
+// exclusivement le tracé décoratif de la sidebar (voir Sidebar.tsx). Les bords/badges/bannière
+// ci-dessous gardent leur rouge brique adouci d'origine, inchangé — ils avaient été
+// explicitement assourdis sur une demande précédente distincte ("adoucir les contours...
+// excepté les motifs").
 export const SUPERVISOR_THEME: RoleThemeConfig = {
   role: 'Supervisor',
   displayName: 'Medical Advisor & Supervisor',
@@ -187,7 +194,7 @@ export const SUPERVISOR_THEME: RoleThemeConfig = {
     primaryColor: 'bg-[#0A347B] hover:bg-[#072659] border border-[rgba(194,79,71,0.4)]',
     bannerBorder: 'border-[rgba(194,79,71,0.4)]',
     accentBadge: 'bg-[#0A347B] text-white border border-[rgba(194,79,71,0.4)]',
-    motifStroke: '194, 79, 71',
+    motifStroke: '214, 52, 44',
   },
 };
 
