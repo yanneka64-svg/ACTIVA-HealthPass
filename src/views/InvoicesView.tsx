@@ -244,59 +244,59 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         {/* TOTAL INVOICED VOLUME */}
         <div className="bg-white rounded-2xl p-5 border border-[#E8EDF2] shadow-xs">
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-            TOTAL INVOICED VOLUME
+            {t.invoices.kpiTotalInvoiced}
           </p>
           <p className="text-2xl sm:text-3xl font-extrabold text-[var(--brand-900)] mt-2 tracking-tight">
             {formatAmount(totalInvoiced)}
           </p>
           <p className="text-xs text-[#778FAF] mt-1.5 font-medium">
-            Across {filteredInvoices.length} direct billing invoices
+            {t.invoices.kpiAcrossInvoicesPrefix} {filteredInvoices.length} {t.invoices.kpiAcrossInvoicesSuffix}
           </p>
         </div>
 
         {/* COVERED BY ACTIVA */}
         <div className="bg-white rounded-2xl p-5 border border-[#E8EDF2] shadow-xs">
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-            COVERED BY ACTIVA
+            {t.invoices.kpiCoveredByActiva}
           </p>
           <p className="text-2xl sm:text-3xl font-extrabold text-[#00A859] mt-2 tracking-tight">
             {formatAmount(totalCovered)}
           </p>
           <p className="text-xs text-[#778FAF] mt-1.5 font-medium">
-            {coverageRate}% coverage rate
+            {coverageRate}% {t.invoices.kpiCoverageRateSuffix}
           </p>
         </div>
 
         {/* PATIENT DIRECT CO-PAY */}
         <div className="bg-white rounded-2xl p-5 border border-[#E8EDF2] shadow-xs">
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-            PATIENT DIRECT CO-PAY
+            {t.invoices.kpiPatientCopay}
           </p>
           <p className="text-2xl sm:text-3xl font-extrabold text-[var(--brand-900)] mt-2 tracking-tight">
             {formatAmount(totalCopay)}
           </p>
           <p className="text-xs text-[#778FAF] mt-1.5 font-medium">
-            Patient out-of-pocket settlement
+            {t.invoices.kpiCopaySubtitle}
           </p>
         </div>
 
         {/* PROCESSED INVOICES */}
         <div className="bg-white rounded-2xl p-5 border border-[#E8EDF2] shadow-xs">
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-            PROCESSED INVOICES
+            {t.invoices.kpiProcessedInvoices}
           </p>
           <p className="text-2xl sm:text-3xl font-extrabold text-[var(--brand-900)] mt-2 tracking-tight">
             {filteredInvoices.length}
           </p>
           <div className="flex items-center gap-1.5 text-xs text-[#00A859] font-bold mt-1.5">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>100% verified disbursements</span>
+            <span>{t.invoices.kpiVerifiedDisbursements}</span>
           </div>
         </div>
       </div>
 
       {/* === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation === */}
-      {reimbursementTrackingEnabled && <ReconciliationSummary summary={reconciliationSummary} />}
+      {reimbursementTrackingEnabled && <ReconciliationSummary summary={reconciliationSummary} lang={lang} />}
 
       {/* 3. TABS & FILTER TOOLBAR */}
       {/* === AMÉLIORATION AJOUTÉE : sur mobile, la barre passait en dépassement horizontal
@@ -316,7 +316,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Full Invoices List</span>
+            <span>{t.invoices.tabFullList}</span>
           </button>
           <button
             onClick={() => setViewMode('patient')}
@@ -327,7 +327,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             }`}
           >
             <User className="w-3.5 h-3.5" />
-            <span>Grouped by Patient</span>
+            <span>{t.invoices.tabByPatient}</span>
           </button>
           <button
             onClick={() => setViewMode('family')}
@@ -338,7 +338,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Grouped by Family</span>
+            <span>{t.invoices.tabByFamily}</span>
           </button>
         </div>
 
@@ -350,7 +350,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search invoice"
+              placeholder={t.invoices.searchInvoicePlaceholder}
               className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-slate-800 focus:ring-1 focus:ring-slate-800 focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-[#778FAF] absolute left-3 top-2.5" />
@@ -367,7 +367,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             onChange={(e) => setOrgFilter(e.target.value)}
             className="w-full sm:w-auto px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[#0D2B63] focus:outline-none focus:border-slate-800 cursor-pointer whitespace-nowrap"
           >
-            <option value="ALL">All Organizations</option>
+            <option value="ALL">{t.claims.orgFilterAll}</option>
             {uniqueOrgs.map((org) => (
               <option key={org} value={org}>
                 {org}
@@ -388,7 +388,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         <div className="sm:hidden space-y-3">
           {filteredInvoices.length === 0 ? (
             <div className="bg-white rounded-2xl border border-[#E8EDF2] p-8 text-center text-[#778FAF] font-medium text-xs">
-              No invoices found matching your criteria.
+              {t.invoices.noInvoicesFound}
             </div>
           ) : (
             filteredInvoices.map((inv) => {
@@ -406,17 +406,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     {inv.status === 'valid' || inv.status === 'approved' ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A878] text-[10.5px] font-bold shrink-0">
                         <CheckCircle2 className="w-3 h-3" />
-                        <span>Validated</span>
+                        <span>{t.validated}</span>
                       </span>
                     ) : inv.status === 'pending' ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF6D9] text-[#F5B942] text-[10.5px] font-bold shrink-0">
                         <Clock className="w-3 h-3" />
-                        <span>Pending</span>
+                        <span>{t.pending}</span>
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#DC4C4C] text-[10.5px] font-bold shrink-0">
                         <X className="w-3 h-3" />
-                        <span>Rejected</span>
+                        <span>{t.rejectedStatus}</span>
                       </span>
                     )}
                   </div>
@@ -439,7 +439,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   {reimbursementTrackingEnabled && inv.paymentStatus === 'paid' && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10.5px] font-bold text-emerald-700">
                       <Wallet className="w-3 h-3" />
-                      Paid to {inv.payee === 'member' ? 'insured' : 'provider'} · {inv.paymentReference}
+                      {t.invoices.paidToPrefix} {inv.payee === 'member' ? t.invoices.paidToInsured : t.invoices.paidToProvider} · {inv.paymentReference}
                     </span>
                   )}
 
@@ -447,13 +447,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   {reimbursementTrackingEnabled && inv.refactionApplied && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-50 border border-orange-200 text-[10.5px] font-bold text-orange-700">
                       <ScanSearch className="w-3 h-3" />
-                      Refacted — {(inv.refactions || []).length} act(s) reduced
+                      {t.invoices.refactedBadgePrefix} {(inv.refactions || []).length} {t.invoices.refactedBadgeSuffix}
                     </span>
                   )}
 
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#E8EDF2] text-center">
                     <div>
-                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Invoiced</div>
+                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">{t.invoices.colInvoiced}</div>
                       {reimbursementTrackingEnabled && inv.refactionApplied ? (
                         <>
                           <div className="text-[10px] text-slate-400 line-through">{formatAmount(inv.amount)}</div>
@@ -464,11 +464,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       )}
                     </div>
                     <div>
-                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Covered</div>
+                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">{t.invoices.colCovered}</div>
                       <div className="font-bold text-[#00A878] text-xs">{formatAmount(covered)}</div>
                     </div>
                     <div>
-                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Copay</div>
+                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">{t.invoices.colCopay}</div>
                       <div className="font-bold text-[#0D2B63] text-xs">{formatAmount(copay)}</div>
                     </div>
                   </div>
@@ -479,7 +479,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5 text-slate-700" />
-                      <span>View Slip</span>
+                      <span>{t.invoices.btnViewSlip}</span>
                     </button>
                     {reimbursementTrackingEnabled && canMarkPaid && (inv.status === 'valid' || inv.status === 'approved') && inv.paymentStatus !== 'paid' && (
                       <button
@@ -487,7 +487,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer"
                       >
                         <Wallet className="w-3.5 h-3.5" />
-                        <span>Mark Paid</span>
+                        <span>{t.invoices.btnMarkPaid}</span>
                       </button>
                     )}
                     {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical / recouvrement —
@@ -499,7 +499,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       <button
                         onClick={() => setInvoiceToDelete(inv)}
                         className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer"
-                        title="Delete invoice (Admin)"
+                        title={t.invoices.titleDeleteInvoiceAdmin}
                       >
                         <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                       </button>
@@ -525,23 +525,23 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             <table className="w-full text-left border-collapse min-w-[880px]">
               <thead>
                 <tr className="border-b border-[#E8EDF2] bg-[#F8FAFC] text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-                  <th className="py-3 px-4 whitespace-nowrap">Invoice Ref</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Patient</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Facility</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Category</th>
-                  <th className="py-3 px-4 text-right whitespace-nowrap">Invoiced ($)</th>
-                  <th className="py-3 px-4 text-right text-[#00A878] whitespace-nowrap">Covered ($)</th>
-                  <th className="py-3 px-4 text-right whitespace-nowrap">Copay ($)</th>
-                  <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
-                  {reimbursementTrackingEnabled && <th className="py-3 px-4 text-center whitespace-nowrap">Payment</th>}
-                  <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t.invoices.colInvoiceRef}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t.invoices.colPatient}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t.invoices.colFacility}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t.invoices.colCategory}</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">{t.invoices.colInvoicedAmount}</th>
+                  <th className="py-3 px-4 text-right text-[#00A878] whitespace-nowrap">{t.invoices.colCoveredAmount}</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">{t.invoices.colCopayAmount}</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">{t.status}</th>
+                  {reimbursementTrackingEnabled && <th className="py-3 px-4 text-center whitespace-nowrap">{t.invoices.colPayment}</th>}
+                  <th className="py-3 px-4 text-center whitespace-nowrap">{t.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8EDF2] text-xs">
                 {filteredInvoices.length === 0 ? (
                   <tr>
                     <td colSpan={reimbursementTrackingEnabled ? 10 : 9} className="py-12 text-center text-[#778FAF] font-medium">
-                      No invoices found matching your criteria.
+                      {t.invoices.noInvoicesFound}
                     </td>
                   </tr>
                 ) : (
@@ -619,17 +619,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                           {inv.status === 'valid' || inv.status === 'approved' ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#DEFEEB] text-[#00A859] text-[11px] font-bold">
                               <CheckCircle2 className="w-3 h-3" />
-                              <span>Validated</span>
+                              <span>{t.validated}</span>
                             </span>
                           ) : inv.status === 'pending' ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFF6D9] text-[#F5B942] text-[11px] font-bold">
                               <Clock className="w-3 h-3" />
-                              <span>Pending</span>
+                              <span>{t.pending}</span>
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FEF2F2] text-[#DC4C4C] text-[11px] font-bold">
                               <X className="w-3 h-3" />
-                              <span>Rejected</span>
+                              <span>{t.rejectedStatus}</span>
                             </span>
                           )}
                         </td>
@@ -640,15 +640,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                             {inv.paymentStatus === 'paid' ? (
                               <span
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold"
-                                title={`Paid to ${inv.payee === 'member' ? 'insured' : 'provider'} — ref ${inv.paymentReference}`}
+                                title={`${t.invoices.paidToPrefix} ${inv.payee === 'member' ? t.invoices.paidToInsured : t.invoices.paidToProvider} — ref ${inv.paymentReference}`}
                               >
                                 <Wallet className="w-3 h-3" />
-                                <span>Paid</span>
+                                <span>{t.invoices.paidBadge}</span>
                               </span>
                             ) : inv.status === 'valid' || inv.status === 'approved' ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold">
                                 <Clock className="w-3 h-3" />
-                                <span>Outstanding</span>
+                                <span>{t.invoices.outstandingBadge}</span>
                               </span>
                             ) : (
                               <span className="text-slate-300 text-[11px]">—</span>
@@ -662,20 +662,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                             <button
                               onClick={() => setViewSlipInvoice(inv)}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
-                              title="View invoice slip"
+                              title={t.invoices.titleViewSlip}
                             >
                               <Eye className="w-3.5 h-3.5 text-slate-700" />
-                              <span>Slip</span>
+                              <span>{t.invoices.btnSlip}</span>
                             </button>
 
                             {reimbursementTrackingEnabled && canMarkPaid && (inv.status === 'valid' || inv.status === 'approved') && inv.paymentStatus !== 'paid' && (
                               <button
                                 onClick={() => setMarkingPaidInvoice(inv)}
                                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer"
-                                title="Mark as paid"
+                                title={t.invoices.titleMarkPaid}
                               >
                                 <Wallet className="w-3.5 h-3.5" />
-                                <span>Mark Paid</span>
+                                <span>{t.invoices.btnMarkPaid}</span>
                               </button>
                             )}
 
@@ -686,10 +686,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                               <button
                                 onClick={() => setRefactingInvoice(inv)}
                                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-lg text-xs font-semibold transition cursor-pointer"
-                                title="Apply réfaction"
+                                title={t.invoices.titleApplyRefaction}
                               >
                                 <ScanSearch className="w-3.5 h-3.5" />
-                                <span>Réfaction</span>
+                                <span>{t.invoices.btnRefaction}</span>
                               </button>
                             )}
 
@@ -697,10 +697,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                               <button
                                 onClick={() => setRecordingRecoveryInvoice(inv)}
                                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold transition cursor-pointer"
-                                title="Record recovery"
+                                title={t.invoices.titleRecordRecovery}
                               >
                                 <Undo2 className="w-3.5 h-3.5" />
-                                <span>Recovery</span>
+                                <span>{t.invoices.btnRecovery}</span>
                               </button>
                             )}
 
@@ -708,7 +708,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                               <button
                                 onClick={() => setInvoiceToDelete(inv)}
                                 className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer"
-                                title="Delete invoice (Admin)"
+                                title={t.invoices.titleDeleteInvoiceAdmin}
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                               </button>
@@ -743,7 +743,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     <h3 className="font-bold text-sm text-[var(--brand-900)]">{g.name}</h3>
                   </div>
                   <span className="px-2 py-0.5 bg-slate-100 text-slate-800 rounded-full text-[10px] font-bold">
-                    {g.count} Invoices
+                    {g.count} {t.invoices.groupInvoicesCount}
                   </span>
                 </div>
                 <p className="text-xs text-[#778FAF] mt-1 truncate">🏢 {g.org}</p>
@@ -760,14 +760,14 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     </div>
                   ))}
                   {g.items.length > 3 && (
-                    <p className="text-[11px] text-[#778FAF] italic">+ {g.items.length - 3} more records</p>
+                    <p className="text-[11px] text-[#778FAF] italic">+ {g.items.length - 3} {t.invoices.moreRecordsSuffix}</p>
                   )}
                 </div>
               </div>
 
               <div className="pt-3 border-t border-[#E8EDF2] flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-[#778FAF] uppercase font-bold block">Total Amount</span>
+                  <span className="text-[10px] text-[#778FAF] uppercase font-bold block">{t.invoices.totalAmount}</span>
                   <span className="text-base font-extrabold text-[var(--brand-900)]">{formatAmount(g.totalAmount)}</span>
                 </div>
                 <button
@@ -776,7 +776,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   }}
                   className="px-3 py-1.5 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-slate-800 text-xs font-bold rounded-lg transition cursor-pointer"
                 >
-                  View Details
+                  {t.invoices.viewDetailsBtn}
                 </button>
               </div>
             </div>
@@ -798,10 +798,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               <div className="flex items-center gap-2 min-w-0">
                 <LogoIcon className="w-6 h-6 shrink-0" />
                 <div className="min-w-0 leading-tight">
-                  <span className="font-bold text-[var(--brand-900)] text-sm">ACTIVA HealthPass</span>
+                  <span className="font-bold text-[var(--brand-900)] text-sm">{t.appName}</span>
                   <span className="text-slate-300 mx-1.5 hidden sm:inline">|</span>
                   <span className="font-extrabold text-slate-800 uppercase tracking-wide text-[10.5px] block sm:inline">
-                    Settlement Slip &amp; Direct Billing Voucher
+                    {t.invoices.slipHeaderTitle}
                   </span>
                 </div>
               </div>
@@ -810,14 +810,14 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 <button
                   onClick={() => printBordereauSlip(viewSlipInvoice, lang)}
                   className="p-2 text-[#778FAF] hover:text-[#0D2B63] hover:bg-[#F8FAFC] rounded-lg transition cursor-pointer"
-                  title="Print"
+                  title={t.invoices.printTitle}
                 >
                   <Printer className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewSlipInvoice(null)}
                   className="p-2 text-[#778FAF] hover:text-[#0D2B63] hover:bg-[#F8FAFC] rounded-lg transition cursor-pointer"
-                  title="Close"
+                  title={t.close}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -830,7 +830,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 {slipIsApproved && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                     <span className="border-4 border-emerald-600/25 text-emerald-600/25 font-black text-2xl sm:text-3xl tracking-widest uppercase px-6 py-2 rounded-xl -rotate-[18deg] select-none">
-                      Approved &amp; Covered
+                      {t.invoices.approvedCoveredStamp}
                     </span>
                   </div>
                 )}
@@ -839,58 +839,58 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <LogoIcon className="w-7 h-7" />
-                      <span className="font-extrabold text-[var(--brand-900)]">ACTIVA HealthPass</span>
+                      <span className="font-extrabold text-[var(--brand-900)]">{t.appName}</span>
                     </div>
-                    <p className="text-[10px] text-[#778FAF] mt-0.5">Health • Safety • Serenity</p>
+                    <p className="text-[10px] text-[#778FAF] mt-0.5">{t.tagline}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] text-[#778FAF] font-bold uppercase tracking-wide">Voucher Reference</p>
+                    <p className="text-[10px] text-[#778FAF] font-bold uppercase tracking-wide">{t.invoices.voucherReference}</p>
                     <p className="font-mono font-bold text-[var(--brand-900)]">{viewSlipInvoice.reference}</p>
-                    <p className="text-[10px] text-slate-500 mt-1">Claim Ref: {slipClaimRef}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">{t.invoices.claimRefPrefix} {slipClaimRef}</p>
                   </div>
                 </div>
 
                 <div className="relative z-[1] grid grid-cols-2 gap-x-6 gap-y-4 py-5 text-xs">
                   <div>
-                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">Beneficiary Name</p>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.beneficiaryName}</p>
                     <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.patientName}</p>
                   </div>
                   <div>
-                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">Healthcare Facility</p>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.healthcareFacility}</p>
                     <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.provider}</p>
                   </div>
                   <div>
-                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">HealthPass Card No.</p>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.cardNoLabel}</p>
                     <p className="font-mono font-bold text-[var(--brand-900)] mt-0.5">
                       {viewSlipInvoice.cardNo || viewSlipInvoice.patientPolicyNumber || 'N/A'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">Date of Service</p>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.dateOfService}</p>
                     <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.serviceDate || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">Organization</p>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.organizationLabel}</p>
                     <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.organization}</p>
                   </div>
                   <div>
-                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">Prescriber / Practitioner</p>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.prescriberLabel}</p>
                     <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.prescribingDoctor || 'Medical Staff'}</p>
                   </div>
                 </div>
 
                 <div className="relative z-[1] pt-4 border-t border-slate-100">
                   <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px] mb-2">
-                    Medical Benefits Coverage Breakdown
+                    {t.invoices.coverageBreakdownTitle}
                   </p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="text-[10px] text-[#778FAF] font-bold uppercase tracking-wide border-b border-slate-200">
-                          <th className="text-left py-2 pr-2">Act / Service Description</th>
-                          <th className="text-left py-2 pr-2">Category</th>
-                          <th className="text-right py-2 pr-2">Billed Amount</th>
-                          <th className="text-right py-2">Covered Amount</th>
+                          <th className="text-left py-2 pr-2">{t.invoices.colActDescription}</th>
+                          <th className="text-left py-2 pr-2">{t.invoices.colCategory}</th>
+                          <th className="text-right py-2 pr-2">{t.invoices.colBilledAmount}</th>
+                          <th className="text-right py-2">{t.invoices.colCoveredAmountFull}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -920,7 +920,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                      <span>Delete Invoice</span>
+                      <span>{t.invoices.btnDeleteInvoice}</span>
                     </button>
                   )}
                 </div>
@@ -931,13 +931,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     className={`px-4 py-2 ${primaryBtnClass} rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer`}
                   >
                     <Download className="w-4 h-4" />
-                    <span>Download Voucher PDF</span>
+                    <span>{t.invoices.btnDownloadVoucher}</span>
                   </button>
                   <button
                     onClick={() => setViewSlipInvoice(null)}
                     className="px-4 py-2 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-[#0D2B63] rounded-xl text-xs font-bold transition cursor-pointer"
                   >
-                    Close
+                    {t.close}
                   </button>
                 </div>
               </div>
@@ -979,15 +979,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
             <div className="text-center space-y-1">
               <h3 className="text-base font-bold text-slate-900">
-                Delete Invoice #{invoiceToDelete.reference}?
+                {t.invoices.deleteInvoiceTitlePrefix}{invoiceToDelete.reference}?
               </h3>
               <p className="text-xs text-slate-500">
-                Are you sure you want to permanently delete this invoice of {formatAmount(invoiceToDelete.amount)} issued for {invoiceToDelete.patientName} ({invoiceToDelete.provider})?
+                {t.invoices.deleteInvoiceConfirmPrefix} {formatAmount(invoiceToDelete.amount)} {t.invoices.deleteInvoiceConfirmMiddle} {invoiceToDelete.patientName} ({invoiceToDelete.provider})?
               </p>
             </div>
 
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-800">
-              ⚠️ This action is irreversible and will remove the amount from the accounting ledger.
+              {t.invoices.irreversibleWarning}
             </div>
 
             <div className="flex justify-end gap-2.5 pt-2">
@@ -997,7 +997,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 onClick={() => setInvoiceToDelete(null)}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
               >
-                Cancel
+                {t.cancel}
               </button>
               <button
                 type="button"
@@ -1006,11 +1006,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 {isDeleting ? (
-                  <span>Deleting...</span>
+                  <span>{t.invoices.deletingLabel}</span>
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Confirm Deletion</span>
+                    <span>{t.invoices.confirmDeletionBtn}</span>
                   </>
                 )}
               </button>
