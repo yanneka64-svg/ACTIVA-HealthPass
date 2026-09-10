@@ -1080,6 +1080,7 @@ export default function App() {
       <LoginView
         onLoginSuccess={handleLoginSuccess}
         lang={lang}
+        onLanguageChange={handleLanguageChange}
       />
     );
   }

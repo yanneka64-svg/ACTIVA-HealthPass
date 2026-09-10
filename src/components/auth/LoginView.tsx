@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff } from 'lucide-react';
 import { Language } from '../../types';
+import { useTranslation } from '../../i18n/translations';
 import { Logo } from '../Logo';
 import activaLogoOriginal from '../../assets/logos/logo-activa.png';
 import { auth, functions, db } from '../../lib/firebase';
@@ -70,7 +71,13 @@ function clearLoginAttempts(identifier: string) {
 
 export const LoginView: React.FC<LoginViewProps> = ({
   onLoginSuccess,
+  lang,
+  onLanguageChange,
 }) => {
+  // === AMÉLIORATION AJOUTÉE : cet écran ignorait totalement `lang`/`onLanguageChange`
+  // jusqu'ici (props déclarées mais jamais utilisées) — voir aussi les deux pastilles de
+  // langue plus bas, désormais réellement cliquables (2026-09-10, étape 2). ===
+  const t = useTranslation(lang || 'en');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -145,14 +152,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
       // Si le rate limiting serveur (Cloud Function) s'est déclenché
       if (resolveResult?.rateLimited || fnError?.code === 'resource-exhausted') {
         const remaining = resolveResult?.retryAfterSec || 60;
-        setError(`Too many login attempts. Please wait ${remaining} seconds.`);
+        setError(`${t.auth.rateLimitedPrefix}${remaining}${t.auth.rateLimitedSuffix}`);
         setIsLoggingIn(false);
         return false;
       }
 
       // Si le compte est désactivé côté Cloud Function
       if (resolveResult && resolveResult.isActive === false) {
-        setError('This account has been deactivated. Please contact your administrator.');
+        setError(t.auth.accountDeactivated);
         setIsLoggingIn(false);
         return false;
       }
@@ -207,7 +214,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       // l'identifiant Firebase Auth pour ce compte désormais vérifié.
       if (!userCredential?.user && resolveResult?.found && resolveResult?.legacyVerification) {
         if (resolveResult.legacyVerification.checked && !resolveResult.legacyVerification.valid) {
-          setError('Invalid username or password. Please verify your credentials.');
+          setError(t.auth.invalidUsernamePassword);
           setIsLoggingIn(false);
           return false;
         }
@@ -271,7 +278,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         }
 
         if (accountData && accountData.isActive === false) {
-          setError('This account has been deactivated. Please contact your administrator.');
+          setError(t.auth.accountDeactivated);
           setIsLoggingIn(false);
           return false;
         }
@@ -281,7 +288,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
 
       // 5. En cas d'échec
-      setError('Invalid username or password. Please verify your credentials.');
+      setError(t.auth.invalidUsernamePassword);
       setIsLoggingIn(false);
       return false;
     } catch (err: any) {
@@ -291,13 +298,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
         err.code === 'auth/wrong-password' ||
         err.code === 'auth/user-not-found'
       ) {
-        setError('Invalid username or password. Please verify your credentials.');
+        setError(t.auth.invalidUsernamePassword);
       } else if (err.code === 'auth/too-many-requests') {
-        setError('Too many failed attempts. Please wait a moment and try again.');
+        setError(t.auth.tooManyAttempts);
       } else if (err.code === 'auth/weak-password') {
-        setError('Password must be at least 6 characters long.');
+        setError(t.auth.weakPassword);
       } else {
-        setError(err.message || 'Authentication failed. Please check your credentials.');
+        setError(err.message || t.auth.authFailedFallback);
       }
       return false;
     } finally {
@@ -309,14 +316,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
     e.preventDefault();
     const cleanUsername = username.trim();
     if (!cleanUsername || !password) {
-      setError('Please enter your Corporate Email / Username and Password.');
+      setError(t.auth.fillRequiredFields);
       return;
     }
 
     const remainingMs = getLockoutRemainingMs(cleanUsername);
     if (remainingMs > 0) {
       setLockoutRemainingSec(Math.ceil(remainingMs / 1000));
-      setError(`Too many failed attempts. Please try again in ${Math.ceil(remainingMs / 1000)}s.`);
+      setError(`${t.auth.lockoutPrefix}${Math.ceil(remainingMs / 1000)}${t.auth.lockoutSuffix}`);
       return;
     }
 
@@ -349,7 +356,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       const remaining = getLockoutRemainingMs(cleanUsername);
       if (remaining > 0) {
         setLockoutRemainingSec(Math.ceil(remaining / 1000));
-        setError(`Too many failed attempts. Please try again in ${Math.ceil(remaining / 1000)}s.`);
+        setError(`${t.auth.lockoutPrefix}${Math.ceil(remaining / 1000)}${t.auth.lockoutSuffix}`);
       }
     }
   };
@@ -371,11 +378,21 @@ export const LoginView: React.FC<LoginViewProps> = ({
       <div className="lg:hidden fixed top-0 inset-x-0 z-20 flex items-center justify-between gap-2 px-4 py-3 bg-white border-b border-[#E8EDF2]">
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
           <Shield className="w-3.5 h-3.5 text-[#0A347B]" />
-          <span>ACTIVA Secure Portal</span>
+          <span>{t.auth.securePortal}</span>
         </div>
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
-          <Globe className="w-3.5 h-3.5 text-[#0A34A3]" />
-          <span>EN</span>
+        {/* === AMÉLIORATION AJOUTÉE : véritable liste déroulante (2026-09-10, retour utilisateur
+            explicite — "je préfère la sélection") au lieu d'un bouton à cliquer pour basculer. === */}
+        <div className="relative">
+          <Globe className="w-3.5 h-3.5 text-[#0A34A3] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <select
+            value={lang || 'en'}
+            onChange={(e) => onLanguageChange?.(e.target.value as Language)}
+            className="appearance-none pl-7 pr-5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63] cursor-pointer focus:outline-none"
+            aria-label="Select display language"
+          >
+            <option value="en">EN</option>
+            <option value="fr">FR</option>
+          </select>
         </div>
       </div>
 
@@ -408,24 +425,37 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
         <div className="relative z-10">
           <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight login-anim-fade-up login-anim-delay-2">
-            Hello,<br />ACTIVA HealthPass!
+            {t.auth.heroGreetingLine1}<br />ACTIVA HealthPass!
           </h1>
           <p className="mt-5 text-sm xl:text-[15px] text-[#EAF2FF]/90 font-medium leading-relaxed max-w-sm login-anim-fade-up login-anim-delay-3">
-            Manage enrollments, claims and coverage in one secure place. Fast, reliable, and built for your team.
+            {t.auth.heroDescription}
           </p>
         </div>
 
         <div className="relative z-10 text-xs text-white/60 font-medium login-anim-fade-up login-anim-delay-4">
-          © 2026 ACTIVA Insurance Group. All rights reserved.
+          {t.auth.copyright}
         </div>
       </div>
 
       {/* RIGHT PANEL — blanc, logo + formulaire */}
       <div className="flex-1 bg-white relative flex flex-col">
-        {/* Language badge, desktop only (position reprise de l'ancien header) */}
-        <div className="hidden lg:flex absolute top-6 right-6 xl:top-10 xl:right-10 items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs">
-          <Globe className="w-3.5 h-3.5 text-[#0A34A3]" />
-          <span>English (Default)</span>
+        {/* Language selector, desktop only (position reprise de l'ancien header) — ===
+            AMÉLIORATION AJOUTÉE : véritable liste déroulante (2026-09-10, retour utilisateur
+            explicite — "je préfère la sélection") au lieu d'un bouton à cliquer pour basculer,
+            même sélecteur que la pastille mobile ci-dessus et que le Topbar une fois connecté. === */}
+        <div className="hidden lg:block absolute top-6 right-6 xl:top-10 xl:right-10 z-10">
+          <div className="relative">
+            <Globe className="w-3.5 h-3.5 text-[#0A34A3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              value={lang || 'en'}
+              onChange={(e) => onLanguageChange?.(e.target.value as Language)}
+              className="appearance-none pl-8 pr-6 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs cursor-pointer focus:outline-none"
+              aria-label="Select display language"
+            >
+              <option value="en">English (Default)</option>
+              <option value="fr">Français</option>
+            </select>
+          </div>
         </div>
 
         {/* === AMÉLIORATION AJOUTÉE : contenu remonté légèrement (retour utilisateur, 2026-09-07)
@@ -452,7 +482,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 === AMÉLIORATION AJOUTÉE : mention "ACTIVA HealthPass" retirée du sous-titre
                 (retour utilisateur explicite). === */}
             <p className="mt-1.5 text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
-              Sign in to access your account.
+              {t.auth.signInSubtitle}
             </p>
 
             {/* === AMÉLIORATION AJOUTÉE : espace réduit davantage (retour utilisateur, 2026-09-07
@@ -489,7 +519,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   couleurs strictement inchangés. === */}
               <div>
                 <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
-                  Username
+                  {t.auth.usernameLabel}
                 </label>
                 <div className="relative">
                   <input
@@ -509,7 +539,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
               {/* Password */}
               <div>
                 <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
-                  Password
+                  {t.auth.passwordLabel}
                 </label>
                 <div className="relative">
                   <input
@@ -532,8 +562,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                       setShowPassword((prev) => !prev);
                     }}
                     className="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-[#778FAF] hover:text-[#0D2B63] focus:outline-none transition rounded-lg hover:bg-slate-200/50 cursor-pointer select-none"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    title={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? t.auth.hidePassword : t.auth.showPassword}
+                    title={showPassword ? t.auth.hidePassword : t.auth.showPassword}
                   >
                     {showPassword ? (
                       <EyeOff className="w-3.5 h-3.5" />
@@ -552,7 +582,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   disabled={isLoggingIn || lockoutRemainingSec > 0}
                   className="w-full py-2 px-4 rounded-lg bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span>{lockoutRemainingSec > 0 ? `Try again in ${lockoutRemainingSec}s` : isLoggingIn ? 'Signing In...' : 'Sign In'}</span>
+                  <span>{lockoutRemainingSec > 0 ? `${t.auth.tryAgainPrefix}${lockoutRemainingSec}${t.auth.tryAgainSuffix}` : isLoggingIn ? t.auth.signingIn : t.auth.signInBtn}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -562,7 +592,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
         {/* Mobile-only footer copyright — repris de l'ancien pied de carte */}
         <div className="lg:hidden text-center text-xs text-[#778FAF] font-medium py-4 border-t border-[#E8EDF2]">
-          © 2026 ACTIVA Insurance Group. All rights reserved.
+          {t.auth.copyright}
         </div>
       </div>
     </div>

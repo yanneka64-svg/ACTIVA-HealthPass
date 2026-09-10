@@ -222,23 +222,24 @@ export const Topbar: React.FC<TopbarProps> = ({
           </div>
         )}
 
-        {/* Language Pill — === AMÉLIORATION AJOUTÉE : sélecteur réellement fonctionnel
-            (2026-09-10, sur demande explicite) — auparavant purement décorative
-            ("cursor-default", aucun sélecteur), cette pastille bascule désormais entre anglais
-            (langue par défaut) et français à chaque clic, via onLanguageChange (App.tsx),
-            préférence persistée. Masquée en dessous de `sm` (retour utilisateur antérieur,
-            navigation mobile) — comportement desktop inchangé par ailleurs. */}
-        <button
-          type="button"
-          id="app-language-indicator"
-          onClick={() => onLanguageChange?.(lang === 'fr' ? 'en' : 'fr')}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[var(--brand-900)] shadow-2xs hover:bg-slate-50 transition cursor-pointer"
-          title={lang === 'fr' ? 'Langue : Français (cliquer pour English)' : 'Language: English (click for Français)'}
-          aria-label="Toggle display language"
-        >
-          <Globe className={`w-3.5 h-3.5 ${theme.palette.primaryText}`} />
-          <span>{lang === 'fr' ? 'Français' : 'English'}</span>
-        </button>
+        {/* Language Selector — === AMÉLIORATION AJOUTÉE : véritable liste déroulante
+            (2026-09-10, retour utilisateur explicite — "je préfère la sélection") au lieu d'un
+            bouton à cliquer pour basculer d'une langue à l'autre. Préférence persistée via
+            onLanguageChange (App.tsx). Masqué en dessous de `sm` (comportement antérieur
+            inchangé par ailleurs). */}
+        <div className="hidden sm:block relative">
+          <Globe className={`w-3.5 h-3.5 ${theme.palette.primaryText} absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none`} />
+          <select
+            id="app-language-indicator"
+            value={lang || 'en'}
+            onChange={(e) => onLanguageChange?.(e.target.value as Language)}
+            className="appearance-none pl-8 pr-6 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[var(--brand-900)] shadow-2xs hover:bg-slate-50 transition cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--brand-700)]"
+            aria-label="Select display language"
+          >
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+          </select>
+        </div>
 
         {/* Notification Bell with Badge & Dropdown */}
         <div className="relative" ref={notifRef}>
