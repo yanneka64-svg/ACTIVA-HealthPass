@@ -164,16 +164,11 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          {/* === AMÉLIORATION AJOUTÉE : paragraphe d'instructions retiré (retour utilisateur,
+              2026-09-10 — "retirer tous les commentaires au-dessus"). Le fonctionnement reste
+              inchangé (montant retenu modifiable, motif requis si un acte est réduit, etc.) ;
+              seul ce texte explicatif au-dessus des lignes d'actes a été supprimé. */}
           <div className="p-6 space-y-4 overflow-y-auto">
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              Review each medical act following the post-service medical control. Reduce the retained amount and give a reason for any act that is partially or fully rejected. Only the retained total will be paid — the refacted portion is tracked separately and can be recovered later if the provider provides justification.
-              {!hasOriginalBreakdown && (
-                <>
-                  {' '}This invoice has no itemized breakdown from the original claim — you can split the line below into several medical acts before applying the réfaction.
-                </>
-              )}
-            </p>
-
             {error && (
               <div className="px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
                 {error}
@@ -184,12 +179,20 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
               {acts.map((act, i) => {
                 const rejected = Math.max(0, act.amount - retained[i]);
                 return (
+                  // === AMÉLIORATION AJOUTÉE : alignement des champs revu (retour utilisateur,
+                  // 2026-09-10 — "bien ranger/aligner les données verticalement et
+                  // horizontalement"). Le nom de l'acte occupe désormais sa propre ligne pleine
+                  // largeur (plus de risque de compression face au montant "Original"), et
+                  // Original / Retained / Rejected forment une seule grille à 3 colonnes de
+                  // même largeur, chaque étiquette alignée au-dessus de son champ. Le motif a
+                  // désormais lui aussi une étiquette, cohérente avec les autres champs. Aucune
+                  // donnée, valeur ou logique n'est modifiée — seule la disposition change.
                   <div key={i} className={`p-3.5 rounded-xl border space-y-2.5 ${rejected > 0 ? 'border-orange-200 bg-orange-50/30' : 'border-slate-200'}`}>
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         {hasOriginalBreakdown ? (
                           <>
-                            <div className="font-bold text-xs text-slate-900 truncate">{act.name}</div>
+                            <div className="font-bold text-xs text-slate-900 truncate leading-snug">{act.name}</div>
                             {act.category && <div className="text-[10px] text-slate-400">{act.category}</div>}
                           </>
                         ) : (
@@ -202,38 +205,38 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                           />
                         )}
                       </div>
-                      <div className="text-right shrink-0 flex items-start gap-1.5">
-                        <div>
-                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Original</div>
-                          {hasOriginalBreakdown ? (
-                            <div className="font-bold text-xs text-slate-700">{formatAmount(act.amount)}</div>
-                          ) : (
-                            <input
-                              type="number"
-                              value={act.amount}
-                              min={0}
-                              step="0.01"
-                              onChange={(e) => handleActAmountChange(i, e.target.value)}
-                              className="w-24 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-right"
-                            />
-                          )}
-                        </div>
-                        {!hasOriginalBreakdown && acts.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeActLine(i)}
-                            className="p-1 mt-4 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                            title="Remove this line"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
+                      {!hasOriginalBreakdown && acts.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeActLine(i)}
+                          className="p-1 shrink-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          title="Remove this line"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Retained Amount</label>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <div className="flex flex-col">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 h-3.5 leading-[14px]">Original</label>
+                        {hasOriginalBreakdown ? (
+                          <div className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 text-right">
+                            {formatAmount(act.amount)}
+                          </div>
+                        ) : (
+                          <input
+                            type="number"
+                            value={act.amount}
+                            min={0}
+                            step="0.01"
+                            onChange={(e) => handleActAmountChange(i, e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-right"
+                          />
+                        )}
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 h-3.5 leading-[14px]">Retained</label>
                         <input
                           type="number"
                           value={retained[i]}
@@ -241,11 +244,11 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                           min={0}
                           step="0.01"
                           onChange={(e) => handleRetainedChange(i, e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-right"
                         />
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Rejected (Réfaction)</label>
+                      <div className="flex flex-col">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 h-3.5 leading-[14px] truncate" title="Rejected (Réfaction)">Rejected</label>
                         <input
                           type="number"
                           value={rejected}
@@ -253,18 +256,23 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                           min={0}
                           step="0.01"
                           onChange={(e) => handleRefactedChange(i, e.target.value)}
-                          className={`w-full px-3 py-2 rounded-lg text-xs font-bold border ${rejected > 0 ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-slate-200 text-slate-800'}`}
+                          className={`w-full px-3 py-2 rounded-lg text-xs font-bold border text-right ${rejected > 0 ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-slate-200 text-slate-800'}`}
                         />
                       </div>
                     </div>
 
-                    <input
-                      type="text"
-                      value={reasons[i]}
-                      onChange={(e) => setReasons((r) => r.map((x, idx) => (idx === i ? e.target.value : x)))}
-                      placeholder={rejected > 0 ? 'Reason for rejection (required)' : 'Reason for rejection (only required if an amount is rejected)'}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400"
-                    />
+                    <div className="flex flex-col">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 h-3.5 leading-[14px]">
+                        Reason{rejected > 0 ? ' (required)' : ''}
+                      </label>
+                      <input
+                        type="text"
+                        value={reasons[i]}
+                        onChange={(e) => setReasons((r) => r.map((x, idx) => (idx === i ? e.target.value : x)))}
+                        placeholder={rejected > 0 ? 'Reason for rejection (required)' : 'Reason for rejection (only required if an amount is rejected)'}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400"
+                      />
+                    </div>
                   </div>
                 );
               })}

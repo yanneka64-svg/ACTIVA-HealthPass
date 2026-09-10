@@ -109,13 +109,21 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
 
   return (
     <div
-      // === AMÉLIORATION AJOUTÉE : taille FIXE en pixels (plutôt que `w-full max-w-[340px]` +
-      // aspect-ratio) — une vraie carte plastique a une taille physique fixe, jamais réduite
-      // par l'espace disponible. Corrige un débordement réel constaté : dans un conteneur plus
-      // étroit que 340px (ex. la colonne de 320px de l'écran Agent), la carte rétrécissait via
-      // aspect-ratio mais son contenu interne (tailles en px fixes) non, débordant hors cadre.
-      className="rounded-2xl bg-white flex flex-col overflow-hidden shadow-xl border border-slate-200"
-      style={{ width: 300, height: 189 }}
+      // === AMÉLIORATION AJOUTÉE : largeur FLUIDE alignée sur le conteneur parent (retour
+      // utilisateur, 2026-09-10 — "la taille de la carte (sur la largeur) doit être alignée
+      // avec la bannière en dessous") — remplace la précédente taille FIXE en pixels
+      // (300×189), qui laissait un écart visible avec le panneau "ICAO Biometrics Compliant"
+      // affiché juste en dessous (celui-ci occupant toute la largeur de la colonne, ex. 320px).
+      // La carte occupe maintenant `w-full` (jusqu'à 340px max, proche d'une vraie carte
+      // ID-1) et conserve son ratio via `aspect-ratio`. Pour éviter de réintroduire le bug de
+      // débordement précédent (des tailles internes fixes en px ne rétrécissant pas avec un
+      // conteneur plus étroit que prévu), ce conteneur devient une "container query" CSS
+      // (`containerType: 'inline-size'`) et toutes les tailles internes sensibles (polices,
+      // encadré photo, QR, logo) sont exprimées en unités `cqw` (% de la largeur RÉELLE de la
+      // carte elle-même) au lieu de px fixes — elles remontent/descendent proportionnellement
+      // avec la carte, quelle que soit la largeur réelle du conteneur parent.
+      className="w-full max-w-[340px] aspect-[340/214] rounded-2xl bg-white flex flex-col overflow-hidden shadow-xl border border-slate-200"
+      style={{ containerType: 'inline-size' }}
     >
       {/* Bandeau bleu incurvé — forme "ruban" fidèle à la carte physique réelle. Le texte est
           calé en haut (pt-1.5), une zone TOUJOURS pleinement bleue quelle que soit la position
@@ -129,7 +137,7 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
         >
           <path d="M0,0 H340 V44 Q170,26 0,44 Z" fill="#1657b0" />
         </svg>
-        <span className="relative text-white font-extrabold tracking-wide text-[12px]">
+        <span className="relative text-white font-extrabold tracking-wide text-[4cqw]">
           {t.memberCard.cardTitle}
         </span>
       </div>
@@ -138,7 +146,7 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
       <div className="flex-1 min-h-0 px-3 pt-1.5 pb-1.5 flex flex-col justify-between">
         {/* Photo + bloc Bénéficiaire */}
         <div className="flex items-start gap-2.5">
-          <div className="w-[50px] h-[56px] shrink-0 rounded-md border border-slate-300 bg-slate-100 overflow-hidden flex items-center justify-center">
+          <div className="w-[16.67cqw] h-[18.67cqw] shrink-0 rounded-md border border-slate-300 bg-slate-100 overflow-hidden flex items-center justify-center">
             {photoUrl ? (
               <img src={photoUrl} alt={t.memberCard.photoAlt} className="w-full h-full object-cover" />
             ) : (
@@ -151,10 +159,10 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="text-[11.5px] font-extrabold text-[#1657b0] leading-tight">
+            <div className="text-[3.83cqw] font-extrabold text-[#1657b0] leading-tight">
               {t.memberCard.beneficiaryLabel}
             </div>
-            <div className="mt-0.5 text-[8px] text-slate-800 leading-[1.3]">
+            <div className="mt-0.5 text-[2.67cqw] text-slate-800 leading-[1.3]">
               <div className="whitespace-nowrap overflow-hidden text-ellipsis">
                 <span className="font-semibold text-slate-500">{t.memberCard.matriculeLabel} : </span>
                 <span className="font-bold" style={{ fontFamily: 'monospace' }}>{cardNo}</span>
@@ -177,9 +185,9 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
 
         {/* Rôle (Assuré.e / Ayant droit) */}
         <div className="leading-tight">
-          <div className="text-[14px] font-extrabold text-[#1657b0]">{roleLabel}</div>
+          <div className="text-[4.67cqw] font-extrabold text-[#1657b0]">{roleLabel}</div>
           {relationship && (
-            <div className="text-[7.5px] text-slate-500 font-semibold truncate">{relationship} · {organization}</div>
+            <div className="text-[2.5cqw] text-slate-500 font-semibold truncate">{relationship} · {organization}</div>
           )}
         </div>
 
@@ -191,24 +199,24 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
                 src={qrDataUrl}
                 alt="QR code"
                 title="Scan to view this member's general information"
-                className="w-[30px] h-[30px] shrink-0"
+                className="w-[10cqw] h-[10cqw] shrink-0"
               />
             )}
             <div className="min-w-0">
-              <div className="text-[6.5px] text-slate-500 leading-tight truncate">
+              <div className="text-[2.17cqw] text-slate-500 leading-tight truncate">
                 {t.memberCard.fullNameSignatureLabel} :
               </div>
-              <div className="text-[6.5px] font-bold text-slate-700 leading-tight truncate max-w-[120px]">
+              <div className="text-[2.17cqw] font-bold text-slate-700 leading-tight truncate max-w-[40cqw]">
                 {[given, surname].filter(Boolean).join(' ') || fullName}
               </div>
-              <span className={`inline-flex items-center gap-1 mt-0.5 text-[6.5px] font-bold ${isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <span className={`inline-flex items-center gap-1 mt-0.5 text-[2.17cqw] font-bold ${isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
                 <span className="w-1 h-1 rounded-full bg-current" />
                 {isActive ? 'Active' : status}
               </span>
             </div>
           </div>
 
-          <img src={ACTIVA_LOGO_BASE64} alt="Activa" className="h-[22px] w-auto object-contain shrink-0" />
+          <img src={ACTIVA_LOGO_BASE64} alt="Activa" className="h-[7.33cqw] w-auto object-contain shrink-0" />
         </div>
       </div>
     </div>
