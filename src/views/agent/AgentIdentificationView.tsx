@@ -571,6 +571,9 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                   cardNo={selectedBeneficiary.cardNo}
                   status={selectedBeneficiary.status}
                   relationship={!selectedBeneficiary.isPrincipal ? formatRelationship(selectedBeneficiary.relationship) : undefined}
+                  birthDate={selectedBeneficiary.birthDate}
+                  photoUrl={selectedBeneficiary.photoUrl}
+                  lang={lang}
                 />
 
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">

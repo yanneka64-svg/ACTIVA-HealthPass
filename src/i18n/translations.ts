@@ -989,6 +989,21 @@ export const translations = {
 
     // === AMÉLIORATION AJOUTÉE : namespace agentId (2026-09-10) — traduction de l'écran
     // d'identification côté Agent (Insured Directory / fiche assuré / couverture / historique).
+    // === AMÉLIORATION AJOUTÉE : carte membre "vraie carte" (MemberIdCard.tsx, 2026-09-10) —
+    // refonte visuelle sur modèle réel fourni par l'utilisateur, traduite en FR/EN.
+    memberCard: {
+      cardTitle: 'ACTIVA HEALTH CARD',
+      beneficiaryLabel: 'Beneficiary',
+      matriculeLabel: 'Member No.',
+      surnameLabel: 'Last Name',
+      givenNamesLabel: 'First Name(s)',
+      dobLabel: 'Date of Birth',
+      insuredRoleLabel: 'Insured',
+      dependentRoleLabel: 'Dependent',
+      fullNameSignatureLabel: 'Full Name',
+      photoAlt: 'Member photo',
+    },
+
     agentId: {
       searchPlaceholder: 'Search by Card Number (e.g. ACT-2025-0012), Insured Name, Policy or Organization...',
       scanBiometric: 'Scan Biometric Sensor',
@@ -2342,6 +2357,19 @@ export const translations = {
       downloadTemplate: 'Télécharger le modèle Excel',
       closeModal: 'Terminer',
       successToast: 'Import terminé avec succès.',
+    },
+
+    memberCard: {
+      cardTitle: 'CARTE SANTE ACTIVA',
+      beneficiaryLabel: 'Bénéficiaire',
+      matriculeLabel: 'Matricule',
+      surnameLabel: 'Nom',
+      givenNamesLabel: 'Prénoms',
+      dobLabel: 'Date de naissance',
+      insuredRoleLabel: 'Assuré.e',
+      dependentRoleLabel: 'Ayant droit',
+      fullNameSignatureLabel: 'Nom et Prénoms',
+      photoAlt: "Photo de l'assuré",
     },
 
     agentId: {

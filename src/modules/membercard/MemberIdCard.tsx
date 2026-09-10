@@ -14,13 +14,21 @@
 // besoin de l'application ni d'une Cloud Function.
 //
 // === AMÉLIORATION AJOUTÉE : format "vraie carte" (2026-09-10, retour utilisateur — "je veux
-// vraiment que la carte s'affiche comme une carte") — remplace l'ancien bloc pleine largeur par
-// des proportions fixes proches d'une carte bancaire/ID réelle (ratio ≈ 1.586, comme ISO/IEC
-// 7810 ID-1), alignée à gauche plutôt qu'étirée sur toute la largeur de l'écran. Option "A"
-// choisie explicitement parmi 3 propositions visuelles : QR discret dans le coin, numéro de
-// carte en style embossé (monospace, espacé).
+// vraiment que la carte s'affiche comme une carte") — proportions fixes proches d'une carte
+// bancaire/ID réelle (ratio ≈ 1.586, comme ISO/IEC 7810 ID-1).
+//
+// === AMÉLIORATION AJOUTÉE : refonte visuelle "carte physique réelle" (2026-09-10, sur demande
+// explicite de l'utilisateur, à partir d'une photo de la carte "CARTE SANTE ACTIVA" imprimée
+// réellement en production) — remplace le fond dégradé bleu par le visuel exact de la carte
+// papier : bandeau bleu incurvé "CARTE SANTE ACTIVA" en haut, encadré photo à gauche, bloc
+// "Bénéficiaire" (Matricule / Nom / Prénoms / Date de naissance), rôle en gros caractères
+// ("Assuré.e" pour l'assuré principal, "Ayant droit" pour un dépendant), QR code et logo Activa
+// en bas. Disponible en français ET en anglais (prop `lang`, repli sur 'en' si non fournie).
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import { Language } from '../../types';
+import { useTranslation } from '../../i18n/translations';
+import { ACTIVA_LOGO_BASE64 } from '../../assets/logos';
 
 interface MemberIdCardProps {
   fullName: string;
@@ -28,10 +36,50 @@ interface MemberIdCardProps {
   cardNo: string;
   status: string;
   relationship?: string;
+  birthDate?: string;
+  photoUrl?: string;
+  lang?: Language;
 }
 
-export const MemberIdCard: React.FC<MemberIdCardProps> = ({ fullName, organization, cardNo, status, relationship }) => {
+// === AMÉLIORATION AJOUTÉE : sépare "Nom" (nom de famille) et "Prénoms" à partir du nom complet
+// unique disponible dans les données (InsuredBeneficiary.fullName) — la convention de saisie
+// déjà utilisée ailleurs dans l'app (voir placeholder "e.g. LAST NAME First name" dans le
+// formulaire Nouvelle adhésion) place le nom de famille en MAJUSCULES en premier. Repli sûr :
+// si aucun mot en majuscules n'est détecté en tête, le nom complet est simplement affiché tel
+// quel dans "Nom" et "Prénoms" reste vide — jamais de donnée inventée.
+function splitFullName(fullName: string): { surname: string; given: string } {
+  const words = fullName.trim().split(/\s+/).filter(Boolean);
+  let i = 0;
+  while (i < words.length && /[A-ZÀ-Ý]/.test(words[i]) && words[i] === words[i].toUpperCase()) {
+    i++;
+  }
+  if (i === 0 || i === words.length) {
+    return { surname: fullName, given: '' };
+  }
+  return { surname: words.slice(0, i).join(' '), given: words.slice(i).join(' ') };
+}
+
+function formatBirthDate(birthDate?: string): string {
+  if (!birthDate) return '—';
+  const match = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return birthDate;
+  const [, y, m, d] = match;
+  return `${d}/${m}/${y}`;
+}
+
+export const MemberIdCard: React.FC<MemberIdCardProps> = ({
+  fullName,
+  organization,
+  cardNo,
+  status,
+  relationship,
+  birthDate,
+  photoUrl,
+  lang = 'en' as Language,
+}) => {
+  const t = useTranslation(lang);
   const isActive = status === 'Active' || status === 'Actif';
+  const { surname, given } = splitFullName(fullName);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,7 +92,7 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({ fullName, organizati
       `Status: ${isActive ? 'Active' : status}`,
     ].join('\n');
 
-    QRCode.toDataURL(qrText, { margin: 1, width: 90 })
+    QRCode.toDataURL(qrText, { margin: 0, width: 120 })
       .then((url) => {
         if (!cancelled) setQrDataUrl(url);
       })
@@ -57,48 +105,110 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({ fullName, organizati
     };
   }, [fullName, cardNo, organization, status, isActive]);
 
+  const roleLabel = relationship ? t.memberCard.dependentRoleLabel : t.memberCard.insuredRoleLabel;
+
   return (
     <div
-      className="rounded-2xl text-white relative overflow-hidden shadow-xl w-full max-w-[340px]"
-      style={{ aspectRatio: '340 / 214', background: 'linear-gradient(135deg, #072659, #0A347B 55%, #0D2B63)' }}
+      // === AMÉLIORATION AJOUTÉE : taille FIXE en pixels (plutôt que `w-full max-w-[340px]` +
+      // aspect-ratio) — une vraie carte plastique a une taille physique fixe, jamais réduite
+      // par l'espace disponible. Corrige un débordement réel constaté : dans un conteneur plus
+      // étroit que 340px (ex. la colonne de 320px de l'écran Agent), la carte rétrécissait via
+      // aspect-ratio mais son contenu interne (tailles en px fixes) non, débordant hors cadre.
+      className="rounded-2xl bg-white flex flex-col overflow-hidden shadow-xl border border-slate-200"
+      style={{ width: 300, height: 189 }}
     >
-      <div className="p-4 flex flex-col h-full">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-extrabold uppercase tracking-wide opacity-85">Activa HealthPass</span>
-          <div className="w-8 h-5.5 rounded-md shrink-0" style={{ background: 'linear-gradient(135deg,#e7c873,#c9a24a)' }} />
-        </div>
+      {/* Bandeau bleu incurvé — forme "ruban" fidèle à la carte physique réelle. Le texte est
+          calé en haut (pt-1.5), une zone TOUJOURS pleinement bleue quelle que soit la position
+          horizontale (seul le BAS de la forme est incurvé) — évite tout chevauchement blanc sur
+          blanc avec le creux de la courbe au centre. */}
+      <div className="relative shrink-0 flex items-start justify-center pt-1.5" style={{ height: '27%' }}>
+        <svg
+          viewBox="0 0 340 58"
+          preserveAspectRatio="none"
+          className="absolute inset-0 w-full h-full block"
+        >
+          <path d="M0,0 H340 V44 Q170,26 0,44 Z" fill="#1657b0" />
+        </svg>
+        <span className="relative text-white font-extrabold tracking-wide text-[12px]">
+          {t.memberCard.cardTitle}
+        </span>
+      </div>
 
-        <div className="flex items-center gap-2.5 mt-3">
-          <div className="w-10 h-10 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center text-base shrink-0">
-            👤
+      {/* Corps de la carte */}
+      <div className="flex-1 min-h-0 px-3 pt-1.5 pb-1.5 flex flex-col justify-between">
+        {/* Photo + bloc Bénéficiaire */}
+        <div className="flex items-start gap-2.5">
+          <div className="w-[50px] h-[56px] shrink-0 rounded-md border border-slate-300 bg-slate-100 overflow-hidden flex items-center justify-center">
+            {photoUrl ? (
+              <img src={photoUrl} alt={t.memberCard.photoAlt} className="w-full h-full object-cover" />
+            ) : (
+              <svg viewBox="0 0 50 56" className="w-full h-full">
+                <rect width="50" height="56" fill="#eef1f5" />
+                <circle cx="25" cy="21" r="10" fill="#c3cbd6" />
+                <path d="M7,54 C7,40 14,34 25,34 C36,34 43,40 43,54 Z" fill="#c3cbd6" />
+              </svg>
+            )}
           </div>
-          <div className="min-w-0">
-            <div className="font-extrabold text-sm truncate">{fullName}</div>
-            <div className="text-[10.5px] text-white/70 truncate">
-              {organization}{relationship ? ` · ${relationship}` : ''}
+
+          <div className="min-w-0 flex-1">
+            <div className="text-[11.5px] font-extrabold text-[#1657b0] leading-tight">
+              {t.memberCard.beneficiaryLabel}
+            </div>
+            <div className="mt-0.5 text-[8px] text-slate-800 leading-[1.3]">
+              <div className="whitespace-nowrap overflow-hidden text-ellipsis">
+                <span className="font-semibold text-slate-500">{t.memberCard.matriculeLabel} : </span>
+                <span className="font-bold" style={{ fontFamily: 'monospace' }}>{cardNo}</span>
+              </div>
+              <div className="whitespace-nowrap overflow-hidden text-ellipsis">
+                <span className="font-semibold text-slate-500">{t.memberCard.surnameLabel} : </span>
+                <span className="font-bold uppercase">{surname}</span>
+              </div>
+              <div className="whitespace-nowrap overflow-hidden text-ellipsis">
+                <span className="font-semibold text-slate-500">{t.memberCard.givenNamesLabel} : </span>
+                <span className="font-bold">{given || '—'}</span>
+              </div>
+              <div className="whitespace-nowrap overflow-hidden text-ellipsis">
+                <span className="font-semibold text-slate-500">{t.memberCard.dobLabel} : </span>
+                <span className="font-bold">{formatBirthDate(birthDate)}</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[8.5px] uppercase tracking-wide text-white/55 font-bold">Card No.</div>
-            <div className="font-bold text-[13px] tracking-wider mt-0.5 truncate" style={{ fontFamily: 'monospace' }}>
-              {cardNo}
-            </div>
-            <span className={`inline-flex items-center gap-1 mt-1.5 text-[9px] font-bold ${isActive ? 'text-emerald-300' : 'text-rose-300'}`}>
-              <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              {isActive ? 'Active' : status}
-            </span>
-          </div>
-          {qrDataUrl && (
-            <img
-              src={qrDataUrl}
-              alt="QR code with insured member information"
-              title="Scan to view this member's general information"
-              className="rounded bg-white p-1 w-[46px] h-[46px] shrink-0"
-            />
+        {/* Rôle (Assuré.e / Ayant droit) */}
+        <div className="leading-tight">
+          <div className="text-[14px] font-extrabold text-[#1657b0]">{roleLabel}</div>
+          {relationship && (
+            <div className="text-[7.5px] text-slate-500 font-semibold truncate">{relationship} · {organization}</div>
           )}
+        </div>
+
+        {/* Pied de carte : QR, signature, statut, logo */}
+        <div className="flex items-end justify-between gap-2">
+          <div className="flex items-end gap-1.5 min-w-0">
+            {qrDataUrl && (
+              <img
+                src={qrDataUrl}
+                alt="QR code"
+                title="Scan to view this member's general information"
+                className="w-[30px] h-[30px] shrink-0"
+              />
+            )}
+            <div className="min-w-0">
+              <div className="text-[6.5px] text-slate-500 leading-tight truncate">
+                {t.memberCard.fullNameSignatureLabel} :
+              </div>
+              <div className="text-[6.5px] font-bold text-slate-700 leading-tight truncate max-w-[120px]">
+                {[given, surname].filter(Boolean).join(' ') || fullName}
+              </div>
+              <span className={`inline-flex items-center gap-1 mt-0.5 text-[6.5px] font-bold ${isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <span className="w-1 h-1 rounded-full bg-current" />
+                {isActive ? 'Active' : status}
+              </span>
+            </div>
+          </div>
+
+          <img src={ACTIVA_LOGO_BASE64} alt="Activa" className="h-[22px] w-auto object-contain shrink-0" />
         </div>
       </div>
     </div>
