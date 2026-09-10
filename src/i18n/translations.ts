@@ -352,7 +352,10 @@ export const translations = {
       verifyBiometricTitle: 'Review biometric file before approval',
       returnForCorrectionTitle: 'Return for correction',
       deleteAdminTitle: 'Delete (Admin)',
-      reasonDecisionHeader: 'Reason / Decision',
+      // === AMÉLIORATION AJOUTÉE : colonne "Reason / Decision" renommée en simple "Decision"
+      // (2026-09-10, demande explicite) — la clé reste inchangée pour ne rien casser ailleurs,
+      // seul le libellé affiché change.
+      reasonDecisionHeader: 'Decision',
       healthCardIssuedActivated: 'Health card issued & activated',
       correctionInstructionsLabel: 'Correction instructions',
       correctionPlaceholder: 'Specify missing documents or adjustments required...',
@@ -1754,7 +1757,9 @@ export const translations = {
       verifyBiometricTitle: 'Examiner le dossier biométrique avant approbation',
       returnForCorrectionTitle: 'Retourner pour correction',
       deleteAdminTitle: 'Supprimer (Admin)',
-      reasonDecisionHeader: 'Motif / Décision',
+      // === AMÉLIORATION AJOUTÉE : colonne "Motif / Décision" renommée en simple "Décision"
+      // (2026-09-10, demande explicite) — la clé reste inchangée, seul le libellé change.
+      reasonDecisionHeader: 'Décision',
       healthCardIssuedActivated: 'Carte de santé émise et activée',
       correctionInstructionsLabel: 'Instructions de correction',
       correctionPlaceholder: 'Précisez les documents manquants ou les ajustements requis...',
