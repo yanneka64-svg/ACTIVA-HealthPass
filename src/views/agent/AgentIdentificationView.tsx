@@ -425,14 +425,15 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
       )}
 
       {/* 2. TWO-COLUMN LAYOUT: DIRECTORY (left) + SELECTED MEMBER DETAIL (right) */}
-      {/* === AMÉLIORATION AJOUTÉE : sur mobile (< lg), l'annuaire et la fiche détaillée
-          n'apparaissent plus empilés sur une seule très longue page — un seul des deux est
-          affiché à la fois (l'annuaire par défaut, la fiche une fois un assuré sélectionné,
-          avec un bouton "Back" pour y revenir), comme sur desktop où les deux colonnes
-          restent visibles en même temps (comportement desktop inchangé). === */}
+      {/* === AMÉLIORATION AJOUTÉE : sur mobile (< lg), l'annuaire (liste des assurés) n'est plus
+          affiché du tout, même avant sélection — précision explicite de l'utilisateur (2026-09-10) :
+          plus aucune liste d'assurés parcourable sur mobile, côté Agent. Le champ de recherche et
+          le scan biométrique du bandeau du haut restent pleinement fonctionnels pour retrouver un
+          assuré précis (voir handleSearchSubmit/handleOpenBiometricScanner) — seule la LISTE
+          parcourable disparaît. Annuaire inchangé à partir de `lg`. === */}
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-start">
-        {/* LEFT: Insured Directory */}
-        <div className={`bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3 ${selectedBeneficiary ? 'hidden lg:block' : ''}`}>
+        {/* LEFT: Insured Directory — hidden below lg regardless of selection (mobile: search/biometric only) */}
+        <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
               Insured Directory ({filteredDirectory.length})
@@ -503,23 +504,27 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         {!selectedBeneficiary ? (
           <div className="bg-white rounded-2xl border border-dashed border-slate-300 shadow-xs p-12 flex flex-col items-center justify-center text-center gap-2">
             <Users className="w-8 h-8 text-slate-300" />
-            <p className="text-sm font-bold text-slate-500">Select an insured member from the directory</p>
+            <p className="text-sm font-bold text-slate-500">Identify an insured member</p>
+            {/* === AMÉLIORATION AJOUTÉE : copie ajustée (2026-09-10) — l'annuaire n'étant plus
+                affiché du tout sur mobile (voir plus haut), le renvoi vers "on the left" ne
+                s'applique qu'à partir de `lg`. */}
             <p className="text-xs text-slate-400 max-w-sm">
-              Choose a member on the left, search by card number, or scan a biometric fingerprint to identify a beneficiary and view their coverage.
+              Search by card number or name, or scan a biometric fingerprint to identify a beneficiary and view their coverage.
+              <span className="hidden lg:inline"> You can also browse the directory on the left.</span>
             </p>
           </div>
         ) : (
           <div className="space-y-6 animate-in fade-in duration-200">
-            {/* Mobile-only "Back to Directory" — le panneau annuaire est masqué sur mobile
-                tant qu'un assuré est sélectionné (voir ci-dessus), ce bouton permet d'y
-                revenir sans avoir à faire défiler toute la fiche détaillée. */}
+            {/* Mobile-only "New Search" — l'annuaire n'étant plus affiché du tout sur mobile
+                (voir plus haut), ce bouton efface la sélection pour revenir à l'état de
+                recherche ci-dessus, au lieu de faire défiler toute la fiche détaillée. */}
             <button
               type="button"
               onClick={() => setSelectedBeneficiary(null)}
               className="lg:hidden flex items-center gap-1.5 text-xs font-bold text-[#0A347B] hover:text-[#08285e] cursor-pointer"
             >
               <ChevronRight className="w-3.5 h-3.5 rotate-180" />
-              <span>Back to Directory</span>
+              <span>New Search</span>
             </button>
 
             {/* === AMÉLIORATION AJOUTÉE : refonte complète de la page ("Proposition B", choisie
@@ -764,8 +769,12 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 </div>
 
                 {/* Family Members & Dependents + Current Month Care History, côte à côte sur
-                    desktop (grille dense) au lieu de deux blocs pleine largeur empilés */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    desktop (grille dense) au lieu de deux blocs pleine largeur empilés.
+                    === AMÉLIORATION AJOUTÉE : `md:grid-cols-2` → `lg:grid-cols-2` (2026-09-10) —
+                    Care History étant désormais masqué en dessous de `lg` (voir plus bas), la
+                    grille ne passe en 2 colonnes qu'à partir de ce même seuil, pour que Family &
+                    Dependents reste seul en pleine largeur sans case vide entre `md` et `lg`. === */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Family Members & Dependents */}
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
                     <div className="flex items-center justify-between">
@@ -850,8 +859,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                       cède la place au même format de liste compacte utilisé auparavant sur mobile
                       uniquement (mêmes champs : date, référence, procédure, prestataire, montant,
                       statut — rien retiré), pour tenir dans la colonne plus étroite de la grille
-                      dense "Proposition B". */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
+                      dense "Proposition B". ===
+                      === AMÉLIORATION AJOUTÉE : masqué en dessous de `lg` (précision explicite de
+                      l'utilisateur, 2026-09-10) — l'historique des opérations (actes médicaux du
+                      mois en cours) n'est plus visible sur mobile, côté Agent. === */}
+                  <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                         <Clock className="w-4 h-4 text-[#0A347B]" />
