@@ -47,6 +47,16 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
     setRetained((r) => r.map((x, idx) => (idx === i ? v : x)));
   };
 
+  // === AMÉLIORATION AJOUTÉE : le montant réfacté (rejeté) est désormais lui aussi saisissable
+  // directement (2026-09-10, retour utilisateur — la case "Rejected" semblait inactive car elle
+  // n'était qu'un affichage calculé). Les deux champs restent synchronisés : modifier l'un
+  // recalcule l'autre, sans jamais dépasser le montant original de l'acte.
+  const handleRefactedChange = (i: number, raw: string) => {
+    const max = acts[i].amount;
+    const rejected = Math.max(0, Math.min(max, Number(raw) || 0));
+    setRetained((r) => r.map((x, idx) => (idx === i ? max - rejected : x)));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -154,22 +164,26 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Rejected</label>
-                        <div className={`w-full px-3 py-2 rounded-lg text-xs font-bold ${rejected > 0 ? 'bg-orange-100 text-orange-700' : 'bg-slate-50 text-slate-400'}`}>
-                          {formatAmount(rejected)}
-                        </div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Rejected (Réfaction)</label>
+                        <input
+                          type="number"
+                          value={rejected}
+                          max={act.amount}
+                          min={0}
+                          step="0.01"
+                          onChange={(e) => handleRefactedChange(i, e.target.value)}
+                          className={`w-full px-3 py-2 rounded-lg text-xs font-bold border ${rejected > 0 ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-slate-200 text-slate-800'}`}
+                        />
                       </div>
                     </div>
 
-                    {rejected > 0 && (
-                      <input
-                        type="text"
-                        value={reasons[i]}
-                        onChange={(e) => setReasons((r) => r.map((x, idx) => (idx === i ? e.target.value : x)))}
-                        placeholder="Reason for rejection (required)"
-                        className="w-full px-3 py-2 bg-white border border-orange-200 rounded-lg text-xs text-slate-800 placeholder-slate-400"
-                      />
-                    )}
+                    <input
+                      type="text"
+                      value={reasons[i]}
+                      onChange={(e) => setReasons((r) => r.map((x, idx) => (idx === i ? e.target.value : x)))}
+                      placeholder={rejected > 0 ? 'Reason for rejection (required)' : 'Reason for rejection (only required if an amount is rejected)'}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400"
+                    />
                   </div>
                 );
               })}
