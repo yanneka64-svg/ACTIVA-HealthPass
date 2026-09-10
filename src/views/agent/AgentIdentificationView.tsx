@@ -574,20 +574,23 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     )}
                   </div>
 
+                  {/* === AMÉLIORATION AJOUTÉE : taille de police réduite sur demande explicite
+                      (text-sm → text-xs → text-[11px]) pour Policy Number/Age & Gender/Date of
+                      Birth — mêmes valeurs, mêmes libellés, juste plus compact. === */}
                   <div className="space-y-2.5">
                     <div className="min-w-0">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Policy Number</div>
-                      <div className="font-mono font-bold text-sm text-slate-800 truncate" title={policyNumber || 'N/A'}>{policyNumber || 'N/A'}</div>
+                      <div className="font-mono font-bold text-[11px] text-slate-800 truncate" title={policyNumber || 'N/A'}>{policyNumber || 'N/A'}</div>
                     </div>
                     <div className="min-w-0">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Age &amp; Gender</div>
-                      <div className="font-bold text-sm text-slate-800 truncate">
+                      <div className="font-bold text-[11px] text-slate-800 truncate">
                         {calculateAgeNumber(selectedBeneficiary.birthDate) ?? '—'} yrs ({selectedBeneficiary.gender === 'F' ? 'Female' : 'Male'})
                       </div>
                     </div>
                     <div className="min-w-0">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Date of Birth</div>
-                      <div className="font-bold text-sm text-slate-800 truncate">{selectedBeneficiary.birthDate || 'N/A'}</div>
+                      <div className="font-bold text-[11px] text-slate-800 truncate">{selectedBeneficiary.birthDate || 'N/A'}</div>
                     </div>
                   </div>
 
