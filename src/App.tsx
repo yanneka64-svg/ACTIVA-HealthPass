@@ -1,7 +1,7 @@
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { doc, getDoc, getDocs, onSnapshot, setDoc, collection } from 'firebase/firestore';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   Language,
   NavSection,
@@ -38,23 +38,31 @@ import {
 import { getRoleTheme, getRoleCssVars } from './theme/roleTheme';
 import { getClientLocationInfo, parseUserAgent } from './utils/geoUtils';
 
-// Views
-import { DashboardView } from './views/DashboardView';
-import { ClaimsView } from './views/ClaimsView';
-import { InvoicesView } from './views/InvoicesView';
-import { EnrollmentsView } from './views/EnrollmentsView';
-import { ReportsView } from './views/ReportsView';
-import { MembersView } from './views/settings/MembersView';
-import { OrganizationsView } from './views/settings/OrganizationsView';
-import { ProvidersView } from './views/settings/ProvidersView';
-import { CeilingsView } from './views/settings/CeilingsView';
-import { AccountsView } from './views/settings/AccountsView';
-import { LogsView } from './views/settings/LogsView';
+// === AMÉLIORATION AJOUTÉE : découpage de code (2026-09-10, demande explicite — logo/écran de
+// connexion parfois lents à charger). Ces 15 écrans ne servent qu'APRÈS connexion ; avant ce
+// changement, ils étaient tous regroupés dans le même paquet JavaScript que LoginView, donc
+// chargés et exécutés avant même que l'écran de connexion puisse s'afficher. En les import()-ant
+// dynamiquement via React.lazy, ils ne sont téléchargés qu'au moment où l'utilisateur (déjà
+// connecté) accède réellement à la section correspondante — voir le <Suspense> autour du routeur
+// de sections plus bas. LoginView et tout ce qui est nécessaire à la connexion restent chargés
+// immédiatement, inchangés. Aucune logique métier, aucune prop, aucun comportement de ces écrans
+// n'a changé — seul le moment où leur code est téléchargé change.
+const DashboardView = lazy(() => import('./views/DashboardView').then((m) => ({ default: m.DashboardView })));
+const ClaimsView = lazy(() => import('./views/ClaimsView').then((m) => ({ default: m.ClaimsView })));
+const InvoicesView = lazy(() => import('./views/InvoicesView').then((m) => ({ default: m.InvoicesView })));
+const EnrollmentsView = lazy(() => import('./views/EnrollmentsView').then((m) => ({ default: m.EnrollmentsView })));
+const ReportsView = lazy(() => import('./views/ReportsView').then((m) => ({ default: m.ReportsView })));
+const MembersView = lazy(() => import('./views/settings/MembersView').then((m) => ({ default: m.MembersView })));
+const OrganizationsView = lazy(() => import('./views/settings/OrganizationsView').then((m) => ({ default: m.OrganizationsView })));
+const ProvidersView = lazy(() => import('./views/settings/ProvidersView').then((m) => ({ default: m.ProvidersView })));
+const CeilingsView = lazy(() => import('./views/settings/CeilingsView').then((m) => ({ default: m.CeilingsView })));
+const AccountsView = lazy(() => import('./views/settings/AccountsView').then((m) => ({ default: m.AccountsView })));
+const LogsView = lazy(() => import('./views/settings/LogsView').then((m) => ({ default: m.LogsView })));
 
-import { AgentIdentificationView } from './views/agent/AgentIdentificationView';
-import { AgentMedicalFormView } from './views/agent/AgentMedicalFormView';
-import { AgentClaimsView } from './views/agent/AgentClaimsView';
-import { AgentEnrollmentsView } from './views/agent/AgentEnrollmentsView';
+const AgentIdentificationView = lazy(() => import('./views/agent/AgentIdentificationView').then((m) => ({ default: m.AgentIdentificationView })));
+const AgentMedicalFormView = lazy(() => import('./views/agent/AgentMedicalFormView').then((m) => ({ default: m.AgentMedicalFormView })));
+const AgentClaimsView = lazy(() => import('./views/agent/AgentClaimsView').then((m) => ({ default: m.AgentClaimsView })));
+const AgentEnrollmentsView = lazy(() => import('./views/agent/AgentEnrollmentsView').then((m) => ({ default: m.AgentEnrollmentsView })));
 import { InactivityWarningModal } from './components/InactivityWarningModal';
 import {
   playSuccessSound,
@@ -97,6 +105,16 @@ function signOutIfNewDeployment() {
     // persistence just behaves as it did before this improvement.
   }
 }
+
+// === AMÉLIORATION AJOUTÉE : indicateur de chargement discret utilisé comme fallback du
+// <Suspense> autour des écrans en React.lazy ci-dessus — même esprit visuel qu'un état de
+// chargement existant dans l'app (spinner + libellé), pour ne pas introduire un nouveau style.
+const SectionLoadingFallback: React.FC = () => (
+  <div className="flex flex-col items-center justify-center gap-3 py-24 text-slate-400">
+    <div className="w-8 h-8 border-2 border-slate-200 border-t-[#0A347B] rounded-full animate-spin" />
+    <span className="text-xs font-semibold">Loading…</span>
+  </div>
+);
 
 export default function App() {
   // Authentication & Role Resolution State Machine
@@ -1221,6 +1239,11 @@ export default function App() {
         <div className="flex-1 overflow-y-auto">
         {/* Section Router Content */}
         <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
+          {/* === AMÉLIORATION AJOUTÉE : limite Suspense pour les écrans en React.lazy ci-dessus —
+              affiche un indicateur de chargement discret le temps que le code de la section
+              demandée soit téléchargé (quasi instantané une fois en cache), au lieu de laisser
+              React lever une erreur. === */}
+          <Suspense fallback={<SectionLoadingFallback />}>
           {effectiveSection === 'dashboard' && (
             <DashboardView
               lang={lang}
@@ -1461,6 +1484,7 @@ export default function App() {
           {effectiveSection === 'accounts' && <AccountsView lang={lang} />}
 
           {effectiveSection === 'logs' && <LogsView lang={lang} logs={logs} />}
+          </Suspense>
         </main>
         </div>
 
