@@ -47,11 +47,11 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
   members = [],
   currentUser,
   userRole = 'Agent',
-  lang = 'en',
+  lang = 'en' as Language,
   onAddEnrollment,
   onCreateEnrollment,
 }) => {
-  const t = useTranslation('en');
+  const t = useTranslation(lang);
   const [activeTab, setActiveTab] = useState<'create' | 'list'>('create');
   // === AMÉLIORATION AJOUTÉE : le formulaire d'enrôlement reste grisé/inactif tant que l'agent
   // n'a pas explicitement cliqué sur "New Beneficiary Enrollment" (demande explicite de
@@ -160,13 +160,13 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
     setFormError(null);
     const fullName = `${form.lastName} ${form.firstName}`.trim();
     if (!fullName || !form.organization) {
-      setFormError('Please fill out all mandatory fields (Name and Organization).');
+      setFormError(t.agentEnroll.errFillMandatory);
       return;
     }
 
     const generatedCardNo = normalizeCardNumber(form.cardNo);
     if (!isValidCardNumberFormat(generatedCardNo)) {
-      setFormError('Health Card Number must be 11 alphanumeric characters (A-Z, 0-9).');
+      setFormError(t.agentEnroll.errCardFormat);
       return;
     }
 
@@ -180,7 +180,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
         method: 'ENROLLMENT',
       });
     } catch (err: any) {
-      setFormError(err?.message || 'Could not reserve this card number. Please try again.');
+      setFormError(err?.message || t.agentEnroll.errCardReserve);
       setIsGeneratingCard(false);
       return;
     }
@@ -195,7 +195,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
       try {
         resolvedPhotoUrl = await uploadPhotoOrFallback(photoData, 'enrollment-photos', generatedCardNo, form.organization);
       } catch (err: any) {
-        setFormError(err?.message || 'Could not save the photo. Please try again.');
+        setFormError(err?.message || t.agentEnroll.errPhotoSave);
         return;
       }
     }
@@ -286,9 +286,9 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
           moyen de basculer entre les deux. */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs px-6 py-5 flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-lg font-extrabold text-slate-900">Biometric Member Enrollment</h2>
+          <h2 className="text-lg font-extrabold text-slate-900">{t.agentEnroll.pageTitle}</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Certified optical fingerprint capture, facial photograph acquisition, and policy affiliation
+            {t.agentEnroll.pageSubtitle}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -306,7 +306,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             }`}
           >
             <PlusCircle className="w-4 h-4" />
-            <span>New Beneficiary Enrollment</span>
+            <span>{t.agentEnroll.newEnrollmentTab}</span>
           </button>
 
           <button
@@ -319,7 +319,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             }`}
           >
             <ListOrdered className="w-4 h-4" />
-            <span>Submitted Requests</span>
+            <span>{t.agentEnroll.submittedRequestsTab}</span>
             {pendingCount > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black ml-1">
                 {pendingCount}
@@ -335,9 +335,9 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-800 animate-in fade-in">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
               <div>
-                <p className="font-bold text-sm">Enrollment file successfully submitted!</p>
+                <p className="font-bold text-sm">{t.agentEnroll.submitSuccessTitle}</p>
                 <p className="text-xs text-emerald-700">
-                  The file has been routed to the supervisor for review and health card generation.
+                  {t.agentEnroll.submitSuccessDesc}
                 </p>
               </div>
             </div>
@@ -376,9 +376,9 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                     <Fingerprint className="w-4 h-4 text-[#0a2e6b]" />
-                    <span>1. Fingerprint Sensor Scanner</span>
+                    <span>{t.agentEnroll.fingerprintSectionTitle}</span>
                   </h3>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">Optical 500 DPI</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">{t.agentEnroll.opticalDpi}</span>
                 </div>
 
                 <div
@@ -389,8 +389,8 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                   <Fingerprint className={`w-10 h-10 ${hasBiometrics ? 'text-emerald-600' : 'text-slate-300'}`} />
                   <p className="text-[11px] text-slate-500 text-center">
                     {hasBiometrics
-                      ? `Fingerprint captured & verified (${biometricData?.score || 96}%)`
-                      : "Place the insured person's finger on the USB biometric sensor."}
+                      ? `${t.agentEnroll.fingerprintCapturedPrefix} (${biometricData?.score || 96}%)`
+                      : t.agentEnroll.fingerprintPlaceholder}
                   </p>
                 </div>
 
@@ -400,7 +400,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                   className="w-full py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0a2e6b] border border-blue-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Fingerprint className="w-4 h-4" />
-                  <span>{hasBiometrics ? 'Re-trigger Fingerprint Scanner Device' : 'Trigger Fingerprint Scanner Device'}</span>
+                  <span>{hasBiometrics ? t.agentEnroll.retriggerScanner : t.agentEnroll.triggerScanner}</span>
                 </button>
               </div>
 
@@ -409,9 +409,9 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                     <Camera className="w-4 h-4 text-[#0a2e6b]" />
-                    <span>2. Camera &amp; Photo Capture</span>
+                    <span>{t.agentEnroll.cameraSectionTitle}</span>
                   </h3>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">ICAO Portrait</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">{t.agentEnroll.icaoPortrait}</span>
                 </div>
 
                 <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-3 py-6 px-4">
@@ -423,7 +423,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500 text-center">
-                    Neutral facial framing complying with insurance standards.
+                    {t.agentEnroll.facialFramingHint}
                   </p>
                 </div>
 
@@ -434,17 +434,17 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     className="flex-1 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0a2e6b] border border-blue-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Camera className="w-4 h-4" />
-                    <span>Activate Camera &amp; Take Photo</span>
+                    <span>{t.agentEnroll.activateCamera}</span>
                   </button>
                   <label className="px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Upload</span>
+                    <span>{t.agentEnroll.uploadBtn}</span>
                     <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
                   </label>
                 </div>
                 {hasPhoto && (
                   <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Photo attached
+                    <CheckCircle2 className="w-3.5 h-3.5" /> {t.agentEnroll.photoAttached}
                   </span>
                 )}
               </div>
@@ -456,9 +456,9 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                     <User className="w-4 h-4 text-[#0a2e6b]" />
-                    <span>3. Insured Personal &amp; Policy Details</span>
+                    <span>{t.agentEnroll.personalDetailsTitle}</span>
                   </h3>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">All fields required</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">{t.agentEnroll.allFieldsRequired}</span>
                 </div>
 
                 {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur
@@ -470,8 +470,8 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     soumission. === */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">Health Card Number</label>
-                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide shrink-0">ACTIVA Unique Identifier</span>
+                    <label className="block text-xs font-bold text-slate-700">{t.agentEnroll.healthCardNumberLabel}</label>
+                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide shrink-0">{t.agentEnroll.activaUniqueId}</span>
                   </div>
                   <div className="relative">
                     <CreditCard className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -485,37 +485,37 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                       required
                     />
                   </div>
-                  <p className="text-[10.5px] text-slate-400 mt-1">11 alphanumeric characters (A-Z, 0-9) — must be unique.</p>
+                  <p className="text-[10.5px] text-slate-400 mt-1">{t.agentEnroll.cardNumberHint}</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Last Name:</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.agentEnroll.lastNameLabel}</label>
                     <input
                       type="text"
                       value={form.lastName}
                       onChange={(e) => setForm({ ...form, lastName: e.target.value })}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                       required
-                      placeholder="e.g. Williams, Doe, Cooper..."
+                      placeholder={t.agentEnroll.lastNamePlaceholder}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">First Name:</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.agentEnroll.firstNameLabel}</label>
                     <input
                       type="text"
                       value={form.firstName}
                       onChange={(e) => setForm({ ...form, firstName: e.target.value })}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                       required
-                      placeholder="e.g. Samuel, Victoria, Jonathan..."
+                      placeholder={t.agentEnroll.firstNamePlaceholder}
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Date of Birth:</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.agentEnroll.dateOfBirthLabel}</label>
                     <input
                       type="date"
                       value={form.birthDate}
@@ -525,20 +525,20 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Gender:</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.agentEnroll.genderLabel}</label>
                     <select
                       value={form.gender}
                       onChange={(e) => setForm({ ...form, gender: e.target.value })}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                     >
-                      <option value="M">Male (M)</option>
-                      <option value="F">Female (F)</option>
+                      <option value="M">{t.agentEnroll.genderMale}</option>
+                      <option value="F">{t.agentEnroll.genderFemale}</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Relationship:</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t.agentEnroll.relationshipLabel}</label>
                   <select
                     value={form.relationship}
                     onChange={(e) => {
@@ -550,9 +550,9 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     }}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
                   >
-                    <option value="Principal">Principal Insured (Self / Policyholder)</option>
-                    <option value="Spouse">Spouse (Dependent)</option>
-                    <option value="Child">Child (Dependent)</option>
+                    <option value="Principal">{t.agentEnroll.relationshipPrincipal}</option>
+                    <option value="Spouse">{t.agentEnroll.relationshipSpouse}</option>
+                    <option value="Child">{t.agentEnroll.relationshipChild}</option>
                   </select>
                 </div>
 
@@ -561,17 +561,17 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     <div className="flex items-center justify-between">
                       <h4 className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
                         <Users className="w-3.5 h-3.5" />
-                        <span>Mandatory Link to Principal Insured</span>
+                        <span>{t.agentEnroll.mandatoryLinkTitle}</span>
                       </h4>
                       <span className="px-2 py-0.5 rounded-full bg-amber-200/70 text-amber-900 text-[10px] font-black uppercase tracking-wide shrink-0">
-                        Dependent
+                        {t.agentEnroll.dependentBadge}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="relative" ref={principalSearchRef}>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Principal Insured Full Name <span className="text-rose-500">*</span>
+                          {t.agentEnroll.principalFullNameLabel} <span className="text-rose-500">*</span>
                         </label>
                         <div className="relative">
                           <Search className="w-3.5 h-3.5 text-amber-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -586,7 +586,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                             onFocus={() => setPrincipalSearchOpen(true)}
                             autoComplete="off"
                             className="w-full pl-8 pr-3.5 py-2 bg-white border border-amber-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500"
-                            placeholder="Type to search the insured directory..."
+                            placeholder={t.agentEnroll.searchDirectoryPlaceholder}
                             required={form.relationship !== 'Principal'}
                           />
                         </div>
@@ -618,14 +618,14 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Principal Insured Card Number <span className="text-rose-500">*</span>
+                          {t.agentEnroll.principalCardNoLabel} <span className="text-rose-500">*</span>
                         </label>
                         <input
                           type="text"
                           value={form.mainInsuredCardNo}
                           onChange={(e) => setForm({ ...form, mainInsuredCardNo: e.target.value })}
                           className="w-full px-3.5 py-2 bg-white border border-amber-200 rounded-xl text-sm font-bold text-[#0a2e6b] font-mono focus:ring-2 focus:ring-amber-500"
-                          placeholder="e.g. ACT-2025-0012"
+                          placeholder={t.agentEnroll.principalCardNoPlaceholder}
                           required={form.relationship !== 'Principal'}
                         />
                       </div>
@@ -636,9 +636,9 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-bold text-slate-700">
-                      Affiliated Organization: <span className="text-rose-500">*</span>
+                      {t.agentEnroll.affiliatedOrgLabel} <span className="text-rose-500">*</span>
                     </label>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">Corporate Group Policy</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">{t.agentEnroll.corporateGroupPolicy}</span>
                   </div>
                   <select
                     value={form.organization}
@@ -649,7 +649,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     {organizations.map((org) => (
                       <option key={org.id} value={org.name}>
                         {org.name}
-                        {org.policyNumber ? ` — Policy: ${org.policyNumber}` : ''}
+                        {org.policyNumber ? ` — ${t.agentEnroll.policyPrefix} ${org.policyNumber}` : ''}
                       </option>
                     ))}
                   </select>
@@ -657,7 +657,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Phone:</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.agentEnroll.mobilePhoneLabel}</label>
                     <input
                       type="tel"
                       value={form.phone}
@@ -667,7 +667,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Email Address (Optional):</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.agentEnroll.emailLabel}</label>
                     <input
                       type="email"
                       value={form.email}
@@ -685,7 +685,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     className="w-full py-3 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <ShieldCheck className="w-4 h-4" />
-                    <span>{isGeneratingCard ? 'Assigning card number…' : 'Submit Enrollment Application for Approval'}</span>
+                    <span>{isGeneratingCard ? t.agentEnroll.assigningCardNumber : t.agentEnroll.submitApplication}</span>
                   </button>
                 </div>
               </div>
@@ -698,9 +698,9 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                   <PlusCircle className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="font-bold text-sm text-slate-900">Start a new enrollment</p>
+                  <p className="font-bold text-sm text-slate-900">{t.agentEnroll.startNewEnrollment}</p>
                   <p className="text-xs text-slate-500 mt-1">
-                    Click "New Beneficiary Enrollment" to activate this form.
+                    {t.agentEnroll.activateFormHint}
                   </p>
                 </div>
                 <button
@@ -709,7 +709,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                   className="px-4 py-2 rounded-xl bg-[#0a2e6b] text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
-                  <span>New Beneficiary Enrollment</span>
+                  <span>{t.agentEnroll.newEnrollmentTab}</span>
                 </button>
               </div>
             </div>
@@ -725,7 +725,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search requests by card no, name, reference..."
+                placeholder={t.agentEnroll.searchRequestsPlaceholder}
                 className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b]"
               />
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -737,17 +737,17 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 onChange={(e) => setStatusFilter(e.target.value as any)}
                 className="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#0a2e6b]"
               >
-                <option value="ALL">All Status</option>
-                <option value="pending">Pending Validation ({pendingCount})</option>
-                <option value="approved">Approved ({approvedCount})</option>
-                <option value="rejected">Rejected ({rejectedCount})</option>
+                <option value="ALL">{t.agentEnroll.allStatus}</option>
+                <option value="pending">{t.agentEnroll.pendingValidationOption} ({pendingCount})</option>
+                <option value="approved">{t.agentEnroll.approvedOption} ({approvedCount})</option>
+                <option value="rejected">{t.agentEnroll.rejectedOption} ({rejectedCount})</option>
               </select>
             </div>
           </div>
 
           {filteredEnrollments.length === 0 ? (
             <div className="p-12 text-center text-slate-400 text-xs font-medium">
-              No enrollment requests found matching your filter.
+              {t.agentEnroll.noRequestsFound}
             </div>
           ) : (
             <>
@@ -756,13 +756,13 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th className="py-3.5 px-4">CARD NO.</th>
-                      <th className="py-3.5 px-4">BENEFICIARY</th>
-                      <th className="py-3.5 px-4">ORGANIZATION</th>
-                      <th className="py-3.5 px-4">SUBMITTED ON</th>
-                      <th className="py-3.5 px-4 text-center">BIOMETRICS</th>
-                      <th className="py-3.5 px-4 text-center">STATUS</th>
-                      <th className="py-3.5 px-4 text-right">ACTION</th>
+                      <th className="py-3.5 px-4">{t.agentEnroll.colCardNo}</th>
+                      <th className="py-3.5 px-4">{t.agentEnroll.colBeneficiary}</th>
+                      <th className="py-3.5 px-4">{t.agentEnroll.colOrganization}</th>
+                      <th className="py-3.5 px-4">{t.agentEnroll.colSubmittedOn}</th>
+                      <th className="py-3.5 px-4 text-center">{t.agentEnroll.colBiometrics}</th>
+                      <th className="py-3.5 px-4 text-center">{t.agentEnroll.colStatus}</th>
+                      <th className="py-3.5 px-4 text-right">{t.agentEnroll.colAction}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -784,26 +784,26 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                             }`}
                           >
                             <Fingerprint className="w-3 h-3" />
-                            <span>{enr.hasBiometrics ? `${enr.fingerprintScore || 96}%` : 'No'}</span>
+                            <span>{enr.hasBiometrics ? `${enr.fingerprintScore || 96}%` : t.agentEnroll.noBiometricsShort}</span>
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
                           {enr.status === 'pending' && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-bold text-[10px] border border-amber-200">
                               <Clock className="w-3 h-3" />
-                              <span>Pending Review</span>
+                              <span>{t.agentEnroll.pendingReview}</span>
                             </span>
                           )}
                           {enr.status === 'approved' && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
                               <CheckCircle2 className="w-3 h-3" />
-                              <span>Approved & Synced</span>
+                              <span>{t.agentEnroll.approvedSynced}</span>
                             </span>
                           )}
                           {enr.status === 'rejected' && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 font-bold text-[10px] border border-rose-200">
                               <XCircle className="w-3 h-3" />
-                              <span>Rejected</span>
+                              <span>{t.agentEnroll.rejectedShort}</span>
                             </span>
                           )}
                         </td>
@@ -814,7 +814,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                             className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer"
                           >
                             <Eye className="w-3 h-3" />
-                            <span>View</span>
+                            <span>{t.agentEnroll.viewBtn}</span>
                           </button>
                         </td>
                       </tr>
@@ -838,19 +838,19 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                       {enr.status === 'pending' && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold text-[10px] border border-amber-200">
                           <Clock className="w-3 h-3" />
-                          <span>Pending</span>
+                          <span>{t.agentEnroll.pendingShort}</span>
                         </span>
                       )}
                       {enr.status === 'approved' && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
                           <CheckCircle2 className="w-3 h-3" />
-                          <span>Approved</span>
+                          <span>{t.agentEnroll.approvedShort}</span>
                         </span>
                       )}
                       {enr.status === 'rejected' && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold text-[10px] border border-rose-200">
                           <XCircle className="w-3 h-3" />
-                          <span>Rejected</span>
+                          <span>{t.agentEnroll.rejectedShort}</span>
                         </span>
                       )}
                     </div>
@@ -868,7 +868,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                         }`}
                       >
                         <Fingerprint className="w-3 h-3" />
-                        <span>{enr.hasBiometrics ? `${enr.fingerprintScore || 96}%` : 'No biometrics'}</span>
+                        <span>{enr.hasBiometrics ? `${enr.fingerprintScore || 96}%` : t.agentEnroll.noBiometricsLong}</span>
                       </span>
                     </div>
                   </button>
@@ -886,7 +886,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-[#0a2e6b]" />
-                <h3 className="font-bold text-base text-slate-900">Enrollment File Details</h3>
+                <h3 className="font-bold text-base text-slate-900">{t.agentEnroll.detailsTitle}</h3>
               </div>
               <button
                 onClick={() => setSelectedEnrDetails(null)}
@@ -898,34 +898,34 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
 
             <div className="space-y-3 text-xs">
               <div className="flex justify-between py-1.5 border-b border-slate-100">
-                <span className="text-slate-500 font-medium">Health Card No:</span>
+                <span className="text-slate-500 font-medium">{t.agentEnroll.detailsCardNo}</span>
                 <span className="font-mono font-bold text-[#0a2e6b]">{selectedEnrDetails.cardNo}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100">
-                <span className="text-slate-500 font-medium">Full Name:</span>
+                <span className="text-slate-500 font-medium">{t.agentEnroll.detailsFullName}</span>
                 <span className="font-bold text-slate-900">{selectedEnrDetails.fullName}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100">
-                <span className="text-slate-500 font-medium">Relationship Tier:</span>
+                <span className="text-slate-500 font-medium">{t.agentEnroll.detailsRelationshipTier}</span>
                 <span className="font-semibold text-slate-800">{selectedEnrDetails.relationship}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100">
-                <span className="text-slate-500 font-medium">Organization:</span>
+                <span className="text-slate-500 font-medium">{t.agentEnroll.detailsOrganization}</span>
                 <span className="font-semibold text-slate-800">{selectedEnrDetails.organization}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100">
-                <span className="text-slate-500 font-medium">Status:</span>
+                <span className="text-slate-500 font-medium">{t.agentEnroll.detailsStatus}</span>
                 <span className="font-bold uppercase tracking-wide">{selectedEnrDetails.status}</span>
               </div>
               {selectedEnrDetails.decisionDate && (
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
-                  <span className="text-slate-500 font-medium">Decision Date:</span>
+                  <span className="text-slate-500 font-medium">{t.agentEnroll.detailsDecisionDate}</span>
                   <span className="font-mono text-slate-700">{selectedEnrDetails.decisionDate}</span>
                 </div>
               )}
               {selectedEnrDetails.rejectionReason && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
-                  <p className="font-bold text-xs">Rejection Justification:</p>
+                  <p className="font-bold text-xs">{t.agentEnroll.detailsRejectionJustification}</p>
                   <p className="text-xs mt-0.5">{selectedEnrDetails.rejectionReason}</p>
                 </div>
               )}
@@ -936,7 +936,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                 onClick={() => setSelectedEnrDetails(null)}
                 className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
-                Close
+                {t.close}
               </button>
             </div>
           </div>
@@ -948,7 +948,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
         isOpen={isWebcamModalOpen}
         onClose={() => setIsWebcamModalOpen(false)}
         onPhotoCaptured={handlePhotoCaptured}
-        title="Live Webcam / Camera Capture"
+        title={t.agentEnroll.webcamModalTitle}
       />
 
       {/* Biometric Fingerprint Acquisition Modal */}
@@ -956,8 +956,8 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
         isOpen={isFingerprintModalOpen}
         onClose={() => setIsFingerprintModalOpen(false)}
         onFingerprintCaptured={handleFingerprintCaptured}
-        title="Optical Biometric Fingerprint Acquisition"
-        subtitle="FAP-20 / USB Biometric Hardware Scanner"
+        title={t.agentEnroll.fingerprintModalTitle}
+        subtitle={t.agentEnroll.fingerprintModalSubtitle}
       />
     </div>
   );
