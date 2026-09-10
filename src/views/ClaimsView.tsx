@@ -322,7 +322,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
           <div className="flex items-center gap-2.5">
             <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <div>
-              <span className="font-extrabold block">Segregation of Duties (SoD) Restriction:</span>
+              <span className="font-extrabold block">{t.claims.sodRestrictionLabel}</span>
               <span>{sodAlertMessage}</span>
             </div>
           </div>
@@ -365,7 +365,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
             onChange={(e) => setSelectedOrgFilter(e.target.value)}
             className={`px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 ${roleTheme.palette.accentRing}`}
           >
-            <option value="ALL">All Organizations</option>
+            <option value="ALL">{t.claims.orgFilterAll}</option>
             {organizations.map((org) => (
               <option key={org.id} value={org.name}>
                 {org.name}
@@ -379,10 +379,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
             onChange={(e) => setSelectedStatusFilter(e.target.value)}
             className={`px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 ${roleTheme.palette.accentRing}`}
           >
-            <option value="ALL">All Statuses</option>
+            <option value="ALL">{t.claims.statusFilterAll}</option>
             <option value="pending">{t.pending}</option>
             <option value="approved">{t.validated}</option>
-            <option value="returned">Returned</option>
+            <option value="returned">{t.claims.returnedStatus}</option>
             <option value="rejected">{t.rejectedStatus}</option>
           </select>
 
@@ -427,7 +427,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
             </span>
           </div>
           <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-            Medical validation and coverage verification
+            {t.claims.pendingSubtitle}
           </span>
         </div>
 
@@ -478,11 +478,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                     <BillAuditBadge result={billAuditByClaimId.get(claim.id)!} className="ml-1.5" />
                   )}
                   {slaTrackingEnabled && slaByClaimId.get(claim.id) && (
-                    <SlaBadge result={slaByClaimId.get(claim.id)!} className="ml-1.5" />
+                    <SlaBadge result={slaByClaimId.get(claim.id)!} className="ml-1.5" lang={lang} />
                   )}
                   {claim.assignedAgentName && (
                     <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
-                      Assigned: {claim.assignedAgentName}
+                      {t.claims.assignedPrefix} {claim.assignedAgentName}
                     </span>
                   )}
 
@@ -494,10 +494,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                         setBiometricModalOpen(true);
                       }}
                       className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                      title="Verify medical and biometric record"
+                      title={t.claims.verifyTitle}
                     >
                       <Scan className="w-3.5 h-3.5 text-slate-600" />
-                      <span>Verify</span>
+                      <span>{t.claims.verify}</span>
                     </button>
 
                     {isSupervisor && (
@@ -535,10 +535,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                             type="button"
                             onClick={() => openReturnModal(claim)}
                             className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                            title="Return claim for correction"
+                            title={t.claims.returnTitle}
                           >
                             <ArrowRightLeft className="w-3.5 h-3.5 text-amber-700" />
-                            <span>Return</span>
+                            <span>{t.claims.returnAction}</span>
                           </button>
                         )}
                         {canAssignRecord(userRole) && onAssign && (
@@ -546,10 +546,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                             type="button"
                             onClick={() => openAssignModal(claim)}
                             className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                            title="Assign to agent"
+                            title={t.claims.assignTitle}
                           >
                             <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>Assign</span>
+                            <span>{t.claims.assignAction}</span>
                           </button>
                         )}
                       </>
@@ -560,7 +560,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                         type="button"
                         onClick={() => openDeleteModal(claim)}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer ml-auto"
-                        title="Delete claim (Admin)"
+                        title={t.claims.deleteAdminTitle}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -611,12 +611,12 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                         )}
                         {slaTrackingEnabled && slaByClaimId.get(claim.id) && (
                           <span className="block mt-1">
-                            <SlaBadge result={slaByClaimId.get(claim.id)!} />
+                            <SlaBadge result={slaByClaimId.get(claim.id)!} lang={lang} />
                           </span>
                         )}
                         {claim.assignedAgentName && (
                           <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
-                            Assigned: {claim.assignedAgentName}
+                            {t.claims.assignedPrefix} {claim.assignedAgentName}
                           </span>
                         )}
                       </td>
@@ -648,10 +648,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                               setBiometricModalOpen(true);
                             }}
                             className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                            title="Verify medical and biometric record"
+                            title={t.claims.verifyTitle}
                           >
                             <Scan className="w-3.5 h-3.5 text-slate-600" />
-                            <span>Verify</span>
+                            <span>{t.claims.verify}</span>
                           </button>
 
                           {/* Supervisor Validation Actions (Approve and Reject are strictly reserved for Supervisors, NOT Admin) */}
@@ -698,10 +698,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                                   type="button"
                                   onClick={() => openReturnModal(claim)}
                                   className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                                  title="Return claim for correction"
+                                  title={t.claims.returnTitle}
                                 >
                                   <ArrowRightLeft className="w-3.5 h-3.5 text-amber-700" />
-                                  <span>Return</span>
+                                  <span>{t.claims.returnAction}</span>
                                 </button>
                               )}
 
@@ -711,10 +711,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                                   type="button"
                                   onClick={() => openAssignModal(claim)}
                                   className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                                  title="Assign to agent"
+                                  title={t.claims.assignTitle}
                                 >
                                   <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-                                  <span>Assign</span>
+                                  <span>{t.claims.assignAction}</span>
                                 </button>
                               )}
                             </>
@@ -726,7 +726,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                               type="button"
                               onClick={() => openDeleteModal(claim)}
                               className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                              title="Delete claim (Admin)"
+                              title={t.claims.deleteAdminTitle}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -791,7 +791,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 ) : claim.status === 'returned' ? (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-extrabold">
                     <ArrowRightLeft className="w-3.5 h-3.5" />
-                    <span>Returned</span>
+                    <span>{t.claims.returnedStatus}</span>
                   </span>
                 ) : (
                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${isSupervisor ? 'bg-rose-50 text-rose-500 border border-rose-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
@@ -812,7 +812,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                     </div>
                   ) : (
                     <span className={`font-medium ${isSupervisor ? roleTheme.palette.primaryText : 'text-emerald-700'}`}>
-                      Coverage approved
+                      {t.claims.coverageApproved}
                     </span>
                   )}
                 </div>
@@ -825,16 +825,16 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                       setBiometricModalOpen(true);
                     }}
                     className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                    title="View and verify archived record"
+                    title={t.claims.verifyArchivedTitle}
                   >
                     <Scan className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Verify</span>
+                    <span>{t.claims.verify}</span>
                   </button>
                   {canDeleteRecord(userRole) && (
                     <button
                       onClick={() => openDeleteModal(claim)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer ml-auto"
-                      title="Delete claim (Admin)"
+                      title={t.claims.deleteAdminTitle}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -854,8 +854,8 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   <th className="py-3 px-4">{t.claims.provider}</th>
                   <th className="py-3 px-4 text-right">{t.claims.amount}</th>
                   <th className="py-3 px-4 text-center">{t.status}</th>
-                  <th className="py-3 px-4">Details / Reason</th>
-                  {canDeleteRecord(userRole) && <th className="py-3 px-4 text-right">Actions</th>}
+                  <th className="py-3 px-4">{t.claims.detailsReason}</th>
+                  {canDeleteRecord(userRole) && <th className="py-3 px-4 text-right">{t.actions}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -891,7 +891,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                       ) : claim.status === 'returned' ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-extrabold">
                           <ArrowRightLeft className="w-3.5 h-3.5" />
-                          <span>Returned</span>
+                          <span>{t.claims.returnedStatus}</span>
                         </span>
                       ) : (
                         // === AMÉLIORATION AJOUTÉE : rouge éclairci pour le badge "Rejected" côté Superviseur ===
@@ -916,7 +916,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                           </div>
                         ) : (
                           <span className={`font-medium ${isSupervisor ? roleTheme.palette.primaryText : 'text-emerald-700'}`}>
-                            Coverage approved
+                            {t.claims.coverageApproved}
                           </span>
                         )}
 
@@ -927,10 +927,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                             setBiometricModalOpen(true);
                           }}
                           className="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 text-[10px] font-bold transition flex items-center gap-1 flex-shrink-0 cursor-pointer"
-                          title="View and verify archived record"
+                          title={t.claims.verifyArchivedTitle}
                         >
                           <Scan className="w-3 h-3 text-slate-600" />
-                          <span>Verify</span>
+                          <span>{t.claims.verify}</span>
                         </button>
                       </div>
                     </td>
@@ -939,7 +939,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                         <button
                           onClick={() => openDeleteModal(claim)}
                           className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                          title="Delete claim (Admin)"
+                          title={t.claims.deleteAdminTitle}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -966,7 +966,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 </div>
                 <div>
                   <h3 className="font-bold text-base">
-                    Return Claim for Correction
+                    {t.claims.returnModalTitle}
                   </h3>
                   <p className="text-xs text-amber-100">
                     {selectedClaimToReturn.reference} • {selectedClaimToReturn.memberName}
@@ -984,13 +984,13 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
             <form onSubmit={handleConfirmReturn} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Correction instructions & details <span className="text-rose-600">*</span>
+                  {t.claims.returnInstructionsLabel} <span className="text-rose-600">*</span>
                 </label>
                 <textarea
                   rows={4}
                   value={returnReason}
                   onChange={(e) => setReturnReason(e.target.value)}
-                  placeholder="Specify missing documents or adjustments for the intake agent..."
+                  placeholder={t.claims.returnPlaceholder}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   required
                 />
@@ -1008,7 +1008,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   type="submit"
                   className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 cursor-pointer"
                 >
-                  Confirm Return
+                  {t.claims.confirmReturn}
                 </button>
               </div>
             </form>
@@ -1027,7 +1027,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-slate-900">
-                    Assign Claim to Agent
+                    {t.claims.assignModalTitle}
                   </h3>
                   <p className="text-xs text-slate-500">
                     {selectedClaimToAssign.reference} • {selectedClaimToAssign.memberName}
@@ -1045,13 +1045,13 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
             <form onSubmit={handleConfirmAssign} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Assignee Agent Name or ID <span className="text-rose-600">*</span>
+                  {t.claims.assigneeLabel} <span className="text-rose-600">*</span>
                 </label>
                 <input
                   type="text"
                   value={assignAgentName}
                   onChange={(e) => setAssignAgentName(e.target.value)}
-                  placeholder="e.g. Agent Martin / ag.intake"
+                  placeholder={t.claims.assigneePlaceholder}
                   className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 ${roleTheme.palette.accentRing}`}
                   required
                 />
@@ -1069,7 +1069,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   type="submit"
                   className={`px-5 py-2.5 rounded-xl ${roleTheme.palette.primaryColor} text-white text-xs font-bold cursor-pointer`}
                 >
-                  Confirm Assignment
+                  {t.claims.confirmAssignment}
                 </button>
               </div>
             </form>
@@ -1087,7 +1087,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
               </div>
               <div>
                 <h3 className="font-extrabold text-base text-slate-900">
-                  Delete Claim?
+                  {t.claims.deleteClaimTitle}
                 </h3>
                 <p className="text-xs text-slate-500">
                   {selectedClaimToDelete.reference} ({selectedClaimToDelete.memberName})
@@ -1095,7 +1095,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
               </div>
             </div>
             <p className="text-xs text-slate-600">
-              This action is irreversible and strictly restricted to authorized Administrators.
+              {t.claims.deleteClaimWarning}
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <button
@@ -1108,7 +1108,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 onClick={handleConfirmDelete}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20 cursor-pointer"
               >
-                Delete Claim
+                {t.claims.deleteClaimConfirm}
               </button>
             </div>
           </div>
@@ -1128,7 +1128,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 <div>
                   <h3 className="font-bold text-base">{t.claims.rejectModalTitle}</h3>
                   <p className="text-xs text-rose-100">
-                    Ref. {selectedClaimToReject.reference} • {selectedClaimToReject.memberName}
+                    {t.claims.refLabel} {selectedClaimToReject.reference} • {selectedClaimToReject.memberName}
                   </p>
                 </div>
               </div>
@@ -1212,7 +1212,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
               <div>
                 <h3 className="font-bold text-base text-slate-900">{t.claims.newClaim}</h3>
                 <p className="text-xs text-slate-500">
-                  Direct entry of a new health claim
+                  {t.claims.newClaimSubtitle}
                 </p>
               </div>
               <button
@@ -1226,7 +1226,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
             <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {t.claims.insured} / Card No.
+                  {t.claims.insured} / {t.claims.cardNo}
                 </label>
                 <select
                   value={newClaimForm.memberCardNo}
@@ -1244,7 +1244,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   required
                 >
                   <option value="">
-                    Select an insured member...
+                    {t.claims.selectInsuredPlaceholder}
                   </option>
                   {members.map((m) => (
                     <option key={m.id} value={m.cardNo}>
@@ -1268,7 +1268,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                     required
                   >
                     <option value="">
-                      Select a provider...
+                      {t.claims.selectProviderPlaceholder}
                     </option>
                     {providers.map((p) => (
                       <option key={p.id} value={p.name}>
