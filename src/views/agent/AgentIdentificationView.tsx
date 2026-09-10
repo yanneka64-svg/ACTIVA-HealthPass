@@ -632,9 +632,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     l'organisation de l'assuré (module opt-in, aucun impact sur les organisations
                     n'ayant pas encore de police renseignée). Contenu strictement identique à
                     avant, seul son emplacement dans la page a changé. === */}
+                {/* === AMÉLIORATION AJOUTÉE : bannière réduite (padding/texte plus petits, sur
+                    demande explicite) — même contenu et mêmes conditions qu'avant. === */}
                 {policyCoverage && selectedPolicy && (
                   <div
-                    className={`rounded-2xl border p-5 space-y-2 ${
+                    className={`rounded-xl border px-3.5 py-2.5 space-y-1 ${
                       policyCoverage.status === 'Active'
                         ? 'bg-emerald-50 border-emerald-200'
                         : policyCoverage.status === 'Expiring Soon'
@@ -644,9 +646,9 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         : 'bg-rose-50 border-rose-300'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <h4
-                        className={`text-xs font-black uppercase tracking-wide flex items-center gap-1.5 ${
+                        className={`text-[10.5px] font-black uppercase tracking-wide flex items-center gap-1 ${
                           policyCoverage.status === 'Active'
                             ? 'text-emerald-800'
                             : policyCoverage.status === 'Expiring Soon'
@@ -654,7 +656,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                             : 'text-rose-800'
                         }`}
                       >
-                        {policyCoverage.coverageBlocked ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                        {policyCoverage.coverageBlocked ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
                         <span>
                           {policyCoverage.status === 'Active' && 'Member Verified — Access to Healthcare'}
                           {policyCoverage.status === 'Expiring Soon' && 'Member Verified — Policy Expiring Soon'}
@@ -663,11 +665,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           {policyCoverage.status === 'Pending Renewal' && 'Policy Pending Renewal'}
                         </span>
                       </h4>
-                      <span className="text-[10px] font-mono font-bold text-slate-500">Policy: {selectedPolicy.policyNumber}</span>
+                      <span className="text-[9.5px] font-mono font-bold text-slate-500 shrink-0">Policy: {selectedPolicy.policyNumber}</span>
                     </div>
 
                     {policyCoverage.status === 'Active' && (
-                      <p className="text-xs text-emerald-800 font-medium">
+                      <p className="text-[11px] text-emerald-800 font-medium">
                         Policy Status: <strong>ACTIVE</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong>
                         {selectedPolicy.nextPaymentDueDate && (
                           <>
@@ -677,19 +679,19 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                       </p>
                     )}
                     {policyCoverage.status === 'Expiring Soon' && (
-                      <p className="text-xs text-amber-800 font-medium">
+                      <p className="text-[11px] text-amber-800 font-medium">
                         Policy Status: <strong>EXPIRING SOON</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong> ({policyCoverage.daysUntilExpiration} day(s) left)
                       </p>
                     )}
                     {policyCoverage.status === 'Expired' && (
-                      <p className="text-xs text-rose-800 font-medium leading-relaxed">
+                      <p className="text-[11px] text-rose-800 font-medium leading-relaxed">
                         Status: <strong>EXPIRED</strong> &bull; Expired on: <strong>{selectedPolicy.expirationDate}</strong>
                         <br />
                         This insured member and all covered dependents are not eligible for healthcare services under this policy.
                       </p>
                     )}
                     {policyCoverage.status === 'Suspended' && (
-                      <p className="text-xs text-rose-800 font-medium leading-relaxed">
+                      <p className="text-[11px] text-rose-800 font-medium leading-relaxed">
                         Status: <strong>SUSPENDED</strong> &bull; Reason: <strong>{(policyCoverage.suspensionReason || 'ADMINISTRATIVE').toUpperCase()}</strong>
                         {selectedPolicy.nextPaymentDueDate && (
                           <>
@@ -850,7 +852,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                         <Clock className="w-4 h-4 text-[#0A347B]" />
-                        <span>Care History (This Month)</span>
+                        <span>Care History</span>
                       </h4>
                       <span className="text-[10px] font-semibold text-slate-400">{currentMonthLabel}</span>
                     </div>
