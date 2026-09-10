@@ -4,6 +4,9 @@ import autoTable from 'jspdf-autotable';
 import { Member, Organization, Provider, Claim, InvoiceItem, DependentItem, DependentRelationship, HealthPolicy, PolicyPayment, CardNumberPreviewRow } from '../types';
 import { drawPdfLogoStrip, drawRefinedHeaderTitle, PDF_LOGO_STRIP_HEIGHT } from './pdfBranding';
 import { planCardNumbersForImport } from '../services/cardNumberService';
+// === AMÉLIORATION AJOUTÉE : rapport de réconciliation exportable (2026-09-10) — voir
+// exportReconciliationToExcel / exportReconciliationToPDF plus bas.
+import { ReconciliationSummary } from '../modules/reimbursement/reconciliation';
 
 // Normalization helper: remove accents, lowercase, trim, remove symbols
 export function normalizeHeader(header: string): string {
@@ -2124,6 +2127,143 @@ export function exportReportsToPDF(
   });
 
   doc.save(`ACTIVA_Analytical_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+// === AMÉLIORATION AJOUTÉE : rapport de réconciliation des paiements, exportable (2026-09-10,
+// sur demande explicite de l'utilisateur). Jusqu'ici, le panneau "Payment Reconciliation"
+// (ReconciliationSummary.tsx) n'existait qu'en affichage direct sur l'écran Factures, sans
+// équivalent téléchargeable. Même population de factures et mêmes calculs que ce panneau
+// (computeReconciliationSummary) — ce rapport ne fait qu'exposer ces chiffres déjà existants
+// dans un document exportable, avec en plus le détail facture par facture.
+export function exportReconciliationToExcel(invoices: InvoiceItem[], summary: ReconciliationSummary) {
+  const wb = XLSX.utils.book_new();
+
+  const summaryData = [
+    { Metric: 'Approved Invoices', Count: summary.approvedCount, 'Amount (USD)': summary.approvedAmount },
+    { Metric: 'Paid', Count: summary.paidCount, 'Amount (USD)': summary.paidAmount },
+    { Metric: 'Outstanding', Count: summary.outstandingCount, 'Amount (USD)': summary.outstandingAmount },
+    { Metric: 'Refacted', Count: summary.refactedCount, 'Amount (USD)': summary.refactedAmount },
+    { Metric: 'Pending Recovery', Count: summary.pendingRecoveryCount, 'Amount (USD)': summary.pendingRecoveryAmount },
+  ];
+  const wsSummary = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(summaryData));
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+  const approvedInvoices = invoices.filter((i) => i.status === 'valid' || (i.status as string) === 'approved');
+  const detailData = approvedInvoices.map((i) => ({
+    'Reference': i.reference,
+    'Organization': i.organization,
+    'Provider': i.provider,
+    'Patient': i.patientName,
+    'Service Date': i.serviceDate,
+    'Original Amount (USD)': i.amount,
+    'Payable Amount (USD)': i.payableAmountUSD ?? i.amount,
+    'Payment Status': i.paymentStatus === 'paid' ? 'Paid' : 'Outstanding',
+    'Paid At': i.paidAt || '',
+    'Payment Reference': i.paymentReference || '',
+    'Refaction Applied': i.refactionApplied ? 'YES' : 'NO',
+    'Refacted Amount (USD)': i.refactionTotalUSD || 0,
+    'Recovered Amount (USD)': i.recoveredTotalUSD || 0,
+    'Pending Recovery (USD)': i.refactionApplied ? Math.max(0, (i.refactionTotalUSD || 0) - (i.recoveredTotalUSD || 0)) : 0,
+  }));
+  const wsDetail = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(detailData));
+  XLSX.utils.book_append_sheet(wb, wsDetail, 'Invoice Detail');
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Payment_Reconciliation_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+export function exportReconciliationToPDF(invoices: InvoiceItem[], summary: ReconciliationSummary) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(10, 46, 107);
+  doc.rect(0, 0, pageWidth, 28, 'F');
+  doc.setFillColor(0, 168, 89);
+  doc.rect(0, 28, pageWidth, 3, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  drawRefinedHeaderTitle(doc, 'ACTIVA HEALTHCARE ASSURANCE', 15, 12, { charSpace: 0.2 });
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  drawRefinedHeaderTitle(doc, 'PAYMENT RECONCILIATION REPORT', 15, 19);
+  doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 15, 24);
+
+  drawPdfLogoStrip(doc, pageWidth, 31);
+  let currentY = 40 + PDF_LOGO_STRIP_HEIGHT;
+
+  doc.setTextColor(10, 46, 107);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  drawRefinedHeaderTitle(doc, '1. RECONCILIATION SUMMARY', 15, currentY, { charSpace: 0.15 });
+  currentY += 8;
+
+  const cardW = (pageWidth - 30 - 20) / 5;
+  const cardH = 22;
+  const kpiItems = [
+    { label: 'Approved', val: `$${summary.approvedAmount.toLocaleString('en-US')}`, sub: `${summary.approvedCount} inv.` },
+    { label: 'Paid', val: `$${summary.paidAmount.toLocaleString('en-US')}`, sub: `${summary.paidCount} inv.` },
+    { label: 'Outstanding', val: `$${summary.outstandingAmount.toLocaleString('en-US')}`, sub: `${summary.outstandingCount} inv.` },
+    { label: 'Refacted', val: `$${summary.refactedAmount.toLocaleString('en-US')}`, sub: `${summary.refactedCount} inv.` },
+    { label: 'Pending Recovery', val: `$${summary.pendingRecoveryAmount.toLocaleString('en-US')}`, sub: `${summary.pendingRecoveryCount} inv.` },
+  ];
+
+  kpiItems.forEach((k, idx) => {
+    const x = 15 + idx * (cardW + 5);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(x, currentY, cardW, cardH, 2, 2, 'F');
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(x, currentY, cardW, cardH, 2, 2, 'S');
+
+    doc.setTextColor(100, 116, 139);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text(k.label, x + 3, currentY + 6);
+
+    doc.setTextColor(10, 46, 107);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(k.val, x + 3, currentY + 13);
+
+    doc.setTextColor(148, 163, 184);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.text(k.sub, x + 3, currentY + 19);
+  });
+
+  currentY += cardH + 12;
+
+  doc.setTextColor(10, 46, 107);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  drawRefinedHeaderTitle(doc, '2. INVOICE-LEVEL DETAIL (APPROVED)', 15, currentY, { charSpace: 0.15 });
+  currentY += 4;
+
+  const approvedInvoices = invoices.filter((i) => i.status === 'valid' || (i.status as string) === 'approved');
+  const rows = approvedInvoices.map((i) => [
+    i.reference,
+    i.organization,
+    `$${(i.payableAmountUSD ?? i.amount).toLocaleString('en-US')}`,
+    i.paymentStatus === 'paid' ? 'Paid' : 'Outstanding',
+    i.refactionApplied ? `$${(i.refactionTotalUSD || 0).toLocaleString('en-US')}` : '—',
+  ]);
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['Reference', 'Organization', 'Payable ($ USD)', 'Payment Status', 'Refacted ($ USD)']],
+    body: rows,
+    headStyles: {
+      fillColor: [13, 63, 143],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    bodyStyles: { fontSize: 7.5 },
+  });
+
+  doc.save(`ACTIVA_Payment_Reconciliation_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 // ================= ANALYTICAL PDF REPORT GENERATOR =================
