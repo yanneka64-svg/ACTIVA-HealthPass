@@ -195,6 +195,25 @@ interface AccountsViewProps {
 
 export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLogs }) => {
   const t = useTranslation(lang);
+  // === AMÉLIORATION AJOUTÉE : libellé/description traduits pour chaque habilitation
+  // (HABILITATIONS_SCHEMA) — le tableau exporté ci-dessus reste inchangé (clé `key` utilisée
+  // pour les permissions réelles), seul le texte AFFICHÉ est résolu via cette table locale.
+  const getHabDisplay = (key: string, fallbackLabel: string, fallbackDescription: string) => {
+    const entry = (t.accounts.habilitations as Record<string, { label: string; description: string }>)[key];
+    return entry || { label: fallbackLabel, description: fallbackDescription };
+  };
+  const profileLabels: Record<string, string> = {
+    Agent: t.accounts.profileAgent,
+    Supervisor: t.accounts.profileSupervisor,
+    Admin: t.accounts.profileAdmin,
+  };
+  const permCategoryLabels: Record<string, string> = {
+    all: t.accounts.allCategoriesOption,
+    'Dossier & Claim Management': t.accounts.catDossierClaim,
+    'Validation & Decision': t.accounts.catValidationDecision,
+    'Statistics & Reporting': t.accounts.catStatisticsReporting,
+    'Administration & System': t.accounts.catAdministrationSystem,
+  };
   const [accounts, setAccounts] = useState<UserAccount[]>([]);
   React.useEffect(() => {
     const unsub = FirestoreService.subscribeToAccounts(setAccounts);
@@ -272,7 +291,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
-    showToast('Password copied to clipboard!');
+    showToast(t.accounts.passwordCopied);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -352,7 +371,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     e.preventDefault();
     setFormError(null);
     if (!formData.email || !formData.fullName || !formData.position) {
-      setFormError('Please fill all required fields.');
+      setFormError(t.accounts.requiredFieldsError);
       return;
     }
 
@@ -369,9 +388,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       cleanUsernameEarly &&
       accounts.some((a) => (a.username || '').toLowerCase() === cleanUsernameEarly.toLowerCase())
     ) {
-      setFormError(
-        `Username "${cleanUsernameEarly}" is already used by another account. Please choose a different username.`
-      );
+      setFormError(t.accounts.usernameAlreadyUsedErrorTemplate.replace('{username}', cleanUsernameEarly));
       return;
     }
 
@@ -436,7 +453,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       await setDoc(doc(db, 'accounts', uid), newAccountDoc);
     } catch (err: any) {
       console.error(err);
-      setFormError(err.message || "Firebase creation error");
+      setFormError(err.message || t.accounts.firebaseCreationErrorFallback);
       setIsSubmitting(false);
       return;
     }
@@ -470,7 +487,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     // Prompt the on-screen credentials dialog matching Screenshot 3
     setCredentialDialog({
       isOpen: true,
-      title: 'User Account Created Successfully',
+      title: t.accounts.credentialCreatedTitle,
       fullName: formData.fullName.trim(),
       email: formData.email.trim(),
       username: cleanUsername.toLowerCase(),
@@ -478,7 +495,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       profile: formData.profile,
       actionType: 'created',
     });
-    showToast(`Account for ${formData.fullName} created successfully.`);
+    showToast(t.accounts.accountCreatedToastTemplate.replace('{name}', formData.fullName));
   };
 
   const handleOpenEdit = (acc: UserAccount) => {
@@ -505,7 +522,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     setFormError(null);
     if (!selectedAccount) return;
     if (!formData.email || !formData.fullName || !formData.position) {
-      setFormError('Please fill all required fields.');
+      setFormError(t.accounts.requiredFieldsError);
       return;
     }
 
@@ -543,10 +560,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       await FirestoreService.updateAccount(updatedAcc);
       
       setEditModalOpen(false);
-      showToast(`Account ${updatedAcc.username} updated.`);
+      showToast(t.accounts.accountUpdatedToastTemplate.replace('{username}', updatedAcc.username));
     } catch (err: any) {
       console.error(err);
-      setFormError(err.message || 'Firebase update error');
+      setFormError(err.message || t.accounts.firebaseUpdateErrorFallback);
     } finally {
       setIsSubmitting(false);
     }
@@ -572,14 +589,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       await resetFn({ uid: acc.id, newPassword });
     } catch (e: any) {
       console.error('Password reset failed:', e);
-      showToast(e?.message || 'Failed to reset password. Please try again.');
+      showToast(e?.message || t.accounts.resetPasswordFailedToast);
       return;
     }
 
     // Prompt the on-screen credentials dialog with new password
     setCredentialDialog({
       isOpen: true,
-      title: 'Password Reset Successfully',
+      title: t.accounts.credentialResetTitle,
       email: acc.email,
       username: acc.username,
       password: newPassword,
@@ -596,7 +613,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       updateDoc(doc(db, 'accounts', acc.id), { isActive: updatedStatus }).catch(() => {});
     });
     
-    showToast(`Account ${acc.fullName || acc.username} ${updatedStatus ? 'activated' : 'deactivated'}.`);
+    const accLabel = acc.fullName || acc.username;
+    showToast(
+      updatedStatus
+        ? t.accounts.accountActivatedToastTemplate.replace('{name}', accLabel)
+        : t.accounts.accountDeactivatedToastTemplate.replace('{name}', accLabel)
+    );
   };
 
   // === AMÉLIORATION AJOUTÉE : sécurité/correctif (retour utilisateur, 2026-09-07 — comptes
@@ -611,14 +633,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
       await deleteFn({ uid: id });
     } catch (err: any) {
       console.error('Account deletion error:', err);
-      showToast(err?.message || `Failed to delete account ${email}. Please try again.`);
+      showToast(err?.message || t.accounts.deleteAccountFailedToastTemplate.replace('{email}', email));
       setAccountToDelete(null);
       return;
     }
     // Optimistically update local state immediately
     setAccounts((prev) => prev.filter((a) => a.id !== id));
     setAccountToDelete(null);
-    showToast(`Account ${email} deleted.`);
+    showToast(t.accounts.accountDeletedToastTemplate.replace('{email}', email));
   };
 
   const handleToggleMobileAccess = async (acc: UserAccount) => {
@@ -627,8 +649,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     setAccounts((prev) => prev.map((a) => (a.id === acc.id ? updatedAcc : a)));
     showToast(
       updatedAcc.mobileAccessEnabled
-        ? `Mobile access enabled for ${acc.email}`
-        : `Mobile access disabled for ${acc.email}`
+        ? t.accounts.mobileAccessEnabledToastTemplate.replace('{email}', acc.email)
+        : t.accounts.mobileAccessDisabledToastTemplate.replace('{email}', acc.email)
     );
   };
 
@@ -653,7 +675,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Accounts downloaded in CSV!');
+    showToast(t.accounts.accountsDownloadedToast);
   };
 
   // Filtered unique accounts
@@ -698,7 +720,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name, email, phone..."
+              placeholder={t.accounts.searchPlaceholder}
               className="w-full pl-8 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:bg-white transition"
             />
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
@@ -714,11 +736,11 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             onChange={(e) => setProfileFilter(e.target.value)}
             className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer"
           >
-            <option value="ALL">All Profiles</option>
-            <option value="Admin">Administrators</option>
-            <option value="Supervisor">Supervisors</option>
-            <option value="Superviseur">Supervisors</option>
-            <option value="Agent">Field Agents</option>
+            <option value="ALL">{t.accounts.allProfilesOption}</option>
+            <option value="Admin">{t.accounts.administratorsOption}</option>
+            <option value="Supervisor">{t.accounts.supervisorsOption}</option>
+            <option value="Superviseur">{t.accounts.supervisorsOption}</option>
+            <option value="Agent">{t.accounts.fieldAgentsOption}</option>
           </select>
         </div>
 
@@ -728,10 +750,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             type="button"
             onClick={() => setMatrixModalOpen(true)}
             className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 shadow-2xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            title="View permissions matrix by role (Agent, Supervisor, Admin)"
+            title={t.accounts.matrixBtnTitle}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-slate-700" />
-            <span>Role Permissions Matrix</span>
+            <span>{t.accounts.matrixBtnLabel}</span>
           </button>
 
           {/* Create Account Button */}
@@ -741,7 +763,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             className={`px-3.5 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap`}
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>New Account</span>
+            <span>{t.accounts.newAccountBtn}</span>
           </button>
         </div>
       </div>
@@ -752,7 +774,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
           <div className="flex items-center gap-3">
             <Users className="w-4 h-4 text-slate-700" />
             <h3 className="font-extrabold text-sm text-slate-900">
-              User Accounts & Mobile Access
+              {t.accounts.sectionTitle}
             </h3>
             <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-black">
               {filteredAccounts.length}
@@ -762,18 +784,18 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
         {filteredAccounts.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-xs font-medium">
-            No user accounts match your search.
+            {t.accounts.noAccountsMatch}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">User ID & Name</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4">Role & Entitlements</th>
-                  <th className="py-3 px-4 text-center">Mobile Access</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="py-3 px-4">{t.accounts.colUserIdName}</th>
+                  <th className="py-3 px-4">{t.accounts.colEmail}</th>
+                  <th className="py-3 px-4">{t.accounts.role}</th>
+                  <th className="py-3 px-4 text-center">{t.accounts.colMobileAccess}</th>
+                  <th className="py-3 px-4 text-right">{t.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -784,7 +806,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-slate-900 font-mono">
-                            {acc.username || 'Not assigned'}
+                            {acc.username || t.accounts.notAssigned}
                           </span>
                           <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 border border-slate-300 text-slate-700 text-[10px] font-extrabold">
                             {acc.entity || (acc.country ? (acc.country.startsWith('ACTIVA') ? acc.country : `ACTIVA ${acc.country}`) : 'ACTIVA Liberia')}
@@ -801,10 +823,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                           {acc.email}
                         </div>
                         <span className="text-[10px] text-slate-400 block mt-1">
-                          Created on {acc.createdAt}
+                          {t.accounts.createdOnLabel} {acc.createdAt}
                           {!acc.isActive && (
                             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700">
-                              Inactive
+                              {t.accounts.inactiveBadge}
                             </span>
                           )}
                         </span>
@@ -815,24 +837,24 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                         {acc.profile === 'Admin' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-300 text-[11px] font-black">
                             <ShieldCheck className="w-3 h-3 text-slate-600" />
-                            <span>Admin</span>
+                            <span>{t.accounts.profileAdmin}</span>
                           </span>
                         )}
                         {(acc.profile === 'Supervisor' || acc.profile === 'Superviseur') && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[11px] font-black">
                             <UserCheck className="w-3 h-3 text-indigo-600" />
-                            <span>Supervisor</span>
+                            <span>{t.accounts.profileSupervisor}</span>
                           </span>
                         )}
                         {acc.profile === 'Agent' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-black">
                             <Smartphone className="w-3 h-3 text-emerald-600" />
-                            <span>Agent</span>
+                            <span>{t.accounts.profileAgent}</span>
                           </span>
                         )}
                         <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
                           <Shield className="w-2.5 h-2.5 text-slate-500" />
-                          <span>{(acc.permissions?.length || getPermissionsForProfile(acc.profile)).length} active permissions</span>
+                          <span>{(acc.permissions?.length || getPermissionsForProfile(acc.profile)).length} {t.accounts.activePermissionsSuffix}</span>
                         </div>
                       </td>
 
@@ -861,21 +883,21 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                             type="button"
                             onClick={() => handleToggleStatus(acc)}
                             className={`px-2.5 py-1.5 rounded-lg ${acc.isActive ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'} border border-transparent text-[11px] font-extrabold transition flex items-center gap-1 cursor-pointer`}
-                            title={acc.isActive ? "Deactivate account" : "Activate account"}
+                            title={acc.isActive ? t.accounts.deactivateTitle : t.accounts.activateTitle}
                           >
                             <Shield className="w-3 h-3" />
-                            <span>{acc.isActive ? 'Deactivate' : 'Activate'}</span>
+                            <span>{acc.isActive ? t.accounts.deactivateBtn : t.accounts.activateBtn}</span>
                           </button>
-                          
+
                           {/* Reset Password Button */}
                           <button
                             type="button"
                             onClick={() => handleResetPassword(acc)}
                             className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-extrabold transition flex items-center gap-1 cursor-pointer"
-                            title="Reset password and display on screen"
+                            title={t.accounts.resetTitle}
                           >
                             <KeyRound className="w-3 h-3 text-amber-600" />
-                            <span>Reset</span>
+                            <span>{t.accounts.resetBtn}</span>
                           </button>
 
                           {/* Edit */}
@@ -883,7 +905,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                             type="button"
                             onClick={() => handleOpenEdit(acc)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                            title="Edit account"
+                            title={t.accounts.editAccountTitle}
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
@@ -893,7 +915,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                             type="button"
                             onClick={() => setAccountToDelete({ id: acc.id, email: acc.email, name: acc.fullName || acc.username })}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                            title="Delete account"
+                            title={t.accounts.deleteAccountTitle}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -917,14 +939,21 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <Trash2 className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-900">Delete User Account</h3>
+                <h3 className="text-base font-extrabold text-slate-900">{t.accounts.deleteAccountModalTitle}</h3>
                 <p className="text-xs text-slate-500 mt-1.5">
-                  Are you sure you want to permanently delete the account for{' '}
-                  <span className="font-bold text-slate-800">{accountToDelete.name ? `${accountToDelete.name} (${accountToDelete.email})` : accountToDelete.email}</span>?
+                  {(() => {
+                    const [before, after] = t.accounts.deleteConfirmDescTemplate.split('{target}');
+                    const target = accountToDelete.name ? `${accountToDelete.name} (${accountToDelete.email})` : accountToDelete.email;
+                    return (
+                      <>
+                        {before}<span className="font-bold text-slate-800">{target}</span>{after}
+                      </>
+                    );
+                  })()}
                 </p>
               </div>
               <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-xl text-[11px] text-rose-800 text-left">
-                ⚠️ This action will remove the account credentials and all associated system permissions.
+                ⚠️ {t.accounts.deleteWarningNotice}
               </div>
               <div className="flex items-center gap-3 pt-2">
                 <button
@@ -932,14 +961,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   onClick={() => setAccountToDelete(null)}
                   className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition cursor-pointer"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDeleteAccount(accountToDelete.id, accountToDelete.email)}
                   className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
                 >
-                  Delete Account
+                  {t.accounts.deleteAccountBtn}
                 </button>
               </div>
             </div>
@@ -958,10 +987,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
             <div>
               <h3 className="text-base sm:text-lg font-extrabold text-slate-900">
-                {credentialDialog.title || 'User Account Created Successfully'}
+                {credentialDialog.title || t.accounts.credentialCreatedTitle}
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Please securely deliver these authentication credentials to the user:
+                {t.accounts.credentialSubtitle}
               </p>
             </div>
 
@@ -969,7 +998,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             <div className="p-4 sm:p-5 bg-slate-50 border border-slate-200/80 rounded-2xl text-left space-y-3.5 shadow-2xs">
               <div>
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                  Full Name & Role
+                  {t.accounts.fullNameRoleLabel}
                 </span>
                 <p className="font-mono text-xs font-black text-slate-900 uppercase tracking-wide mt-0.5">
                   {credentialDialog.fullName || credentialDialog.email} ({(credentialDialog.profile || 'AGENT').toUpperCase()})
@@ -978,7 +1007,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
               <div>
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                  Username (Login ID)
+                  {t.accounts.usernameLoginIdLabel}
                 </span>
                 <div className="mt-0.5 inline-block px-3 py-1 rounded-lg bg-slate-100 border border-slate-300 text-slate-800 font-mono text-xs font-bold">
                   {credentialDialog.username || credentialDialog.email}
@@ -987,7 +1016,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
               <div>
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                  Work Email
+                  {t.accounts.workEmailLabel}
                 </span>
                 <p className="font-mono text-xs font-semibold text-slate-700 mt-0.5">
                   {credentialDialog.email}
@@ -996,7 +1025,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
               <div>
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                  Temporary Password
+                  {t.accounts.temporaryPasswordLabel}
                 </span>
                 <div className="mt-0.5 flex items-center justify-between gap-2">
                   <div className="inline-block px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 font-mono text-xs font-bold tracking-wide">
@@ -1006,7 +1035,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     type="button"
                     onClick={() => copyToClipboard(credentialDialog.password, 'modal-pwd')}
                     className="p-1 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                    title="Copy password"
+                    title={t.accounts.copyPasswordTitle}
                   >
                     {copiedId === 'modal-pwd' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                   </button>
@@ -1016,7 +1045,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
             {/* Security Notice */}
             <div className="p-3.5 bg-[var(--brand-50)]/70 border border-[var(--brand-200)]/80 rounded-2xl text-xs text-[var(--brand-900)] leading-relaxed text-left">
-              <strong>Security Notice:</strong> The user will be required to change this password on their first login before accessing their dashboard.
+              <strong>{t.accounts.securityNoticeLabel}</strong> {t.accounts.securityNoticeText}
             </div>
 
             {/* Actions */}
@@ -1027,20 +1056,20 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   const fullSummary = `ACTIVA HealthPass Credentials:\n- Name: ${credentialDialog.fullName || ''} (${credentialDialog.profile})\n- Username: ${credentialDialog.username || credentialDialog.email}\n- Email: ${credentialDialog.email}\n- Temporary Password: ${credentialDialog.password}\n- Note: User must change password on first login.`;
                   navigator.clipboard.writeText(fullSummary);
                   setCopiedId('modal-all');
-                  showToast('Credentials copied to clipboard!');
+                  showToast(t.accounts.credentialsCopiedToast);
                   setTimeout(() => setCopiedId(null), 2500);
                 }}
                 className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer"
               >
                 {copiedId === 'modal-all' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
-                <span>{copiedId === 'modal-all' ? 'Copied!' : 'Copy Credentials'}</span>
+                <span>{copiedId === 'modal-all' ? t.accounts.copiedLabel : t.accounts.copyCredentialsBtn}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setCredentialDialog((prev) => ({ ...prev, isOpen: false }))}
                 className={`py-2.5 px-8 ${ADMIN_THEME.palette.primaryColor} text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer`}
               >
-                Done
+                {t.accounts.doneBtn}
               </button>
             </div>
           </div>
@@ -1059,10 +1088,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 </div>
                 <div>
                   <h2 className="text-base font-extrabold text-slate-900">
-                    Edit Account & Permissions ({selectedAccount.username})
+                    {t.accounts.editAccountModalTitleTemplate.replace('{username}', selectedAccount.username)}
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Update contact details and access rights
+                    {t.accounts.editModalSubtitle}
                   </p>
                 </div>
               </div>
@@ -1086,12 +1115,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
               {/* Profile Selection */}
               <div className="space-y-2">
-                <h3 className="text-xs font-extrabold text-slate-900">Profile & Primary Role:</h3>
+                <h3 className="text-xs font-extrabold text-slate-900">{t.accounts.profilePrimaryRoleLabel}</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { role: 'Agent' as UserProfile, desc: 'Enrollment, data entry & tracking within their scope' },
-                    { role: 'Supervisor' as UserProfile, desc: 'Validation, rejection, return & reporting' },
-                    { role: 'Admin' as UserProfile, desc: 'Global management, deletion & system administration' },
+                    { role: 'Agent' as UserProfile, desc: t.accounts.roleDescAgent },
+                    { role: 'Supervisor' as UserProfile, desc: t.accounts.roleDescSupervisor },
+                    { role: 'Admin' as UserProfile, desc: t.accounts.roleDescAdmin },
                   ].map(({ role, desc }) => {
                     const isSelected = formData.profile === role || (role === 'Supervisor' && formData.profile === 'Superviseur');
                     return (
@@ -1115,7 +1144,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                             <Check className="w-3.5 h-3.5 stroke-[3]" />
                           </div>
                         )}
-                        <h4 className="text-sm font-extrabold text-slate-900">{role}</h4>
+                        <h4 className="text-sm font-extrabold text-slate-900">{profileLabels[role] || role}</h4>
                         <p className="text-xs text-slate-500 mt-1 leading-snug">{desc}</p>
                       </div>
                     );
@@ -1130,10 +1159,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     <ShieldCheck className="w-5 h-5 text-slate-700 shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
-                        Permissions Assignment ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} active)
+                        {t.accounts.permissionsAssignmentTemplate
+                          .replace('{count}', String(formData.permissions?.length || 0))
+                          .replace('{total}', String(HABILITATIONS_SCHEMA.length))}
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Adjust rights individually or apply a standard profile
+                        {t.accounts.adjustRightsHint}
                       </p>
                     </div>
                   </div>
@@ -1143,21 +1174,21 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       onClick={() => setFormData({ ...formData, permissions: getPermissionsForProfile(formData.profile) })}
                       className="px-3 py-1 bg-white border border-slate-300 text-slate-700 text-xs font-semibold rounded-full hover:bg-slate-100 transition cursor-pointer shadow-2xs"
                     >
-                      Default Profile ({formData.profile})
+                      {t.accounts.defaultProfileBtnTemplate.replace('{profile}', profileLabels[formData.profile] || formData.profile)}
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: HABILITATIONS_SCHEMA.map((h) => h.key) })}
                       className="px-3 py-1 bg-white border border-emerald-400 text-emerald-700 text-xs font-semibold rounded-full hover:bg-emerald-50 transition cursor-pointer shadow-2xs"
                     >
-                      Enable All
+                      {t.accounts.enableAllBtn}
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: [] })}
                       className="px-3 py-1 bg-white border border-rose-400 text-rose-700 text-xs font-semibold rounded-full hover:bg-rose-50 transition cursor-pointer shadow-2xs"
                     >
-                      Disable All
+                      {t.accounts.disableAllBtn}
                     </button>
                   </div>
                 </div>
@@ -1181,7 +1212,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium'
                       }`}
                     >
-                      {cat.label}
+                      {permCategoryLabels[cat.id] || cat.label}
                     </button>
                   ))}
                 </div>
@@ -1192,6 +1223,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     (hab) => activePermCategory === 'all' || hab.category === activePermCategory
                   ).map((hab) => {
                     const isChecked = (formData.permissions || []).includes(hab.key);
+                    const habDisplay = getHabDisplay(hab.key, hab.label, hab.description);
                     return (
                       <div
                         key={hab.key}
@@ -1205,9 +1237,9 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                         className="bg-white border border-slate-200 hover:border-slate-400 rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs transition cursor-pointer"
                       >
                         <div className="pr-3">
-                          <span className="text-xs font-extrabold text-slate-900 block">{hab.label}</span>
+                          <span className="text-xs font-extrabold text-slate-900 block">{habDisplay.label}</span>
                           <span className="text-[11px] text-slate-500 leading-relaxed block mt-0.5">
-                            {hab.description}
+                            {habDisplay.description}
                           </span>
                         </div>
                         <div className="shrink-0 flex items-center">
@@ -1227,25 +1259,25 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               {/* User Inputs Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">Full Name:</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">{t.accounts.fullNameLabel}</label>
                   <input
                     type="text"
                     required
                     value={formData.fullName}
                     onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    placeholder="e.g. Patricia Tweh"
+                    placeholder={t.accounts.fullNamePlaceholder}
                     className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">Job Title / Designation:</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">{t.accounts.jobTitleLabel}</label>
                   <input
                     type="text"
                     required
                     value={formData.position}
                     onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                    placeholder="Field Operations Agent"
+                    placeholder={t.accounts.jobTitlePlaceholder}
                     className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)]"
                   />
                 </div>
@@ -1254,7 +1286,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-extrabold text-slate-900">Username (Login ID):</label>
+                    <label className="text-xs font-extrabold text-slate-900">{t.accounts.usernameLoginIdLabel}:</label>
                   </div>
                   <input
                     type="text"
@@ -1263,25 +1295,25 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-600 cursor-not-allowed"
                   />
                   <span className="text-[11px] text-slate-400 block mt-1">
-                    Unique identifier generated for authentication
+                    {t.accounts.usernameHint}
                   </span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">Email Address:</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">{t.accounts.emailAddressLabel}</label>
                   <div className="relative">
                     <input
                       type="email"
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="first.last@activa-liberia.com"
+                      placeholder={t.accounts.emailPlaceholder}
                       className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] font-medium"
                     />
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   </div>
                   <span className="text-[11px] text-slate-400 block mt-1">
-                    For notifications and correspondence
+                    {t.accounts.emailHint}
                   </span>
                 </div>
               </div>
@@ -1289,34 +1321,34 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               {/* Phone & Mobile Access */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">Phone Number:</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">{t.accounts.phoneNumberLabel}</label>
                   <div className="flex gap-2">
                     <select
                       value={formData.phoneCountryCode}
                       onChange={(e) => setFormData({ ...formData, phoneCountryCode: e.target.value })}
                       className="w-40 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)]"
                     >
-                      <option value="+231">Liberia (+231)</option>
-                      <option value="+237">Cameroon (+237)</option>
-                      <option value="+225">Côte d'Ivoire (+225)</option>
-                      <option value="+233">Ghana (+233)</option>
-                      <option value="+224">Guinea (+224)</option>
-                      <option value="+243">DRC (+243)</option>
-                      <option value="+232">Sierra Leone (+232)</option>
-                      <option value="+33">France (+33)</option>
+                      <option value="+231">{t.accounts.countryLiberia} (+231)</option>
+                      <option value="+237">{t.accounts.countryCameroon} (+237)</option>
+                      <option value="+225">{t.accounts.countryIvoryCoast} (+225)</option>
+                      <option value="+233">{t.accounts.countryGhana} (+233)</option>
+                      <option value="+224">{t.accounts.countryGuinea} (+224)</option>
+                      <option value="+243">{t.accounts.countryDRC} (+243)</option>
+                      <option value="+232">{t.accounts.countrySierraLeone} (+232)</option>
+                      <option value="+33">{t.accounts.countryFrance} (+33)</option>
                     </select>
                     <input
                       type="text"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="77 123 4567"
+                      placeholder={t.accounts.phonePlaceholder}
                       className="flex-1 px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)]"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">ACTIVA Entity / Subsidiary:</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">{t.accounts.entityLabel}</label>
                   <select
                     value={formData.entity || 'ACTIVA Liberia'}
                     onChange={(e) => setFormData({ ...formData, entity: e.target.value })}
@@ -1341,7 +1373,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     className="w-4 h-4 text-slate-700 rounded accent-slate-700 cursor-pointer"
                   />
                   <span className="text-xs font-semibold text-slate-800">
-                    Grant access to Field Mobile Application (HealthPass Android / iOS)
+                    {t.accounts.mobileAccessCheckboxLabel}
                   </span>
                 </label>
               </div>
@@ -1353,7 +1385,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   onClick={() => setEditModalOpen(false)}
                   className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button
                   type="submit"
@@ -1361,7 +1393,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   className={`px-6 py-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer`}
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
-                  <span>Save Changes</span>
+                  <span>{t.accounts.saveChangesBtn}</span>
                 </button>
               </div>
             </form>
@@ -1381,10 +1413,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 </div>
                 <div>
                   <h2 className="text-base font-extrabold text-slate-900">
-                    Create a User Account & Assign Permissions
+                    {t.accounts.createModalTitle}
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Define the profile and precisely adjust access rights
+                    {t.accounts.createModalSubtitle}
                   </p>
                 </div>
               </div>
@@ -1408,12 +1440,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
               {/* Profile & Primary Role Selection (Screenshot 1) */}
               <div className="space-y-2">
-                <h3 className="text-xs font-extrabold text-slate-900">Profile & Primary Role:</h3>
+                <h3 className="text-xs font-extrabold text-slate-900">{t.accounts.profilePrimaryRoleLabel}</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { role: 'Agent' as UserProfile, desc: 'Enrollment, data entry & tracking within their scope' },
-                    { role: 'Supervisor' as UserProfile, desc: 'Validation, rejection, return & reporting' },
-                    { role: 'Admin' as UserProfile, desc: 'Global management, deletion & system administration' },
+                    { role: 'Agent' as UserProfile, desc: t.accounts.roleDescAgent },
+                    { role: 'Supervisor' as UserProfile, desc: t.accounts.roleDescSupervisor },
+                    { role: 'Admin' as UserProfile, desc: t.accounts.roleDescAdmin },
                   ].map(({ role, desc }) => {
                     const isSelected = formData.profile === role || (role === 'Supervisor' && formData.profile === 'Superviseur');
                     return (
@@ -1438,7 +1470,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                             <Check className="w-3.5 h-3.5 stroke-[3]" />
                           </div>
                         )}
-                        <h4 className="text-sm font-extrabold text-slate-900">{role}</h4>
+                        <h4 className="text-sm font-extrabold text-slate-900">{profileLabels[role] || role}</h4>
                         <p className="text-xs text-slate-500 mt-1 leading-snug">{desc}</p>
                       </div>
                     );
@@ -1453,10 +1485,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     <ShieldCheck className="w-5 h-5 text-slate-700 shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
-                        Permissions Assignment ({formData.permissions?.length || 0} / {HABILITATIONS_SCHEMA.length} active)
+                        {t.accounts.permissionsAssignmentTemplate
+                          .replace('{count}', String(formData.permissions?.length || 0))
+                          .replace('{total}', String(HABILITATIONS_SCHEMA.length))}
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Adjust rights individually or apply a standard profile
+                        {t.accounts.adjustRightsHint}
                       </p>
                     </div>
                   </div>
@@ -1466,21 +1500,21 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       onClick={() => setFormData({ ...formData, permissions: getPermissionsForProfile(formData.profile) })}
                       className="px-3 py-1 bg-white border border-slate-300 text-slate-700 text-xs font-semibold rounded-full hover:bg-slate-100 transition cursor-pointer shadow-2xs"
                     >
-                      Default Profile ({formData.profile})
+                      {t.accounts.defaultProfileBtnTemplate.replace('{profile}', profileLabels[formData.profile] || formData.profile)}
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: HABILITATIONS_SCHEMA.map((h) => h.key) })}
                       className="px-3 py-1 bg-white border border-emerald-400 text-emerald-700 text-xs font-semibold rounded-full hover:bg-emerald-50 transition cursor-pointer shadow-2xs"
                     >
-                      Enable All
+                      {t.accounts.enableAllBtn}
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, permissions: [] })}
                       className="px-3 py-1 bg-white border border-rose-400 text-rose-700 text-xs font-semibold rounded-full hover:bg-rose-50 transition cursor-pointer shadow-2xs"
                     >
-                      Disable All
+                      {t.accounts.disableAllBtn}
                     </button>
                   </div>
                 </div>
@@ -1504,7 +1538,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                           : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium'
                       }`}
                     >
-                      {cat.label}
+                      {permCategoryLabels[cat.id] || cat.label}
                     </button>
                   ))}
                 </div>
@@ -1515,6 +1549,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     (hab) => activePermCategory === 'all' || hab.category === activePermCategory
                   ).map((hab) => {
                     const isChecked = (formData.permissions || []).includes(hab.key);
+                    const habDisplay = getHabDisplay(hab.key, hab.label, hab.description);
                     return (
                       <div
                         key={hab.key}
@@ -1528,9 +1563,9 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                         className="bg-white border border-slate-200 hover:border-slate-400 rounded-xl p-3 sm:p-3.5 flex items-center justify-between shadow-2xs transition cursor-pointer"
                       >
                         <div className="pr-3">
-                          <span className="text-xs font-extrabold text-slate-900 block">{hab.label}</span>
+                          <span className="text-xs font-extrabold text-slate-900 block">{habDisplay.label}</span>
                           <span className="text-[11px] text-slate-500 leading-relaxed block mt-0.5">
-                            {hab.description}
+                            {habDisplay.description}
                           </span>
                         </div>
                         <div className="shrink-0 flex items-center">
@@ -1550,7 +1585,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               {/* Form Inputs (Screenshot 2) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">Full Name:</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">{t.accounts.fullNameLabel}</label>
                   <input
                     type="text"
                     required
@@ -1565,19 +1600,19 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                         email: !emailManuallyEdited && autoUname ? `${autoUname}@activa-liberia.com` : formData.email,
                       });
                     }}
-                    placeholder="e.g. Patricia Tweh"
+                    placeholder={t.accounts.fullNamePlaceholder}
                     className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">Job Title / Designation:</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">{t.accounts.jobTitleLabel}</label>
                   <input
                     type="text"
                     required
                     value={formData.position}
                     onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                    placeholder="Field Operations Agent"
+                    placeholder={t.accounts.jobTitlePlaceholder}
                     className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)]"
                   />
                 </div>
@@ -1587,14 +1622,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-extrabold text-slate-900">Username (Login ID):</label>
+                    <label className="text-xs font-extrabold text-slate-900">{t.accounts.usernameLoginIdLabel}:</label>
                     <button
                       type="button"
                       onClick={handleAutoUsername}
                       className="text-xs font-semibold text-slate-600 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
                     >
                       <RefreshCw className="w-3 h-3" />
-                      <span>Auto</span>
+                      <span>{t.accounts.autoBtnLabel}</span>
                     </button>
                   </div>
                   <input
@@ -1609,12 +1644,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-mono font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)]"
                   />
                   <span className="text-[11px] text-slate-400 block mt-1">
-                    Unique identifier generated for authentication
+                    {t.accounts.usernameHint}
                   </span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">Email Address:</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">{t.accounts.emailAddressLabel}</label>
                   <div className="relative">
                     <input
                       type="email"
@@ -1624,13 +1659,13 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                         setEmailManuallyEdited(true);
                         setFormData({ ...formData, email: e.target.value });
                       }}
-                      placeholder="first.last@activa-liberia.com"
+                      placeholder={t.accounts.emailPlaceholder}
                       className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)] font-medium"
                     />
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   </div>
                   <span className="text-[11px] text-slate-400 block mt-1">
-                    For notifications and correspondence
+                    {t.accounts.emailHint}
                   </span>
                 </div>
               </div>
@@ -1638,34 +1673,34 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               {/* Phone and Entity */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">Phone Number:</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">{t.accounts.phoneNumberLabel}</label>
                   <div className="flex gap-2">
                     <select
                       value={formData.phoneCountryCode}
                       onChange={(e) => setFormData({ ...formData, phoneCountryCode: e.target.value })}
                       className="w-40 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)]"
                     >
-                      <option value="+231">Liberia (+231)</option>
-                      <option value="+237">Cameroon (+237)</option>
-                      <option value="+225">Côte d'Ivoire (+225)</option>
-                      <option value="+233">Ghana (+233)</option>
-                      <option value="+224">Guinea (+224)</option>
-                      <option value="+243">DRC (+243)</option>
-                      <option value="+232">Sierra Leone (+232)</option>
-                      <option value="+33">France (+33)</option>
+                      <option value="+231">{t.accounts.countryLiberia} (+231)</option>
+                      <option value="+237">{t.accounts.countryCameroon} (+237)</option>
+                      <option value="+225">{t.accounts.countryIvoryCoast} (+225)</option>
+                      <option value="+233">{t.accounts.countryGhana} (+233)</option>
+                      <option value="+224">{t.accounts.countryGuinea} (+224)</option>
+                      <option value="+243">{t.accounts.countryDRC} (+243)</option>
+                      <option value="+232">{t.accounts.countrySierraLeone} (+232)</option>
+                      <option value="+33">{t.accounts.countryFrance} (+33)</option>
                     </select>
                     <input
                       type="text"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="77 123 4567"
+                      placeholder={t.accounts.phonePlaceholder}
                       className="flex-1 px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-500)]"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-900 mb-1">ACTIVA Entity / Subsidiary:</label>
+                  <label className="block text-xs font-extrabold text-slate-900 mb-1">{t.accounts.entityLabel}</label>
                   <select
                     value={formData.entity || 'ACTIVA Liberia'}
                     onChange={(e) => setFormData({ ...formData, entity: e.target.value })}
@@ -1683,14 +1718,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               {/* Initial Password (Generated) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-extrabold text-slate-900">Initial Password (Generated):</label>
+                  <label className="text-xs font-extrabold text-slate-900">{t.accounts.initialPasswordLabel}</label>
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, password: generateStrongPassword() })}
                     className="text-xs font-semibold text-slate-600 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
                   >
                     <RefreshCw className="w-3 h-3" />
-                    <span>Regenerate</span>
+                    <span>{t.accounts.regenerateBtn}</span>
                   </button>
                 </div>
                 <input
@@ -1702,7 +1737,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                 <div className="p-3 bg-amber-50/80 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span>
-                    This temporary password will be securely displayed upon creation. The user will be required to change it on their first login.
+                    {t.accounts.passwordNoticeText}
                   </span>
                 </div>
               </div>
@@ -1717,7 +1752,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                     className="w-4 h-4 text-slate-700 rounded accent-slate-700 cursor-pointer"
                   />
                   <span className="text-xs font-semibold text-slate-800">
-                    Grant access to Field Mobile Application (HealthPass Android / iOS)
+                    {t.accounts.mobileAccessCheckboxLabel}
                   </span>
                 </label>
               </div>
@@ -1729,7 +1764,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   onClick={() => setCreateModalOpen(false)}
                   className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button
                   type="submit"
@@ -1737,7 +1772,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   className={`px-6 py-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer`}
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
-                  <span>Create Account & Assign</span>
+                  <span>{t.accounts.createAccountAssignBtn}</span>
                 </button>
               </div>
             </form>
@@ -1756,9 +1791,9 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                   <ShieldCheck className="w-5 h-5 text-slate-700" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base text-slate-900">Role Entitlements & Permissions Matrix</h3>
+                  <h3 className="font-extrabold text-base text-slate-900">{t.accounts.matrixModalTitle}</h3>
                   <p className="text-xs text-slate-500">
-                    Rights reference by profile (Agent, Supervisor, Admin) and Segregation of Duties (SoD) rules
+                    {t.accounts.matrixModalSubtitle}
                   </p>
                 </div>
               </div>
@@ -1774,12 +1809,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             {/* Filter Tabs */}
             <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
               {[
-                { id: 'all', label: 'All Modules' },
-                { id: 'Access & Dashboard', label: 'Access & Dashboard' },
-                { id: 'Records Management', label: 'Records Management' },
-                { id: 'Workflow & Validation', label: 'Workflow & Validation' },
-                { id: 'Statistics & Reports', label: 'Statistics & Reports' },
-                { id: 'Administration & Security', label: 'Administration & Audit' },
+                { id: 'all', label: t.accounts.tabAllModules },
+                { id: 'Access & Dashboard', label: t.accounts.tabAccessDashboard },
+                { id: 'Records Management', label: t.accounts.tabRecordsManagement },
+                { id: 'Workflow & Validation', label: t.accounts.tabWorkflowValidation },
+                { id: 'Statistics & Reports', label: t.accounts.tabStatisticsReports },
+                { id: 'Administration & Security', label: t.accounts.tabAdministrationAudit },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -1801,12 +1836,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
-                    <th className="py-3 px-3">Module & Capability</th>
-                    <th className="py-3 px-3">System Action</th>
-                    <th className="py-3 px-3 text-center">Agent</th>
-                    <th className="py-3 px-3 text-center">Supervisor</th>
-                    <th className="py-3 px-3 text-center">Admin</th>
-                    <th className="py-3 px-3">Internal Control / SoD</th>
+                    <th className="py-3 px-3">{t.accounts.colModuleCapability}</th>
+                    <th className="py-3 px-3">{t.accounts.colSystemAction}</th>
+                    <th className="py-3 px-3 text-center">{t.accounts.profileAgent}</th>
+                    <th className="py-3 px-3 text-center">{t.accounts.profileSupervisor}</th>
+                    <th className="py-3 px-3 text-center">{t.accounts.profileAdmin}</th>
+                    <th className="py-3 px-3">{t.accounts.colInternalControlSoD}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1830,7 +1865,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                             </span>
                           ) : row.agent === 'scope' ? (
                             <span className="px-2 py-0.5 rounded-full bg-[var(--brand-50)] text-[var(--brand-700)] font-bold text-[10px]">
-                              Scope
+                              {t.accounts.scopeLabel}
                             </span>
                           ) : (
                             <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-rose-50 text-rose-500 font-bold text-xs">
@@ -1863,7 +1898,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                         <td className="py-3 px-3 text-[11px] text-slate-600">
                           {row.sodRule ? (
                             <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold text-[10px]">
-                              ⚠️ SoD: No self-approval
+                              {t.accounts.sodNoSelfApproval}
                             </span>
                           ) : (
                             <span className="text-slate-400">—</span>
@@ -1879,14 +1914,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 text-xs text-slate-600">
                 <Shield className="w-4 h-4 text-slate-500" />
-                <span>Entitlements are automatically assigned according to the selected role profile and can be customized per staff member.</span>
+                <span>{t.accounts.entitlementsFooterNote}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setMatrixModalOpen(false)}
                 className={`px-4 py-2 ${ADMIN_THEME.palette.primaryColor} text-white rounded-xl text-xs font-bold transition cursor-pointer`}
               >
-                Close Matrix
+                {t.accounts.closeMatrixBtn}
               </button>
             </div>
           </div>
