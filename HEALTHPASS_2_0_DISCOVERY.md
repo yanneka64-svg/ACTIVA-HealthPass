@@ -114,6 +114,39 @@ facts rather than the plan's initial guesses.
     `max-w-[340px]` instead of stretching full width), with the card number restyled monospace/
     tracked ("embossed" look) and the QR code moved to a small corner tile. No props/usage changes
     in `AgentIdentificationView.tsx` — only `MemberIdCard.tsx`'s internal layout changed.
+  - **Full page redesign, "Proposition B" (2026-09-10, same day, on request):** after the card
+    redesign, the user asked to rethink the whole Insured Identification page ("c'est toute la
+    page qu'il faut également repenser"). Two real, rendered proposals were built and screenshotted
+    (A: "Unified Hero + Tabs" — one section visible at a time; B: "Sticky Card + Dense Dashboard" —
+    card fixed in a narrow left column while balances/family/history lay out as a dense grid on the
+    right); the user picked **Proposition B**, implemented in `AgentIdentificationView.tsx`:
+    - The old separate "Profile Header Card" (which duplicated name/card no/organization/status
+      already shown on `MemberIdCard`) was folded away — `MemberIdCard` is now the single identity
+      anchor, `lg:sticky lg:top-4` in a `320px` left column, next to a compact panel with only the
+      non-redundant fields (Policy Number, Age & Gender, Date of Birth), a compact coverage-status
+      pill, the ICAO Biometrics badge, and the two action buttons.
+    - The full policy coverage banner (Active/Expiring/Expired/Suspended, same exact copy and
+      conditions as before) now renders in the right-hand column instead of being a separate
+      full-width block.
+    - "Coverage Balances & Ceiling Limits" uses a new reusable `CircularGauge` component (same
+      balance/ceiling/consumed/percentage values and formulas as the old linear progress bars —
+      only the visual changed) instead of the two linear bars.
+    - "Family & Dependents" and "Care History" now sit side by side in a 2-column grid instead of
+      two stacked full-width sections (same data, same click-to-switch-beneficiary behavior via
+      `handleSelectFamilyMember`, same `guardHealthcareAction` guard on the action buttons).
+    - The desktop-only Care History table was replaced by the same compact list format previously
+      used only on mobile (same fields: date, reference, procedure, provider, amount, status —
+      nothing removed), since it fits the narrower dashboard panel of Proposition B better.
+    - On mobile (`< lg`), the left column is not sticky and simply stacks above the right column,
+      same as before (directory hidden while a beneficiary is selected, "Back to Directory" button
+      unchanged).
+    Verified with the real `AgentIdentificationView` component (fixture member + spouse + child,
+    fixture claims) via a throwaway Vite preview: principal selection, switching to a dependent,
+    and the mobile viewport were all screenshotted and confirmed working before this was pushed.
+  - **"New Claim" button removed from display (2026-09-10, same day, on request):** only the
+    button's rendering was removed from the compact left-column panel; the `onNewClaim` prop,
+    its interface entry, and the `App.tsx` wiring were all left intact (unused for now) so the
+    button can come back without re-plumbing anything. `Generate Medical Form` is unaffected.
 
 ### Phase 4 — Reimbursement / Payment reconciliation / SLA / Analytics
 - **Correction found during discovery (2026-09-10):** Analytics is already mature — `ReportsView.tsx`

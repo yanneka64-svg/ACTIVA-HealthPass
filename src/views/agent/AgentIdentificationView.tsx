@@ -24,7 +24,6 @@ import {
   RefreshCw,
   Plus,
   PlusCircle,
-  Receipt,
 } from 'lucide-react';
 import { Member, Claim, Language, Organization, HealthPolicy } from '../../types';
 import { useTranslation } from '../../i18n/translations';
@@ -77,6 +76,73 @@ export interface InsuredBeneficiary {
   outpatientCeilingUSD?: number;
   inpatientCeilingUSD?: number;
 }
+
+// === AMÉLIORATION AJOUTÉE : jauge circulaire réutilisable pour "Coverage Balances & Ceiling
+// Limits" (2026-09-10, refonte de page "Proposition B" choisie par l'utilisateur). Affiche
+// exactement les mêmes valeurs que l'ancienne barre de progression linéaire (même pourcentage,
+// même solde/plafond déjà formatés en amont via formatAmount) — seul le rendu visuel change,
+// pour un format plus lisible en un coup d'œil dans la grille dense à droite de la page.
+const CircularGauge: React.FC<{
+  label: string;
+  icon: React.ReactNode;
+  ringColor: string;
+  balanceLabel: string;
+  ceilingLabel: string;
+  consumedLabel: string;
+  usedPct: number;
+  unitLabel: string;
+}> = ({ label, icon, ringColor, balanceLabel, ceilingLabel, consumedLabel, usedPct, unitLabel }) => {
+  const r = 34;
+  const c = 2 * Math.PI * r;
+  const offset = c - (usedPct / 100) * c;
+  return (
+    <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5" style={{ color: ringColor }}>
+          {icon}
+          <span>{label}</span>
+        </span>
+        <span
+          className="px-2 py-0.5 rounded-md bg-white border text-[10px] font-extrabold"
+          style={{ borderColor: ringColor, color: ringColor }}
+        >
+          {unitLabel}
+        </span>
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="relative w-[78px] h-[78px] shrink-0">
+          <svg width="78" height="78" viewBox="0 0 84 84">
+            <circle cx="42" cy="42" r={r} fill="none" stroke="#e2e8f0" strokeWidth="8" />
+            <circle
+              cx="42"
+              cy="42"
+              r={r}
+              fill="none"
+              stroke={ringColor}
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeDasharray={c}
+              strokeDashoffset={offset}
+              transform="rotate(-90 42 42)"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-sm font-black text-slate-800">{usedPct}%</span>
+            <span className="text-[8px] font-bold text-slate-400 uppercase">used</span>
+          </div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Remaining Balance</div>
+          <div className="text-lg font-black text-[#00A859] truncate">{balanceLabel}</div>
+          <div className="text-[10.5px] text-slate-500 font-medium truncate">of {ceilingLabel} ceiling</div>
+        </div>
+      </div>
+      <div className="text-[10.5px] text-slate-500 font-medium pt-1 border-t border-slate-100">
+        Consumed: <span className="font-bold text-slate-700">{consumedLabel}</span>
+      </div>
+    </div>
+  );
+};
 
 export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = ({
   members,
@@ -456,284 +522,210 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
               <span>Back to Directory</span>
             </button>
 
-            {/* Profile Header Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
-              <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-                <div className="flex items-start gap-4 flex-1 min-w-0">
-                  <div className="relative w-16 h-16 rounded-2xl bg-blue-100/60 border border-blue-200 flex items-center justify-center overflow-hidden shrink-0">
-                    {selectedBeneficiary.photoUrl ? (
-                      <img src={selectedBeneficiary.photoUrl} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <User className="w-8 h-8 text-[#0A347B]" />
-                    )}
-                    {(selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore) && (
-                      <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
-                        <Fingerprint className="w-3 h-3 text-white" />
-                      </span>
-                    )}
-                  </div>
+            {/* === AMÉLIORATION AJOUTÉE : refonte complète de la page ("Proposition B", choisie
+                explicitement par l'utilisateur parmi 2 propositions visuelles présentées et
+                validées via captures d'écran, 2026-09-10). La carte membre (MemberIdCard) devient
+                l'unique repère visuel d'identité — nom, n° de carte, organisation et statut n'y
+                sont plus dupliqués dans un second bloc "Profile Header" séparé — et reste visible
+                en colonne fixe (sticky) à gauche pendant le défilement ; à droite, soldes/famille/
+                historique s'organisent en grille dense de cartes au lieu d'un long empilement
+                plein-largeur. AUCUNE logique métier n'a changé : guardHealthcareAction, l'alerte
+                de couverture bloquante (voir blockedActionAlert plus bas), le calcul des soldes et
+                l'historique du mois en cours restent strictement identiques à avant. === */}
+            <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 items-start">
+              {/* LEFT: repère d'identité fixe (carte + infos complémentaires + actions) */}
+              <div className="lg:sticky lg:top-4 space-y-4">
+                <MemberIdCard
+                  fullName={selectedBeneficiary.fullName}
+                  organization={selectedBeneficiary.organization}
+                  cardNo={selectedBeneficiary.cardNo}
+                  status={selectedBeneficiary.status}
+                  relationship={!selectedBeneficiary.isPrincipal ? formatRelationship(selectedBeneficiary.relationship) : undefined}
+                />
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-extrabold text-base text-slate-900">{selectedBeneficiary.fullName}</h3>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
+                  {/* === AMÉLIORATION AJOUTÉE : pastille de statut de couverture compacte
+                      (remplace l'ancien badge "Card Active" redondant avec le statut déjà visible
+                      sur la carte) — n'apparaît que si une police a été configurée pour
+                      l'organisation de l'assuré, comme le bandeau détaillé ci-contre. === */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {policyCoverage && (
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                          selectedBeneficiary.status === 'Active' || selectedBeneficiary.status === 'Actif'
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${
+                          policyCoverage.status === 'Active'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : policyCoverage.status === 'Expiring Soon'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
                             : 'bg-rose-50 text-rose-700 border-rose-200'
                         }`}
                       >
-                        Card {selectedBeneficiary.status === 'Active' || selectedBeneficiary.status === 'Actif' ? 'Active' : selectedBeneficiary.status}
+                        {policyCoverage.coverageBlocked ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                        {policyCoverage.status === 'Active' && 'Active — Access to Healthcare'}
+                        {policyCoverage.status === 'Expiring Soon' && 'Expiring Soon'}
+                        {policyCoverage.status === 'Expired' && 'Access Blocked'}
+                        {policyCoverage.status === 'Suspended' && 'Access Suspended'}
+                        {policyCoverage.status === 'Pending Renewal' && 'Pending Renewal'}
                       </span>
-                      {(selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore) && (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-[#0A347B] border border-blue-200">
-                          ICAO Biometrics Compliant
-                        </span>
-                      )}
-                      {!selectedBeneficiary.isPrincipal && (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
-                          {formatRelationship(selectedBeneficiary.relationship)}
-                        </span>
-                      )}
-                    </div>
+                    )}
+                    {(selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore) && (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-[#0A347B] border border-blue-200">
+                        ICAO Biometrics Compliant
+                      </span>
+                    )}
+                  </div>
 
-                    {/* === AMÉLIORATION AJOUTÉE : colonnes de largeurs inégales (au lieu de tiers
-                        stricts) — Card Number/Affiliated Organization (souvent les valeurs les
-                        plus longues) reçoivent plus de place, Policy Number/Age & Gender/Date of
-                        Birth se décalent légèrement vers la droite en conséquence ; espacement
-                        horizontal réduit (gap-x-8 → gap-x-5) pour libérer encore un peu de
-                        largeur utile, sur demande explicite. === */}
-                    <div className="grid grid-cols-2 sm:grid-cols-[1.5fr_1fr_0.85fr] gap-x-5 gap-y-2.5 mt-3">
-                      {/* === AMÉLIORATION AJOUTÉE : "truncate" (au lieu du retour à la ligne par
-                          défaut) sur les identifiants — même traitement que "Affiliated
-                          Organization" ci-dessous — pour que la ligne reste alignée avec les
-                          autres colonnes au lieu de passer sur deux lignes et de désaligner
-                          visuellement la grille. === */}
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Card Number</div>
-                        <div className="font-mono font-bold text-sm text-[#0A347B] truncate" title={selectedBeneficiary.cardNo}>{selectedBeneficiary.cardNo}</div>
+                  <div className="space-y-2.5">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Policy Number</div>
+                      <div className="font-mono font-bold text-sm text-slate-800 truncate" title={policyNumber || 'N/A'}>{policyNumber || 'N/A'}</div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Age &amp; Gender</div>
+                      <div className="font-bold text-sm text-slate-800 truncate">
+                        {calculateAgeNumber(selectedBeneficiary.birthDate) ?? '—'} yrs ({selectedBeneficiary.gender === 'F' ? 'Female' : 'Male'})
                       </div>
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Policy Number</div>
-                        <div className="font-mono font-bold text-sm text-slate-800 truncate" title={policyNumber || 'N/A'}>{policyNumber || 'N/A'}</div>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Age &amp; Gender</div>
-                        <div className="font-bold text-sm text-slate-800 truncate">
-                          {calculateAgeNumber(selectedBeneficiary.birthDate) ?? '—'} yrs ({selectedBeneficiary.gender === 'F' ? 'Female' : 'Male'})
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Affiliated Organization</div>
-                        <div className="font-bold text-sm text-slate-800 flex items-center gap-1.5 min-w-0">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate" title={selectedBeneficiary.organization}>{selectedBeneficiary.organization}</span>
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Date of Birth</div>
-                        <div className="font-bold text-sm text-slate-800 truncate">{selectedBeneficiary.birthDate || 'N/A'}</div>
-                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Date of Birth</div>
+                      <div className="font-bold text-sm text-slate-800 truncate">{selectedBeneficiary.birthDate || 'N/A'}</div>
                     </div>
                   </div>
-                </div>
 
-                {/* === AMÉLIORATION AJOUTÉE : les boutons passent en pleine largeur et empilés
-                    sur mobile (au lieu d'une rangée serrée qui pouvait déborder), pour rester
-                    faciles à toucher et lisibles. Rembourrage/icônes légèrement réduits (sur
-                    demande explicite) pour libérer de la place à gauche pour les informations
-                    de l'assuré, sans changer le texte, la couleur ni la fonction des boutons. === */}
-                <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row gap-2.5 shrink-0 w-full sm:w-auto">
-                  {onGenerateMedicalForm && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const memberPayload: Member = {
-                          ...selectedBeneficiary.parentMember,
-                          cardNo: selectedBeneficiary.cardNo,
-                          principalName: selectedBeneficiary.fullName,
-                          relationship: selectedBeneficiary.relationship as any,
-                          birthDate: selectedBeneficiary.birthDate || selectedBeneficiary.parentMember.birthDate,
-                          gender: (selectedBeneficiary.gender as any) || selectedBeneficiary.parentMember.gender,
-                          outpatientBalanceUSD: selectedBeneficiary.outpatientBalanceUSD,
-                          inpatientBalanceUSD: selectedBeneficiary.inpatientBalanceUSD,
-                        };
-                        // === AMÉLIORATION AJOUTÉE : vérification de la couverture avant de
-                        // poursuivre vers le flux de soin, cf. policyCoverage plus haut.
-                        guardHealthcareAction('medical_form', () => onGenerateMedicalForm(memberPayload));
-                      }}
-                      className="w-full sm:w-auto px-3.5 py-2 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white whitespace-nowrap"
-                    >
-                      <FileCheck className="w-3.5 h-3.5" />
-                      <span>Generate Medical Form</span>
-                    </button>
-                  )}
-                  {onNewClaim && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const memberPayload: Member = {
-                          ...selectedBeneficiary.parentMember,
-                          cardNo: selectedBeneficiary.cardNo,
-                          principalName: selectedBeneficiary.fullName,
-                        };
-                        guardHealthcareAction('new_claim', () => onNewClaim(memberPayload));
-                      }}
-                      className="w-full sm:w-auto px-3.5 py-2 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer bg-[#0A347B] hover:bg-[#08285e] text-white whitespace-nowrap"
-                    >
-                      <Receipt className="w-3.5 h-3.5" />
-                      <span>New Claim</span>
-                    </button>
-                  )}
+                  <div className="flex flex-col gap-2 pt-1">
+                    {onGenerateMedicalForm && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const memberPayload: Member = {
+                            ...selectedBeneficiary.parentMember,
+                            cardNo: selectedBeneficiary.cardNo,
+                            principalName: selectedBeneficiary.fullName,
+                            relationship: selectedBeneficiary.relationship as any,
+                            birthDate: selectedBeneficiary.birthDate || selectedBeneficiary.parentMember.birthDate,
+                            gender: (selectedBeneficiary.gender as any) || selectedBeneficiary.parentMember.gender,
+                            outpatientBalanceUSD: selectedBeneficiary.outpatientBalanceUSD,
+                            inpatientBalanceUSD: selectedBeneficiary.inpatientBalanceUSD,
+                          };
+                          // === AMÉLIORATION AJOUTÉE : vérification de la couverture avant de
+                          // poursuivre vers le flux de soin, cf. policyCoverage plus haut.
+                          guardHealthcareAction('medical_form', () => onGenerateMedicalForm(memberPayload));
+                        }}
+                        className="w-full px-3.5 py-2.5 rounded-xl font-extrabold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer bg-[#00A859] hover:bg-[#008f4c] text-white whitespace-nowrap"
+                      >
+                        <FileCheck className="w-3.5 h-3.5" />
+                        <span>Generate Medical Form</span>
+                      </button>
+                    )}
+                    {/* === AMÉLIORATION AJOUTÉE : bouton "New Claim" retiré de l'affichage
+                        (2026-09-10, demande explicite) — le prop onNewClaim et sa logique
+                        restent intacts (interface, wiring App.tsx) pour ne rien casser si le
+                        bouton doit revenir plus tard ; seul son rendu ici est retiré. === */}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* === AMÉLIORATION AJOUTÉE : visuel de carte membre, affiché automatiquement dès
-                qu'un assuré est sélectionné — voir MemberIdCard.tsx. Purement visuel (aucune
-                donnée qui n'est pas déjà affichée ci-dessus), aucune dépendance serveur. === */}
-            <MemberIdCard
-              fullName={selectedBeneficiary.fullName}
-              organization={selectedBeneficiary.organization}
-              cardNo={selectedBeneficiary.cardNo}
-              status={selectedBeneficiary.status}
-              relationship={!selectedBeneficiary.isPrincipal ? formatRelationship(selectedBeneficiary.relationship) : undefined}
-            />
-
-            {/* === AMÉLIORATION AJOUTÉE : bandeau de statut de couverture, calculé
-                immédiatement après identification via le moteur centralisé de police
-                d'assurance santé. N'apparaît que si une police a été configurée pour
-                l'organisation de l'assuré (module opt-in, aucun impact sur les organisations
-                n'ayant pas encore de police renseignée). === */}
-            {policyCoverage && selectedPolicy && (
-              <div
-                className={`rounded-2xl border p-5 space-y-2 ${
-                  policyCoverage.status === 'Active'
-                    ? 'bg-emerald-50 border-emerald-200'
-                    : policyCoverage.status === 'Expiring Soon'
-                    ? 'bg-amber-50 border-amber-200'
-                    : policyCoverage.status === 'Expired'
-                    ? 'bg-red-50 border-red-300'
-                    : 'bg-rose-50 border-rose-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <h4
-                    className={`text-xs font-black uppercase tracking-wide flex items-center gap-1.5 ${
+              {/* RIGHT: grille dense — bandeau de couverture détaillé, soldes, famille, historique */}
+              <div className="space-y-4 min-w-0">
+                {/* === AMÉLIORATION AJOUTÉE : bandeau de statut de couverture, calculé
+                    immédiatement après identification via le moteur centralisé de police
+                    d'assurance santé. N'apparaît que si une police a été configurée pour
+                    l'organisation de l'assuré (module opt-in, aucun impact sur les organisations
+                    n'ayant pas encore de police renseignée). Contenu strictement identique à
+                    avant, seul son emplacement dans la page a changé. === */}
+                {policyCoverage && selectedPolicy && (
+                  <div
+                    className={`rounded-2xl border p-5 space-y-2 ${
                       policyCoverage.status === 'Active'
-                        ? 'text-emerald-800'
+                        ? 'bg-emerald-50 border-emerald-200'
                         : policyCoverage.status === 'Expiring Soon'
-                        ? 'text-amber-800'
-                        : 'text-rose-800'
+                        ? 'bg-amber-50 border-amber-200'
+                        : policyCoverage.status === 'Expired'
+                        ? 'bg-red-50 border-red-300'
+                        : 'bg-rose-50 border-rose-300'
                     }`}
                   >
-                    {policyCoverage.coverageBlocked ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-                    <span>
-                      {policyCoverage.status === 'Active' && 'Member Verified — Access to Healthcare'}
-                      {policyCoverage.status === 'Expiring Soon' && 'Member Verified — Policy Expiring Soon'}
-                      {policyCoverage.status === 'Expired' && 'Healthcare Access Blocked'}
-                      {policyCoverage.status === 'Suspended' && 'Healthcare Access Suspended'}
-                      {policyCoverage.status === 'Pending Renewal' && 'Policy Pending Renewal'}
-                    </span>
-                  </h4>
-                  <span className="text-[10px] font-mono font-bold text-slate-500">Policy: {selectedPolicy.policyNumber}</span>
-                </div>
+                    <div className="flex items-center justify-between">
+                      <h4
+                        className={`text-xs font-black uppercase tracking-wide flex items-center gap-1.5 ${
+                          policyCoverage.status === 'Active'
+                            ? 'text-emerald-800'
+                            : policyCoverage.status === 'Expiring Soon'
+                            ? 'text-amber-800'
+                            : 'text-rose-800'
+                        }`}
+                      >
+                        {policyCoverage.coverageBlocked ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                        <span>
+                          {policyCoverage.status === 'Active' && 'Member Verified — Access to Healthcare'}
+                          {policyCoverage.status === 'Expiring Soon' && 'Member Verified — Policy Expiring Soon'}
+                          {policyCoverage.status === 'Expired' && 'Healthcare Access Blocked'}
+                          {policyCoverage.status === 'Suspended' && 'Healthcare Access Suspended'}
+                          {policyCoverage.status === 'Pending Renewal' && 'Policy Pending Renewal'}
+                        </span>
+                      </h4>
+                      <span className="text-[10px] font-mono font-bold text-slate-500">Policy: {selectedPolicy.policyNumber}</span>
+                    </div>
 
-                {policyCoverage.status === 'Active' && (
-                  <p className="text-xs text-emerald-800 font-medium">
-                    Policy Status: <strong>ACTIVE</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong>
-                    {selectedPolicy.nextPaymentDueDate && (
-                      <>
-                        {' '}&bull; Next Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong>
-                      </>
+                    {policyCoverage.status === 'Active' && (
+                      <p className="text-xs text-emerald-800 font-medium">
+                        Policy Status: <strong>ACTIVE</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong>
+                        {selectedPolicy.nextPaymentDueDate && (
+                          <>
+                            {' '}&bull; Next Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong>
+                          </>
+                        )}
+                      </p>
                     )}
-                  </p>
-                )}
-                {policyCoverage.status === 'Expiring Soon' && (
-                  <p className="text-xs text-amber-800 font-medium">
-                    Policy Status: <strong>EXPIRING SOON</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong> ({policyCoverage.daysUntilExpiration} day(s) left)
-                  </p>
-                )}
-                {policyCoverage.status === 'Expired' && (
-                  <p className="text-xs text-rose-800 font-medium leading-relaxed">
-                    Status: <strong>EXPIRED</strong> &bull; Expired on: <strong>{selectedPolicy.expirationDate}</strong>
-                    <br />
-                    This insured member and all covered dependents are not eligible for healthcare services under this policy.
-                  </p>
-                )}
-                {policyCoverage.status === 'Suspended' && (
-                  <p className="text-xs text-rose-800 font-medium leading-relaxed">
-                    Status: <strong>SUSPENDED</strong> &bull; Reason: <strong>{(policyCoverage.suspensionReason || 'ADMINISTRATIVE').toUpperCase()}</strong>
-                    {selectedPolicy.nextPaymentDueDate && (
-                      <>
-                        <br />Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong> &bull; Amount Due: <strong>{selectedPolicy.currency} {(selectedPolicy.outstandingAmount ?? 0).toLocaleString()}</strong>
-                      </>
+                    {policyCoverage.status === 'Expiring Soon' && (
+                      <p className="text-xs text-amber-800 font-medium">
+                        Policy Status: <strong>EXPIRING SOON</strong> &bull; Coverage Valid Until: <strong>{selectedPolicy.expirationDate}</strong> ({policyCoverage.daysUntilExpiration} day(s) left)
+                      </p>
                     )}
-                    <br />
-                    Healthcare services are currently unavailable for the principal insured and all covered dependents.
-                  </p>
+                    {policyCoverage.status === 'Expired' && (
+                      <p className="text-xs text-rose-800 font-medium leading-relaxed">
+                        Status: <strong>EXPIRED</strong> &bull; Expired on: <strong>{selectedPolicy.expirationDate}</strong>
+                        <br />
+                        This insured member and all covered dependents are not eligible for healthcare services under this policy.
+                      </p>
+                    )}
+                    {policyCoverage.status === 'Suspended' && (
+                      <p className="text-xs text-rose-800 font-medium leading-relaxed">
+                        Status: <strong>SUSPENDED</strong> &bull; Reason: <strong>{(policyCoverage.suspensionReason || 'ADMINISTRATIVE').toUpperCase()}</strong>
+                        {selectedPolicy.nextPaymentDueDate && (
+                          <>
+                            <br />Premium Due: <strong>{selectedPolicy.nextPaymentDueDate}</strong> &bull; Amount Due: <strong>{selectedPolicy.currency} {(selectedPolicy.outstandingAmount ?? 0).toLocaleString()}</strong>
+                          </>
+                        )}
+                        <br />
+                        Healthcare services are currently unavailable for the principal insured and all covered dependents.
+                      </p>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
 
-            {/* Coverage Balances & Ceiling Limits */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                  <Shield className="w-4 h-4 text-[#0A347B]" />
-                  <span>Coverage Balances &amp; Ceiling Limits (USD)</span>
-                </h4>
-                <span className="text-[11px] font-semibold text-slate-400">Contractual Annual Ceilings</span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Outpatient */}
-                <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/40 space-y-2.5">
+                {/* Coverage Balances & Ceiling Limits — jauges circulaires (mêmes valeurs et
+                    mêmes calculs qu'avant, cf. CircularGauge plus haut dans ce fichier) */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#0A347B] flex items-center gap-1.5">
-                      <Stethoscope className="w-3.5 h-3.5" />
-                      <span>Outpatient Consultation</span>
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md bg-white border border-blue-200 text-[10px] font-extrabold text-[#0A347B]">
-                      USD ($)
-                    </span>
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-[#0A347B]" />
+                      <span>Coverage Balances &amp; Ceiling Limits (USD)</span>
+                    </h4>
+                    <span className="text-[11px] font-semibold text-slate-400">Contractual Annual Ceilings</span>
                   </div>
-                  <div className="flex justify-between items-baseline text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                    <span>Remaining Balance Available</span>
-                    <span>Ceiling Limit</span>
-                  </div>
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-2xl font-black text-[#00A859]">
-                      {formatAmount(selectedBeneficiary.outpatientBalanceUSD ?? 500)}
-                    </span>
-                    <span className="text-sm font-bold text-slate-700">
-                      {formatAmount(selectedBeneficiary.outpatientCeilingUSD ?? 500)}
-                    </span>
-                  </div>
-                  <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-[#0A347B] h-2 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.round(
-                            (1 -
-                              (selectedBeneficiary.outpatientBalanceUSD ?? 500) /
-                                (selectedBeneficiary.outpatientCeilingUSD || selectedBeneficiary.outpatientBalanceUSD || 1)) *
-                              100
-                          )
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-                    <span>
-                      Consumed: {formatAmount(
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <CircularGauge
+                      label="Outpatient Consultation"
+                      icon={<Stethoscope className="w-3.5 h-3.5" />}
+                      ringColor="#0A347B"
+                      unitLabel="USD ($)"
+                      balanceLabel={formatAmount(selectedBeneficiary.outpatientBalanceUSD ?? 500)}
+                      ceilingLabel={formatAmount(selectedBeneficiary.outpatientCeilingUSD ?? 500)}
+                      consumedLabel={formatAmount(
                         Math.max(0, (selectedBeneficiary.outpatientCeilingUSD ?? 500) - (selectedBeneficiary.outpatientBalanceUSD ?? 500))
                       )}
-                    </span>
-                    <span>
-                      {Math.min(
+                      usedPct={Math.min(
                         100,
                         Math.round(
                           (1 -
@@ -741,58 +733,19 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                               (selectedBeneficiary.outpatientCeilingUSD || selectedBeneficiary.outpatientBalanceUSD || 1)) *
                             100
                         )
-                      )}% used
-                    </span>
-                  </div>
-                </div>
-
-                {/* Inpatient */}
-                <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/40 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                      <HeartPulse className="w-3.5 h-3.5" />
-                      <span>Inpatient Hospitalization</span>
-                    </span>
-                    <span className="px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-[10px] font-extrabold text-emerald-700">
-                      USD ($)
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-baseline text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                    <span>Remaining Balance Available</span>
-                    <span>Ceiling Limit</span>
-                  </div>
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-2xl font-black text-[#00A859]">
-                      {formatAmount(selectedBeneficiary.inpatientBalanceUSD ?? 5000)}
-                    </span>
-                    <span className="text-sm font-bold text-slate-700">
-                      {formatAmount(selectedBeneficiary.inpatientCeilingUSD ?? 5000)}
-                    </span>
-                  </div>
-                  <div className="w-full bg-emerald-200 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-[#00A859] h-2 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.round(
-                            (1 -
-                              (selectedBeneficiary.inpatientBalanceUSD ?? 5000) /
-                                (selectedBeneficiary.inpatientCeilingUSD || selectedBeneficiary.inpatientBalanceUSD || 1)) *
-                              100
-                          )
-                        )}%`,
-                      }}
+                      )}
                     />
-                  </div>
-                  <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-                    <span>
-                      Consumed: {formatAmount(
+                    <CircularGauge
+                      label="Inpatient Hospitalization"
+                      icon={<HeartPulse className="w-3.5 h-3.5" />}
+                      ringColor="#00A859"
+                      unitLabel="USD ($)"
+                      balanceLabel={formatAmount(selectedBeneficiary.inpatientBalanceUSD ?? 5000)}
+                      ceilingLabel={formatAmount(selectedBeneficiary.inpatientCeilingUSD ?? 5000)}
+                      consumedLabel={formatAmount(
                         Math.max(0, (selectedBeneficiary.inpatientCeilingUSD ?? 5000) - (selectedBeneficiary.inpatientBalanceUSD ?? 5000))
                       )}
-                    </span>
-                    <span>
-                      {Math.min(
+                      usedPct={Math.min(
                         100,
                         Math.round(
                           (1 -
@@ -800,144 +753,123 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                               (selectedBeneficiary.inpatientCeilingUSD || selectedBeneficiary.inpatientBalanceUSD || 1)) *
                             100
                         )
-                      )}% used
-                    </span>
+                      )}
+                    />
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Family Members & Dependents */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-[#0A347B]" />
-                  <span>Family Members &amp; Dependents ({dependentsList.length + 1})</span>
-                </h4>
-                <span className="text-[11px] font-semibold text-slate-400">Click to select beneficiary</span>
-              </div>
+                {/* Family Members & Dependents + Current Month Care History, côte à côte sur
+                    desktop (grille dense) au lieu de deux blocs pleine largeur empilés */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Family Members & Dependents */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-[#0A347B]" />
+                        <span>Family &amp; Dependents ({dependentsList.length + 1})</span>
+                      </h4>
+                    </div>
+                    <span className="block text-[10.5px] font-semibold text-slate-400 -mt-2">Click to select beneficiary</span>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {/* Principal (Self) */}
-                {(() => {
-                  const principalSelf = allBeneficiaries.find(
-                    (b) => b.isPrincipal && b.parentMember.id === selectedBeneficiary.parentMember.id
-                  );
-                  if (!principalSelf) return null;
-                  const isSelf = selectedBeneficiary.id === principalSelf.id;
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => handleSelectFamilyMember(principalSelf.fullName, true)}
-                      className={`relative text-left p-3 rounded-xl border transition cursor-pointer ${
-                        isSelf ? 'border-[#0A347B] bg-blue-50/60 ring-1 ring-[#0A347B]/30' : 'border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      {isSelf && (
-                        <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#0A347B] flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5 text-white" />
-                        </span>
-                      )}
-                      <div className="w-10 h-10 rounded-xl bg-blue-100/60 border border-blue-200 flex items-center justify-center overflow-hidden mb-2">
-                        {principalSelf.photoUrl ? (
-                          <img src={principalSelf.photoUrl} alt={principalSelf.fullName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        ) : (
-                          <User className="w-5 h-5 text-[#0A347B]" />
-                        )}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {/* Principal (Self) */}
+                      {(() => {
+                        const principalSelf = allBeneficiaries.find(
+                          (b) => b.isPrincipal && b.parentMember.id === selectedBeneficiary.parentMember.id
+                        );
+                        if (!principalSelf) return null;
+                        const isSelf = selectedBeneficiary.id === principalSelf.id;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => handleSelectFamilyMember(principalSelf.fullName, true)}
+                            className={`relative text-left p-2.5 rounded-xl border transition cursor-pointer ${
+                              isSelf ? 'border-[#0A347B] bg-blue-50/60 ring-1 ring-[#0A347B]/30' : 'border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {isSelf && (
+                              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#0A347B] flex items-center justify-center">
+                                <Check className="w-2.5 h-2.5 text-white" />
+                              </span>
+                            )}
+                            <div className="w-8 h-8 rounded-lg bg-blue-100/60 border border-blue-200 flex items-center justify-center overflow-hidden mb-1.5">
+                              {principalSelf.photoUrl ? (
+                                <img src={principalSelf.photoUrl} alt={principalSelf.fullName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <User className="w-4 h-4 text-[#0A347B]" />
+                              )}
+                            </div>
+                            <div className="font-bold text-[11px] text-slate-900 truncate">{principalSelf.fullName}</div>
+                            <div className="text-[9.5px] font-bold text-[#0A347B]">Principal (Self)</div>
+                            <div className="text-[9.5px] text-slate-400 font-mono">
+                              {calculateAgeNumber(principalSelf.birthDate) ?? '—'} yrs
+                            </div>
+                          </button>
+                        );
+                      })()}
+
+                      {dependentsList.map((dep, idx) => {
+                        const depBeneficiary = allBeneficiaries.find(
+                          (b) => !b.isPrincipal && b.parentMember.id === selectedBeneficiary.parentMember.id && b.fullName === dep.fullName
+                        );
+                        const isSelectedDep = depBeneficiary && selectedBeneficiary.id === depBeneficiary.id;
+                        return (
+                          <button
+                            key={dep.id || idx}
+                            type="button"
+                            onClick={() => handleSelectFamilyMember(dep.fullName, false)}
+                            className={`relative text-left p-2.5 rounded-xl border transition cursor-pointer ${
+                              isSelectedDep ? 'border-[#0A347B] bg-blue-50/60 ring-1 ring-[#0A347B]/30' : 'border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {isSelectedDep && (
+                              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#0A347B] flex items-center justify-center">
+                                <Check className="w-2.5 h-2.5 text-white" />
+                              </span>
+                            )}
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden mb-1.5">
+                              <User className="w-4 h-4 text-slate-400" />
+                            </div>
+                            <div className="font-bold text-[11px] text-slate-900 truncate">{dep.fullName}</div>
+                            <div className="text-[9.5px] font-bold text-slate-500 truncate">{formatRelationship(dep.relationship)}</div>
+                            <div className="text-[9.5px] text-slate-400 font-mono">
+                              {dep.age ? `${dep.age} yrs` : '—'}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Current Month Care History — === AMÉLIORATION AJOUTÉE : le tableau desktop
+                      cède la place au même format de liste compacte utilisé auparavant sur mobile
+                      uniquement (mêmes champs : date, référence, procédure, prestataire, montant,
+                      statut — rien retiré), pour tenir dans la colonne plus étroite de la grille
+                      dense "Proposition B". */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-[#0A347B]" />
+                        <span>Care History (This Month)</span>
+                      </h4>
+                      <span className="text-[10px] font-semibold text-slate-400">{currentMonthLabel}</span>
+                    </div>
+
+                    {currentMonthClaims.length === 0 ? (
+                      <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50 rounded-xl border border-slate-100">
+                        No medical services recorded for this member in {currentMonthLabel}.
                       </div>
-                      <div className="font-bold text-xs text-slate-900 truncate">{principalSelf.fullName}</div>
-                      <div className="text-[10.5px] font-bold text-[#0A347B]">Principal Insured (Self)</div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        {principalSelf.cardNo} • {calculateAgeNumber(principalSelf.birthDate) ?? '—'} yrs
-                      </div>
-                    </button>
-                  );
-                })()}
-
-                {dependentsList.map((dep, idx) => {
-                  const depBeneficiary = allBeneficiaries.find(
-                    (b) => !b.isPrincipal && b.parentMember.id === selectedBeneficiary.parentMember.id && b.fullName === dep.fullName
-                  );
-                  const isSelectedDep = depBeneficiary && selectedBeneficiary.id === depBeneficiary.id;
-                  return (
-                    <button
-                      key={dep.id || idx}
-                      type="button"
-                      onClick={() => handleSelectFamilyMember(dep.fullName, false)}
-                      className={`relative text-left p-3 rounded-xl border transition cursor-pointer ${
-                        isSelectedDep ? 'border-[#0A347B] bg-blue-50/60 ring-1 ring-[#0A347B]/30' : 'border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      {isSelectedDep && (
-                        <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#0A347B] flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5 text-white" />
-                        </span>
-                      )}
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden mb-2">
-                        <User className="w-5 h-5 text-slate-400" />
-                      </div>
-                      <div className="font-bold text-xs text-slate-900 truncate">{dep.fullName}</div>
-                      <div className="text-[10.5px] font-bold text-slate-500">{formatRelationship(dep.relationship)}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        {dep.cardNo || `${selectedBeneficiary.principalCardNo}-D${idx + 1}`} • {dep.age ? `${dep.age} yrs` : '—'}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Current Month Care History */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-[#0A347B]" />
-                  <span>Current Month Care History (Acts &amp; Procedures)</span>
-                </h4>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Current Month: {currentMonthLabel}
-                </span>
-              </div>
-
-              {currentMonthClaims.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs italic bg-slate-50 rounded-xl border border-slate-100">
-                  No medical services recorded for this member in {currentMonthLabel}.
-                </div>
-              ) : (
-                <>
-                  {/* Desktop/tablet: table (unchanged) */}
-                  <div className="hidden sm:block overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
-                          <th className="py-2.5 px-3 whitespace-nowrap">Date &amp; Ref</th>
-                          <th className="py-2.5 px-3">Medical Procedure</th>
-                          <th className="py-2.5 px-3">Healthcare Provider / Hospital</th>
-                          <th className="py-2.5 px-3 text-right">Amount</th>
-                          <th className="py-2.5 px-3 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
+                    ) : (
+                      <div className="space-y-2.5">
                         {currentMonthClaims.map((claim) => (
-                          <tr key={claim.id} className="hover:bg-slate-50/80 transition">
-                            <td className="py-3 px-3 whitespace-nowrap">
-                              <span className="font-bold text-slate-800 block">{claim.serviceDate}</span>
-                              <span className="text-[10px] text-[#0A347B] font-mono">{claim.reference}</span>
-                            </td>
-                            <td className="py-3 px-3">
-                              <span className="font-bold text-slate-800 block">{claim.careType}</span>
-                              <span className="text-[10px] text-slate-400">{claim.careType}</span>
-                            </td>
-                            <td className="py-3 px-3 text-slate-700 font-medium flex items-center gap-1.5">
-                              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span>{claim.provider}</span>
-                            </td>
-                            <td className="py-3 px-3 text-right whitespace-nowrap font-bold text-slate-800">
-                              {formatAmount(claim.amount || 0)}
-                            </td>
-                            <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <div key={claim.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="font-bold text-xs text-slate-800">{claim.serviceDate}</div>
+                                <div className="text-[10px] text-[#0A347B] font-mono">{claim.reference}</div>
+                              </div>
                               <span
-                                className={`inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
+                                className={`shrink-0 inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
                                   claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : claim.status === 'Rejected' || claim.status === 'rejected'
@@ -951,50 +883,20 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                                   ? 'Rejected'
                                   : 'Pending'}
                               </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* === AMÉLIORATION AJOUTÉE : liste de cartes sur mobile, au lieu du tableau
-                      qui débordait/se comprimait mal sur petit écran. === */}
-                  <div className="sm:hidden space-y-2.5">
-                    {currentMonthClaims.map((claim) => (
-                      <div key={claim.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="font-bold text-xs text-slate-800">{claim.serviceDate}</div>
-                            <div className="text-[10px] text-[#0A347B] font-mono">{claim.reference}</div>
+                            </div>
+                            <div className="font-bold text-xs text-slate-800">{claim.careType}</div>
+                            <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="truncate">{claim.provider}</span>
+                            </div>
+                            <div className="text-sm font-black text-slate-800">{formatAmount(claim.amount || 0)}</div>
                           </div>
-                          <span
-                            className={`shrink-0 inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
-                              claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : claim.status === 'Rejected' || claim.status === 'rejected'
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}
-                          >
-                            {claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
-                              ? 'Approved'
-                              : claim.status === 'Rejected' || claim.status === 'rejected'
-                              ? 'Rejected'
-                              : 'Pending'}
-                          </span>
-                        </div>
-                        <div className="font-bold text-xs text-slate-800">{claim.careType}</div>
-                        <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate">{claim.provider}</span>
-                        </div>
-                        <div className="text-sm font-black text-slate-800">{formatAmount(claim.amount || 0)}</div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                </>
-              )}
+                </div>
+              </div>
             </div>
           </div>
         )}
