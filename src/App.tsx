@@ -330,8 +330,26 @@ export default function App() {
     };
   }, []);
 
-  // Language State (Pure English system)
-  const [lang] = useState<Language>('en');
+  // === AMÉLIORATION AJOUTÉE : sélecteur de langue réellement fonctionnel (2026-09-10, sur
+  // demande explicite) — `lang` était figé sur 'en' à vie (aucun setter extrait du useState).
+  // La préférence est maintenant persistée (localStorage) et modifiable via le Topbar ;
+  // l'anglais reste la langue par défaut pour tout navigateur n'ayant jamais choisi.
+  const [lang, setLangState] = useState<Language>(() => {
+    try {
+      const stored = localStorage.getItem('activa_lang');
+      return stored === 'fr' ? 'fr' : 'en';
+    } catch {
+      return 'en';
+    }
+  });
+  const handleLanguageChange = (next: Language) => {
+    setLangState(next);
+    try {
+      localStorage.setItem('activa_lang', next);
+    } catch {
+      // Préférence de langue non persistée (stockage indisponible) — reste active pour la session en cours.
+    }
+  };
 
   // Change Password Modal Triggered from Topbar
   const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
@@ -1212,6 +1230,7 @@ export default function App() {
           currentUser={currentUser}
           userRole={activeRole}
           lang={lang}
+          onLanguageChange={handleLanguageChange}
           notifications={notifications}
           onMarkNotificationAsRead={(n) => FirestoreService.markNotificationRead(n.id)}
           onMarkAllNotificationsAsRead={() => FirestoreService.markAllNotificationsRead(notifications)}

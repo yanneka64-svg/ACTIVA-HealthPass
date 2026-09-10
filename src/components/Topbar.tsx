@@ -41,6 +41,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   currentUser,
   userRole,
   currentSection,
+  lang,
+  onLanguageChange,
   notifications: propsNotifications,
   onMarkNotificationAsRead,
   onMarkAllNotificationsAsRead,
@@ -49,7 +51,9 @@ export const Topbar: React.FC<TopbarProps> = ({
   onLogout,
   onToggleSidebar,
 }) => {
-  const t = useTranslation('en');
+  // === AMÉLIORATION AJOUTÉE : useTranslation('en') en dur remplacé par `lang` (2026-09-10) —
+  // ce composant ignorait jusqu'ici totalement la langue active.
+  const t = useTranslation(lang || 'en');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -251,20 +255,23 @@ export const Topbar: React.FC<TopbarProps> = ({
           </div>
         )}
 
-        {/* Language Pill */}
-        {/* === AMÉLIORATION AJOUTÉE : masqué en dessous de sm (retour utilisateur, navigation
-            mobile pas assez simplifiée) — cette pastille purement informative (pas de sélecteur,
-            "cursor-default") prenait ~100px sur un en-tête mobile de 390px, ce qui écrasait le
-            titre de la page affiché juste à gauche jusqu'à ne montrer qu'une ou deux lettres
-            (ex. "M..."). Réapparaît normalement à partir de sm, comportement desktop inchangé. */}
-        <div
+        {/* Language Pill — === AMÉLIORATION AJOUTÉE : sélecteur réellement fonctionnel
+            (2026-09-10, sur demande explicite) — auparavant purement décorative
+            ("cursor-default", aucun sélecteur), cette pastille bascule désormais entre anglais
+            (langue par défaut) et français à chaque clic, via onLanguageChange (App.tsx),
+            préférence persistée. Masquée en dessous de `sm` (retour utilisateur antérieur,
+            navigation mobile) — comportement desktop inchangé par ailleurs. */}
+        <button
+          type="button"
           id="app-language-indicator"
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[var(--brand-900)] shadow-2xs hover:bg-slate-50 transition cursor-default"
-          title="System Language: English (Official)"
+          onClick={() => onLanguageChange?.(lang === 'fr' ? 'en' : 'fr')}
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[var(--brand-900)] shadow-2xs hover:bg-slate-50 transition cursor-pointer"
+          title={lang === 'fr' ? 'Langue : Français (cliquer pour English)' : 'Language: English (click for Français)'}
+          aria-label="Toggle display language"
         >
           <Globe className={`w-3.5 h-3.5 ${theme.palette.primaryText}`} />
-          <span>English</span>
-        </div>
+          <span>{lang === 'fr' ? 'Français' : 'English'}</span>
+        </button>
 
         {/* Notification Bell with Badge & Dropdown */}
         <div className="relative" ref={notifRef}>

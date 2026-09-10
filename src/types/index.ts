@@ -1,4 +1,7 @@
-export type Language = 'en';
+// === AMÉLIORATION AJOUTÉE : sélecteur de langue (2026-09-10, demande explicite) — anglais reste
+// la langue par défaut ; le français s'ajoute comme option de consultation. Voir
+// src/i18n/translations.ts pour le dictionnaire complet des deux langues.
+export type Language = 'en' | 'fr';
 
 export type UserProfile = 'Admin' | 'Supervisor' | 'Superviseur' | 'Agent';
 
