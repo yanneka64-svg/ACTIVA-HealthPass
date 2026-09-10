@@ -14,6 +14,8 @@ import {
   FileSpreadsheet,
   Trash2,
   AlertTriangle,
+  ScanSearch,
+  Undo2,
 } from 'lucide-react';
 import { InvoiceItem, Language } from '../types';
 import { useTranslation } from '../i18n/translations';
@@ -32,6 +34,10 @@ import { isFeatureEnabled } from '../config/featureFlags';
 import { computeReconciliationSummary } from '../modules/reimbursement/reconciliation';
 import { ReconciliationSummary } from '../modules/reimbursement/ReconciliationSummary';
 import { MarkAsPaidModal } from '../modules/reimbursement/MarkAsPaidModal';
+// === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical, avant paiement (2026-09-10, sur
+// demande explicite) — voir ApplyRefactionModal.tsx / RecordRecoveryModal.tsx pour le détail.
+import { ApplyRefactionModal } from '../modules/reimbursement/ApplyRefactionModal';
+import { RecordRecoveryModal } from '../modules/reimbursement/RecordRecoveryModal';
 import { Wallet } from 'lucide-react';
 
 interface InvoicesViewProps {
@@ -39,6 +45,10 @@ interface InvoicesViewProps {
   invoices: InvoiceItem[];
   userRole?: string;
   onDeleteInvoice?: (id: string) => Promise<void> | void;
+  // === AMÉLIORATION AJOUTÉE : identifie qui applique une réfaction / enregistre un
+  // recouvrement (InvoiceItem.refactionAppliedBy / InvoiceRecovery.recordedBy) — même
+  // convention que le reste de l'app (currentUser?.fullName || displayName || email).
+  currentUser?: any;
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({
@@ -46,6 +56,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   invoices,
   userRole = 'Admin',
   onDeleteInvoice,
+  currentUser,
 }) => {
   const t = useTranslation(lang);
   const { formatAmount } = useCurrency();
@@ -59,12 +70,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation ===
   const [markingPaidInvoice, setMarkingPaidInvoice] = useState<InvoiceItem | null>(null);
+  // === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical / recouvrement (2026-09-10) ===
+  const [refactingInvoice, setRefactingInvoice] = useState<InvoiceItem | null>(null);
+  const [recordingRecoveryInvoice, setRecordingRecoveryInvoice] = useState<InvoiceItem | null>(null);
   const reimbursementTrackingEnabled = isFeatureEnabled('hp2_reimbursement_tracking');
 
   const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
   const canDeleteInvoice = isAdmin || isSupervisor;
   const canMarkPaid = isAdmin || isSupervisor;
+  // === AMÉLIORATION AJOUTÉE : même règle d'accès que "Mark as Paid" (canMarkPaid) pour les
+  // actions de réfaction/recouvrement — Admin et Superviseur, sur demande explicite.
+  const canApplyRefaction = canMarkPaid;
+  const currentUserName: string = currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Unknown';
+  const currentUserRole: 'Admin' | 'Supervisor' = isAdmin ? 'Admin' : 'Supervisor';
 
   // === AMÉLIORATION AJOUTÉE : lignes du détail "Medical Benefits Coverage Breakdown" du
   // nouveau bordereau de règlement — une ligne par acte médical (Claim.medicalActs, reporté sur
@@ -424,10 +443,25 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     </span>
                   )}
 
+                  {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical (2026-09-10) === */}
+                  {reimbursementTrackingEnabled && inv.refactionApplied && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-50 border border-orange-200 text-[10.5px] font-bold text-orange-700">
+                      <ScanSearch className="w-3 h-3" />
+                      Refacted — {(inv.refactions || []).length} act(s) reduced
+                    </span>
+                  )}
+
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#E8EDF2] text-center">
                     <div>
                       <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Invoiced</div>
-                      <div className="font-bold text-[#0D2B63] text-xs">{formatAmount(inv.amount)}</div>
+                      {reimbursementTrackingEnabled && inv.refactionApplied ? (
+                        <>
+                          <div className="text-[10px] text-slate-400 line-through">{formatAmount(inv.amount)}</div>
+                          <div className="font-bold text-orange-700 text-xs">{formatAmount(inv.payableAmountUSD ?? inv.amount)}</div>
+                        </>
+                      ) : (
+                        <div className="font-bold text-[#0D2B63] text-xs">{formatAmount(inv.amount)}</div>
+                      )}
                     </div>
                     <div>
                       <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Covered</div>
@@ -456,6 +490,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         <span>Mark Paid</span>
                       </button>
                     )}
+                    {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical / recouvrement —
+                        volontairement PAS disponible sur mobile (précision explicite de
+                        l'utilisateur, 2026-09-10) : ces actions restent réservées au tableau
+                        desktop/tablet ci-dessous, jamais à la carte mobile. La facture refactée
+                        reste visible ici (badge + montant réduit ci-dessus), en lecture seule. === */}
                     {canDeleteInvoice && (
                       <button
                         onClick={() => setInvoiceToDelete(inv)}
@@ -552,9 +591,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                           </span>
                         </td>
 
-                        {/* INVOICED */}
-                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-bold text-[#0D2B63] text-[13px]">
-                          {formatAmount(inv.amount)}
+                        {/* INVOICED — === AMÉLIORATION AJOUTÉE : montant original barré + montant
+                            payable après réfaction quand elle existe (2026-09-10) === */}
+                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap text-[13px]">
+                          {reimbursementTrackingEnabled && inv.refactionApplied ? (
+                            <>
+                              <div className="text-[10px] text-slate-400 line-through leading-tight">{formatAmount(inv.amount)}</div>
+                              <div className="font-bold text-orange-700">{formatAmount(inv.payableAmountUSD ?? inv.amount)}</div>
+                            </>
+                          ) : (
+                            <span className="font-bold text-[#0D2B63]">{formatAmount(inv.amount)}</span>
+                          )}
                         </td>
 
                         {/* COVERED */}
@@ -629,6 +676,31 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                               >
                                 <Wallet className="w-3.5 h-3.5" />
                                 <span>Mark Paid</span>
+                              </button>
+                            )}
+
+                            {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical /
+                                recouvrement (2026-09-10) — mêmes conditions que sur la carte
+                                mobile ci-dessus. === */}
+                            {reimbursementTrackingEnabled && canApplyRefaction && (inv.status === 'valid' || inv.status === 'approved') && inv.paymentStatus !== 'paid' && !inv.refactionApplied && (
+                              <button
+                                onClick={() => setRefactingInvoice(inv)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                title="Apply réfaction"
+                              >
+                                <ScanSearch className="w-3.5 h-3.5" />
+                                <span>Réfaction</span>
+                              </button>
+                            )}
+
+                            {reimbursementTrackingEnabled && canApplyRefaction && inv.refactionApplied && (inv.refactionTotalUSD || 0) - (inv.recoveredTotalUSD || 0) > 0 && (
+                              <button
+                                onClick={() => setRecordingRecoveryInvoice(inv)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                title="Record recovery"
+                              >
+                                <Undo2 className="w-3.5 h-3.5" />
+                                <span>Recovery</span>
                               </button>
                             )}
 
@@ -877,6 +949,24 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       {/* === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation === */}
       {reimbursementTrackingEnabled && markingPaidInvoice && (
         <MarkAsPaidModal invoice={markingPaidInvoice} onClose={() => setMarkingPaidInvoice(null)} />
+      )}
+
+      {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical / recouvrement (2026-09-10) === */}
+      {reimbursementTrackingEnabled && refactingInvoice && (
+        <ApplyRefactionModal
+          invoice={refactingInvoice}
+          currentUserName={currentUserName}
+          currentUserRole={currentUserRole}
+          onClose={() => setRefactingInvoice(null)}
+        />
+      )}
+      {reimbursementTrackingEnabled && recordingRecoveryInvoice && (
+        <RecordRecoveryModal
+          invoice={recordingRecoveryInvoice}
+          currentUserName={currentUserName}
+          currentUserRole={currentUserRole}
+          onClose={() => setRecordingRecoveryInvoice(null)}
+        />
       )}
 
       {/* 6. DELETE CONFIRMATION MODAL */}

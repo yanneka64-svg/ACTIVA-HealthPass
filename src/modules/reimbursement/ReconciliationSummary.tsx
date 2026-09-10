@@ -4,7 +4,7 @@
 // "PROCESSED INVOICES" affiche déjà "100% verified disbursements", une mention décorative sans
 // donnée réelle derrière ; ce panneau fournit le vrai chiffre à côté, sans toucher à l'existant.
 import React from 'react';
-import { Wallet, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Wallet, CheckCircle2, AlertCircle, ScanSearch, Undo2 } from 'lucide-react';
 import { useCurrency } from '../../services/currency';
 import { ReconciliationSummary as ReconciliationSummaryData } from './reconciliation';
 
@@ -26,7 +26,7 @@ export const ReconciliationSummary: React.FC<ReconciliationSummaryProps> = ({ su
           <p className="text-[10.5px] text-slate-400">Approved invoices matched against recorded disbursements</p>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Approved</p>
           <p className="text-lg font-black text-slate-900 mt-1">{formatMoney(summary.approvedAmount, 'DUAL')}</p>
@@ -45,6 +45,22 @@ export const ReconciliationSummary: React.FC<ReconciliationSummaryProps> = ({ su
           </p>
           <p className="text-lg font-black text-amber-700 mt-1">{formatMoney(summary.outstandingAmount, 'DUAL')}</p>
           <p className="text-[10.5px] text-amber-600/80 mt-0.5">{summary.outstandingCount} invoice(s)</p>
+        </div>
+        {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical (2026-09-10, sur demande
+            explicite) — deux cases supplémentaires, mêmes calculs que le reste de ce panneau. === */}
+        <div className="p-3.5 rounded-xl bg-orange-50 border border-orange-200">
+          <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wide flex items-center gap-1">
+            <ScanSearch className="w-3 h-3" /> Refacted
+          </p>
+          <p className="text-lg font-black text-orange-700 mt-1">{formatMoney(summary.refactedAmount, 'DUAL')}</p>
+          <p className="text-[10.5px] text-orange-600/80 mt-0.5">{summary.refactedCount} invoice(s)</p>
+        </div>
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200">
+          <p className="text-[10px] font-bold text-rose-700 uppercase tracking-wide flex items-center gap-1">
+            <Undo2 className="w-3 h-3" /> Pending Recovery
+          </p>
+          <p className="text-lg font-black text-rose-700 mt-1">{formatMoney(summary.pendingRecoveryAmount, 'DUAL')}</p>
+          <p className="text-[10.5px] text-rose-600/80 mt-0.5">{summary.pendingRecoveryCount} invoice(s)</p>
         </div>
       </div>
     </div>

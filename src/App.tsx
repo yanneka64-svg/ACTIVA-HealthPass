@@ -1298,6 +1298,7 @@ export default function App() {
               invoices={invoices}
               userRole={activeRole}
               onDeleteInvoice={handleDeleteInvoice}
+              currentUser={currentUser}
             />
           )}
 
@@ -1406,6 +1407,7 @@ export default function App() {
               invoices={invoices}
               userRole={activeRole}
               onDeleteInvoice={handleDeleteInvoice}
+              currentUser={currentUser}
             />
           )}
 

@@ -215,6 +215,49 @@ export interface InvoiceItem {
   payee?: 'provider' | 'member';
   paidAt?: string;
   paymentReference?: string;
+  // === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical, avant paiement (2026-09-10, sur
+  // demande explicite de l'utilisateur). `amount` ci-dessus reste TOUJOURS le montant original
+  // facturé — jamais modifié — pour garder une traçabilité complète ; `payableAmountUSD` est le
+  // montant réellement dû après réfaction, calculé côté client (amount - refactionTotalUSD) et
+  // utilisé pour le paiement et la réconciliation à la place de `amount` quand présent. Quand
+  // aucune réfaction n'a été appliquée, ces champs restent tous `undefined` et le comportement
+  // est strictement identique à avant (repli sur `amount` partout où c'est lu).
+  refactionApplied?: boolean;
+  refactions?: InvoiceActRefaction[];
+  refactionTotalUSD?: number;
+  refactionAppliedAt?: string;
+  refactionAppliedBy?: string;
+  refactionAppliedByRole?: 'Admin' | 'Supervisor';
+  payableAmountUSD?: number;
+  // Recouvrement manuel (suivi uniquement, aucune compensation automatique) : quand le
+  // prestataire produit des justificatifs, une partie ou la totalité du montant refacté peut
+  // être enregistrée comme récupérée.
+  recoveries?: InvoiceRecovery[];
+  recoveredTotalUSD?: number;
+}
+
+// === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical (2026-09-10) — voir InvoiceItem
+// ci-dessus. Une entrée par acte médical dont le montant retenu diffère du montant original ;
+// `actIndex` référence la position dans `InvoiceItem.medicalActs[]`, `actName` est dupliqué pour
+// un affichage robuste même si ce tableau venait à changer de forme.
+export interface InvoiceActRefaction {
+  actIndex: number;
+  actName: string;
+  originalAmountUSD: number;
+  retainedAmountUSD: number;
+  rejectedAmountUSD: number;
+  reason: string;
+}
+
+// === AMÉLIORATION AJOUTÉE : recouvrement manuel d'un montant refacté (2026-09-10) — voir
+// InvoiceItem.recoveries ci-dessus.
+export interface InvoiceRecovery {
+  amountUSD: number;
+  recordedAt: string;
+  recordedBy: string;
+  recordedByRole: 'Admin' | 'Supervisor';
+  reference?: string;
+  notes?: string;
 }
 
 export interface Enrollment {

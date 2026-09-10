@@ -192,6 +192,32 @@ facts rather than the plan's initial guesses.
     decorative "100% verified disbursements" caption the existing "PROCESSED INVOICES" KPI card
     already displays without any real number behind it (left untouched, this panel sits
     alongside it with the genuine figure).
+  - **Réfaction (post-medical-control invoice deduction), added 2026-09-10, on explicit
+    request:** before payment, a post-service medical control can partially or fully reject one
+    or more medical acts on an approved invoice; only the retained amount is paid, and the
+    rejected portion can later be recovered manually if the provider provides justification.
+    Scoped via explicit questions with the user: réfaction happens **before** payment (not a
+    clawback on an already-paid invoice), per medical act line (not whole-invoice-only),
+    Admin+Supervisor both authorized (same `canMarkPaid`-style rule reused), recovery tracked
+    manually (no automatic offset against future payments). No new filter was added — the
+    existing free-text search already matches provider name, and `computeReconciliationSummary`
+    already runs off the org/search-filtered invoice list, so both "facture par facture" and "par
+    organisation/prestataire" hold for free.
+    - `InvoiceItem` additive fields: `refactionApplied`, `refactions[]` (one entry per reduced
+      act — original/retained/rejected amounts + reason), `refactionTotalUSD`,
+      `refactionAppliedAt/By/ByRole`, `payableAmountUSD` (= amount − refactionTotalUSD, used for
+      payment/reconciliation in place of `amount` whenever present), `recoveries[]`,
+      `recoveredTotalUSD`. `amount` itself is never mutated — full traceability preserved.
+    - `ApplyRefactionModal.tsx` / `RecordRecoveryModal.tsx` (new, `src/modules/reimbursement/`),
+      wired into `InvoicesView.tsx` next to "Mark as Paid" (desktop table + mobile cards), same
+      `canMarkPaid` access rule. `MarkAsPaidModal.tsx` now displays/pays `payableAmountUSD ??
+      amount`. `computeReconciliationSummary` (`reconciliation.ts`) now bases
+      Approved/Paid/Outstanding on the payable amount and adds two new totals: Refacted and
+      Pending Recovery — both shown in `ReconciliationSummary.tsx`.
+    - No Firestore rules change needed: `invoices` collection's `allow update` rule already
+      grants `canValidate()` (Admin + Supervisor) unrestricted field writes, the same gate
+      `MarkAsPaidModal` already relies on in production — unlike Tariff Engine/Digital Card
+      earlier, this feature needs no separate deploy step.
 
 ## 4. Process rules carried forward from the original plan
 

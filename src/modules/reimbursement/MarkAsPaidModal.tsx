@@ -56,7 +56,10 @@ export const MarkAsPaidModal: React.FC<MarkAsPaidModalProps> = ({ invoice, onClo
             </div>
             <div>
               <h3 className="font-bold text-lg leading-tight text-slate-900">Mark as Paid</h3>
-              <p className="text-xs text-slate-500 mt-0.5">{invoice.reference} — {formatMoney(invoice.amount, 'DUAL')}</p>
+              {/* === AMÉLIORATION AJOUTÉE : montant payable (après réfaction quand elle existe)
+                  affiché ici au lieu du montant original — c'est ce montant qui est réellement
+                  décaissé. Repli sur `invoice.amount` inchangé pour toute facture non refactée. === */}
+              <p className="text-xs text-slate-500 mt-0.5">{invoice.reference} — {formatMoney(invoice.payableAmountUSD ?? invoice.amount, 'DUAL')}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-500 cursor-pointer">
