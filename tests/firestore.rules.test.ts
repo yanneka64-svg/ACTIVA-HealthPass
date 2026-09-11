@@ -821,6 +821,129 @@ describe('Revue 2026-09-06 (A3) — notifications : lecture restreinte au destin
   });
 });
 
+// === AMÉLIORATION AJOUTÉE : revue d'audit 2026-09-11 — écriture des notifications non
+// restreinte (`allow write: if isSignedIn()`), laissée hors périmètre du correctif A3
+// ci-dessus (qui ne portait que sur la lecture). Preuve reproductible du resserrement.
+describe('Revue 2026-09-11 — notifications : écriture restreinte au destinataire réel', () => {
+  it('un utilisateur actif peut créer une notification adressée à un autre (recipientId) — cas normal', async () => {
+    await seedAccount('agentNotifCreator', { profile: 'Agent' });
+
+    await assertSucceeds(
+      asUser('agentNotifCreator').doc('notifications/created1').set({
+        recipientId: 'someoneElseUid',
+        message: 'Your claim was approved.',
+        unread: true,
+      })
+    );
+  });
+
+  it('un utilisateur actif peut créer une notification diffusée par rôle (recipientRole) — cas normal', async () => {
+    await seedAccount('agentNotifCreator2', { profile: 'Agent' });
+
+    await assertSucceeds(
+      asUser('agentNotifCreator2').doc('notifications/created2').set({
+        recipientRole: 'Supervisor',
+        message: 'A new claim is pending validation.',
+        unread: true,
+      })
+    );
+  });
+
+  it('la création d\'une notification SANS recipientId ni recipientRole échoue (document malformé)', async () => {
+    await seedAccount('agentNotifNoTarget', { profile: 'Agent' });
+
+    await assertFails(
+      asUser('agentNotifNoTarget').doc('notifications/created3').set({
+        message: 'No addressee at all.',
+        unread: true,
+      })
+    );
+  });
+
+  it('un compte désactivé ne peut plus créer de notification', async () => {
+    await seedAccount('agentNotifInactive', { profile: 'Agent', isActive: false });
+
+    await assertFails(
+      asUser('agentNotifInactive').doc('notifications/created4').set({
+        recipientId: 'someoneElseUid',
+        message: 'x',
+        unread: true,
+      })
+    );
+  });
+
+  it('le destinataire direct (recipientId) peut marquer sa propre notification comme lue', async () => {
+    await seedAccount('agentNotifOwner', { profile: 'Agent' });
+    await seedDoc('notifications', 'w1', {
+      recipientId: 'agentNotifOwner',
+      message: 'Your claim was approved.',
+      unread: true,
+    });
+
+    await assertSucceeds(asUser('agentNotifOwner').doc('notifications/w1').update({ unread: false }));
+  });
+
+  it('un destinataire par rôle (recipientRole) peut marquer une notification diffusée comme lue', async () => {
+    await seedAccount('supNotifOwner', { profile: 'Supervisor' });
+    await seedDoc('notifications', 'w2', {
+      recipientRole: 'Supervisor',
+      message: 'A new claim is pending validation.',
+      unread: true,
+    });
+
+    await assertSucceeds(asUser('supNotifOwner').doc('notifications/w2').update({ unread: false }));
+  });
+
+  it('un utilisateur NE PEUT PAS modifier la notification de quelqu\'un d\'autre', async () => {
+    await seedAccount('agentNotifBystander', { profile: 'Agent' });
+    await seedDoc('notifications', 'w3', {
+      recipientId: 'someoneElseUid',
+      message: 'Your claim was approved.',
+      unread: true,
+    });
+
+    await assertFails(asUser('agentNotifBystander').doc('notifications/w3').update({ unread: false }));
+  });
+
+  it('même le destinataire ne peut pas modifier un autre champ que unread (ex. message)', async () => {
+    await seedAccount('agentNotifTamper', { profile: 'Agent' });
+    await seedDoc('notifications', 'w4', {
+      recipientId: 'agentNotifTamper',
+      message: 'Your claim was approved.',
+      unread: true,
+    });
+
+    await assertFails(
+      asUser('agentNotifTamper').doc('notifications/w4').update({ message: 'Tampered message' })
+    );
+  });
+
+  it('un Admin peut marquer comme lue la notification de n\'importe qui', async () => {
+    await seedAccount('adminNotifWrite', { profile: 'Admin' });
+    await seedDoc('notifications', 'w5', {
+      recipientId: 'someoneElseUid',
+      message: 'x',
+      unread: true,
+    });
+
+    await assertSucceeds(asUser('adminNotifWrite').doc('notifications/w5').update({ unread: false }));
+  });
+
+  it('un utilisateur non-Admin ne peut pas supprimer une notification', async () => {
+    await seedAccount('agentNotifDelete', { profile: 'Agent' });
+    await seedDoc('notifications', 'w6', { recipientId: 'agentNotifDelete', message: 'x' });
+
+    await assertFails(asUser('agentNotifDelete').doc('notifications/w6').delete());
+  });
+
+  it('un Admin peut supprimer une notification', async () => {
+    await seedAccount('adminNotifDelete', { profile: 'Admin' });
+    await seedDoc('notifications', 'w7', { recipientId: 'someoneElseUid', message: 'x' });
+
+    await assertSucceeds(asUser('adminNotifDelete').doc('notifications/w7').delete());
+  });
+});
+
 // --- Revue complète 2026-09-06, finding A4 : whitelist healthPolicies.update incomplète -------
 
 describe('Revue 2026-09-06 (A4) — healthPolicies.update : champs de synchro automatique autorisés', () => {
