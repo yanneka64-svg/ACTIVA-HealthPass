@@ -72,6 +72,88 @@ export function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+// === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11, section 2.6 — exports en masse non
+// maîtrisés) ===
+// Constat (docs/security/HEALTH_DATA_GOVERNANCE_REVIEW_2026-09-05.md, §2.6) : un export
+// Excel/PDF contenant des données personnelles/de santé quitte définitivement le périmètre
+// applicatif (fichier local non protégé, e-mail, clé USB...) sans aucune indication visuelle de
+// confidentialité, et sans aucune limite sur le nombre d'enregistrements qu'un clic peut
+// extraire. Le chiffrement du fichier lui-même (mentionné dans le même constat) est traité à
+// part — il exigerait un mot de passe à communiquer hors bande au destinataire, une décision
+// produit qui dépasse ce correctif ; les deux mesures ci-dessous ne demandent aucune décision de
+// ce type et s'appliquent uniformément aux exports qui portent des données de membres/claims/
+// factures/polices.
+export const MAX_EXPORT_ROWS = 5000;
+
+/**
+ * Enforces `MAX_EXPORT_ROWS` on a bulk export. Returns `true` when the export may proceed.
+ * When the limit is exceeded, alerts the user with actionable guidance and returns `false` —
+ * NEVER throws, so every call site can simply `if (!assertExportVolumeAllowed(...)) return;`
+ * without adding new error handling (this file is the only place this needs to be caught).
+ * Exported (like the other helpers below) purely so it can be unit tested directly.
+ */
+export function assertExportVolumeAllowed(rowCount: number, exportLabel: string): boolean {
+  if (rowCount <= MAX_EXPORT_ROWS) return true;
+  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert(
+      `Export "${exportLabel}" blocked: ${rowCount.toLocaleString('en-US')} records exceed the ` +
+        `${MAX_EXPORT_ROWS.toLocaleString('en-US')}-record limit for a single export. ` +
+        `Please narrow your filters (organization, date range, status) and export in smaller batches.`
+    );
+  }
+  return false;
+}
+
+export const EXPORT_CONFIDENTIALITY_NOTICE =
+  "CONFIDENTIAL — Contains personal and/or health data. Handle and store per your organization's data protection policy. Do not forward outside authorized personnel.";
+
+/**
+ * Prepends a one-row "Notice" sheet as the FIRST tab of `wb`, so the confidentiality notice is
+ * what a person sees when the exported workbook is opened — call right before `XLSX.write`.
+ */
+export function addExportConfidentialityNoticeSheet(wb: XLSX.WorkBook): void {
+  const ws = XLSX.utils.json_to_sheet(
+    [
+      { Notice: EXPORT_CONFIDENTIALITY_NOTICE },
+      { Notice: `Exported ${new Date().toISOString()}` },
+    ],
+    { skipHeader: true }
+  );
+  ws['!cols'] = [{ wch: 110 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Notice');
+  // XLSX.write orders sheets per wb.SheetNames — move the just-appended "Notice" tab to the
+  // front so it's the first (and only immediately visible) sheet on open.
+  wb.SheetNames.unshift(wb.SheetNames.pop()!);
+}
+
+/** Prepends the confidentiality notice as the first line of a CSV export. */
+export function withExportConfidentialityNoticeCSV(csvContent: string): string {
+  return `"${EXPORT_CONFIDENTIALITY_NOTICE.replace(/"/g, '""')}"\n${csvContent}`;
+}
+
+/**
+ * Draws a small confidentiality footer on every page of a jsPDF document. Call once, right
+ * before `doc.save(...)` — iterates all already-generated pages itself.
+ */
+export function drawExportConfidentialityFooter(doc: jsPDF): void {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.setCharSpace(0);
+    doc.text(
+      'CONFIDENTIAL — Contains personal and/or health data — For authorized use only',
+      pageWidth / 2,
+      pageHeight - 5,
+      { align: 'center' }
+    );
+  }
+}
+
 // ================= MEMBER IMPORT =================
 const MEMBER_COLUMN_MAPPINGS = {
   cardNo: ['card no', 'card number', 'card id', 'member id', 'matricule', 'no carte', 'numero carte', 'id carte', 'carte'],
@@ -1357,6 +1439,7 @@ export function generateMultiOrgTemplateExcel() {
 }
 
 export function exportMembersToExcel(members: Member[], lang?: any) {
+  if (!assertExportVolumeAllowed(members.length, 'Insured Directory')) return;
   // Sheet 1: Principal Insured only
   const principalsData = members.map((m) => {
     const totalDeps = (m.dependents?.length || 0) + (m.children?.length || 0) + (m.spouseName ? 1 : 0);
@@ -1464,6 +1547,7 @@ export function exportMembersToExcel(members: Member[], lang?: any) {
     )
   );
   XLSX.utils.book_append_sheet(wb, wsDependents, 'Dependents');
+  addExportConfidentialityNoticeSheet(wb);
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(
@@ -1473,6 +1557,7 @@ export function exportMembersToExcel(members: Member[], lang?: any) {
 }
 
 export function exportMembersToCSV(members: Member[], lang?: any) {
+  if (!assertExportVolumeAllowed(members.length, 'Insured Members')) return;
   const headers = ['Card Number', 'Primary Insured', 'Spouse', 'Children', 'Organization', 'Relationship', 'Status', 'Date of Birth', 'Outpatient Balance (USD)', 'Outpatient Ceiling (USD)', 'Inpatient Balance (USD)', 'Inpatient Ceiling (USD)', 'Biometrics', 'Registration Date'];
   const rows = members.map(m => [
     `"${m.cardNo}"`,
@@ -1490,7 +1575,7 @@ export function exportMembersToCSV(members: Member[], lang?: any) {
     m.hasBiometrics ? 'Yes' : 'No',
     `"${m.createdAt || ''}"`,
   ]);
-  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const csvContent = withExportConfidentialityNoticeCSV([headers.join(','), ...rows.map(r => r.join(','))].join('\n'));
   downloadBlob(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), `ACTIVA_Insured_Members_${new Date().toISOString().split('T')[0]}.csv`);
 }
 
@@ -1907,6 +1992,7 @@ export function exportProvidersToCSV(providers: Provider[], lang?: any) {
 
 // ================= CLAIMS & INVOICES EXPORTS =================
 export function exportClaimsToExcel(claims: Claim[], lang?: any) {
+  if (!assertExportVolumeAllowed(claims.length, 'Benefit Claims')) return;
   const data = claims.map(c => ({
     'Claim Reference': c.reference,
     'Card Number': c.memberCardNo,
@@ -1927,11 +2013,13 @@ export function exportClaimsToExcel(claims: Claim[], lang?: any) {
   const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Benefit Claims');
+  addExportConfidentialityNoticeSheet(wb);
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Benefit_Claims_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 export function exportClaimsToCSV(claims: Claim[], lang?: any) {
+  if (!assertExportVolumeAllowed(claims.length, 'Benefit Claims')) return;
   const headers = ['Claim Reference', 'Card Number', 'Insured Name', 'Organization', 'Healthcare Facility', 'Amount', 'Care Type', 'Service Date', 'Status', 'Reason'];
   const rows = claims.map(c => [
     `"${c.reference}"`,
@@ -1945,11 +2033,12 @@ export function exportClaimsToCSV(claims: Claim[], lang?: any) {
     `"${c.status.toUpperCase()}"`,
     `"${c.rejectionReason || c.returnReason || ''}"`,
   ]);
-  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const csvContent = withExportConfidentialityNoticeCSV([headers.join(','), ...rows.map(r => r.join(','))].join('\n'));
   downloadBlob(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), `ACTIVA_Benefit_Claims_${new Date().toISOString().split('T')[0]}.csv`);
 }
 
 export function exportInvoicesToExcel(invoices: InvoiceItem[], lang?: any) {
+  if (!assertExportVolumeAllowed(invoices.length, 'Invoices & Settlements')) return;
   const data = invoices.map(i => ({
     'Invoice Reference': i.reference,
     'Patient Name': i.patientName,
@@ -1967,6 +2056,7 @@ export function exportInvoicesToExcel(invoices: InvoiceItem[], lang?: any) {
   const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Invoices & Settlements');
+  addExportConfidentialityNoticeSheet(wb);
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Invoices_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
@@ -1992,6 +2082,7 @@ export function exportReportsToExcel(providerDistribution: any[], orgDistributio
   }));
   const wsOrg = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(orgData));
   XLSX.utils.book_append_sheet(wb, wsOrg, 'By Organization');
+  addExportConfidentialityNoticeSheet(wb);
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Statistical_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -2126,6 +2217,7 @@ export function exportReportsToPDF(
     bodyStyles: { fontSize: 8 },
   });
 
+  drawExportConfidentialityFooter(doc);
   doc.save(`ACTIVA_Analytical_Report_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
@@ -2136,6 +2228,7 @@ export function exportReportsToPDF(
 // (computeReconciliationSummary) — ce rapport ne fait qu'exposer ces chiffres déjà existants
 // dans un document exportable, avec en plus le détail facture par facture.
 export function exportReconciliationToExcel(invoices: InvoiceItem[], summary: ReconciliationSummary) {
+  if (!assertExportVolumeAllowed(invoices.length, 'Payment Reconciliation')) return;
   const wb = XLSX.utils.book_new();
 
   const summaryData = [
@@ -2167,6 +2260,7 @@ export function exportReconciliationToExcel(invoices: InvoiceItem[], summary: Re
   }));
   const wsDetail = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(detailData));
   XLSX.utils.book_append_sheet(wb, wsDetail, 'Invoice Detail');
+  addExportConfidentialityNoticeSheet(wb);
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Payment_Reconciliation_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -2263,6 +2357,7 @@ export function exportReconciliationToPDF(invoices: InvoiceItem[], summary: Reco
     bodyStyles: { fontSize: 7.5 },
   });
 
+  drawExportConfidentialityFooter(doc);
   doc.save(`ACTIVA_Payment_Reconciliation_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
@@ -2401,12 +2496,14 @@ export function generateExecutiveReportPDF(metrics: {
   doc.setFontSize(8);
   doc.text('ACTIVA Insurance — Official Management & Compliance Audit Trail', pageWidth / 2, finalY + 15, { align: 'center' });
 
+  drawExportConfidentialityFooter(doc);
   doc.save(`ACTIVA_Executive_Report_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 // ================= HEALTH POLICY & PREMIUM MONITORING EXPORTS =================
 // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
 export function exportPoliciesToExcel(policies: (HealthPolicy & { organizationName?: string })[], lang?: any) {
+  if (!assertExportVolumeAllowed(policies.length, 'Policies & Premiums')) return;
   const data = policies.map((p) => ({
     'Organization': p.organizationId,
     'Policy Number': p.policyNumber,
@@ -2425,6 +2522,7 @@ export function exportPoliciesToExcel(policies: (HealthPolicy & { organizationNa
   const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Policies & Premiums');
+  addExportConfidentialityNoticeSheet(wb);
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Policies_Premiums_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
@@ -2518,5 +2616,6 @@ export function exportPolicyDetailToPDF(
     columnStyles: { 0: { fontStyle: 'bold', textColor: [100, 116, 139] } },
   });
 
+  drawExportConfidentialityFooter(doc);
   doc.save(`ACTIVA_Policy_${policy.policyNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
 }
