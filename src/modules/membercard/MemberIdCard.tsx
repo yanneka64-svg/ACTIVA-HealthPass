@@ -144,56 +144,86 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
 
       {/* Corps de la carte */}
       <div className="flex-1 min-h-0 px-3 pt-1.5 pb-1.5 flex flex-col justify-between">
-        {/* Photo + bloc Bénéficiaire */}
-        <div className="flex items-start gap-2.5">
-          <div className="w-[16.67cqw] h-[18.67cqw] shrink-0 rounded-md border border-slate-300 bg-slate-100 overflow-hidden flex items-center justify-center">
-            {photoUrl ? (
-              <img src={photoUrl} alt={t.memberCard.photoAlt} className="w-full h-full object-cover" />
-            ) : (
-              <svg viewBox="0 0 50 56" className="w-full h-full">
-                <rect width="50" height="56" fill="#eef1f5" />
-                <circle cx="25" cy="21" r="10" fill="#c3cbd6" />
-                <path d="M7,54 C7,40 14,34 25,34 C36,34 43,40 43,54 Z" fill="#c3cbd6" />
-              </svg>
+        {/* === AMÉLIORATION AJOUTÉE : "Insured"/"Assuré.e" resserré juste après la Date de
+            naissance (retour utilisateur explicite, 2026-09-11) — Beneficiary et Rôle sont
+            désormais regroupés dans un même bloc (au lieu d'être espacés par le
+            `justify-between` du conteneur), qui ne s'applique plus qu'entre ce groupe et le
+            pied de carte. === */}
+        <div>
+          {/* Photo + bloc Bénéficiaire */}
+          <div className="flex items-start gap-2.5">
+            <div className="w-[16.67cqw] h-[18.67cqw] shrink-0 rounded-md border border-slate-300 bg-slate-100 overflow-hidden flex items-center justify-center">
+              {photoUrl ? (
+                <img src={photoUrl} alt={t.memberCard.photoAlt} className="w-full h-full object-cover" />
+              ) : (
+                <svg viewBox="0 0 50 56" className="w-full h-full">
+                  <rect width="50" height="56" fill="#eef1f5" />
+                  <circle cx="25" cy="21" r="10" fill="#c3cbd6" />
+                  <path d="M7,54 C7,40 14,34 25,34 C36,34 43,40 43,54 Z" fill="#c3cbd6" />
+                </svg>
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="text-[3.83cqw] font-extrabold text-[#1657b0] leading-tight">
+                {t.memberCard.beneficiaryLabel}
+              </div>
+              <div className="mt-0.5 text-[2.67cqw] text-slate-800 leading-[1.3]">
+                <div className="whitespace-nowrap overflow-hidden text-ellipsis">
+                  <span className="font-semibold text-slate-500">{t.memberCard.matriculeLabel} : </span>
+                  <span className="font-bold" style={{ fontFamily: 'monospace' }}>{cardNo}</span>
+                </div>
+                {/* === AMÉLIORATION AJOUTÉE : puce à droite des lignes Nom/Prénoms (retour
+                    utilisateur explicite, 2026-09-11) — repère visuel discret, même style de
+                    point que celui déjà utilisé pour le statut plus bas sur la carte.
+                    === AMÉLIORATION AJOUTÉE : débordement corrigé (retour utilisateur explicite
+                    — "ne doit pas déborder le cadre dédié à la photo") — `min-w-0` ajouté sur le
+                    span tronqué : dans une ligne flex, un enfant garde par défaut sa largeur de
+                    contenu minimale et refuse de rétrécir, ce qui empêchait `text-ellipsis` de
+                    s'appliquer pour un nom long et le laissait déborder du cadre de la carte. === */}
+                <div className="flex items-center justify-between gap-1">
+                  <span className="min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">
+                    <span className="font-semibold text-slate-500">{t.memberCard.surnameLabel} : </span>
+                    <span className="font-bold uppercase">{surname}</span>
+                  </span>
+                  <span className="w-1 h-1 rounded-full bg-[#1657b0] shrink-0" />
+                </div>
+                <div className="flex items-center justify-between gap-1">
+                  <span className="min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">
+                    <span className="font-semibold text-slate-500">{t.memberCard.givenNamesLabel} : </span>
+                    <span className="font-bold">{given || '—'}</span>
+                  </span>
+                  <span className="w-1 h-1 rounded-full bg-[#1657b0] shrink-0" />
+                </div>
+                <div className="whitespace-nowrap overflow-hidden text-ellipsis">
+                  <span className="font-semibold text-slate-500">{t.memberCard.dobLabel} : </span>
+                  <span className="font-bold">{formatBirthDate(birthDate)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Rôle (Assuré.e / Ayant droit) — juste après la Date de naissance */}
+          <div className="leading-tight mt-1">
+            <div className="text-[4.67cqw] font-extrabold text-[#1657b0]">{roleLabel}</div>
+            {relationship && (
+              <div className="text-[2.5cqw] text-slate-500 font-semibold truncate">{relationship} · {organization}</div>
             )}
           </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="text-[3.83cqw] font-extrabold text-[#1657b0] leading-tight">
-              {t.memberCard.beneficiaryLabel}
-            </div>
-            <div className="mt-0.5 text-[2.67cqw] text-slate-800 leading-[1.3]">
-              <div className="whitespace-nowrap overflow-hidden text-ellipsis">
-                <span className="font-semibold text-slate-500">{t.memberCard.matriculeLabel} : </span>
-                <span className="font-bold" style={{ fontFamily: 'monospace' }}>{cardNo}</span>
-              </div>
-              <div className="whitespace-nowrap overflow-hidden text-ellipsis">
-                <span className="font-semibold text-slate-500">{t.memberCard.surnameLabel} : </span>
-                <span className="font-bold uppercase">{surname}</span>
-              </div>
-              <div className="whitespace-nowrap overflow-hidden text-ellipsis">
-                <span className="font-semibold text-slate-500">{t.memberCard.givenNamesLabel} : </span>
-                <span className="font-bold">{given || '—'}</span>
-              </div>
-              <div className="whitespace-nowrap overflow-hidden text-ellipsis">
-                <span className="font-semibold text-slate-500">{t.memberCard.dobLabel} : </span>
-                <span className="font-bold">{formatBirthDate(birthDate)}</span>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Rôle (Assuré.e / Ayant droit) */}
-        <div className="leading-tight">
-          <div className="text-[4.67cqw] font-extrabold text-[#1657b0]">{roleLabel}</div>
-          {relationship && (
-            <div className="text-[2.5cqw] text-slate-500 font-semibold truncate">{relationship} · {organization}</div>
-          )}
-        </div>
-
-        {/* Pied de carte : QR, signature, statut, logo */}
-        <div className="flex items-end justify-between gap-2">
-          <div className="flex items-end gap-1.5 min-w-0">
+        {/* Pied de carte : QR, statut, logo.
+            === AMÉLIORATION AJOUTÉE : "Full Name" (signature) et le nom affiché à côté du QR
+            retirés (retour utilisateur explicite, 2026-09-11) — seuls le QR code, le statut et
+            le logo restent en pied de carte.
+            === AMÉLIORATION AJOUTÉE : statut aligné sur la même ligne que le QR code (retour
+            utilisateur explicite) — `items-end` remplacé par `items-center` (le statut suivait
+            auparavant le bas du QR au lieu d'être centré à côté de lui). Le texte affiché reste
+            entièrement dynamique : "Active"/"Actif" si `isActive`, sinon la valeur réelle de
+            `status` (ex. "Suspended"/"Suspendu") telle que transmise par l'écran appelant à
+            partir des données réelles de l'assuré — jamais figé en dur. === */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
             {qrDataUrl && (
               <img
                 src={qrDataUrl}
@@ -202,18 +232,10 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
                 className="w-[10cqw] h-[10cqw] shrink-0"
               />
             )}
-            <div className="min-w-0">
-              <div className="text-[2.17cqw] text-slate-500 leading-tight truncate">
-                {t.memberCard.fullNameSignatureLabel} :
-              </div>
-              <div className="text-[2.17cqw] font-bold text-slate-700 leading-tight truncate max-w-[40cqw]">
-                {[given, surname].filter(Boolean).join(' ') || fullName}
-              </div>
-              <span className={`inline-flex items-center gap-1 mt-0.5 text-[2.17cqw] font-bold ${isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
-                <span className="w-1 h-1 rounded-full bg-current" />
-                {isActive ? 'Active' : status}
-              </span>
-            </div>
+            <span className={`inline-flex items-center gap-1 text-[2.17cqw] font-bold ${isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <span className="w-1 h-1 rounded-full bg-current" />
+              {isActive ? 'Active' : status}
+            </span>
           </div>
 
           <img src={ACTIVA_LOGO_BASE64} alt="Activa" className="h-[7.33cqw] w-auto object-contain shrink-0" />

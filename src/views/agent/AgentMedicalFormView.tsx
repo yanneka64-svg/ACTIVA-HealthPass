@@ -542,26 +542,20 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       )}
 
       {/* === AMÉLIORATION AJOUTÉE : état neutre affiché tant que le formulaire n'a pas été
-          explicitement activé via le bouton "New Medical Form" (retour utilisateur explicite,
-          2026-09-11). Même style que le placeholder "Live Preview" existant, pour rester
-          cohérent visuellement avec le reste de l'écran. === */}
+          explicitement activé. Retour utilisateur explicite (2026-09-11) : PAS de bouton
+          supplémentaire ici — seul le bouton "New Medical Form" de la bannière supérieure
+          (identique côté Agent) active le formulaire, ce placeholder est purement informatif.
+          Même style que le placeholder "Live Preview" existant, pour rester cohérent
+          visuellement avec le reste de l'écran. === */}
       {activeTab === 'create' && !formActivated && (
         <div className="min-h-[350px] bg-slate-50/70 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-8 text-center">
           <div className="w-14 h-14 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-center mb-3">
             <FileText className="w-7 h-7 text-slate-400" />
           </div>
           <h4 className="font-bold text-sm text-slate-700 mb-1">{t.agentMedForm.formIdleTitle}</h4>
-          <p className="text-xs text-slate-400 max-w-xs mb-4">
+          <p className="text-xs text-slate-400 max-w-xs">
             {t.agentMedForm.formIdleDesc}
           </p>
-          <button
-            type="button"
-            onClick={() => setFormActivated(true)}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs shadow-xs transition flex items-center gap-2 cursor-pointer text-white ${roleTheme.palette.primaryColor}`}
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            <span>{t.agentMedForm.startNewFormBtn}</span>
-          </button>
         </div>
       )}
 
