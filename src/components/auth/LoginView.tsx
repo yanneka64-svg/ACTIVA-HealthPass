@@ -450,8 +450,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
             fond blanc, conserve la taille du logo telle qu'il existe actuellement") :
             couleurs d'origine du logo (jamais retouchées, donc jamais floues), posées sur une
             plaque blanche pour rester lisibles sur le fond bleu marine du panneau. Taille de
-            l'image inchangée (h-12). === */}
-        <div className="relative z-10 self-start bg-white rounded-lg px-3 py-2 shadow-sm login-anim-slide-left login-anim-delay-1">
+            l'image inchangée (h-12).
+            === AMÉLIORATION AJOUTÉE : logo figé, non animé (retour utilisateur, 2026-09-11 —
+            "je ne veux pas que le logo de ACTIVA soit animé, il doit être figé") — classes
+            login-anim-slide-left/login-anim-delay-1 retirées de ce seul badge (visible
+            immédiatement, sans glissement ni délai). Le titre, le texte et le copyright
+            juste en dessous restent animés comme avant — seul le logo est concerné. === */}
+        <div className="relative z-10 self-start bg-white rounded-lg px-3 py-2 shadow-sm">
           <img
             src={activaLogoOriginal}
             alt="Activa"
