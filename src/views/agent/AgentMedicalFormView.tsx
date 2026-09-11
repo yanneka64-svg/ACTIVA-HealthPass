@@ -541,27 +541,19 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
         </div>
       )}
 
-      {/* === AMÉLIORATION AJOUTÉE : état neutre affiché tant que le formulaire n'a pas été
-          explicitement activé. Retour utilisateur explicite (2026-09-11) : PAS de bouton
-          supplémentaire ici — seul le bouton "New Medical Form" de la bannière supérieure
-          (identique côté Agent) active le formulaire, ce placeholder est purement informatif.
-          Même style que le placeholder "Live Preview" existant, pour rester cohérent
-          visuellement avec le reste de l'écran. === */}
-      {activeTab === 'create' && !formActivated && (
-        <div className="min-h-[350px] bg-slate-50/70 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-8 text-center">
-          <div className="w-14 h-14 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-center mb-3">
-            <FileText className="w-7 h-7 text-slate-400" />
-          </div>
-          <h4 className="font-bold text-sm text-slate-700 mb-1">{t.agentMedForm.formIdleTitle}</h4>
-          <p className="text-xs text-slate-400 max-w-xs">
-            {t.agentMedForm.formIdleDesc}
-          </p>
-        </div>
-      )}
-
+      {/* === AMÉLIORATION AJOUTÉE : formulaire grisé/inactif tant que "New Medical Form" n'a
+          pas été cliqué (retour utilisateur explicite, 2026-09-11 — "le medical form doit être
+          grisé... un peu comme avec New Claim"), même pattern que AgentClaimsView.tsx
+          (formActivated) — remplace l'état neutre précédent (case vide "No Active Medical
+          Form") par le formulaire complet affiché mais désactivé (opacité réduite,
+          désaturation, non cliquable), exactement comme l'écran Claims Processing. === */}
       {/* TAB 1: CREATION AND CONFIGURATION WITH SMART AUTOCOMPLETE */}
-      {activeTab === 'create' && formActivated && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {activeTab === 'create' && (
+        <div
+          className={`grid grid-cols-1 lg:grid-cols-12 gap-6 transition ${
+            !formActivated ? 'opacity-50 grayscale-[60%] pointer-events-none select-none' : ''
+          }`}
+        >
           {/* Left Form Column: Configuration */}
           <div className="lg:col-span-6 space-y-6">
             {/* === AMÉLIORATION AJOUTÉE : bande bleue d'en-tête retirée, sur demande explicite
