@@ -31,7 +31,11 @@ const ACTIVA_BLUE = '#0546AF'; // couleur exacte de "ACTIVA" et du slogan, écha
 const HEALTHPASS_NAVY = '#0A2F6D'; // couleur exacte de "HealthPass", échantillonnée sur le logo fourni
 const TAGLINE_GREEN = '#00A651'; // puces vertes du slogan, cohérent avec la croix de l'emblème
 
-const LOGO_FONT_IMPORT = "@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;900&display=swap');";
+// === AMÉLIORATION AJOUTÉE : correctif logo (retour utilisateur, 2026-09-11 — "quand je me
+// déconnecte le logo Activa a du mal à s'afficher") === Montserrat était auparavant chargée via
+// un @import glissé dans la balise <style> du SVG ci-dessous, réinjecté à chaque affichage du
+// logo — peu fiable sous réseau ralenti. Désormais déclarée une seule fois dans index.html
+// (comme les autres polices de l'app), donc plus besoin de l'importer ici.
 const LOGO_FONT_STACK = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 /**
@@ -68,7 +72,6 @@ const WordmarkSvg: React.FC<{ className?: string; showTagline?: boolean }> = ({
     <defs>
       <style>
         {`
-          ${LOGO_FONT_IMPORT}
           .logo-activa-bold {
             font-family: ${LOGO_FONT_STACK};
             font-weight: 900;
