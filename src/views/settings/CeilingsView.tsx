@@ -543,16 +543,13 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   (retour utilisateur, 2026-09-07) — la configuration des plafonds d'âge
                   elle-même (bulles Primary/Spouse/Child ci-dessous + bouton "Configure Benefit
                   Limit") reste entièrement inchangée, seul ce libellé est reformulé. */}
+              {/* === AMÉLIORATION AJOUTÉE : mention descriptive retirée (retour utilisateur,
+                  2026-09-11) — le badge "Real-Time Eligibility Verification" reste seul,
+                  le comportement de validation d'âge n'est pas modifié. === */}
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-slate-200">
                 <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
                 <span>{t.ceilings.eligibilityBadge}</span>
               </div>
-              {/* === AMÉLIORATION AJOUTÉE : texte justifié (text-justify) sur demande explicite,
-                  au lieu d'un simple alignement à gauche — les bords gauche ET droit du
-                  paragraphe sont désormais alignés. === */}
-              <p className="text-xs text-slate-200 leading-relaxed font-medium text-justify whitespace-normal break-words">
-                {t.ceilings.eligibilityDesc}
-              </p>
             </div>
 
             {/* Dynamic Age Limits Display Pills */}
