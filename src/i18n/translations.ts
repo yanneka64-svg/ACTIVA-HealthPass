@@ -681,7 +681,9 @@ export const translations = {
       // restent en anglais : valeurs métier comparées/stockées ailleurs (getBenefitBadgeStyle,
       // benefitLimits, Ceiling.careType), pas du texte d'interface.
       eligibilityBadge: 'Real-Time Eligibility Verification',
-      eligibilityDesc: 'Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.',
+      // === AMÉLIORATION AJOUTÉE : message simplifié (retour utilisateur explicite, 2026-09-11)
+      // — comportement de validation d'âge inchangé, seul le libellé est reformulé, plus court.
+      eligibilityDesc: 'Claims are automatically blocked if the insured exceeds the policy age limit on the date of care.',
       primaryInsuredLabel: 'Primary Insured',
       yearsUnit: 'years',
       spouseLabel: 'Spouse',
@@ -2067,7 +2069,7 @@ export const translations = {
       ceilingsSaved: 'Plafonds enregistrés avec succès.',
       currency: 'Devise',
       eligibilityBadge: "Vérification d'éligibilité en temps réel",
-      eligibilityDesc: "La validation d'âge en temps réel bloque automatiquement les réclamations et invalide la couverture si une personne assurée dépasse la limite d'âge de la police configurée à la date des soins.",
+      eligibilityDesc: "Les réclamations sont automatiquement bloquées si l'assuré dépasse la limite d'âge de la police à la date des soins.",
       primaryInsuredLabel: 'Assuré principal',
       yearsUnit: 'ans',
       spouseLabel: 'Conjoint(e)',
