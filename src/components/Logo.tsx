@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 export type LogoVariant = 'full' | 'compact' | 'mini' | 'icon-only' | 'responsive';
 export type LogoSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
@@ -61,8 +61,41 @@ export const LogoIcon: React.FC<{ className?: string; size?: number | string }> 
 const WordmarkSvg: React.FC<{ className?: string; showTagline?: boolean }> = ({
   className = 'h-9',
   showTagline = true,
-}) => (
+}) => {
+  // === AMÉLIORATION AJOUTÉE : correctif complémentaire (retour utilisateur, 2026-09-11 — "le
+  // logo Activa a du mal à charger" à la déconnexion, persistant malgré le premier correctif
+  // ci-dessus qui déclare Montserrat dans index.html) — même bien déclarée, certains
+  // navigateurs ne redessinent pas un texte SVG déjà monté une fois la police effectivement
+  // chargée (contrairement au texte HTML classique, qui se redessine automatiquement quand la
+  // police "swap" arrive) : si ce composant SVG se monte avant que Montserrat ne soit prête
+  // (cas typique juste après la déconnexion, où l'écran de connexion réapparaît), le texte peut
+  // rester bloqué sur la police de repli. On attend ici une confirmation explicite via l'API
+  // CSS Font Loading, puis on force un nouveau montage du SVG (clé React) une fois la police
+  // garantie disponible, éliminant cette course — sans rien changer à l'apparence.
+  const [fontReady, setFontReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    if (typeof document !== 'undefined' && 'fonts' in document) {
+      Promise.all([
+        document.fonts.load('900 21px Montserrat'),
+        document.fonts.load('700 21px Montserrat'),
+        document.fonts.load('600 21px Montserrat'),
+      ])
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setFontReady(true);
+        });
+    } else {
+      setFontReady(true);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
   <svg
+    key={fontReady ? 'font-ready' : 'font-loading'}
     viewBox={showTagline ? '0 0 256 56' : '0 0 256 40'}
     className={`${className} w-auto max-w-full block`}
     xmlns="http://www.w3.org/2000/svg"
@@ -110,7 +143,8 @@ const WordmarkSvg: React.FC<{ className?: string; showTagline?: boolean }> = ({
       </g>
     )}
   </svg>
-);
+  );
+};
 
 /**
  * Miniature Simplified Logo Badge (Ideal for mobile topbars, cards, and compact navigation)
