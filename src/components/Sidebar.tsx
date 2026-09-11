@@ -245,32 +245,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Background ambient light glow */}
       <div className={`absolute -bottom-16 -left-16 w-56 h-56 ${theme.palette.accentGlow} rounded-full blur-3xl pointer-events-none`} />
 
-      {/* Clean subtle ACTIVA vector background curves without dots */}
-      {/* === AMÉLIORATION AJOUTÉE : couleur du motif désormais tirée de theme.palette.motifStroke
-          (or/ambre pour Admin, turquoise pour Superviseur, blanc inchangé pour Agent) au lieu
-          d'un blanc fixe pour les 3 rôles — le tracé SVG et les niveaux d'opacité restent
-          strictement identiques, seule la teinte varie selon l'interface active. ===
-          === AMÉLIORATION AJOUTÉE : taille du motif augmentée (retour utilisateur, 2026-09-11 —
-          "augmente la taille des motifs côté superviseur, assure-toi qu'il ait la même taille
-          que celle de l'agent") — ce composant est déjà strictement PARTAGÉ entre les 3 rôles
-          (Agent/Superviseur/Admin, même code, seule la couleur change ci-dessus) : Agent et
-          Superviseur ont donc déjà rigoureusement la même taille de motif. L'agrandissement
-          ci-dessous (scale-125, ancré en bas à gauche comme le motif lui-même) s'applique donc
-          identiquement aux deux, garantissant qu'ils restent alignés en le devenant plus grand.
-          === AMÉLIORATION AJOUTÉE : opacité du motif augmentée côté Superviseur (retour
-          utilisateur explicite, 2026-09-11 — "pas suffisamment visible... maintenir la couleur
-          rouge mais rendre visible comme ceux de l'interface agent") — à opacité identique, le
-          rouge du motif Superviseur (motifStroke) est perçu bien plus sombre/discret que le
-          blanc du motif Agent sur le même fond bleu marine. Couleur inchangée : seule l'opacité
-          du conteneur est relevée pour ce rôle, afin d'égaliser la visibilité perçue avec Agent. */}
-      <div className={`absolute inset-0 pointer-events-none ${isSupervisor ? 'opacity-90' : 'opacity-50'} overflow-hidden z-0`}>
-        <svg className="absolute bottom-0 left-0 w-full h-84 scale-125 origin-bottom-left" viewBox="0 0 250 320" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M-40 320 C 30 240, 110 220, 270 250" stroke={`rgba(${theme.palette.motifStroke}, 0.55)`} strokeWidth="1.8" />
-          <path d="M-40 280 C 50 210, 130 190, 270 220" stroke={`rgba(${theme.palette.motifStroke}, 0.45)`} strokeWidth="1.5" />
-          <path d="M-40 240 C 70 180, 150 160, 270 190" stroke={`rgba(${theme.palette.motifStroke}, 0.38)`} strokeWidth="1.3" />
-          <path d="M-40 200 C 90 150, 170 130, 270 160" stroke={`rgba(${theme.palette.motifStroke}, 0.30)`} strokeWidth="1.2" />
-        </svg>
-      </div>
+      {/* === AMÉLIORATION AJOUTÉE : motif décoratif de courbes SVG retiré des 3 sidebars
+          (retour utilisateur explicite, 2026-09-11 — "supprimer les motifs qui se trouvent sur
+          tous les sidebar des interfaces (agent, superviseur, et admin)"), maintenant que les
+          photos de fond en tiennent lieu visuellement. Reste inchangé : le halo lumineux
+          ci-dessus et le dégradé de couleur (uni ou en surcouche sur la photo) selon le rôle. === */}
 
       {/* Brand Header with White Background Logo & Mobile Close Button */}
       <div className="p-3 relative z-10">
