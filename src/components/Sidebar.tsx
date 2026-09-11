@@ -104,7 +104,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard },
     { id: 'identification', label: t.nav.identification, icon: Users },
     { id: 'medical_form', label: t.nav.medical_form, icon: FileCheck },
-    { id: 'claims', label: isAgent ? t.nav.claims : 'Claims Processing', icon: Receipt, badge: pendingClaimsCount },
+    // === AMÉLIORATION AJOUTÉE : traduction (retour utilisateur, 2026-09-11 — "tout n'est pas
+    // traduit") — ce libellé retombait sur le littéral anglais "Claims Processing" pour tout
+    // rôle non-Agent (Admin), au lieu de suivre la langue active comme partout ailleurs.
+    // t.nav.claims vaut déjà exactement "Claims Processing" en anglais — la valeur affichée ne
+    // change donc pas en anglais, seul le français (et toute langue future) est désormais suivi.
+    { id: 'claims', label: t.nav.claims, icon: Receipt, badge: pendingClaimsCount },
     { id: 'claims_validation', label: t.nav.claims_validation, icon: FileCheck, badge: pendingClaimsCount },
     { id: 'enrollments_validation', label: t.nav.enrollments_validation, icon: UserCheck, badge: pendingEnrollmentsCount },
     { id: 'receipts', label: t.nav.receipts, icon: Receipt },
@@ -126,16 +131,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return false;
   });
 
+  // === AMÉLIORATION AJOUTÉE : traduction (retour utilisateur, 2026-09-11 — "tout n'est pas
+  // traduit") — ces 6 libellés étaient codés en dur en anglais au lieu d'utiliser les clés
+  // t.nav.* correspondantes, déjà traduites (voir src/i18n/translations.ts) et déjà utilisées
+  // pour tous les autres éléments de la sidebar. Aucun changement en anglais (mêmes valeurs).
   const managementItems = [
-    { id: 'members', label: 'Insured Members', icon: Users },
-    { id: 'organizations', label: 'Organizations', icon: Building2 },
-    { id: 'providers', label: 'Healthcare Providers', icon: Stethoscope },
-    { id: 'ceilings', label: 'Coverage Ceilings', icon: Sliders },
+    { id: 'members', label: t.nav.members, icon: Users },
+    { id: 'organizations', label: t.nav.organizations, icon: Building2 },
+    { id: 'providers', label: t.nav.providers, icon: Stethoscope },
+    { id: 'ceilings', label: t.nav.ceilings, icon: Sliders },
   ] as any;
 
   const systemItems = [
-    { id: 'accounts', label: 'User Accounts', icon: ShieldCheck },
-    { id: 'logs', label: 'Audit & Access Logs', icon: History },
+    { id: 'accounts', label: t.nav.accounts, icon: ShieldCheck },
+    { id: 'logs', label: t.nav.logs, icon: History },
   ] as any;
 
   const renderNavItem = (item: { id: NavSection; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }) => {
