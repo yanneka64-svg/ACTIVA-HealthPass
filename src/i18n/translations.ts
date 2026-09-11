@@ -130,6 +130,9 @@ export const translations = {
       tooManyAttempts: 'Too many failed attempts. Please wait a moment and try again.',
       weakPassword: 'Password must be at least 6 characters long.',
       authFailedFallback: 'Authentication failed. Please check your credentials.',
+      // === AMÉLIORATION AJOUTÉE : audit UX (2026-09-11) — voir loginTimeoutMs dans
+      // LoginView.tsx pour le contexte du correctif associé.
+      loginTimeoutError: 'This is taking longer than expected. Please check your connection and try again.',
       changePasswordTitle: 'Mandatory Password Reset',
       changePasswordSubtitle: 'For your first login, please establish a secure new password.',
       currentPassword: 'Current password',
@@ -1547,6 +1550,7 @@ export const translations = {
       tooManyAttempts: 'Trop de tentatives échouées. Veuillez patienter un instant et réessayer.',
       weakPassword: 'Le mot de passe doit contenir au moins 6 caractères.',
       authFailedFallback: 'Échec de l\'authentification. Veuillez vérifier vos identifiants.',
+      loginTimeoutError: 'La connexion prend plus de temps que prévu. Vérifiez votre connexion internet et réessayez.',
       changePasswordTitle: 'Réinitialisation obligatoire du mot de passe',
       changePasswordSubtitle: 'Pour votre première connexion, veuillez définir un nouveau mot de passe sécurisé.',
       currentPassword: 'Mot de passe actuel',

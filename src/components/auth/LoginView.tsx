@@ -26,6 +26,27 @@ interface LoginViewProps {
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 60_000;
 
+// === AMÉLIORATION AJOUTÉE : résilience réseau (audit UX, 2026-09-11 — bouton "Signing In..."
+// resté bloqué indéfiniment lors d'un test avec coupure réseau) === `attemptLogin` enchaîne
+// plusieurs appels réseau (Cloud Function `resolveLoginIdentifier`, jusqu'à 3 tentatives
+// `signInWithEmailAndPassword`, éventuellement `createUserWithEmailAndPassword`) sans aucun
+// délai maximum : si l'un d'eux ne répond JAMAIS (coupure brutale de connexion plutôt qu'une
+// erreur HTTP propre — ce que le SDK Firebase ne convertit pas toujours en rejet de promesse),
+// la fonction reste indéfiniment en attente et le bouton "Signing In..." ne se réactive jamais,
+// sans aucun message pour l'utilisateur. Un scénario réel pour une app déployée dans 7 pays à
+// connectivité mobile variable (voir docs/security) — pas un cas théorique. `LOGIN_TIMEOUT_MS`
+// borne l'attente totale ; au-delà, l'utilisateur voit un message clair et peut réessayer,
+// plutôt que de rester bloqué sans recours (voir handleSubmit ci-dessous).
+const LOGIN_TIMEOUT_MS = 20_000;
+const LOGIN_TIMEOUT_SENTINEL = Symbol('login-timeout');
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | typeof LOGIN_TIMEOUT_SENTINEL> {
+  return Promise.race([
+    promise,
+    new Promise<typeof LOGIN_TIMEOUT_SENTINEL>((resolve) => setTimeout(() => resolve(LOGIN_TIMEOUT_SENTINEL), ms)),
+  ]);
+}
+
 function loginAttemptKey(identifier: string) {
   return `activa_login_attempts_${identifier.toLowerCase().trim()}`;
 }
@@ -327,7 +348,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
 
-    const success = await attemptLogin(cleanUsername);
+    // === AMÉLIORATION AJOUTÉE : résilience réseau (audit UX, 2026-09-11) — voir
+    // LOGIN_TIMEOUT_MS ci-dessus pour le contexte. `attemptLogin` continue de s'exécuter en
+    // arrière-plan si elle finit par répondre après le délai (son propre `finally` réactivera
+    // alors normalement le bouton) — ce simple garde-fou couvre le cas réel qui bloquait
+    // l'utilisateur (aucune réponse du tout), sans avoir à annuler les appels Firebase en cours.
+    const outcome = await withTimeout(attemptLogin(cleanUsername), LOGIN_TIMEOUT_MS);
+    if (outcome === LOGIN_TIMEOUT_SENTINEL) {
+      setError(t.auth.loginTimeoutError);
+      setIsLoggingIn(false);
+      return;
+    }
+    const success = outcome;
     if (success) {
       clearLoginAttempts(cleanUsername);
     } else {
