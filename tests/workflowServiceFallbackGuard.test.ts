@@ -7,9 +7,15 @@
 // pour ne dépendre d'aucun projet Firebase réel ni réseau.
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
+// === AMÉLIORATION AJOUTÉE : test (revue 2026-09-11 — revalidation serveur du rôle sur le
+// fallback client) === `mockGetIdToken` permet de vérifier que assertStillPendingForClientFallback
+// force bien un rafraîchissement du jeton d'authentification avant sa vérification de statut,
+// pour que firestore.rules évalue le rôle/statut actif le plus récent (voir workflowService.ts).
+const { mockGetIdToken } = vi.hoisted(() => ({ mockGetIdToken: vi.fn().mockResolvedValue('fresh-token') }));
+
 vi.mock('../src/lib/firebase', () => ({
   db: {},
-  auth: {},
+  auth: { currentUser: { getIdToken: mockGetIdToken } },
   storage: {},
   functions: {},
   secondaryApp: {},
@@ -58,6 +64,19 @@ import { assertStillPendingForClientFallback } from '../src/services/workflowSer
 describe('assertStillPendingForClientFallback — garde de statut sur le chemin de repli client', () => {
   beforeEach(() => {
     firestoreDocData = null;
+    mockGetIdToken.mockClear();
+  });
+
+  it('force un rafraîchissement du jeton avant de vérifier le statut (revalidation serveur du rôle)', async () => {
+    firestoreDocData = { status: 'pending' };
+    await assertStillPendingForClientFallback('claims', 'c1');
+    expect(mockGetIdToken).toHaveBeenCalledWith(true);
+  });
+
+  it("rafraîchit le jeton même quand la vérification de statut échoue ensuite (l'ordre garantit un rôle à jour dès l'entrée dans le chemin de repli)", async () => {
+    firestoreDocData = { status: 'approved' };
+    await expect(assertStillPendingForClientFallback('claims', 'c1')).rejects.toThrow(/already been decided/);
+    expect(mockGetIdToken).toHaveBeenCalledWith(true);
   });
 
   it('ne lève rien pour un claim/enrollment "pending"', async () => {

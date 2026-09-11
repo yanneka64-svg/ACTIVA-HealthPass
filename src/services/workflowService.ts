@@ -4,7 +4,7 @@ import { getPolicyCoverageStatus } from './policyEngine';
 // === AMÉLIORATION AJOUTÉE : câblage des Cloud Functions (Phase 3/5), sur demande explicite.
 import { httpsCallable } from 'firebase/functions';
 import { runTransaction, doc } from 'firebase/firestore';
-import { functions, db } from '../lib/firebase';
+import { functions, db, auth } from '../lib/firebase';
 import { recordServerFallback } from '../utils/fallbackTelemetry';
 
 // === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07, décision explicite) ===
@@ -25,6 +25,31 @@ export async function assertStillPendingForClientFallback(
   collectionName: 'claims' | 'enrollments',
   id: string
 ): Promise<void> {
+  // === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11 — revalidation serveur du rôle sur le
+  // fallback client) ===
+  // Constat : ce chemin de repli écrit directement via le SDK Firestore, sans passer par
+  // `processClaimDecision`/`processEnrollmentDecision` — son SEUL rempart contre une approbation
+  // par un utilisateur non autorisé est donc `firestore.rules` (`userProfile()`/`isAdmin()`/
+  // `isSupervisor()`/`isActiveUser()`), évalué à partir du jeton d'authentification que le
+  // navigateur a EN MÉMOIRE. Or ce jeton n'est rafraîchi automatiquement par le SDK Firebase
+  // Auth qu'environ une fois par heure : un utilisateur rétrogradé (Supervisor -> Agent) ou
+  // désactivé par un Admin pendant ce délai continue de présenter un jeton portant l'ANCIEN rôle/
+  // statut actif, même si `syncAccountClaims` (functions/src/index.ts) a déjà mis à jour le
+  // Custom Claim côté serveur au moment même du changement — la même fenêtre existe côté Cloud
+  // Function (`resolveUserRole` retombe aussi en priorité sur `context.auth.token.role`), mais
+  // celle-ci est le chemin PRIORITAIRE, tandis que ce repli n'est emprunté qu'en cas
+  // d'indisponibilité de la Cloud Function : il mérite une garde dédiée plutôt que de compter
+  // sur le même délai de propagation.
+  // Correctif : forcer le rafraîchissement du jeton juste avant la vérification de statut
+  // ci-dessous — `getIdToken(true)` interroge Firebase Auth et obtient un jeton reflétant l'état
+  // `accounts/{uid}` le plus récent, avant que `firestore.rules` n'évalue le rôle/statut actif
+  // pour l'écriture de repli. Best-effort : un échec du rafraîchissement (ex. hors ligne) ne
+  // bloque pas la vérification ci-dessous, qui reste protégée par firestore.rules avec le jeton
+  // disponible, exactement comme avant ce correctif.
+  if (auth.currentUser) {
+    await auth.currentUser.getIdToken(true).catch(() => {});
+  }
+
   await runTransaction(db, async (tx) => {
     const ref = doc(db, collectionName, id);
     const snap = await tx.get(ref);
