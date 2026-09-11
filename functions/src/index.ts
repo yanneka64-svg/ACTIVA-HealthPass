@@ -35,7 +35,7 @@ import { processEnrollmentDecisionServer, EnrollmentDecisionPayload } from './en
 import { logAuditEventServer, AuditLogEntry } from './auditService';
 import { processBulkMemberImportServer, ImportRowInput } from './importService';
 import { validatePayload } from './validation';
-import { MEDICAL_FIELD_ENCRYPTION_KEY, encryptFieldMap, decryptFieldMap } from './encryptionService';
+import { MEDICAL_FIELD_ENCRYPTION_KEY, encryptFieldMap, decryptFieldMap, EncryptionContext } from './encryptionService';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -1060,23 +1060,55 @@ export const ensureUserAccount = onCall(
   }
 );
 
+type SensitiveFieldsContextInput = { collection?: unknown; documentId?: unknown; organization?: unknown };
+
+/**
+ * === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11 — chiffrement lié à son contexte/AAD) ===
+ * Valide et normalise le `context` optionnel reçu du client (voir EncryptionContext dans
+ * encryptionService.ts) — jamais fait confiance à sa forme sans vérification malgré
+ * `validatePayload` qui ne contrôle que "c'est un objet" pour un champ de type `object`.
+ */
+function parseEncryptionContext(raw: unknown): EncryptionContext | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const { collection, documentId, organization } = raw as SensitiveFieldsContextInput;
+  if (typeof collection !== 'string' || !collection) {
+    throw new HttpsError('invalid-argument', 'context.collection must be a non-empty string.');
+  }
+  if (typeof documentId !== 'string' || !documentId) {
+    throw new HttpsError('invalid-argument', 'context.documentId must be a non-empty string.');
+  }
+  if (organization !== undefined && typeof organization !== 'string') {
+    throw new HttpsError('invalid-argument', 'context.organization must be a string.');
+  }
+  return { collection, documentId, organization: organization as string | undefined };
+}
+
 /**
  * === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
  * Chiffre un lot de champs texte (ex. le contenu clinique d'un formulaire médical) avec une clé
  * qui ne quitte jamais le serveur — voir encryptionService.ts pour le choix architectural.
  * Générique par construction (`fields: Record<string,string>`) pour rester réutilisable au-delà
  * de `medicalForms` si d'autres champs sensibles devaient être chiffrés plus tard.
+ *
+ * === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11 — AAD) ===
+ * `context` (optionnel) lie chaque champ chiffré à son collection/organisation/document — voir
+ * encryptFieldMap. Absent, comportement strictement identique à avant (compat. ascendante avec
+ * un client non mis à jour).
  */
 export const encryptSensitiveFields = onCall(
   { secrets: [MEDICAL_FIELD_ENCRYPTION_KEY] },
-  async (request: CallableRequest<{ fields?: Record<string, unknown> }>) => {
+  async (request: CallableRequest<{ fields?: Record<string, unknown>; context?: SensitiveFieldsContextInput }>) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
-    validatePayload(request.data, { fields: { type: 'object', required: true } });
+    validatePayload(request.data, {
+      fields: { type: 'object', required: true },
+      context: { type: 'object', required: false },
+    });
+    const context = parseEncryptionContext(request.data.context);
 
     try {
-      const encrypted = encryptFieldMap(request.data.fields || {});
+      const encrypted = encryptFieldMap(request.data.fields || {}, context);
       return { success: true, fields: encrypted };
     } catch (error: any) {
       throw new HttpsError('invalid-argument', error?.message || 'Failed to encrypt fields.');
@@ -1089,17 +1121,25 @@ export const encryptSensitiveFields = onCall(
  * Déchiffre un lot de champs — voir encryptSensitiveFields ci-dessus. Les valeurs qui ne
  * portent pas le préfixe de chiffrement (documents créés avant ce correctif) sont renvoyées
  * telles quelles : aucune régression sur les formulaires médicaux existants.
+ *
+ * === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11 — AAD) ===
+ * `context` doit être identique à celui fourni au chiffrement pour déchiffrer une valeur
+ * `encv2:` — voir decryptFieldMap. Les valeurs `encv1:`/legacy n'en ont pas besoin.
  */
 export const decryptSensitiveFields = onCall(
   { secrets: [MEDICAL_FIELD_ENCRYPTION_KEY] },
-  async (request: CallableRequest<{ fields?: Record<string, unknown> }>) => {
+  async (request: CallableRequest<{ fields?: Record<string, unknown>; context?: SensitiveFieldsContextInput }>) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'User must be authenticated.');
     }
-    validatePayload(request.data, { fields: { type: 'object', required: true } });
+    validatePayload(request.data, {
+      fields: { type: 'object', required: true },
+      context: { type: 'object', required: false },
+    });
+    const context = parseEncryptionContext(request.data.context);
 
     try {
-      const decrypted = decryptFieldMap(request.data.fields || {});
+      const decrypted = decryptFieldMap(request.data.fields || {}, context);
       return { success: true, fields: decrypted };
     } catch (error: any) {
       throw new HttpsError('internal', error?.message || 'Failed to decrypt fields.');

@@ -612,16 +612,29 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     });
   };
 
-  const handleToggleStatus = (acc: UserAccount) => {
+  // === AMÉLIORATION AJOUTÉE : sécurité/correctif (revue d'audit, 2026-09-11) — cette fonction
+  // affichait auparavant un toast de succès inconditionnel juste après avoir lancé l'écriture
+  // Firestore, dont l'échec était silencieusement ignoré (`.catch(() => {})`) : un compte que
+  // l'on croit désactivé (ex. employé parti) pouvait rester actif en base si l'écriture
+  // échouait, sans que rien ne le signale à l'écran. Passe désormais par un await + try/catch,
+  // même pattern que handleDeleteAccount juste en dessous : le toast de succès ne s'affiche
+  // qu'après confirmation réelle de l'écriture, et un échec affiche un toast d'erreur explicite
+  // au lieu de rien.
+  const handleToggleStatus = async (acc: UserAccount) => {
     const updatedStatus = !acc.isActive;
-    
-    // Sync with Firestore
-    // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04, retour
-    // utilisateur 2026-09-11) — passe par FirestoreService.updateAccount() au lieu d'un
-    // updateDoc direct (voir src/services/firestore.ts). Comportement identique.
-    FirestoreService.updateAccount({ id: acc.id, isActive: updatedStatus }).catch(() => {});
-    
     const accLabel = acc.fullName || acc.username;
+
+    try {
+      await FirestoreService.updateAccount({ id: acc.id, isActive: updatedStatus });
+    } catch (err: any) {
+      console.error('Account status update failed:', err);
+      showToast(
+        err?.message ||
+          t.accounts.accountStatusUpdateFailedToastTemplate.replace('{name}', accLabel)
+      );
+      return;
+    }
+
     showToast(
       updatedStatus
         ? t.accounts.accountActivatedToastTemplate.replace('{name}', accLabel)

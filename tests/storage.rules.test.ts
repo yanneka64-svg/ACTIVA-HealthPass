@@ -67,8 +67,26 @@ describe('Storage Rules — Hardening & Access Control', () => {
     expect(rulesContent).toContain('allow read, write: if false;');
   });
 
-  it('Preserves legacy flat paths for files uploaded before the org-scoping fix (no regression)', () => {
+  it('Keeps the legacy flat path rules declared (delete still Admin-only), without regressing on already-issued photo URLs', () => {
     expect(rulesContent).toContain('match /member-photos/{fileName}');
     expect(rulesContent).toContain('match /enrollment-photos/{fileName}');
+  });
+
+  // === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11 — anciens chemins Storage non
+  // cloisonnés) ===
+  it('Closes read/write on the legacy flat (non-org-scoped) paths — no cross-organization access, no new writes', () => {
+    const legacyMemberPhotosBlock = rulesContent.slice(
+      rulesContent.indexOf('match /member-photos/{fileName}'),
+      rulesContent.indexOf('match /enrollment-photos/{fileName}')
+    );
+    expect(legacyMemberPhotosBlock).toContain('allow read, write: if false;');
+    expect(legacyMemberPhotosBlock).toContain('allow delete: if isAdmin();');
+    // Must NOT contain the old permissive rule (any active authenticated user, any org).
+    expect(legacyMemberPhotosBlock).not.toContain('allow read, write: if isSignedIn() && isActiveUser();');
+
+    const legacyEnrollmentPhotosBlock = rulesContent.slice(rulesContent.indexOf('match /enrollment-photos/{fileName}'));
+    expect(legacyEnrollmentPhotosBlock).toContain('allow read, write: if false;');
+    expect(legacyEnrollmentPhotosBlock).toContain('allow delete: if isAdmin();');
+    expect(legacyEnrollmentPhotosBlock).not.toContain('allow read, write: if isSignedIn() && isActiveUser();');
   });
 });

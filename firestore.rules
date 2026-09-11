@@ -625,10 +625,24 @@ service cloud.firestore {
     // rôle (`recipientRole`, ex. "tout Superviseur" — voir Topbar.tsx, qui filtre déjà côté
     // client exactement selon cette même logique). Une notification legacy dépourvue des deux
     // champs (créée avant leur introduction) reste lisible par tout utilisateur actif, pour ne
-    // créer aucune régression sur les données existantes. `allow write` n'est volontairement pas
-    // restreint ici : une notification est, par nature, créée par un utilisateur POUR un autre
-    // (l'auteur n'est jamais le destinataire) — le restreindre reviendrait à casser la fonction
-    // même des notifications, ce qui dépasse le périmètre de ce correctif (exposition en lecture).
+    // créer aucune régression sur les données existantes.
+    // === AMÉLIORATION AJOUTÉE : sécurité (revue d'audit, 2026-09-11) — `allow write: if
+    // isSignedIn()` était resté volontairement non restreint lors du correctif précédent
+    // (qui ne portait que sur la lecture), documenté à l'époque comme hors périmètre. Ce
+    // correctif referme cette porte, sans casser la fonction des notifications :
+    // - `create` : une notification est par nature créée par un utilisateur POUR un autre
+    //   (l'auteur n'est jamais le destinataire) — impossible de restreindre par destinataire
+    //   sans casser tous les envois existants (voir workflowService.ts, addNotification). On
+    //   exige à la place un compte actif (au lieu du simple isSignedIn — un compte désactivé
+    //   ne peut plus rien créer) et une adresse valide (recipientId OU recipientRole présent),
+    //   ce qui bloque déjà tout document de notification malformé/arbitraire.
+    // - `update` : réservé au destinataire réel (par recipientId ou recipientRole, même
+    //   logique que la lecture ci-dessus) ou à l'Admin, et seul le champ `unread` peut changer
+    //   — c'est la seule opération réellement utilisée par l'app (marquer comme lu, voir
+    //   firestore.ts markNotificationRead/markAllNotificationsRead), qui ne modifie jamais
+    //   titre/message/destinataire.
+    // - `delete` : réservé à l'Admin (aucun appelant actuel dans l'app ne supprime une
+    //   notification ; restriction la plus sûre par défaut).
     match /notifications/{notificationId} {
       allow read: if isActiveUser() && (
         isAdmin() ||
@@ -644,7 +658,20 @@ service cloud.firestore {
         )) ||
         (!('recipientId' in resource.data) && !('recipientRole' in resource.data))
       );
-      allow write: if isSignedIn();
+      allow create: if isActiveUser() && (
+        ('recipientId' in request.resource.data && request.resource.data.recipientId is string) ||
+        ('recipientRole' in request.resource.data && request.resource.data.recipientRole is string)
+      );
+      allow update: if isActiveUser() && (
+        isAdmin() ||
+        resource.data.recipientId == request.auth.uid ||
+        (('recipientRole' in resource.data) && (
+          resource.data.recipientRole == userProfile() ||
+          (userProfile() == 'Superviseur' && resource.data.recipientRole == 'Supervisor') ||
+          (userProfile() == 'Supervisor' && resource.data.recipientRole == 'Superviseur')
+        ))
+      ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unread']);
+      allow delete: if isAdmin();
     }
 
     // === AMÉLIORATION AJOUTÉE : documentation (audit 2026-09-05, STRUCT-03) — `accounts` est

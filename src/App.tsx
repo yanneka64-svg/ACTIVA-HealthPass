@@ -832,10 +832,35 @@ export default function App() {
     const orgFailures = orgResults.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
 
     // 2. Add or update members in Firestore — every record attempted independently
+    //
+    // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (revue 2026-09-11 — doublons sur import
+    // partiellement échoué) ===
+    // Constat : un import réparti sur `Promise.allSettled` peut réussir pour une partie des
+    // lignes et échouer pour le reste (ex. coupure réseau à mi-parcours). Si l'utilisateur
+    // relance ALORS le même import, `parseMemberExcel`/`parseActivaMultiOrgExcel` régénèrent un
+    // `id` client tout neuf (`mem-imp-${Date.now()}-...`) pour chaque ligne — le seul rempart
+    // contre une recréation en double des lignes déjà enregistrées avec succès est que l'état
+    // local `members` (alimenté par l'abonnement Firestore temps réel) ait déjà rattrapé ces
+    // écritures avant le nouvel essai, ce qui n'est jamais garanti (latence réseau, retry trop
+    // rapide, rechargement de page). En cas de décalage, `i.id` ne correspond à AUCUN membre
+    // existant et la ligne repart sur `addMember` → doublon Firestore.
+    // Correctif : avant de choisir addMember/updateMember, on revérifie CHAQUE ligne par sa clé
+    // métier stable (`cardNo`, déjà unique et obligatoire — voir Centralized Card Number
+    // Management System) contre l'état `members` le plus frais disponible à cet instant, en plus
+    // de la correspondance par `id`. Si une ligne "nouvelle" selon le parseur correspond en
+    // réalité à un `cardNo` déjà présent en base, elle est redirigée vers `updateMember` avec le
+    // VRAI id Firestore — élimine le doublon au lieu de compter sur le seul timing de la
+    // synchronisation temps réel.
     const memberResults = await Promise.allSettled(
       imported.map((i) => {
-        if (i.id && members.some((m) => m.id === i.id)) {
-          return FirestoreService.updateMember(i as Member);
+        const existingById = i.id ? members.find((m) => m.id === i.id) : undefined;
+        const existingByCard =
+          !existingById && i.cardNo
+            ? members.find((m) => m.cardNo?.toLowerCase() === i.cardNo!.toLowerCase())
+            : undefined;
+        const existing = existingById || existingByCard;
+        if (existing) {
+          return FirestoreService.updateMember({ ...i, id: existing.id } as Member);
         }
         return FirestoreService.addMember(i);
       })
