@@ -19,6 +19,14 @@ import { useTranslation } from '../i18n/translations';
 import { Logo } from './Logo';
 import { normalizeRole } from '../utils/authUtils';
 import { getRoleTheme } from '../theme/roleTheme';
+// === AMÉLIORATION AJOUTÉE : photos fournies par l'utilisateur, fond des sidebars Agent,
+// Superviseur et Admin (retour utilisateur explicite, 2026-09-11 — "ajoute cette photo comme
+// fond d'écran pour le sidebar interface agent", puis "utilise ceci pour le sidebar côté
+// superviseur", puis "utilise cette photo pour le sidebar côté admin") — voir plus bas
+// (sidebarPhoto).
+import agentSidebarPhoto from '../assets/sidebar-agent-photo.webp';
+import supervisorSidebarPhoto from '../assets/sidebar-supervisor-photo.webp';
+import adminSidebarPhoto from '../assets/sidebar-admin-photo.webp';
 
 interface SidebarProps {
   currentUser?: any;
@@ -99,6 +107,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isAgent = role === 'Agent';
   const isSupervisor = role === 'Supervisor';
   const isAdmin = role === 'Admin';
+  // === AMÉLIORATION AJOUTÉE : photo de fond par rôle (Agent/Superviseur/Admin, retour
+  // utilisateur explicite, 2026-09-11) — voir l'import en haut du fichier et l'utilisation
+  // sur <aside> plus bas.
+  const sidebarPhoto = isAgent
+    ? agentSidebarPhoto
+    : isSupervisor
+    ? supervisorSidebarPhoto
+    : isAdmin
+    ? adminSidebarPhoto
+    : null;
 
   const overviewItems = [
     { id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard },
@@ -197,7 +215,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className={`w-[248px] ${theme.palette.sidebarGradient} text-white flex flex-col h-full shadow-2xl select-none border-r ${theme.palette.sidebarBorder} relative overflow-hidden`}>
+    <aside
+      className={`w-[248px] ${sidebarPhoto ? 'bg-cover bg-center' : theme.palette.sidebarGradient} text-white flex flex-col h-full shadow-2xl select-none border-r ${theme.palette.sidebarBorder} relative overflow-hidden`}
+      style={sidebarPhoto ? { backgroundImage: `url(${sidebarPhoto})` } : undefined}
+    >
+      {/* === AMÉLIORATION AJOUTÉE : photo en fond pour les 3 rôles (Agent, Superviseur, Admin),
+          avec le dégradé d'origine de chaque rôle (theme.palette.sidebarGradient — bleu marine
+          pour Agent/Superviseur, gris ardoise pour Admin) posé en surcouche semi-transparente
+          par-dessus — identique au traitement déjà appliqué au panneau gauche de la page de
+          connexion (LoginView.tsx) — afin que le logo, le motif et les libellés blancs restent
+          parfaitement lisibles. Les 3 photos sont pré-recadrées (voir src/assets/sidebar-*-
+          photo.webp) au même ratio étroit que le sidebar, pour que le cadrage automatique en
+          fond ("cover") ne coupe pas les repères visuels du genre — cravate/barbe naissante
+          côté Agent et Admin, cheveux bouclés/visage côté Superviseur. Surcouche allégée pour
+          les 3 rôles (0.60/0.55/0.65 au lieu des 0.90/0.85/0.92 d'origine, repris de LoginView)
+          — retour utilisateur explicite : "rassure toi qu'on voit bien qu'il s'agit d'une
+          femme" puis "... qu'il s'agit d'un homme un peu comme sur l'interface superviseur" —
+          la surcouche standard rendait ces repères trop peu distincts. === */}
+      {sidebarPhoto && (
+        <div
+          className={`absolute inset-0 bg-gradient-to-b pointer-events-none ${
+            isAdmin
+              ? 'from-[#334155]/60 via-[#3B485C]/55 to-[#1E293B]/65'
+              : 'from-[#072659]/60 via-[#0A347B]/55 to-[#0D2B63]/65'
+          }`}
+        />
+      )}
+
       {/* Background ambient light glow */}
       <div className={`absolute -bottom-16 -left-16 w-56 h-56 ${theme.palette.accentGlow} rounded-full blur-3xl pointer-events-none`} />
 
