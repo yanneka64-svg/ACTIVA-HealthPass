@@ -15,9 +15,27 @@ import { recordServerFallback } from './fallbackTelemetry';
 
 // Doit rester identique à ENCRYPTED_FIELD_PREFIX dans functions/src/encryptionService.ts.
 export const ENCRYPTED_FIELD_PREFIX = 'encv1:';
+// === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11 — chiffrement lié à son contexte/AAD) ===
+// Doit rester identique à ENCRYPTED_FIELD_PREFIX_V2 dans functions/src/encryptionService.ts —
+// marque les valeurs chiffrées avec une AAD liée au formulaire/organisation qui les a produites.
+export const ENCRYPTED_FIELD_PREFIX_V2 = 'encv2:';
 
 export function isEncryptedField(val: unknown): boolean {
-  return typeof val === 'string' && val.startsWith(ENCRYPTED_FIELD_PREFIX);
+  return typeof val === 'string' && (val.startsWith(ENCRYPTED_FIELD_PREFIX) || val.startsWith(ENCRYPTED_FIELD_PREFIX_V2));
+}
+
+/**
+ * === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11 — AAD) ===
+ * Contexte transmis à `encryptSensitiveFields`/`decryptSensitiveFields` pour lier chaque champ
+ * chiffré au formulaire médical et à l'organisation qui l'ont produit (voir EncryptionContext
+ * dans functions/src/encryptionService.ts). `documentId` utilise `securityNumber` — un
+ * identifiant métier STABLE généré avant l'appel de chiffrement — plutôt que l'ID Firestore du
+ * document, qui n'existe pas encore à ce stade (`addMedicalForm` l'obtient seulement après
+ * `addDoc`, via `parentRef.id`) et serait donc différent au déchiffrement.
+ */
+function medicalFormEncryptionContext(form: { securityNumber?: string; organization?: string }) {
+  if (!form.securityNumber) return undefined;
+  return { collection: 'medicalForms', documentId: form.securityNumber, organization: form.organization };
 }
 
 // Doit rester identique aux constantes de même nom dans src/services/firestore.ts.
@@ -51,18 +69,21 @@ async function hydratePrescriptionFromSubcollection<T extends Partial<MedicalFor
 type PrescriptionFieldMap = Record<'presumedDiagnosis' | 'requestedExams' | 'treatmentOrder', string | undefined>;
 
 function isEncryptedValue(value?: string): boolean {
-  return typeof value === 'string' && value.startsWith(ENCRYPTED_FIELD_PREFIX);
+  return isEncryptedField(value);
 }
+
+type EncryptionContextPayload = { collection: string; documentId: string; organization?: string } | undefined;
 
 async function callFieldsFunction(
   name: 'encryptSensitiveFields' | 'decryptSensitiveFields',
-  fields: Record<string, string>
+  fields: Record<string, string>,
+  context?: EncryptionContextPayload
 ): Promise<Record<string, string>> {
-  const fn = httpsCallable<{ fields: Record<string, string> }, { success: boolean; fields: Record<string, string> }>(
-    functions,
-    name
-  );
-  const res = await fn({ fields });
+  const fn = httpsCallable<
+    { fields: Record<string, string>; context?: EncryptionContextPayload },
+    { success: boolean; fields: Record<string, string> }
+  >(functions, name);
+  const res = await fn(context ? { fields, context } : { fields });
   return res.data.fields;
 }
 
@@ -92,8 +113,8 @@ export async function encryptMedicalFormPrescription<T extends Partial<MedicalFo
   if (Object.keys(toEncrypt).length === 0) return form;
 
   try {
-    const encrypted = await callFieldsFunction('encryptSensitiveFields', toEncrypt);
-    
+    const encrypted = await callFieldsFunction('encryptSensitiveFields', toEncrypt, medicalFormEncryptionContext(form));
+
     // Verify ciphertext format strictly (defense-in-depth)
     for (const [key, val] of Object.entries(encrypted)) {
       if (typeof val === 'string' && val.length > 0 && !isEncryptedField(val)) {
@@ -139,7 +160,7 @@ export async function decryptMedicalFormPrescription<T extends Partial<MedicalFo
   if (Object.keys(toDecrypt).length === 0) return form;
 
   try {
-    const decrypted = await callFieldsFunction('decryptSensitiveFields', toDecrypt);
+    const decrypted = await callFieldsFunction('decryptSensitiveFields', toDecrypt, medicalFormEncryptionContext(form));
     return {
       ...form,
       doctorPrescription: {
