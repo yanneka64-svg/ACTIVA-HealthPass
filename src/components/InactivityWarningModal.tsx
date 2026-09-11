@@ -35,8 +35,11 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
   // maintenant exactement roleTheme.palette.primaryColor/primaryText, comme tous les autres
   // boutons de l'interface.
   const roleTheme = getRoleTheme(userRole);
-  const accentTextClass = isAdmin || isSupervisor ? roleTheme.palette.primaryText : 'text-[#0A347B]';
-  const accentBtnClass = isAdmin || isSupervisor ? roleTheme.palette.primaryColor : 'bg-[#0A347B] hover:bg-[#08285e]';
+  // === AMÉLIORATION AJOUTÉE : cohérence des couleurs (audit design, 2026-09-11) — l'accent
+  // Agent utilisait ici #0A347B/#08285e, distinct du token officiel `brand-900` (#0a2e6b,
+  // roleTheme.ts) utilisé pour ce même rôle sémantique ailleurs. Unifié sur #0a2e6b/#07214f.
+  const accentTextClass = isAdmin || isSupervisor ? roleTheme.palette.primaryText : 'text-[#0a2e6b]';
+  const accentBtnClass = isAdmin || isSupervisor ? roleTheme.palette.primaryColor : 'bg-[#0a2e6b] hover:bg-[#07214f]';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-in fade-in">

@@ -49,9 +49,12 @@ export const MarkAsPaidModal: React.FC<MarkAsPaidModalProps> = ({ invoice, onClo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden">
+        {/* === AMÉLIORATION AJOUTÉE : cohérence des couleurs (audit design, 2026-09-11) —
+            l'accent utilisait ici #0A347B, distinct du token officiel `brand-900` (#0a2e6b,
+            roleTheme.ts) utilisé pour ce même rôle sémantique ailleurs. Unifié sur #0a2e6b. */}
         <div className="bg-white border-b border-slate-200 px-6 py-4.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-[#0A347B]">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-[#0a2e6b]">
               <Wallet className="w-6 h-6" />
             </div>
             <div>
@@ -81,7 +84,7 @@ export const MarkAsPaidModal: React.FC<MarkAsPaidModalProps> = ({ invoice, onClo
                 type="button"
                 onClick={() => setPayee('provider')}
                 className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                  payee === 'provider' ? 'bg-[#0A347B] text-white border-[#0A347B]' : 'bg-slate-50 text-slate-600 border-slate-200'
+                  payee === 'provider' ? 'bg-[#0a2e6b] text-white border-[#0a2e6b]' : 'bg-slate-50 text-slate-600 border-slate-200'
                 }`}
               >
                 Provider ({invoice.provider})
@@ -90,7 +93,7 @@ export const MarkAsPaidModal: React.FC<MarkAsPaidModalProps> = ({ invoice, onClo
                 type="button"
                 onClick={() => setPayee('member')}
                 className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                  payee === 'member' ? 'bg-[#0A347B] text-white border-[#0A347B]' : 'bg-slate-50 text-slate-600 border-slate-200'
+                  payee === 'member' ? 'bg-[#0a2e6b] text-white border-[#0a2e6b]' : 'bg-slate-50 text-slate-600 border-slate-200'
                 }`}
               >
                 Insured ({invoice.patientName})
