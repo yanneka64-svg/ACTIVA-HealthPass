@@ -54,7 +54,7 @@ Tout incident relatif à la sécurité des données ou à l'intégrité de la pl
 
 ### 3.2 Droit à l'Effacement / Droit à l'Oubli (Art. 17 RGPD) et Dérogations Santé
 * **Règle Dérogatoire Obligatoire :** Les fiches médicales et justificatifs de remboursements de prestations de soins sont soumis aux obligations légales de conservation médicale et comptable (durée minimale de 10 ans pour les dossiers de prise en charge et les factures de tiers-payant).
-* **Purge des Données Non Essentielles :**
+* **Purge des Données Non Essentielles (cible, voir statut réel section 4) :**
   - À la clôture de la police d'assurance ou du contrat employeur, les données sont placées en rétention intermédiaire (`medicalFormsDeletionArchive`).
   - L'accès est strictement réservé au personnel habilité du service juridique / contentieux.
   - À l'issue du délai légal de rétention (`retentionUntil`), la purge définitive physique est exécutée.
@@ -63,7 +63,32 @@ Tout incident relatif à la sécurité des données ou à l'intégrité de la pl
 
 ## 4. Politique et Cycle de Vie des Données (Data Retention Matrix)
 
-| Entité Firestore | Durée de Conservation Active | Durée de Rétention Intermédiaire | Modalité de Purge Définitive |
+<!-- === AMÉLIORATION AJOUTÉE : exactitude documentaire (réconciliation avec
+     docs/security/REGISTRE_DES_TRAITEMENTS.md, 2026-09-11) ===
+     Ce tableau était présenté comme une politique en vigueur (purge automatisée par Cloud
+     Scheduler, interdiction absolue de suppression manuelle sur auditLogs, etc.), ce qui
+     contredisait directement le registre RGPD des traitements ("Durée de conservation : non
+     définie à ce jour [...] nécessite de statuer sur la durée réglementaire applicable par pays
+     avant toute implémentation") — un même sujet, deux statuts différents dans deux documents
+     d'exploitation, sans que l'un ne renvoie à l'autre. Suivant le même principe déjà appliqué en
+     tête de ce document ("Un document d'exploitation ne doit pas déclarer une conformité que le
+     code ne démontre pas encore"), le tableau ci-dessous est donc requalifié en politique CIBLE,
+     pas encore validée ni implémentée — voir le statut réel ci-dessous. -->
+
+> **⚠️ Statut : politique cible (proposée), pas encore validée ni implémentée.** Le registre RGPD
+> des traitements (`docs/security/REGISTRE_DES_TRAITEMENTS.md`) reste la source de vérité sur le
+> statut actuel : la durée de conservation y est explicitement documentée comme **non définie à
+> ce jour**, en attente d'arbitrage réglementaire par pays d'opération (ACTIVA opère dans 7 pays
+> aux réglementations distinctes). Dans le code, seul `medicalForms` dispose d'une implémentation
+> partielle et volontairement provisoire (`src/config/dataRetention.ts`,
+> `DEFAULT_MEDICAL_FORM_RETENTION_YEARS = 10`) : elle calcule une date `retentionUntil`
+> indicative pour signalement manuel, sans jamais purger automatiquement — le code lui-même
+> avertit explicitement de ne pas construire de purge automatisée dessus sans validation
+> conformité préalable. Aucune des autres lignes du tableau (`claims`, `auditLogs`, `accounts`) —
+> ni le Cloud Scheduler, ni le transfert vers stockage froid, ni la purge après expiration —
+> n'a d'implémentation correspondante à ce jour.
+
+| Entité Firestore | Durée de Conservation Active (cible) | Durée de Rétention Intermédiaire (cible) | Modalité de Purge Définitive (cible) |
 |---|---|---|---|
 | `claims` (Sinistres) | Durée de validité de la police + 1 an | 10 ans (obligation légale comptable) | Purge automatisée par Cloud Scheduler |
 | `medicalForms` | Durée de prise en charge active | 10 ans (dossier médical d'assurance) | Transfert archive et purge atomique par lot |
