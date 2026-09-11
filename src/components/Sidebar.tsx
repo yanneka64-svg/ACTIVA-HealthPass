@@ -126,7 +126,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return ['identification', 'medical_form', 'claims', 'enrollments'].includes(item.id);
     }
     if (isSupervisor) {
-      return ['dashboard', 'medical_form', 'claims_validation', 'enrollments_validation', 'receipts', 'reports'].includes(item.id);
+      // === AMÉLIORATION AJOUTÉE : "Identification" ajouté côté Superviseur (retour
+      // utilisateur explicite, 2026-09-11 — "ajouter également l'identification comme sur
+      // le profil agent"), même écran (AgentIdentificationView) que pour l'Agent — voir
+      // App.tsx, effectiveSection === 'identification' (déjà indépendant du rôle).
+      return ['dashboard', 'identification', 'medical_form', 'claims_validation', 'enrollments_validation', 'receipts', 'reports'].includes(item.id);
     }
     return false;
   });
