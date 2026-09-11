@@ -175,16 +175,21 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
                 </div>
                 {/* === AMÉLIORATION AJOUTÉE : puce à droite des lignes Nom/Prénoms (retour
                     utilisateur explicite, 2026-09-11) — repère visuel discret, même style de
-                    point que celui déjà utilisé pour le statut plus bas sur la carte. === */}
+                    point que celui déjà utilisé pour le statut plus bas sur la carte.
+                    === AMÉLIORATION AJOUTÉE : débordement corrigé (retour utilisateur explicite
+                    — "ne doit pas déborder le cadre dédié à la photo") — `min-w-0` ajouté sur le
+                    span tronqué : dans une ligne flex, un enfant garde par défaut sa largeur de
+                    contenu minimale et refuse de rétrécir, ce qui empêchait `text-ellipsis` de
+                    s'appliquer pour un nom long et le laissait déborder du cadre de la carte. === */}
                 <div className="flex items-center justify-between gap-1">
-                  <span className="whitespace-nowrap overflow-hidden text-ellipsis">
+                  <span className="min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">
                     <span className="font-semibold text-slate-500">{t.memberCard.surnameLabel} : </span>
                     <span className="font-bold uppercase">{surname}</span>
                   </span>
                   <span className="w-1 h-1 rounded-full bg-[#1657b0] shrink-0" />
                 </div>
                 <div className="flex items-center justify-between gap-1">
-                  <span className="whitespace-nowrap overflow-hidden text-ellipsis">
+                  <span className="min-w-0 whitespace-nowrap overflow-hidden text-ellipsis">
                     <span className="font-semibold text-slate-500">{t.memberCard.givenNamesLabel} : </span>
                     <span className="font-bold">{given || '—'}</span>
                   </span>
@@ -210,9 +215,15 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
         {/* Pied de carte : QR, statut, logo.
             === AMÉLIORATION AJOUTÉE : "Full Name" (signature) et le nom affiché à côté du QR
             retirés (retour utilisateur explicite, 2026-09-11) — seuls le QR code, le statut et
-            le logo restent en pied de carte. === */}
-        <div className="flex items-end justify-between gap-2">
-          <div className="flex items-end gap-1.5 min-w-0">
+            le logo restent en pied de carte.
+            === AMÉLIORATION AJOUTÉE : statut aligné sur la même ligne que le QR code (retour
+            utilisateur explicite) — `items-end` remplacé par `items-center` (le statut suivait
+            auparavant le bas du QR au lieu d'être centré à côté de lui). Le texte affiché reste
+            entièrement dynamique : "Active"/"Actif" si `isActive`, sinon la valeur réelle de
+            `status` (ex. "Suspended"/"Suspendu") telle que transmise par l'écran appelant à
+            partir des données réelles de l'assuré — jamais figé en dur. === */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
             {qrDataUrl && (
               <img
                 src={qrDataUrl}
