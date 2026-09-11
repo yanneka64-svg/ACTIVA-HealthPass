@@ -212,8 +212,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           (Agent/Superviseur/Admin, même code, seule la couleur change ci-dessus) : Agent et
           Superviseur ont donc déjà rigoureusement la même taille de motif. L'agrandissement
           ci-dessous (scale-125, ancré en bas à gauche comme le motif lui-même) s'applique donc
-          identiquement aux deux, garantissant qu'ils restent alignés en le devenant plus grand. */}
-      <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
+          identiquement aux deux, garantissant qu'ils restent alignés en le devenant plus grand.
+          === AMÉLIORATION AJOUTÉE : opacité du motif augmentée côté Superviseur (retour
+          utilisateur explicite, 2026-09-11 — "pas suffisamment visible... maintenir la couleur
+          rouge mais rendre visible comme ceux de l'interface agent") — à opacité identique, le
+          rouge du motif Superviseur (motifStroke) est perçu bien plus sombre/discret que le
+          blanc du motif Agent sur le même fond bleu marine. Couleur inchangée : seule l'opacité
+          du conteneur est relevée pour ce rôle, afin d'égaliser la visibilité perçue avec Agent. */}
+      <div className={`absolute inset-0 pointer-events-none ${isSupervisor ? 'opacity-90' : 'opacity-50'} overflow-hidden z-0`}>
         <svg className="absolute bottom-0 left-0 w-full h-84 scale-125 origin-bottom-left" viewBox="0 0 250 320" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M-40 320 C 30 240, 110 220, 270 250" stroke={`rgba(${theme.palette.motifStroke}, 0.55)`} strokeWidth="1.8" />
           <path d="M-40 280 C 50 210, 130 190, 270 220" stroke={`rgba(${theme.palette.motifStroke}, 0.45)`} strokeWidth="1.5" />
