@@ -505,62 +505,32 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
       <div className={`${ADMIN_THEME.palette.bannerGradient} rounded-3xl p-6 text-white shadow-xl border ${ADMIN_THEME.palette.bannerBorder} relative overflow-hidden`}>
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         
-        {/* === AMÉLIORATION AJOUTÉE : le badge "Policy Age Limits & Real-Time Eligibility
-            Verification" (et le paragraphe descriptif sous lui) sont désormais alignés en HAUT
-            (items-start, au lieu de items-center) — au même niveau vertical que le libellé
-            "PRIMARY INSURED" en haut de sa bulle — et restent justifiés à l'extrême gauche de la
-            bannière ; les bulles + le bouton "Configure Benefit Limit" gardent leur position
-            initiale à droite, inchangée. === */}
-        <div className="relative z-10 space-y-3">
-          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-            {/* === AMÉLIORATION AJOUTÉE : le paragraphe descriptif est remonté juste sous le
-                badge "Policy Age Limits & Real-Time Eligibility Verification" (au lieu de se
-                trouver plus bas, après les bulles d'âge et le bouton), avec un retour à la
-                ligne normal et un alignement explicite à gauche. === */}
-            {/* === AMÉLIORATION AJOUTÉE : justification du texte corrigée (retour utilisateur :
-                "le texte décale un peu") — vérifié visuellement dans le navigateur réel (pas
-                seulement en isolation) : text-align: justify était bien appliqué, mais la boîte
-                (max-w-md, 448px) était nettement plus étroite que l'espace réellement
-                disponible dans la bannière avant les bulles d'âge, forçant la justification à
-                étirer très peu de mots sur toute la largeur -> espaces inter-mots visiblement
-                inégaux, lus comme un texte "décalé"/mal aligné. Élargi (max-w-lg/lg:max-w-xl) +
-                w-full (largeur toujours égale à cette max-width, jamais ambiguë selon le calcul
-                flex "auto") pour donner à la justification assez de mots par ligne à répartir. */}
-            {/* === AMÉLIORATION AJOUTÉE : largeur du bloc de texte alignée sur celle du badge
-                juste au-dessus (retour utilisateur, 2026-09-07) — auparavant plus large
-                (max-w-lg/xl) que le badge, le paragraphe s'étirait au-delà du bord droit du
-                badge au lieu de revenir à la ligne au même niveau. */}
-            {/* === AMÉLIORATION AJOUTÉE : correctif débordement (retour utilisateur, 2026-09-07
-                — "le texte déborde toujours la bannière") — `max-w-md shrink-0` fixait une
-                largeur MINIMALE non compressible de 448px pour ce bloc ; combiné aux bulles
-                d'âge + bouton passés en flex-nowrap juste en dessous (qui ne peuvent plus non
-                plus rétrécir), la ligne entière dépassait la largeur de la bannière sur tout
-                écran plus étroit que ~1150px. `flex-1 min-w-0` laisse ce bloc de texte être
-                celui qui absorbe le rétrécissement (plus de lignes, jamais de débordement),
-                pendant que les bulles/bouton, eux, gardent leur taille naturelle fixe. */}
-            <div className="space-y-2 flex-1 min-w-0">
-              {/* === AMÉLIORATION AJOUTÉE : mention "Age Limits" retirée du libellé affiché
-                  (retour utilisateur, 2026-09-07) — la configuration des plafonds d'âge
-                  elle-même (bulles Primary/Spouse/Child ci-dessous + bouton "Configure Benefit
-                  Limit") reste entièrement inchangée, seul ce libellé est reformulé. */}
-              {/* === AMÉLIORATION AJOUTÉE : mention descriptive retirée (retour utilisateur,
-                  2026-09-11) — le badge "Real-Time Eligibility Verification" reste seul,
-                  le comportement de validation d'âge n'est pas modifié. === */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-slate-200">
-                <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
-                <span>{t.ceilings.eligibilityBadge}</span>
-              </div>
+        {/* === AMÉLIORATION AJOUTÉE : refonte du bandeau (retour utilisateur, 2026-09-11 —
+            "repenser ce tableau", piste C retenue parmi 3 propositions) ===
+            Depuis le retrait de la phrase explicative sous le badge "Real-Time Eligibility
+            Verification" (correctif précédent), ce badge flottait seul en haut à gauche avec un
+            grand vide avant les bulles d'âge — les deux zones (badge d'un côté, bulles+bouton de
+            l'autre) lisaient comme deux blocs déconnectés. Le badge adopte désormais le même
+            style que les bulles d'âge (fond/bordure/coins identiques) et devient la première
+            puce d'une seule rangée continue, séparée des bulles par un simple trait vertical —
+            toute la bannière se lit comme un ensemble cohérent. Contenu inchangé : même icône,
+            même texte de badge (t.ceilings.eligibilityBadge), mêmes bulles, même bouton.
+            flex-wrap (au lieu de l'ancien flex-nowrap strict) laisse la rangée revenir à la
+            ligne sur petit écran plutôt que de forcer un défilement horizontal ou un
+            débordement — chaque puce garde sa taille naturelle et wrap proprement. */}
+        <div className="relative z-10">
+          <div className="flex flex-wrap lg:flex-nowrap items-center gap-3">
+            <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5 shrink-0">
+              <ShieldAlert className="w-4.5 h-4.5 text-amber-300 shrink-0" />
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-200 leading-tight">
+                {t.ceilings.eligibilityBadge}
+              </span>
             </div>
 
+            <div className="hidden lg:block w-px self-stretch bg-white/15 shrink-0" />
+
             {/* Dynamic Age Limits Display Pills */}
-            {/* === AMÉLIORATION AJOUTÉE : flex-nowrap (retour utilisateur, 2026-09-07) — les
-                bulles d'âge et le bouton "Configure Benefit Limit" doivent toujours rester sur
-                la même ligne (auparavant flex-wrap, pouvait les faire passer sur plusieurs
-                lignes). `shrink-0` ajouté pour que ce bloc garde toujours sa taille naturelle :
-                c'est le panneau de texte à gauche (flex-1 min-w-0) qui absorbe seul le
-                rétrécissement sur un écran étroit, jamais les bulles/bouton. === */}
-            <div className="flex flex-nowrap items-center gap-3 shrink-0">
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
+            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px] shrink-0">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-200 block">
                 {t.ceilings.primaryInsuredLabel}
               </span>
@@ -570,7 +540,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               </div>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
+            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px] shrink-0">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-200 block">
                 {t.ceilings.spouseLabel}
               </span>
@@ -580,7 +550,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               </div>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[140px]">
+            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[140px] shrink-0">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-200 block">
                 {t.ceilings.childDependantLabel}
               </span>
@@ -597,12 +567,11 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             <button
               id="configure-benefit-limit-btn"
               onClick={openNewBenefitLimitWizard}
-              className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-slate-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
+              className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-slate-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0 lg:ml-auto"
             >
               <PlusCircle className="w-4 h-4 text-slate-800" />
               <span>{t.ceilings.configureBenefitLimitBtn}</span>
             </button>
-            </div>
           </div>
         </div>
       </div>
