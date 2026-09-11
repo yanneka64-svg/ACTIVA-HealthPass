@@ -108,6 +108,20 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [lockoutRemainingSec, setLockoutRemainingSec] = useState(0);
+  // === AMÉLIORATION AJOUTÉE : correctif logo (retour utilisateur, 2026-09-11 — "le logo sur
+  // la bande bleue" affiche parfois une icône d'image cassée à la déconnexion) — un échec de
+  // chargement réseau ponctuel (asset local pourtant déjà mis en cache par le navigateur, mais
+  // parfois manqué juste après le remontage de cet écran à la déconnexion) ne se corrigeait
+  // jamais tout seul : une <img> standard n'a aucune logique de nouvelle tentative après une
+  // erreur. Jusqu'à 3 nouvelles tentatives, avec un court délai croissant ; `key` forcé à
+  // changer pour que React recrée bien un nouveau nœud <img> (remettre `src` à l'identique ne
+  // relance pas toujours une requête réseau dans tous les navigateurs).
+  const [logoRetryCount, setLogoRetryCount] = useState(0);
+  const handleLogoLoadError = () => {
+    if (logoRetryCount < 3) {
+      setTimeout(() => setLogoRetryCount((c) => c + 1), 350 * (logoRetryCount + 1));
+    }
+  };
 
   // Live countdown while locked out, so the user sees when they can retry.
   useEffect(() => {
@@ -470,9 +484,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
             juste en dessous restent animés comme avant — seul le logo est concerné. === */}
         <div className="relative z-10 self-start bg-white rounded-lg px-3 py-2 shadow-sm">
           <img
+            key={logoRetryCount}
             src={activaLogoOriginal}
             alt="Activa"
             className="h-12 w-auto"
+            onError={handleLogoLoadError}
           />
         </div>
 
