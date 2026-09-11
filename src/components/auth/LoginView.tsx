@@ -4,6 +4,9 @@ import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { Logo } from '../Logo';
 import activaLogoOriginal from '../../assets/logos/logo-activa.png';
+// === AMÉLIORATION AJOUTÉE : photo fournie par l'utilisateur pour remplacer le fond bleu uni
+// du panneau gauche de la page de connexion (retour utilisateur explicite, 2026-09-11).
+import loginDoctorPhoto from '../../assets/login-doctor.webp';
 import { auth, functions, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -430,8 +433,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
       {/* LEFT PANEL — dégradé bleu + motif de courbes, identiques à la sidebar Agent.
           === AMÉLIORATION AJOUTÉE : élargi (46%/44% -> 56%/54%) pour réduire d'autant la
-          largeur du panneau blanc du formulaire (retour utilisateur explicite). === */}
-      <div className="hidden lg:flex lg:w-[56%] xl:w-[54%] bg-gradient-to-b from-[#072659] via-[#0A347B] to-[#0D2B63] relative overflow-hidden flex-col justify-between p-10 xl:p-14">
+          largeur du panneau blanc du formulaire (retour utilisateur explicite). ===
+          === AMÉLIORATION AJOUTÉE : photo (docteur avec tablette) posée en fond du panneau,
+          à la place du bleu uni (retour utilisateur explicite, 2026-09-11 — "remplace le bleu
+          par la photo"). Le dégradé bleu d'origine est conservé en surcouche semi-transparente
+          au-dessus de la photo afin que le logo et les textes blancs restent parfaitement
+          lisibles, comme avant. === */}
+      <div
+        className="hidden lg:flex lg:w-[56%] xl:w-[54%] relative overflow-hidden flex-col justify-between p-10 xl:p-14 bg-cover bg-center"
+        style={{ backgroundImage: `url(${loginDoctorPhoto})` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-[#072659]/90 via-[#0A347B]/85 to-[#0D2B63]/92 pointer-events-none" />
         {/* Halo lumineux — identique à Sidebar.tsx (accentGlow Agent: bg-blue-400/20) */}
         <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
 
