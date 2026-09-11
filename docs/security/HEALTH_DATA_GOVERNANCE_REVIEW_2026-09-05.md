@@ -111,13 +111,27 @@ base légale contractuelle couvre probablement l'essentiel du traitement — mai
 secondaire (reporting agrégé, partage avec un partenaire) devrait pouvoir s'appuyer sur une base
 identifiée.
 
-### 2.8 Doublon de source de vérité (MODEL-04, déjà identifié, toujours ouvert)
-`AccountsView.tsx`, `LoginView.tsx` et `App.tsx` continuent d'écrire directement sur `accounts`
-via le SDK Firestore, en parallèle de `FirestoreService`. Pour une collection qui porte
+### 2.8 Doublon de source de vérité (MODEL-04, déjà identifié, **corrigé le 2026-09-11**)
+`AccountsView.tsx` et `App.tsx` écrivaient directement sur `accounts` via le SDK Firestore
+(`setDoc`/`updateDoc`), en parallèle de `FirestoreService`. Pour une collection qui porte
 désormais (depuis le dernier correctif de sécurité) la seule vérité d'accès aux données de santé
-via `hasOrgAccess()`, cette duplication augmente le risque qu'un futur correctif de sécurité soit
-appliqué à un seul des chemins d'écriture et pas à l'autre — un risque déjà matérialisé une fois
-dans cet audit (voir SEC-01).
+via `hasOrgAccess()`, cette duplication augmentait le risque qu'un futur correctif de sécurité
+soit appliqué à un seul des chemins d'écriture et pas à l'autre — un risque déjà matérialisé une
+fois dans cet audit (voir SEC-01).
+
+<!-- === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04, 2026-09-11) ===
+     Les 5 écritures directes identifiées (3 dans AccountsView.tsx : création, édition,
+     activation/désactivation ; 2 dans App.tsx : liaison d'un compte legacy `users/{uid}`,
+     nettoyage post-changement de mot de passe) passent désormais toutes par FirestoreService
+     (`addAccount`/`updateAccount`/nouvelle méthode `linkLegacyUserAccount` pour la liaison
+     avec merge — sémantique différente d'un setDoc classique, voir src/services/firestore.ts).
+     `accounts` n'a donc plus qu'un seul chemin d'écriture applicatif ; comportement strictement
+     inchangé. Vérification : les lectures directes restantes (LoginView.tsx, App.tsx via
+     onSnapshot sur accounts/{uid}) ne sont PAS concernées par ce constat, qui portait
+     uniquement sur les écritures — elles restent des lectures scoping mono-document déjà
+     conformes à firestore.rules. LoginView.tsx ne comportait déjà aucune écriture directe sur
+     `accounts` au moment de cette correction ; sa mention ci-dessus dans le constat d'origine
+     ne s'appliquait donc plus. -->
 
 ---
 

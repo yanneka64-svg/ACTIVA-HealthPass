@@ -641,6 +641,23 @@ export const FirestoreService = {
       throw err;
     }
   },
+  // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04, retour
+  // utilisateur 2026-09-11 — "toujours ouvert" dans HEALTH_DATA_GOVERNANCE_REVIEW_2026-09-05.md,
+  // risque déjà matérialisé une fois via SEC-01) === App.tsx écrivait encore directement sur
+  // `accounts/{uid}` via le SDK Firestore (`setDoc(..., { merge: true })`) pour relier un compte
+  // pré-provisionné sous l'ancienne collection `users/{uid}` à l'uid Firebase Auth réel — un
+  // second chemin d'écriture, hors de ce fichier, qui risquait de ne pas recevoir un futur
+  // correctif appliqué uniquement ici. Isolé dans sa propre méthode (plutôt que réutiliser
+  // `addAccount`) car le `merge: true` a une sémantique différente d'un `setDoc` classique : il
+  // préserve tout champ déjà présent sur le document au lieu de l'écraser intégralement.
+  linkLegacyUserAccount: async (id: string, data: any) => {
+    try {
+      return await setDoc(doc(db, 'accounts', id), data, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `accounts/${id}`);
+      throw err;
+    }
+  },
 
   // Medical Forms
   // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.1)

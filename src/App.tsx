@@ -1,6 +1,6 @@
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, getDoc, getDocs, onSnapshot, setDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, getDocs, onSnapshot, collection } from 'firebase/firestore';
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   Language,
@@ -293,7 +293,11 @@ export default function App() {
                 const usersDocSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
                 if (usersDocSnap.exists()) {
                   const uData = usersDocSnap.data();
-                  await setDoc(doc(db, 'accounts', firebaseUser.uid), { ...uData, id: firebaseUser.uid }, { merge: true });
+                  // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04,
+                  // 2026-09-11) — passe par FirestoreService.linkLegacyUserAccount() au lieu
+                  // d'un setDoc direct, pour que la collection accounts n'ait plus qu'un seul
+                  // chemin d'écriture (voir src/services/firestore.ts). Comportement identique.
+                  await FirestoreService.linkLegacyUserAccount(firebaseUser.uid, { ...uData, id: firebaseUser.uid });
                   return;
                 }
 
@@ -1587,12 +1591,16 @@ export default function App() {
 
               await updatePassword(auth.currentUser, newPwd);
 
-              const { doc, updateDoc, deleteField: deleteFieldFn } = await import('firebase/firestore');
+              const { deleteField: deleteFieldFn } = await import('firebase/firestore');
               // === AMÉLIORATION AJOUTÉE : sécurité (audit) — l'utilisateur vient de définir
               // son vrai mot de passe Firebase Auth ; tout mot de passe (en clair ou haché)
               // encore stocké sur ce compte pour l'ancien mécanisme de secours n'a plus lieu
               // d'être conservé — Firebase Auth fait désormais foi à chaque connexion.
-              await updateDoc(doc(db, 'accounts', auth.currentUser.uid), {
+              // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04,
+              // 2026-09-11) — passe par FirestoreService.updateAccount() au lieu d'un updateDoc
+              // direct (voir src/services/firestore.ts). Comportement identique.
+              await FirestoreService.updateAccount({
+                id: auth.currentUser.uid,
                 isTemporaryPassword: false,
                 mustChangePassword: false,
                 passwordChangedAt: new Date().toISOString(),
