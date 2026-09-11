@@ -61,6 +61,11 @@ export const ROLE_ALLOWED_SECTIONS: Record<AppRole, NavSection[]> = {
   ],
   Supervisor: [
     'dashboard',
+    // === AMÉLIORATION AJOUTÉE : "Identification" ajouté côté Superviseur (retour
+    // utilisateur explicite, 2026-09-11 — "ajouter également l'identification comme sur le
+    // profil agent") — même écran (AgentIdentificationView) que pour l'Agent. Voir aussi
+    // src/components/Sidebar.tsx (filteredOverviewItems) pour l'entrée de menu correspondante.
+    'identification',
     'medical_form',
     'claims_validation',
     'enrollments_validation',
