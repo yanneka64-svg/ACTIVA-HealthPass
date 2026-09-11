@@ -1532,7 +1532,7 @@ export default function App() {
                 <Icon className={`w-5 h-5 ${isActive ? activeRoleTheme.palette.activeIconColor : ''}`} />
                 <span className="text-[10px] mt-0.5">{item.label}</span>
                 {!!item.badge && item.badge > 0 && (
-                  <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                  <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[10px] font-black rounded-full flex items-center justify-center">
                     {item.badge}
                   </span>
                 )}

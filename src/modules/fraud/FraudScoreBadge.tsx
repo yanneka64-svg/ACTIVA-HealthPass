@@ -32,7 +32,7 @@ export const FraudScoreBadge: React.FC<FraudScoreBadgeProps> = ({ result, classN
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${style} ${className}`}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${style} ${className}`}
     >
       <ShieldAlert className="w-3 h-3" />
       <span>Fraud risk: {label} · {result.score}/100</span>

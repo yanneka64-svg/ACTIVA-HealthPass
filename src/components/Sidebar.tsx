@@ -54,7 +54,7 @@ const CollapsibleNavSection: React.FC<CollapsibleNavSectionProps> = ({
         type="button"
         id={`nav-toggle-${id}`}
         onClick={onToggle}
-        className={`w-full px-3 py-2 flex items-center justify-between text-[10.5px] font-extrabold tracking-wider ${titleColor} hover:text-white uppercase transition-colors duration-150 cursor-pointer group select-none`}
+        className={`w-full px-3 py-2 flex items-center justify-between text-[11px] font-extrabold tracking-wider ${titleColor} hover:text-white uppercase transition-colors duration-150 cursor-pointer group select-none`}
         aria-expanded={isOpen}
       >
         <span className="truncate group-hover:text-white transition-colors">{title}</span>
@@ -268,11 +268,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1 min-w-0">
             <div className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse flex-shrink-0" />
-            <span className="text-[9.5px] font-semibold text-white/90 tracking-wide truncate">
+            <span className="text-[10px] font-semibold text-white/90 tracking-wide truncate">
               {currentUser?.entity || 'ACTIVA Liberia'}
             </span>
           </div>
-          <span className="text-white/60 text-[9.5px] font-mono font-bold shrink-0">
+          <span className="text-white/60 text-[10px] font-mono font-bold shrink-0">
             v2.4.0
           </span>
         </div>

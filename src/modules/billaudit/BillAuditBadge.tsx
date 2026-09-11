@@ -17,7 +17,7 @@ export const BillAuditBadge: React.FC<BillAuditBadgeProps> = ({ result, classNam
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border bg-orange-50 text-orange-700 border-orange-200 ${className}`}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border bg-orange-50 text-orange-700 border-orange-200 ${className}`}
     >
       <FileWarning className="w-3 h-3" />
       <span>Bill audit: duplicate line item(s)</span>

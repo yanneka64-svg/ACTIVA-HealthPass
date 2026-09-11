@@ -903,7 +903,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                       )}
                     </div>
 
-                    <p className="text-[10.5px] text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
                       {t.organizations.paymentHistoryHint}
                     </p>
                   </div>
@@ -990,7 +990,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-500 font-bold uppercase text-[10.5px] border-b border-slate-200">
+                      <tr className="bg-slate-50 text-slate-500 font-bold uppercase text-[11px] border-b border-slate-200">
                         <th className="py-3 px-4">{t.organizations.colCardNo}</th>
                         <th className="py-3 px-4">{t.organizations.colPrincipalInsured}</th>
                         <th className="py-3 px-4">{t.organizations.colBirthDate}</th>
@@ -1095,7 +1095,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-500 font-bold uppercase text-[10.5px] border-b border-slate-200">
+                      <tr className="bg-slate-50 text-slate-500 font-bold uppercase text-[11px] border-b border-slate-200">
                         <th className="py-3 px-4">{t.organizations.colFullName}</th>
                         <th className="py-3 px-4">{t.organizations.colRelationship}</th>
                         <th className="py-3 px-4">{t.organizations.colBirthDate}</th>

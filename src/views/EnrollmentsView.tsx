@@ -404,7 +404,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   </div>
                   <p className="text-[11px] text-slate-600 truncate">{enr.organization}</p>
                   {enr.assignedAgentName && (
-                    <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
+                    <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold">
                       {t.claims.assignedPrefix} {enr.assignedAgentName}
                     </span>
                   )}
@@ -514,7 +514,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                           {enr.submissionDate}
                         </span>
                         {enr.assignedAgentName && (
-                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
+                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold">
                             {t.claims.assignedPrefix} {enr.assignedAgentName}
                           </span>
                         )}
@@ -1094,7 +1094,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold font-mono uppercase tracking-wide"
                   required
                 />
-                <p className="text-[10.5px] text-slate-400 mt-1">{t.enrollments.cardNoHint}</p>
+                <p className="text-[11px] text-slate-400 mt-1">{t.enrollments.cardNoHint}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

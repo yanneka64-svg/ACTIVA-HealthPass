@@ -149,16 +149,16 @@ const CircularGauge: React.FC<{
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-sm font-black text-slate-800">{usedPct}%</span>
-            <span className="text-[8px] font-bold text-slate-400 uppercase">{usedText}</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase">{usedText}</span>
           </div>
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{remainingBalanceText}</div>
           <div className="text-lg font-black text-[#00A859] truncate">{balanceLabel}</div>
-          <div className="text-[10.5px] text-slate-500 font-medium truncate">{ofText} {ceilingLabel} {ceilingSuffixText}</div>
+          <div className="text-[11px] text-slate-500 font-medium truncate">{ofText} {ceilingLabel} {ceilingSuffixText}</div>
         </div>
       </div>
-      <div className="text-[10.5px] text-slate-500 font-medium pt-1 border-t border-slate-100">
+      <div className="text-[11px] text-slate-500 font-medium pt-1 border-t border-slate-100">
         {consumedText} <span className="font-bold text-slate-700">{consumedLabel}</span>
       </div>
     </div>
@@ -506,16 +506,16 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-xs text-slate-900 truncate">{b.fullName}</div>
                       <div className="font-mono text-[11px] font-bold text-[#0a2e6b]">{b.cardNo}</div>
-                      <div className="text-[10.5px] text-slate-400 truncate flex items-center gap-1">
+                      <div className="text-[11px] text-slate-400 truncate flex items-center gap-1">
                         <Building2 className="w-3 h-3 shrink-0" />
                         <span className="truncate">{b.organization}</span>
                       </div>
-                      <div className="text-[10.5px] text-slate-400">
+                      <div className="text-[11px] text-slate-400">
                         {age !== null ? `${age} ${t.agentId.ageUnit}` : '—'} • {t.agentId.genderLabel} {b.gender === 'F' ? 'F' : 'M'}
                       </div>
                     </div>
                     <span
-                      className={`shrink-0 px-2 py-0.5 rounded-full text-[9.5px] font-bold ${
+                      className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         b.status === 'Active' || b.status === 'Actif'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -689,7 +689,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                   >
                     <div className="flex items-center justify-between gap-2">
                       <h4
-                        className={`text-[10.5px] font-black uppercase tracking-wide flex items-center gap-1 ${
+                        className={`text-[11px] font-black uppercase tracking-wide flex items-center gap-1 ${
                           policyCoverage.status === 'Active'
                             ? 'text-emerald-800'
                             : policyCoverage.status === 'Expiring Soon'
@@ -706,7 +706,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           {policyCoverage.status === 'Pending Renewal' && t.agentId.policyPendingRenewal}
                         </span>
                       </h4>
-                      <span className="text-[9.5px] font-mono font-bold text-slate-500 shrink-0">{t.agentId.policyLabel} {selectedPolicy.policyNumber}</span>
+                      <span className="text-[10px] font-mono font-bold text-slate-500 shrink-0">{t.agentId.policyLabel} {selectedPolicy.policyNumber}</span>
                     </div>
 
                     {policyCoverage.status === 'Active' && (
@@ -826,7 +826,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                         <span>{t.agentId.familyDependents} ({dependentsList.length + 1})</span>
                       </h4>
                     </div>
-                    <span className="block text-[10.5px] font-semibold text-slate-400 -mt-2">{t.agentId.clickToSelect}</span>
+                    <span className="block text-[11px] font-semibold text-slate-400 -mt-2">{t.agentId.clickToSelect}</span>
 
                     <div className="grid grid-cols-2 gap-2.5">
                       {/* Principal (Self) */}
@@ -857,8 +857,8 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                               )}
                             </div>
                             <div className="font-bold text-[11px] text-slate-900 truncate">{principalSelf.fullName}</div>
-                            <div className="text-[9.5px] font-bold text-[#0a2e6b]">{t.agentId.principalSelf}</div>
-                            <div className="text-[9.5px] text-slate-400 font-mono">
+                            <div className="text-[10px] font-bold text-[#0a2e6b]">{t.agentId.principalSelf}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">
                               {calculateAgeNumber(principalSelf.birthDate) ?? '—'} {t.agentId.ageUnit}
                             </div>
                           </button>
@@ -888,8 +888,8 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                               <User className="w-4 h-4 text-slate-400" />
                             </div>
                             <div className="font-bold text-[11px] text-slate-900 truncate">{dep.fullName}</div>
-                            <div className="text-[9.5px] font-bold text-slate-500 truncate">{formatRelationship(dep.relationship)}</div>
-                            <div className="text-[9.5px] text-slate-400 font-mono">
+                            <div className="text-[10px] font-bold text-slate-500 truncate">{formatRelationship(dep.relationship)}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">
                               {dep.age ? `${dep.age} ${t.agentId.ageUnit}` : '—'}
                             </div>
                           </button>
@@ -929,7 +929,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                                 <div className="text-[10px] text-[#0a2e6b] font-mono">{claim.reference}</div>
                               </div>
                               <span
-                                className={`shrink-0 inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
+                                className={`shrink-0 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                   claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : claim.status === 'Rejected' || claim.status === 'rejected'

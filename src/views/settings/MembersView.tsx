@@ -329,7 +329,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       <div className="space-y-1.5 max-w-[200px]">
         {items.map((item, idx) => (
           <div key={idx} className="text-xs leading-tight">
-            <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700 uppercase mr-1.5">
+            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase mr-1.5">
               {item.label}
             </span>
             <span className="font-semibold text-slate-800">{item.name}</span>
@@ -1146,7 +1146,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                           <div className="flex flex-wrap items-center gap-2.5">
                             {selectedMemberForView.birthDate && (
                               <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs text-left">
-                                <div className="text-[9px] uppercase font-bold text-slate-400">Date of Birth</div>
+                                <div className="text-[10px] uppercase font-bold text-slate-400">Date of Birth</div>
                                 <div className="text-xs font-bold text-slate-800">
                                   {selectedMemberForView.birthDate} {pElig.age !== undefined ? `(${pElig.age} yrs)` : ''}
                                 </div>

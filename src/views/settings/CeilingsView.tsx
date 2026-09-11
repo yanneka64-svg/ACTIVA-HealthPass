@@ -1483,7 +1483,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                 <td className="py-3 px-2 bg-[var(--brand-50)]/20">
                                   <div className="flex items-center gap-1.5">
                                     <div className="flex-1">
-                                      <span className="block text-[9px] text-slate-400 font-bold">{t.ceilings.principalLabel}</span>
+                                      <span className="block text-[10px] text-slate-400 font-bold">{t.ceilings.principalLabel}</span>
                                       <div className="relative">
                                         <span className="absolute left-2 top-1.5 text-slate-400 text-xs">$</span>
                                         <input
@@ -1508,7 +1508,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                       </div>
                                     </div>
                                     <div className="flex-1">
-                                      <span className="block text-[9px] text-slate-400 font-bold">{t.ceilings.dependentLabel}</span>
+                                      <span className="block text-[10px] text-slate-400 font-bold">{t.ceilings.dependentLabel}</span>
                                       <div className="relative">
                                         <span className="absolute left-2 top-1.5 text-slate-400 text-xs">$</span>
                                         <input
@@ -1539,7 +1539,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                 <td className="py-3 px-2 bg-indigo-50/20">
                                   <div className="flex items-center gap-1.5">
                                     <div className="flex-1">
-                                      <span className="block text-[9px] text-slate-400 font-bold">{t.ceilings.principalLabel}</span>
+                                      <span className="block text-[10px] text-slate-400 font-bold">{t.ceilings.principalLabel}</span>
                                       <div className="relative">
                                         <span className="absolute left-2 top-1.5 text-slate-400 text-xs">$</span>
                                         <input
@@ -1564,7 +1564,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                       </div>
                                     </div>
                                     <div className="flex-1">
-                                      <span className="block text-[9px] text-slate-400 font-bold">{t.ceilings.dependentLabel}</span>
+                                      <span className="block text-[10px] text-slate-400 font-bold">{t.ceilings.dependentLabel}</span>
                                       <div className="relative">
                                         <span className="absolute left-2 top-1.5 text-slate-400 text-xs">$</span>
                                         <input

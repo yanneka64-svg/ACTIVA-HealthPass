@@ -257,7 +257,7 @@ export const Topbar: React.FC<TopbarProps> = ({
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-[#DC4C4C] text-white text-[9px] font-black rounded-full flex items-center justify-center animate-scaleIn">
+              <span className="absolute top-1 right-1 w-4 h-4 bg-[#DC4C4C] text-white text-[10px] font-black rounded-full flex items-center justify-center animate-scaleIn">
                 {unreadCount}
               </span>
             )}

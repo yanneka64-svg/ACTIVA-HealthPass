@@ -405,20 +405,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="font-bold text-slate-900 font-mono text-xs truncate">{inv.reference}</div>
-                      <div className="text-[10.5px] text-[#778FAF] truncate">{claimRef} · {inv.serviceDate || '2025-08-18'}</div>
+                      <div className="text-[11px] text-[#778FAF] truncate">{claimRef} · {inv.serviceDate || '2025-08-18'}</div>
                     </div>
                     {inv.status === 'valid' || inv.status === 'approved' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A878] text-[10.5px] font-bold shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A878] text-[11px] font-bold shrink-0">
                         <CheckCircle2 className="w-3 h-3" />
                         <span>{t.validated}</span>
                       </span>
                     ) : inv.status === 'pending' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF6D9] text-[#F5B942] text-[10.5px] font-bold shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF6D9] text-[#F5B942] text-[11px] font-bold shrink-0">
                         <Clock className="w-3 h-3" />
                         <span>{t.pending}</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#DC4C4C] text-[10.5px] font-bold shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#DC4C4C] text-[11px] font-bold shrink-0">
                         <X className="w-3 h-3" />
                         <span>{t.rejectedStatus}</span>
                       </span>
@@ -428,20 +428,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   <div className="flex items-center gap-1.5 text-xs">
                     <User className="w-3.5 h-3.5 text-[#778FAF] shrink-0" />
                     <span className="font-bold text-[#0a2e6b] truncate">{inv.patientName}</span>
-                    <span className="text-[10.5px] font-mono text-slate-500 shrink-0">{inv.patientPolicyNumber || 'ACT-2025-0089'}</span>
+                    <span className="text-[11px] font-mono text-slate-500 shrink-0">{inv.patientPolicyNumber || 'ACT-2025-0089'}</span>
                   </div>
 
                   <div className="text-xs truncate">
                     <span className="font-bold text-[#0a2e6b]">{inv.provider}</span>
-                    <span className="text-[10.5px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
+                    <span className="text-[11px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
                   </div>
 
-                  <span className="inline-block px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10.5px] font-semibold text-[#0a2e6b]" title={inv.description || inv.careType}>
+                  <span className="inline-block px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[11px] font-semibold text-[#0a2e6b]" title={inv.description || inv.careType}>
                     {inv.careType}
                   </span>
 
                   {reimbursementTrackingEnabled && inv.paymentStatus === 'paid' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10.5px] font-bold text-emerald-700">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-700">
                       <Wallet className="w-3 h-3" />
                       {t.invoices.paidToPrefix} {inv.payee === 'member' ? t.invoices.paidToInsured : t.invoices.paidToProvider} · {inv.paymentReference}
                     </span>
@@ -449,7 +449,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
                   {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical (2026-09-10) === */}
                   {reimbursementTrackingEnabled && inv.refactionApplied && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-50 border border-orange-200 text-[10.5px] font-bold text-orange-700">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-50 border border-orange-200 text-[11px] font-bold text-orange-700">
                       <ScanSearch className="w-3 h-3" />
                       {t.invoices.refactedBadgePrefix} {(inv.refactions || []).length} {t.invoices.refactedBadgeSuffix}
                     </span>
@@ -457,7 +457,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#E8EDF2] text-center">
                     <div>
-                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">{t.invoices.colInvoiced}</div>
+                      <div className="text-[10px] text-[#778FAF] uppercase font-bold">{t.invoices.colInvoiced}</div>
                       {reimbursementTrackingEnabled && inv.refactionApplied ? (
                         <>
                           <div className="text-[10px] text-slate-400 line-through">{formatAmount(inv.amount)}</div>
@@ -468,11 +468,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       )}
                     </div>
                     <div>
-                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">{t.invoices.colCovered}</div>
+                      <div className="text-[10px] text-[#778FAF] uppercase font-bold">{t.invoices.colCovered}</div>
                       <div className="font-bold text-[#00A878] text-xs">{formatAmount(covered)}</div>
                     </div>
                     <div>
-                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">{t.invoices.colCopay}</div>
+                      <div className="text-[10px] text-[#778FAF] uppercase font-bold">{t.invoices.colCopay}</div>
                       <div className="font-bold text-[#0a2e6b] text-xs">{formatAmount(copay)}</div>
                     </div>
                   </div>
@@ -560,7 +560,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         <td className="py-3 px-4 align-middle max-w-[190px]" title={`Claim: ${claimRef} • ${inv.serviceDate || '2025-08-18'}`}>
                           <div className="flex items-baseline gap-1.5 truncate">
                             <span className="font-bold text-slate-900 font-mono text-xs">{inv.reference}</span>
-                            <span className="text-[10.5px] text-[#778FAF] truncate">
+                            <span className="text-[11px] text-[#778FAF] truncate">
                               {claimRef} · {inv.serviceDate || '2025-08-18'}
                             </span>
                           </div>
@@ -571,7 +571,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                           <div className="flex items-center gap-1.5 truncate">
                             <User className="w-3.5 h-3.5 text-[#778FAF] shrink-0" />
                             <span className="font-bold text-[#0a2e6b] truncate">{inv.patientName}</span>
-                            <span className="text-[10.5px] font-mono text-slate-500 shrink-0">
+                            <span className="text-[11px] font-mono text-slate-500 shrink-0">
                               {inv.patientPolicyNumber || 'ACT-2025-0089'}
                             </span>
                           </div>
@@ -581,14 +581,14 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         <td className="py-3 px-4 align-middle max-w-[190px]">
                           <div className="truncate">
                             <span className="font-bold text-[#0a2e6b]">{inv.provider}</span>
-                            <span className="text-[10.5px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
+                            <span className="text-[11px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
                           </div>
                         </td>
 
                         {/* CATEGORY — single badge, full description as tooltip */}
                         <td className="py-3 px-4 align-middle max-w-[160px]">
                           <span
-                            className="inline-block max-w-full truncate align-bottom px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10.5px] font-semibold text-[#0a2e6b]"
+                            className="inline-block max-w-full truncate align-bottom px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[11px] font-semibold text-[#0a2e6b]"
                             title={inv.description || inv.careType}
                           >
                             {inv.careType}
@@ -804,7 +804,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 <div className="min-w-0 leading-tight">
                   <span className="font-bold text-[var(--brand-900)] text-sm">{t.appName}</span>
                   <span className="text-slate-300 mx-1.5 hidden sm:inline">|</span>
-                  <span className="font-extrabold text-slate-800 uppercase tracking-wide text-[10.5px] block sm:inline">
+                  <span className="font-extrabold text-slate-800 uppercase tracking-wide text-[11px] block sm:inline">
                     {t.invoices.slipHeaderTitle}
                   </span>
                 </div>

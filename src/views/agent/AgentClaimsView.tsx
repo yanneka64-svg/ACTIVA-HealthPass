@@ -738,7 +738,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                           }`}
                         >
                           <span>{b.name}</span>
-                          <span className="text-[9px] opacity-80">({b.relation})</span>
+                          <span className="text-[10px] opacity-80">({b.relation})</span>
                         </button>
                       ))}
                     </div>
@@ -816,7 +816,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         <span>{t.agentClaims.section3TitlePrefix} ({medicalActs.length})</span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 3 ? 'rotate-180' : ''}`} />
                       </h4>
-                      <p className="text-[10.5px] text-slate-400 font-medium">
+                      <p className="text-[11px] text-slate-400 font-medium">
                         {t.agentClaims.itemizedBreakdownPrefix} {currency === 'USD' ? t.agentClaims.usdFull : t.agentClaims.lrdFull}
                       </p>
                     </div>
@@ -976,7 +976,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         <span>{t.agentClaims.section4TitlePrefix} ({allAttachmentsForDisplay.length})</span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 4 ? 'rotate-180' : ''}`} />
                       </h4>
-                      <p className="text-[10.5px] text-slate-400 font-medium">
+                      <p className="text-[11px] text-slate-400 font-medium">
                         {t.agentClaims.uploadHint}
                       </p>
                     </div>
@@ -1038,7 +1038,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     >
                       <UploadCloud className={`w-7 h-7 mx-auto mb-2 ${isDraggingFile ? 'text-[#0a2e6b]' : 'text-slate-400'}`} />
                       <p className="text-xs font-bold text-slate-700">{t.agentClaims.dragDropHint}</p>
-                      <p className="text-[10.5px] text-slate-400 mt-0.5">{t.agentClaims.dragDropSubHint}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{t.agentClaims.dragDropSubHint}</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -1076,7 +1076,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                               )}
                               <div className="min-w-0">
                                 <p className="font-bold text-slate-800 text-[11px] truncate">{attachment.name}</p>
-                                <p className="text-[9px] text-slate-400 uppercase tracking-wide font-bold">
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold">
                                   {docCategoryTags[category]} • {attachment.size}
                                 </p>
                               </div>
@@ -1162,7 +1162,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
             <h3 className="font-extrabold text-xs sm:text-sm text-slate-900">
               {t.agentClaims.historyTitlePrefix} ({claimsHistoryCount})
             </h3>
-            <p className="text-[10.5px] text-slate-400">{t.agentClaims.historySubtitle}</p>
+            <p className="text-[11px] text-slate-400">{t.agentClaims.historySubtitle}</p>
           </div>
           <div className="relative w-full sm:w-72">
             <input

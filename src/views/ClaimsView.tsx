@@ -481,7 +481,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                     <SlaBadge result={slaByClaimId.get(claim.id)!} className="ml-1.5" lang={lang} />
                   )}
                   {claim.assignedAgentName && (
-                    <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
+                    <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold">
                       {t.claims.assignedPrefix} {claim.assignedAgentName}
                     </span>
                   )}
@@ -615,7 +615,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                           </span>
                         )}
                         {claim.assignedAgentName && (
-                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
+                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold">
                             {t.claims.assignedPrefix} {claim.assignedAgentName}
                           </span>
                         )}

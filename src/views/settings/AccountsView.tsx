@@ -833,7 +833,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                         <span className="text-[10px] text-slate-400 block mt-1">
                           {t.accounts.createdOnLabel} {acc.createdAt}
                           {!acc.isActive && (
-                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700">
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
                               {t.accounts.inactiveBadge}
                             </span>
                           )}
@@ -1859,7 +1859,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       <tr key={row.id} className="hover:bg-slate-50 transition-colors">
                         <td className="py-3 px-3">
                           <div className="font-bold text-slate-900">{row.feature}</div>
-                          <div className="text-[10.5px] text-slate-500">{row.description}</div>
+                          <div className="text-[11px] text-slate-500">{row.description}</div>
                         </td>
                         <td className="py-3 px-3">
                           <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">

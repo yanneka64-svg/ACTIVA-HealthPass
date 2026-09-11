@@ -485,7 +485,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                       required
                     />
                   </div>
-                  <p className="text-[10.5px] text-slate-400 mt-1">{t.agentEnroll.cardNumberHint}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">{t.agentEnroll.cardNumberHint}</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -838,7 +838,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
                     </div>
                     <div>
                       <div className="font-bold text-xs text-slate-900">{enr.fullName}</div>
-                      <div className="text-[10.5px] text-slate-400">{enr.relationship} • {enr.organization}</div>
+                      <div className="text-[11px] text-slate-400">{enr.relationship} • {enr.organization}</div>
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-slate-500">
                       <span>{enr.submissionDate}</span>

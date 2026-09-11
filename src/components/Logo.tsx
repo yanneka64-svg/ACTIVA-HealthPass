@@ -136,7 +136,7 @@ export const MiniLogo: React.FC<{
               HealthPass
             </span>
           </div>
-          <div className="flex items-center gap-1 text-[7.5px] font-semibold tracking-wide mt-0.5" style={{ color: ACTIVA_BLUE }}>
+          <div className="flex items-center gap-1 text-[10px] font-semibold tracking-wide mt-0.5" style={{ color: ACTIVA_BLUE }}>
             <span>Health</span>
             <span className="font-bold" style={{ color: TAGLINE_GREEN }}>•</span>
             <span>Safety</span>
@@ -242,7 +242,7 @@ export const Logo: React.FC<LogoProps> = ({
               </span>
             </div>
             {showTagline && (
-              <div className="flex items-center gap-1 text-[7px] sm:text-[8.5px] font-semibold tracking-wide mt-0.5" style={{ color: ACTIVA_BLUE }}>
+              <div className="flex items-center gap-1 text-[10px] sm:text-[10px] font-semibold tracking-wide mt-0.5" style={{ color: ACTIVA_BLUE }}>
                 <span>Health</span>
                 <span className="font-bold" style={{ color: TAGLINE_GREEN }}>•</span>
                 <span>Safety</span>

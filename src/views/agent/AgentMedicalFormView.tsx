@@ -570,7 +570,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           </div>
                           <div>
                             <div className="font-extrabold text-xs text-slate-900">{selectedMember.principalName}</div>
-                            <div className={`text-[10.5px] font-mono font-bold ${'text-[#0a2e6b]'}`}>
+                            <div className={`text-[11px] font-mono font-bold ${'text-[#0a2e6b]'}`}>
                               N° {selectedMember.cardNo} • {selectedMember.organization}
                             </div>
                           </div>
@@ -640,7 +640,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                               >
                                 <div>
                                   <div className="font-bold text-slate-800">{m.principalName}</div>
-                                  <div className={`text-[10.5px] font-mono ${'text-[#0a2e6b]'}`}>
+                                  <div className={`text-[11px] font-mono ${'text-[#0a2e6b]'}`}>
                                     {m.cardNo} • {m.organization}
                                   </div>
                                 </div>
@@ -673,7 +673,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           </div>
                           <div>
                             <div className="font-extrabold text-xs text-slate-900">{selectedProvider.name}</div>
-                            <div className="text-[10.5px] text-slate-500">
+                            <div className="text-[11px] text-slate-500">
                               {selectedProvider.type} • {selectedProvider.location}
                             </div>
                           </div>
@@ -727,7 +727,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                               >
                                 <div>
                                   <div className="font-bold text-slate-800">{p.name}</div>
-                                  <div className="text-[10.5px] text-slate-500">
+                                  <div className="text-[11px] text-slate-500">
                                     {p.type} • {p.location}
                                   </div>
                                 </div>
@@ -1012,10 +1012,10 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <img src={ACTIVA_LOGO_WHITE_BASE64} alt="Activa" className="w-full h-full object-contain" />
                       </div>
                       <div>
-                        <div className={`text-[9.5px] ${'text-blue-100'} uppercase`}>{t.agentMedForm.voucherHeaderSubtitle}</div>
+                        <div className={`text-[10px] ${'text-blue-100'} uppercase`}>{t.agentMedForm.voucherHeaderSubtitle}</div>
                       </div>
                     </div>
-                    <div className="text-right font-mono text-[9.5px]">
+                    <div className="text-right font-mono text-[10px]">
                       <div className="font-bold">{generatedForm.securityNumber}</div>
                       <div className={`${'text-blue-200'}`}>{generatedForm.issueDate}</div>
                     </div>
@@ -1115,18 +1115,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* 4. SIGNATURES */}
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg text-center h-24 flex flex-col justify-between">
-                      <span className="text-[9.5px] font-bold text-slate-700">{t.agentMedForm.patientSignatureLabel}</span>
-                      <div className="text-[8px] text-slate-400 italic">{t.agentMedForm.readApproved}</div>
-                      <div className="text-[8px] text-slate-500 font-mono">{t.agentMedForm.dateLabel} ____/____/2026</div>
+                      <span className="text-[10px] font-bold text-slate-700">{t.agentMedForm.patientSignatureLabel}</span>
+                      <div className="text-[10px] text-slate-400 italic">{t.agentMedForm.readApproved}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">{t.agentMedForm.dateLabel} ____/____/2026</div>
                     </div>
 
                     <div className={`p-3 ${'bg-blue-50/50'} border-2 border-dashed ${'border-[#0a2e6b]/40'} rounded-lg text-center h-24 flex flex-col justify-between`}>
-                      <div className={`flex items-center justify-center gap-1 text-[9.5px] font-bold ${'text-[#0a2e6b]'}`}>
+                      <div className={`flex items-center justify-center gap-1 text-[10px] font-bold ${'text-[#0a2e6b]'}`}>
                         <PenTool className={`w-3 h-3 ${'text-[#0a2e6b]'}`} />
                         <span>{t.agentMedForm.physicianStampLabel}</span>
                       </div>
-                      <div className="text-[8px] text-slate-400 italic">{t.agentMedForm.facilityStampRequired}</div>
-                      <div className="text-[8px] text-slate-500 font-mono">{t.agentMedForm.dateLabel} ____/____/2026</div>
+                      <div className="text-[10px] text-slate-400 italic">{t.agentMedForm.facilityStampRequired}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">{t.agentMedForm.dateLabel} ____/____/2026</div>
                     </div>
                   </div>
 
@@ -1135,18 +1135,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     <div className="flex items-center gap-2">
                       <QrCode className={`w-7 h-7 ${'text-[#0a2e6b]'}`} />
                       <div>
-                        <div className="text-[9.5px] font-mono font-bold text-slate-800">{generatedForm.securityNumber}</div>
-                        <div className="text-[8px] text-slate-400">{t.agentMedForm.activaSecurityId}</div>
+                        <div className="text-[10px] font-mono font-bold text-slate-800">{generatedForm.securityNumber}</div>
+                        <div className="text-[10px] text-slate-400">{t.agentMedForm.activaSecurityId}</div>
                       </div>
                     </div>
-                    <div className="text-[8.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                       {t.agentMedForm.valid48h}
                     </div>
                   </div>
 
                   {/* Mandatory Instruction */}
                   <div className="p-2 bg-rose-50 border border-rose-300 rounded-lg text-center">
-                    <p className="text-[9px] font-extrabold text-rose-700 leading-tight">
+                    <p className="text-[10px] font-extrabold text-rose-700 leading-tight">
                       "{t.agentMedForm.mandatoryReturnNotice}"
                     </p>
                   </div>

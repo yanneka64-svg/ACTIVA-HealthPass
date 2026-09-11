@@ -290,7 +290,7 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
             )}
 
             {!hasOriginalBreakdown && (
-              <p className={`text-[10.5px] font-semibold ${linesMismatch ? 'text-rose-600' : 'text-slate-400'}`}>
+              <p className={`text-[11px] font-semibold ${linesMismatch ? 'text-rose-600' : 'text-slate-400'}`}>
                 Lines total: {formatAmount(totalOriginal)} of {formatAmount(invoice.amount)} — must match the original invoice amount exactly.
               </p>
             )}
