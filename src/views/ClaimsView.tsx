@@ -51,6 +51,9 @@ import { computeBillAudit } from '../modules/billaudit/billAuditCheck';
 import { BillAuditBadge } from '../modules/billaudit/BillAuditBadge';
 import { checkSlaBreach } from '../modules/sla/slaCheck';
 import { SlaBadge } from '../modules/sla/SlaBadge';
+// === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12), derrière le
+// flag hp3_claim_360 — voir src/modules/claim360/Claim360Panel.tsx.
+import { Claim360Panel } from '../modules/claim360/Claim360Panel';
 
 interface ClaimsViewProps {
   currentSection?: string;
@@ -61,6 +64,10 @@ interface ClaimsViewProps {
   organizations: Organization[];
   providers: Provider[];
   members: Member[];
+  // === AMÉLIORATION AJOUTÉE : Claim 360 — historique d'audit déjà chargé dans App.tsx
+  // (FirestoreService.subscribeToLogs), réutilisé tel quel par l'onglet Timeline. Optionnel :
+  // absent, l'onglet affiche simplement "aucune activité enregistrée".
+  logs?: any[];
   onApprove: (id: string) => void;
   onReject: (claim: Claim, reason: string, comments: string) => void;
   onReturn?: (claim: Claim, reason: string) => void;
@@ -78,6 +85,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
   organizations,
   providers,
   members,
+  logs = [],
   onApprove,
   onReject,
   onReturn,
@@ -86,6 +94,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
   onCreateClaim,
 }) => {
   const t = useTranslation(lang);
+  // === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12) — panneau
+  // ouvert sur clic du bouton "View", gardé derrière hp3_claim_360.
+  const claim360Enabled = isFeatureEnabled('hp3_claim_360');
+  const [claim360Target, setClaim360Target] = useState<Claim | null>(null);
   const { formatAmount, mode: currencyMode } = useCurrency();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState('ALL');
@@ -499,6 +511,17 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                       <Scan className="w-3.5 h-3.5 text-slate-600" />
                       <span>{t.claims.verify}</span>
                     </button>
+                    {claim360Enabled && (
+                      <button
+                        type="button"
+                        onClick={() => setClaim360Target(claim)}
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                        title={t.claim360.viewButtonTitle}
+                      >
+                        <Eye className="w-3.5 h-3.5 text-slate-600" />
+                        <span>{t.claim360.viewButton}</span>
+                      </button>
+                    )}
 
                     {isSupervisor && (
                       <>
@@ -653,6 +676,17 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                             <Scan className="w-3.5 h-3.5 text-slate-600" />
                             <span>{t.claims.verify}</span>
                           </button>
+                          {claim360Enabled && (
+                            <button
+                              type="button"
+                              onClick={() => setClaim360Target(claim)}
+                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                              title={t.claim360.viewButtonTitle}
+                            >
+                              <Eye className="w-3.5 h-3.5 text-slate-600" />
+                              <span>{t.claim360.viewButton}</span>
+                            </button>
+                          )}
 
                           {/* Supervisor Validation Actions (Approve and Reject are strictly reserved for Supervisors, NOT Admin) */}
                           {isSupervisor && (
@@ -830,6 +864,17 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                     <Scan className="w-3.5 h-3.5 text-slate-600" />
                     <span>{t.claims.verify}</span>
                   </button>
+                  {claim360Enabled && (
+                    <button
+                      type="button"
+                      onClick={() => setClaim360Target(claim)}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                      title={t.claim360.viewButtonTitle}
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-600" />
+                      <span>{t.claim360.viewButton}</span>
+                    </button>
+                  )}
                   {canDeleteRecord(userRole) && (
                     <button
                       onClick={() => openDeleteModal(claim)}
@@ -932,6 +977,17 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                           <Scan className="w-3 h-3 text-slate-600" />
                           <span>{t.claims.verify}</span>
                         </button>
+                        {claim360Enabled && (
+                          <button
+                            type="button"
+                            onClick={() => setClaim360Target(claim)}
+                            className="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 text-[10px] font-bold transition flex items-center gap-1 flex-shrink-0 cursor-pointer"
+                            title={t.claim360.viewButtonTitle}
+                          >
+                            <Eye className="w-3 h-3 text-slate-600" />
+                            <span>{t.claim360.viewButton}</span>
+                          </button>
+                        )}
                       </div>
                     </td>
                     {canDeleteRecord(userRole) && (
@@ -1356,6 +1412,19 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
             : undefined
         }
       />
+
+      {/* === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12) === */}
+      {claim360Target && (
+        <Claim360Panel
+          claim={claim360Target}
+          members={members}
+          organizations={organizations}
+          providers={providers}
+          logs={logs}
+          lang={lang}
+          onClose={() => setClaim360Target(null)}
+        />
+      )}
     </div>
   );
 };

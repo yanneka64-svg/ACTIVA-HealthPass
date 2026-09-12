@@ -35,6 +35,11 @@ import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { checkCareEligibility } from '../../services/eligibilityService';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
+// === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12), derrière le
+// flag hp3_claim_360 — ajoute une section Timeline au modal de détail existant, sans toucher au
+// reste de son contenu (voir plus bas).
+import { isFeatureEnabled } from '../../config/featureFlags';
+import { EntityTimeline } from '../../modules/timeline/EntityTimeline';
 
 interface AgentClaimsViewProps {
   claims: Claim[];
@@ -46,6 +51,9 @@ interface AgentClaimsViewProps {
   // === AMÉLIORATION AJOUTÉE : assuré présélectionné (venant de la fiche d'identification,
   // bouton "New Claim") pour préremplir automatiquement la réclamation.
   preselectedMember?: Member | null;
+  // === AMÉLIORATION AJOUTÉE : Claim 360 — historique d'audit déjà chargé dans App.tsx, réutilisé
+  // par la section Timeline du modal de détail. Optionnel : absent, la section n'affiche rien.
+  logs?: any[];
   onCreateClaim: (claim: Partial<Claim>) => void;
 }
 
@@ -85,9 +93,11 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   ceilings = [],
   lang,
   preselectedMember = null,
+  logs = [],
   onCreateClaim,
 }) => {
   const t = useTranslation(lang);
+  const claim360Enabled = isFeatureEnabled('hp3_claim_360');
   // === AMÉLIORATION AJOUTÉE : versions traduites de DOC_CATEGORY_LABELS/DOC_CATEGORY_TAGS
   // (constantes de module ci-dessus, gardées pour l'énumération des clés DocCategory via
   // Object.keys — l'ordre et les clés restent indépendants de la langue).
@@ -1551,6 +1561,21 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12)
+                  — section Timeline ajoutée au modal existant, derrière hp3_claim_360. Le reste
+                  du modal (ci-dessus) reste strictement inchangé. */}
+              {claim360Enabled && (
+                <div className="pt-3 border-t border-slate-100">
+                  <EntityTimeline
+                    logs={logs}
+                    entityId={selectedClaimDetail.id}
+                    entityType="claim"
+                    title={t.claim360.timelineTitle}
+                    emptyLabel={t.claim360.noTimelineEvents}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

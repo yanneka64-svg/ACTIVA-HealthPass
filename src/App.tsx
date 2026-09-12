@@ -1321,6 +1321,7 @@ export default function App() {
                 ceilings={ceilings}
                 lang={lang}
                 preselectedMember={selectedMemberForClaim}
+                logs={logs}
                 onCreateClaim={handleCreateClaim}
               />
             ) : (
@@ -1331,6 +1332,7 @@ export default function App() {
                 organizations={organizations}
                 providers={providers}
                 members={members}
+                logs={logs}
                 onApprove={handleApproveClaim}
                 onReject={handleRejectClaim}
                 onReturn={handleReturnClaim}
@@ -1426,6 +1428,7 @@ export default function App() {
               organizations={organizations}
               providers={providers}
               members={members}
+              logs={logs}
               onApprove={handleApproveClaim}
               onReject={handleRejectClaim}
               onReturn={handleReturnClaim}
