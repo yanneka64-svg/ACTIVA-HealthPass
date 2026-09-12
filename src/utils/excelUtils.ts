@@ -2006,6 +2006,10 @@ export function exportClaimsToExcel(claims: Claim[], lang?: any) {
     'Submission Date': c.submissionDate,
     'Status': c.status.toUpperCase(),
     'Attending Physician': c.doctorName || 'N/A',
+    // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12 —
+    // "comment ça se matérialise dans le reporting") — vide quand la réclamation n'a pas été
+    // rattachée à une fiche maladie (facturation directe), comportement inchangé dans ce cas.
+    'Linked Medical Form Reference': c.medicalFormReference || '',
     'Rejection / Return Reason': c.rejectionReason || c.returnReason || '',
     'Comments': c.comments || '',
   }));
@@ -2020,7 +2024,10 @@ export function exportClaimsToExcel(claims: Claim[], lang?: any) {
 
 export function exportClaimsToCSV(claims: Claim[], lang?: any) {
   if (!assertExportVolumeAllowed(claims.length, 'Benefit Claims')) return;
-  const headers = ['Claim Reference', 'Card Number', 'Insured Name', 'Organization', 'Healthcare Facility', 'Amount', 'Care Type', 'Service Date', 'Status', 'Reason'];
+  // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+  // colonne "Linked Medical Form", vide quand la réclamation n'a pas été rattachée à une fiche
+  // maladie (facturation directe), comportement inchangé dans ce cas.
+  const headers = ['Claim Reference', 'Card Number', 'Insured Name', 'Organization', 'Healthcare Facility', 'Amount', 'Care Type', 'Service Date', 'Status', 'Linked Medical Form', 'Reason'];
   const rows = claims.map(c => [
     `"${c.reference}"`,
     `"${c.memberCardNo}"`,
@@ -2031,6 +2038,7 @@ export function exportClaimsToCSV(claims: Claim[], lang?: any) {
     `"${c.careType}"`,
     `"${c.serviceDate}"`,
     `"${c.status.toUpperCase()}"`,
+    `"${c.medicalFormReference || ''}"`,
     `"${c.rejectionReason || c.returnReason || ''}"`,
   ]);
   const csvContent = withExportConfidentialityNoticeCSV([headers.join(','), ...rows.map(r => r.join(','))].join('\n'));
