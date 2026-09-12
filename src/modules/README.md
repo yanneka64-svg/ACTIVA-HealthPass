@@ -1,11 +1,23 @@
-# `src/modules/` — HealthPass 2.0 modules
+# `src/modules/` — HealthPass 2.0 / 3.0 modules
 
-This directory is the home for HealthPass 2.0 engines and related visual additions
+This directory is the home for HealthPass engines and related visual additions
 (Preauthorization, BillAudit, FraudDetection, SLA tracking, Reimbursement, the member ID card
-visual, …). See `HEALTHPASS_2_0_DISCOVERY.md` at the repository root for the full plan and the
-corrections made against the actual state of this codebase, including two modules (Tariff
-Engine, Digital Card + QR) that were built, verified, and then deliberately removed at the
-user's request rather than kept behind a flag.
+visual, …). See `HEALTHPASS_2_0_DISCOVERY.md` at the repository root for the full HealthPass 2.0
+plan and the corrections made against the actual state of this codebase, including two modules
+(Tariff Engine, Digital Card + QR) that were built, verified, and then deliberately removed at
+the user's request rather than kept behind a flag.
+
+## HealthPass 3.0 (2026-09-12 — modernization roadmap)
+
+`claim360/` and `timeline/` are the first additions from the modernization roadmap review
+(P1-style, additive, feature-flagged — same discipline as HealthPass 2.0, not a rewrite):
+- `timeline/EntityTimeline.tsx` — reusable component reading the already-existing `auditLogs`
+  collection, filtered client-side by `entityId`. No new Firestore read, no new field.
+- `claim360/Claim360Panel.tsx` — tabbed panel (Overview/Member/Provider/Financial/Timeline)
+  aggregating data already passed as props to the Claims screens. Behind `hp3_claim_360`
+  (shadow mode, default off). Wired as a new "View" button in `ClaimsView.tsx` (previously had
+  no detail view at all) and as an additive Timeline section appended to the existing detail
+  modal in `AgentClaimsView.tsx` (that modal's own content is left untouched).
 
 ## Convention
 

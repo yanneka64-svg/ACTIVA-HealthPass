@@ -21,7 +21,13 @@ export type FeatureFlagKey =
   | 'hp2_bill_audit'
   | 'hp2_fraud_detection'
   | 'hp2_sla_tracking'
-  | 'hp2_reimbursement_tracking';
+  | 'hp2_reimbursement_tracking'
+  // === AMÉLIORATION AJOUTÉE : HealthPass 3.0 — Claim 360 (revue 2026-09-12, roadmap de
+  // modernisation) === Panneau à onglets agrégeant des données déjà chargées côté client
+  // (membre/organisation/prestataire/historique d'audit) sur un claim — aucune nouvelle
+  // collection Firestore, aucun nouveau calcul métier. Démarre désactivé (mode shadow) comme
+  // chaque nouveau module HealthPass, le temps d'être vérifié en navigateur puis promu.
+  | 'hp3_claim_360';
 
 // Actifs pour tout le monde (voir HEALTHPASS_2_0_DISCOVERY.md, section 6) : Fraud Detection,
 // Preauthorization, BillAudit, SLA Tracking et Reimbursement & Reconciliation sont purement
@@ -34,6 +40,7 @@ const DEFAULT_FLAGS: Record<FeatureFlagKey, boolean> = {
   hp2_fraud_detection: true,
   hp2_sla_tracking: true,
   hp2_reimbursement_tracking: true,
+  hp3_claim_360: false,
 };
 
 const STORAGE_KEY_PREFIX = 'activa_ff_';
