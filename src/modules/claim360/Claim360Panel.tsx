@@ -8,11 +8,19 @@
 // rejet existantes. Objectif : remplacer la navigation entre plusieurs écrans pour reconstituer
 // le contexte d'un sinistre par une seule vue.
 import React, { useMemo, useState } from 'react';
-import { X, FileText, User, Building2, DollarSign, Clock } from 'lucide-react';
+import { X, FileText, User, Building2, DollarSign, Clock, Phone, Mail, CheckCircle2, XCircle } from 'lucide-react';
 import { Claim, Member, Organization, Provider, Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { EntityTimeline } from '../timeline/EntityTimeline';
+// === AMÉLIORATION AJOUTÉE : réutilisation de la carte visuelle de l'assuré (MemberIdCard,
+// déjà utilisée sur l'écran Agent Identification) et de la logique déjà existante de
+// normalisation des ayants droit (getMemberDependents, MembersView.tsx) pour l'onglet
+// "Member" (retour utilisateur, 2026-09-12 — "je veux voir la carte de l'assuré avec toute
+// ses informations et détails complémentaires"). Aucune nouvelle donnée, aucun nouveau calcul :
+// seule la présentation change. ===
+import { MemberIdCard } from '../membercard/MemberIdCard';
+import { getMemberDependents } from '../../views/settings/MembersView';
 
 type Claim360Tab = 'overview' | 'member' | 'provider' | 'financial' | 'timeline';
 
@@ -55,6 +63,17 @@ export const Claim360Panel: React.FC<Claim360PanelProps> = ({ claim, members, or
   const coverageRate = organization?.coverageRate ?? 80;
   const covered = (claim.amount || 0) * (coverageRate / 100);
   const memberShare = (claim.amount || 0) - covered;
+
+  // === AMÉLIORATION AJOUTÉE : identifie précisément QUI, dans le foyer assuré (fiche `member`,
+  // qui regroupe assuré principal + ayants droit), a fait l'objet de ce sinistre — le nom exact
+  // vient toujours de `claim.memberName` (fiable, propre au sinistre), la fiche familiale sert
+  // uniquement à retrouver le lien de parenté/la date de naissance/le statut biométrique quand
+  // il s'agit d'un ayant droit plutôt que de l'assuré principal. ===
+  const dependents = useMemo(() => (member ? getMemberDependents(member) : []), [member]);
+  const claimedDependent = useMemo(
+    () => dependents.find((d) => d.fullName?.toLowerCase() === claim.memberName?.toLowerCase()),
+    [dependents, claim.memberName]
+  );
 
   const tabLabels: Record<Claim360Tab, string> = {
     overview: t.claim360.tabOverview,
@@ -145,26 +164,118 @@ export const Claim360Panel: React.FC<Claim360PanelProps> = ({ claim, members, or
           )}
 
           {activeTab === 'member' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">{t.claim360.memberSectionTitle}</h4>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
-                <div className="flex justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">{t.claims.insured}</span>
-                  <span className="font-bold text-slate-800">{claim.memberName}</span>
+
+              {!member && (
+                <p className="text-xs text-slate-400 italic">{t.claim360.memberNotFoundLabel}</p>
+              )}
+
+              <div className="flex flex-col md:flex-row gap-5 items-start">
+                {/* Carte visuelle de l'assuré — mêmes données que celles déjà affichées sur
+                    l'écran Agent Identification, réutilisées ici telles quelles. */}
+                <div className="w-full md:w-[300px] shrink-0 mx-auto md:mx-0">
+                  <MemberIdCard
+                    fullName={claim.memberName}
+                    organization={claim.organization}
+                    cardNo={claimedDependent?.cardNo || member?.cardNo || claim.memberCardNo}
+                    status={member?.status || '—'}
+                    relationship={claimedDependent?.relationship}
+                    birthDate={claimedDependent?.birthDate || member?.birthDate}
+                    photoUrl={member?.photoUrl}
+                    lang={lang}
+                  />
                 </div>
-                <div className="flex justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">{t.claim360.memberStatusLabel}</span>
-                  <span className={`font-bold ${member?.status === 'Active' ? 'text-[#00A859]' : 'text-slate-800'}`}>
-                    {member?.status || '—'}
-                  </span>
-                </div>
-                <div className="flex justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">{t.claim360.organizationLabel}</span>
-                  <span className="font-bold text-slate-800">{claim.organization}</span>
-                </div>
-                <div className="flex justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">{t.claim360.policyNumberLabel}</span>
-                  <span className="font-bold text-slate-800">{organization?.policyNumber || '—'}</span>
+
+                {/* Détails complémentaires — informations du foyer assuré non affichées sur la
+                    carte elle-même (contact, adhésion, ayants droit, biométrie, soldes). */}
+                <div className="flex-1 min-w-0 w-full space-y-4">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
+                    <div className="flex justify-between border-b border-slate-100 pb-2">
+                      <span className="text-slate-500">{t.claim360.organizationLabel}</span>
+                      <span className="font-bold text-slate-800">{claim.organization}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-100 pb-2">
+                      <span className="text-slate-500">{t.claim360.policyNumberLabel}</span>
+                      <span className="font-bold text-slate-800">{organization?.policyNumber || '—'}</span>
+                    </div>
+                    {member?.phone && (
+                      <div className="flex justify-between border-b border-slate-100 pb-2">
+                        <span className="text-slate-500 flex items-center gap-1"><Phone className="w-3 h-3" />{t.claim360.phoneLabel}</span>
+                        <span className="font-bold text-slate-800">{member.phone}</span>
+                      </div>
+                    )}
+                    {member?.email && (
+                      <div className="flex justify-between gap-2 border-b border-slate-100 pb-2">
+                        <span className="text-slate-500 flex items-center gap-1 shrink-0"><Mail className="w-3 h-3" />{t.claim360.emailLabel}</span>
+                        <span className="font-bold text-slate-800 truncate">{member.email}</span>
+                      </div>
+                    )}
+                    {(claimedDependent?.gender || member?.gender) && (
+                      <div className="flex justify-between border-b border-slate-100 pb-2">
+                        <span className="text-slate-500">{t.agentId.genderLabel}</span>
+                        <span className="font-bold text-slate-800">
+                          {(claimedDependent?.gender || member?.gender) === 'F' ? t.agentId.female : t.agentId.male}
+                        </span>
+                      </div>
+                    )}
+                    {member?.createdAt && (
+                      <div className="flex justify-between border-b border-slate-100 pb-2">
+                        <span className="text-slate-500">{t.claim360.enrollmentDateLabel}</span>
+                        <span className="font-bold text-slate-800">{member.createdAt}</span>
+                      </div>
+                    )}
+                    {member && (
+                      <div className="flex justify-between border-b border-slate-100 pb-2">
+                        <span className="text-slate-500">{t.claim360.dependentsCountLabel}</span>
+                        <span className="font-bold text-slate-800">{dependents.length}</span>
+                      </div>
+                    )}
+                    {member && (
+                      <div className="flex justify-between border-b border-slate-100 pb-2">
+                        <span className="text-slate-500">{t.members.hasPhoto}</span>
+                        {member.hasPhoto ? (
+                          <CheckCircle2 className="w-4 h-4 text-[#00A859]" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-slate-300" />
+                        )}
+                      </div>
+                    )}
+                    {member && (
+                      <div className="flex justify-between border-b border-slate-100 pb-2">
+                        <span className="text-slate-500">{t.members.hasBiometrics}</span>
+                        {(claimedDependent ? claimedDependent.hasBiometrics : member.hasBiometrics) ? (
+                          <CheckCircle2 className="w-4 h-4 text-[#00A859]" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-slate-300" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {member && (member.outpatientBalanceUSD !== undefined || member.inpatientBalanceUSD !== undefined) && (
+                    <div>
+                      <h5 className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400 mb-2">{t.claim360.balancesSectionTitle}</h5>
+                      <div className="grid grid-cols-2 gap-3">
+                        {member.outpatientBalanceUSD !== undefined && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                            <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">{t.claim360.outpatientLabel}</p>
+                            <p className="text-sm font-black text-slate-800 mt-0.5">
+                              {formatAmount(member.outpatientBalanceUSD)} / {formatAmount(member.outpatientCeilingUSD || 0)}
+                            </p>
+                          </div>
+                        )}
+                        {member.inpatientBalanceUSD !== undefined && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                            <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">{t.claim360.inpatientLabel}</p>
+                            <p className="text-sm font-black text-slate-800 mt-0.5">
+                              {formatAmount(member.inpatientBalanceUSD)} / {formatAmount(member.inpatientCeilingUSD || 0)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -19,6 +19,14 @@ the user's request rather than kept behind a flag.
   appended to the existing detail modal in `AgentClaimsView.tsx` (that modal's own content is
   left untouched). Behind `hp3_claim_360` — started in shadow mode (default off), verified in
   browser, then **promoted to production on 2026-09-12** (default on, direct user request).
+  Same day, on user feedback: the "View" button on `ClaimsView.tsx` was removed in favor of
+  making the whole claim row clickable (row `onClick`, consistent with the pattern already used
+  in `AgentClaimsView.tsx`); the Verify/Approve/Reject actions were changed from `flex-wrap` to
+  `flex-nowrap` so they never wrap to a second line; and the panel's "Member" tab now renders the
+  existing `membercard/MemberIdCard.tsx` visual (same component used on Agent Identification)
+  plus a complementary-details section (contact, enrollment date, dependents count, biometrics/
+  photo status, coverage balances) built from fields already present on `Member` — still zero
+  new Firestore reads.
 
 ## Convention
 

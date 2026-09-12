@@ -17,7 +17,6 @@ import {
   FileText,
   Fingerprint,
   Camera,
-  Eye,
   ArrowRightLeft,
   UserCheck,
   Trash2,
@@ -95,7 +94,8 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
 }) => {
   const t = useTranslation(lang);
   // === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12) — panneau
-  // ouvert sur clic du bouton "View", gardé derrière hp3_claim_360.
+  // ouvert sur clic de la ligne du sinistre (retour utilisateur, 2026-09-12 : remplace l'ancien
+  // bouton dédié "View", retiré), gardé derrière hp3_claim_360.
   const claim360Enabled = isFeatureEnabled('hp3_claim_360');
   const [claim360Target, setClaim360Target] = useState<Claim | null>(null);
   const { formatAmount, mode: currencyMode } = useCurrency();
@@ -460,7 +460,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
             {pendingClaims.map((claim) => {
               const approvalCheck = canApproveRecord(userRole, currentUser, claim);
               return (
-                <div key={claim.id} className="p-4 space-y-3">
+                <div
+                  key={claim.id}
+                  onClick={() => claim360Enabled && setClaim360Target(claim)}
+                  className={`p-4 space-y-3 ${claim360Enabled ? 'cursor-pointer hover:bg-slate-50/70 transition-colors' : ''}`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className={`font-bold text-sm ${roleTheme.palette.primaryText}`}>{claim.memberName}</p>
@@ -498,7 +502,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                     </span>
                   )}
 
-                  <div className="flex items-center flex-wrap gap-1.5 pt-1">
+                  {/* === AMÉLIORATION AJOUTÉE : flex-nowrap + overflow-x-auto (retour utilisateur —
+                      Verify/Approve/Reject doivent rester alignés sur une seule ligne) et
+                      stopPropagation (le clic sur un bouton d'action ne doit pas aussi ouvrir le
+                      panneau Claim 360 déclenché par le clic sur la ligne) === */}
+                  <div className="flex items-center flex-nowrap overflow-x-auto gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => {
@@ -511,17 +519,6 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                       <Scan className="w-3.5 h-3.5 text-slate-600" />
                       <span>{t.claims.verify}</span>
                     </button>
-                    {claim360Enabled && (
-                      <button
-                        type="button"
-                        onClick={() => setClaim360Target(claim)}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                        title={t.claim360.viewButtonTitle}
-                      >
-                        <Eye className="w-3.5 h-3.5 text-slate-600" />
-                        <span>{t.claim360.viewButton}</span>
-                      </button>
-                    )}
 
                     {isSupervisor && (
                       <>
@@ -611,7 +608,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 {pendingClaims.map((claim) => {
                   const approvalCheck = canApproveRecord(userRole, currentUser, claim);
                   return (
-                    <tr key={claim.id} className="hover:bg-slate-50 transition-colors">
+                    <tr
+                      key={claim.id}
+                      onClick={() => claim360Enabled && setClaim360Target(claim)}
+                      className={`hover:bg-slate-50 transition-colors ${claim360Enabled ? 'cursor-pointer' : ''}`}
+                    >
                       <td className={`py-3.5 px-4 font-bold ${roleTheme.palette.primaryText} whitespace-nowrap`}>
                         {claim.reference}
                         <span className="block text-[10px] text-slate-400 font-normal">
@@ -662,7 +663,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                         {formatAmount(claim.amount)}
                       </td>
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                        {/* === AMÉLIORATION AJOUTÉE : flex-nowrap (retour utilisateur — Verify/
+                            Approve/Reject doivent rester alignés sur une seule ligne) et
+                            stopPropagation (un clic sur un bouton d'action ne doit pas aussi
+                            ouvrir le panneau Claim 360 déclenché par le clic sur la ligne) === */}
+                        <div className="flex items-center justify-center gap-1.5 flex-nowrap" onClick={(e) => e.stopPropagation()}>
                           {/* Biometric & Dossier Verification Button */}
                           <button
                             type="button"
@@ -676,17 +681,6 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                             <Scan className="w-3.5 h-3.5 text-slate-600" />
                             <span>{t.claims.verify}</span>
                           </button>
-                          {claim360Enabled && (
-                            <button
-                              type="button"
-                              onClick={() => setClaim360Target(claim)}
-                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                              title={t.claim360.viewButtonTitle}
-                            >
-                              <Eye className="w-3.5 h-3.5 text-slate-600" />
-                              <span>{t.claim360.viewButton}</span>
-                            </button>
-                          )}
 
                           {/* Supervisor Validation Actions (Approve and Reject are strictly reserved for Supervisors, NOT Admin) */}
                           {isSupervisor && (
@@ -799,7 +793,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
               — liste en cartes sous md, tableau desktop inchangé masqué à la place. === */}
           <div className="md:hidden divide-y divide-slate-100">
             {historyClaims.map((claim) => (
-              <div key={claim.id} className="p-4 space-y-2.5">
+              <div
+                key={claim.id}
+                onClick={() => claim360Enabled && setClaim360Target(claim)}
+                className={`p-4 space-y-2.5 ${claim360Enabled ? 'cursor-pointer hover:bg-slate-50/70 transition-colors' : ''}`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-bold text-sm text-slate-800">{claim.memberName}</p>
@@ -851,7 +849,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 pt-1">
+                <div className="flex items-center flex-nowrap gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
                     onClick={() => {
@@ -864,17 +862,6 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                     <Scan className="w-3.5 h-3.5 text-slate-600" />
                     <span>{t.claims.verify}</span>
                   </button>
-                  {claim360Enabled && (
-                    <button
-                      type="button"
-                      onClick={() => setClaim360Target(claim)}
-                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                      title={t.claim360.viewButtonTitle}
-                    >
-                      <Eye className="w-3.5 h-3.5 text-slate-600" />
-                      <span>{t.claim360.viewButton}</span>
-                    </button>
-                  )}
                   {canDeleteRecord(userRole) && (
                     <button
                       onClick={() => openDeleteModal(claim)}
@@ -905,7 +892,11 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {historyClaims.map((claim) => (
-                  <tr key={claim.id} className="hover:bg-slate-50 transition-colors">
+                  <tr
+                    key={claim.id}
+                    onClick={() => claim360Enabled && setClaim360Target(claim)}
+                    className={`hover:bg-slate-50 transition-colors ${claim360Enabled ? 'cursor-pointer' : ''}`}
+                  >
                     <td className="py-3.5 px-4 font-bold text-slate-700 whitespace-nowrap">
                       {claim.reference}
                       <span className="block text-[10px] text-slate-400 font-normal">
@@ -947,7 +938,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-slate-500 text-[11px]">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 flex-nowrap" onClick={(e) => e.stopPropagation()}>
                         {claim.rejectionReason || claim.returnReason ? (
                           <div>
                             <p className={`font-semibold ${claim.status === 'returned' ? 'text-amber-800' : (isSupervisor ? 'text-rose-500' : 'text-rose-700')}`}>
@@ -977,21 +968,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                           <Scan className="w-3 h-3 text-slate-600" />
                           <span>{t.claims.verify}</span>
                         </button>
-                        {claim360Enabled && (
-                          <button
-                            type="button"
-                            onClick={() => setClaim360Target(claim)}
-                            className="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 text-[10px] font-bold transition flex items-center gap-1 flex-shrink-0 cursor-pointer"
-                            title={t.claim360.viewButtonTitle}
-                          >
-                            <Eye className="w-3 h-3 text-slate-600" />
-                            <span>{t.claim360.viewButton}</span>
-                          </button>
-                        )}
                       </div>
                     </td>
                     {canDeleteRecord(userRole) && (
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => openDeleteModal(claim)}
                           className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
