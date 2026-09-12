@@ -758,8 +758,6 @@ export const translations = {
     // — panneau à onglets agrégeant des données déjà chargées (membre/organisation/prestataire/
     // timeline d'audit), derrière le flag hp3_claim_360. Aucune nouvelle collection Firestore.
     claim360: {
-      viewButton: 'View',
-      viewButtonTitle: 'Open Claim 360 — full context in one place',
       panelTitle: 'Claim Reference',
       tabOverview: 'Overview',
       tabMember: 'Member',
@@ -777,9 +775,19 @@ export const translations = {
       coveredLabel: 'Covered',
       memberShareLabel: 'Member Share',
       memberSectionTitle: 'Member & Organization',
-      memberStatusLabel: 'Member Status',
       organizationLabel: 'Organization',
       policyNumberLabel: 'Policy Number',
+      // === AMÉLIORATION AJOUTÉE : détails complémentaires de l'assuré à côté de la carte
+      // membre (retour utilisateur, 2026-09-12) ===
+      memberNotFoundLabel: 'No matching member record — showing claim data only.',
+      complementaryDetailsTitle: 'Complementary Details',
+      phoneLabel: 'Phone',
+      emailLabel: 'Email',
+      enrollmentDateLabel: 'Enrollment Date',
+      dependentsCountLabel: 'Registered Dependents',
+      balancesSectionTitle: 'Coverage Balances',
+      outpatientLabel: 'Outpatient (used / ceiling)',
+      inpatientLabel: 'Inpatient (used / ceiling)',
       providerSectionTitle: 'Healthcare Provider',
       providerTypeLabel: 'Type',
       providerLocationLabel: 'Location',
@@ -2175,8 +2183,6 @@ export const translations = {
     },
 
     claim360: {
-      viewButton: 'Voir',
-      viewButtonTitle: 'Ouvrir Claim 360 — tout le contexte au même endroit',
       panelTitle: 'Référence du sinistre',
       tabOverview: 'Aperçu',
       tabMember: 'Assuré',
@@ -2194,9 +2200,19 @@ export const translations = {
       coveredLabel: 'Pris en charge',
       memberShareLabel: 'Part assuré',
       memberSectionTitle: 'Assuré et organisation',
-      memberStatusLabel: "Statut de l'assuré",
       organizationLabel: 'Organisation',
       policyNumberLabel: 'Numéro de police',
+      // === AMÉLIORATION AJOUTÉE : détails complémentaires de l'assuré à côté de la carte
+      // membre (retour utilisateur, 2026-09-12) ===
+      memberNotFoundLabel: "Aucune fiche assuré correspondante — seules les données du sinistre sont affichées.",
+      complementaryDetailsTitle: 'Détails complémentaires',
+      phoneLabel: 'Téléphone',
+      emailLabel: 'E-mail',
+      enrollmentDateLabel: "Date d'adhésion",
+      dependentsCountLabel: 'Ayants droit enregistrés',
+      balancesSectionTitle: 'Soldes de couverture',
+      outpatientLabel: 'Ambulatoire (utilisé / plafond)',
+      inpatientLabel: 'Hospitalisation (utilisé / plafond)',
       providerSectionTitle: 'Prestataire de santé',
       providerTypeLabel: 'Type',
       providerLocationLabel: 'Localisation',
