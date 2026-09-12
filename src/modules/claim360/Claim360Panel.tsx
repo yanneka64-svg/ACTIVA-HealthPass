@@ -20,7 +20,11 @@ import { EntityTimeline } from '../timeline/EntityTimeline';
 // ses informations et détails complémentaires"). Aucune nouvelle donnée, aucun nouveau calcul :
 // seule la présentation change. ===
 import { MemberIdCard } from '../membercard/MemberIdCard';
-import { getMemberDependents } from '../../views/settings/MembersView';
+// === AMÉLIORATION AJOUTÉE : import direct depuis le module utilitaire léger (auto-revue,
+// 2026-09-12) — évite de tirer le chunk de l'écran Membres (WebcamCaptureModal,
+// BiometricFingerprintModal, ExcelImportModal...) juste pour cette fonction pure. Voir le
+// commentaire dans src/utils/memberUtils.ts.
+import { getMemberDependents } from '../../utils/memberUtils';
 
 type Claim360Tab = 'overview' | 'member' | 'provider' | 'financial' | 'timeline';
 

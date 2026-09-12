@@ -29,7 +29,10 @@ import { Member, Claim, Language, Organization, HealthPolicy } from '../../types
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
-import { formatRelationship, getMemberDependents } from '../settings/MembersView';
+// === AMÉLIORATION AJOUTÉE : import direct depuis le module utilitaire léger (auto-revue,
+// 2026-09-12) — mêmes fonctions, déplacées depuis MembersView.tsx vers memberUtils.ts (aucun
+// changement de comportement). Voir le commentaire dans src/utils/memberUtils.ts.
+import { formatRelationship, getMemberDependents } from '../../utils/memberUtils';
 // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring — la
 // vérification de couverture est intégrée directement dans le parcours d'identification
 // existant, en réutilisant le même moteur centralisé que partout ailleurs (Claims, Reports,
