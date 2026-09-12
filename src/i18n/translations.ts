@@ -769,6 +769,8 @@ export const translations = {
       serviceDateLabel: 'Service Date',
       attendingPhysicianLabel: 'Attending Physician',
       cardNumberLabel: 'Card Number',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      medicalFormReferenceLabel: 'Medical Form Reference',
       financialSectionTitle: 'Financial Snapshot',
       billedLabel: 'Billed',
       coverageRateLabel: 'Coverage',
@@ -1227,6 +1229,11 @@ export const translations = {
       patientTreatedLabel: 'Patient Treated (Beneficiary):',
       patientTreatedPlaceholder: 'Full name of the patient...',
       cardNumberLabel: 'HealthPass Card Number:',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      linkedMedicalFormLabel: 'Link to Medical Form (Fiche Maladie):',
+      linkedMedicalFormNone: 'No medical form — direct claim',
+      linkedMedicalFormHint: 'Optional: attach this claim to a medical form already issued for this beneficiary.',
+      linkedMedicalFormDetail: 'Linked Medical Form',
       serviceCurrencyLabel: 'Service Currency:',
       usdOption: 'USD ($) — US Dollars (Standard)',
       lrdOption: 'LRD (L$) — Liberian Dollars',
@@ -1431,6 +1438,8 @@ export const translations = {
       statusIssuedActive: 'Issued / Active',
       medicalFormPrefix: 'Medical Form —',
       beneficiaryPrefix: 'Beneficiary:',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      linkedClaimPrefix: 'Claim:',
       insuredBeneficiary: 'Insured Beneficiary',
       companySponsor: 'Company / Sponsor',
       providerFacility: 'Provider / Facility',
@@ -2194,6 +2203,8 @@ export const translations = {
       serviceDateLabel: 'Date des soins',
       attendingPhysicianLabel: 'Médecin traitant',
       cardNumberLabel: 'Numéro de carte',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      medicalFormReferenceLabel: 'Référence de la fiche maladie',
       financialSectionTitle: 'Aperçu financier',
       billedLabel: 'Facturé',
       coverageRateLabel: 'Couverture',
@@ -2633,6 +2644,11 @@ export const translations = {
       patientTreatedLabel: 'Patient traité (Bénéficiaire) :',
       patientTreatedPlaceholder: 'Nom complet du patient...',
       cardNumberLabel: 'Numéro de carte HealthPass :',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      linkedMedicalFormLabel: 'Lier à une fiche maladie :',
+      linkedMedicalFormNone: 'Aucune fiche maladie — réclamation directe',
+      linkedMedicalFormHint: 'Facultatif : rattacher cette réclamation à une fiche maladie déjà émise pour ce bénéficiaire.',
+      linkedMedicalFormDetail: 'Fiche maladie liée',
       serviceCurrencyLabel: 'Devise du service :',
       usdOption: 'USD ($) — Dollars américains (Standard)',
       lrdOption: 'LRD (L$) — Dollars libériens',
@@ -2835,6 +2851,8 @@ export const translations = {
       statusIssuedActive: 'Émis / Actif',
       medicalFormPrefix: 'Formulaire médical —',
       beneficiaryPrefix: 'Bénéficiaire :',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      linkedClaimPrefix: 'Réclamation :',
       insuredBeneficiary: 'Assuré bénéficiaire',
       companySponsor: 'Entreprise / Sponsor',
       providerFacility: 'Prestataire / Établissement',

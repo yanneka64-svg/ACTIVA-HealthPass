@@ -431,7 +431,18 @@ export const WorkflowService = {
         'Medical Provider Agent',
     };
 
-    await FirestoreService.addClaim(payload);
+    const claimRef = await FirestoreService.addClaim(payload);
+
+    // === AMÉLIORATION AJOUTÉE : lien bidirectionnel Claim <-> MedicalForm (retour utilisateur,
+    // 2026-09-12) — quand l'Agent a rattaché une fiche maladie existante à ce claim (voir le
+    // sélecteur "Link to Medical Form" dans AgentClaimsView.tsx), le claim porte déjà
+    // medicalFormId/medicalFormReference (écrits ci-dessus avec le reste du payload) ; il ne
+    // reste qu'à reporter le sens inverse sur la fiche elle-même, une fois l'id du nouveau claim
+    // connu. Comportement inchangé pour tout claim soumis sans fiche associée (facturation
+    // directe) : payload.medicalFormId est alors absent et ce bloc ne s'exécute pas.
+    if (payload.medicalFormId) {
+      await FirestoreService.linkMedicalFormToClaim(payload.medicalFormId, claimRef.id, payload.reference);
+    }
 
     // Notify Supervisor of new claim submission
     await FirestoreService.addNotification({

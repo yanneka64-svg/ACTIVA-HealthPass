@@ -724,6 +724,20 @@ export const FirestoreService = {
       throw err;
     }
   },
+  // === AMÉLIORATION AJOUTÉE : lien bidirectionnel Claim <-> MedicalForm (retour utilisateur,
+  // 2026-09-12) — patch ciblé (2 champs) plutôt que updateMedicalForm ci-dessus, qui exige
+  // l'objet MedicalForm complet : au moment où WorkflowService.submitClaim relie une fiche
+  // maladie à la réclamation qui vient d'être créée, seuls l'id de la fiche et les identifiants
+  // du nouveau claim sont disponibles. Autorisé par les mêmes règles Firestore que
+  // updateMedicalForm (voir firestore.rules, match /medicalForms/{formId}, allow update).
+  linkMedicalFormToClaim: async (medicalFormId: string, claimId: string, claimReference?: string) => {
+    try {
+      return await updateDoc(doc(db, 'medicalForms', medicalFormId), { claimId, claimReference });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `medicalForms/${medicalFormId}`);
+      throw err;
+    }
+  },
   // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
   // — CRITIQUE, et section 2.1) ===
   // Avant le correctif 2.5, ces deux fonctions supprimaient physiquement et IRRÉVERSIBLEMENT un

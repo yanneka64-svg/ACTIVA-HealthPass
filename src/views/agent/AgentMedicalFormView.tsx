@@ -1302,6 +1302,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       <tr key={form.id} className="hover:bg-slate-50 transition">
                         <td className={`py-3.5 px-4 font-mono font-bold ${'text-[var(--brand-900)]'} whitespace-nowrap`}>
                           {form.securityNumber}
+                          {/* === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour
+                              utilisateur, 2026-09-12) — affiché uniquement quand cette fiche a
+                              été rattachée à une réclamation (voir AgentClaimsView.tsx). */}
+                          {form.claimReference && (
+                            <span className="block text-[10px] font-normal text-slate-400 font-sans">
+                              {t.agentMedForm.linkedClaimPrefix} {form.claimReference}
+                            </span>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
                           {form.issueDate}
@@ -1425,6 +1433,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">{t.agentMedForm.medicalFormPrefix} {previewModalForm.securityNumber}</h3>
                   <p className="text-[10px] text-slate-500">{t.agentMedForm.beneficiaryPrefix} {previewModalForm.memberName}</p>
+                  {/* === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur,
+                      2026-09-12) — affiché uniquement quand cette fiche a été rattachée à une
+                      réclamation (voir AgentClaimsView.tsx). */}
+                  {previewModalForm.claimReference && (
+                    <p className="text-[10px] text-slate-500">{t.agentMedForm.linkedClaimPrefix} {previewModalForm.claimReference}</p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">

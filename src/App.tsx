@@ -1322,6 +1322,7 @@ export default function App() {
                 lang={lang}
                 preselectedMember={selectedMemberForClaim}
                 logs={logs}
+                medicalForms={medicalForms}
                 onCreateClaim={handleCreateClaim}
               />
             ) : (

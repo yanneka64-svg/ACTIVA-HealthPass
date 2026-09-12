@@ -175,6 +175,16 @@ export const Claim360Panel: React.FC<Claim360PanelProps> = ({ claim, members, or
                   <span className="text-slate-500">{t.claim360.cardNumberLabel}</span>
                   <span className="font-bold text-slate-800 font-mono">{claim.memberCardNo}</span>
                 </div>
+                {/* === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur,
+                    2026-09-12 — "la réclamation doit avoir la référence de la fiche maladie et
+                    la référence de la réclamation") — affichée uniquement quand ce claim a été
+                    rattaché à une fiche maladie lors de sa soumission (AgentClaimsView.tsx). */}
+                {claim.medicalFormReference && (
+                  <div className="flex justify-between border-b border-slate-100 pb-2">
+                    <span className="text-slate-500">{t.claim360.medicalFormReferenceLabel}</span>
+                    <span className="font-bold text-slate-800 font-mono">{claim.medicalFormReference}</span>
+                  </div>
+                )}
               </div>
               {(claim.rejectionReason || claim.returnReason || claim.comments) && (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs text-slate-600">

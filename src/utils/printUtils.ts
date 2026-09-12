@@ -60,7 +60,9 @@ function getBreakdownRows(invoice: InvoiceItem): { description: string; category
 }
 
 function getSlipClaimRef(invoice: InvoiceItem): string {
-  return invoice.claimId || `SIN-${invoice.id.substring(0, 8)}`;
+  // === AMÉLIORATION AJOUTÉE : préfixe CLM (retour utilisateur, 2026-09-12) au lieu de SIN,
+  // cohérent avec la référence réellement générée par AgentClaimsView.tsx pour un claim.
+  return invoice.claimId || `CLM-${invoice.id.substring(0, 8)}`;
 }
 
 function isSlipApproved(invoice: InvoiceItem): boolean {

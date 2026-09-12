@@ -114,7 +114,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   }, [viewSlipInvoice]);
 
   const slipIsApproved = viewSlipInvoice ? viewSlipInvoice.status === 'valid' || (viewSlipInvoice.status as string) === 'approved' : false;
-  const slipClaimRef = viewSlipInvoice ? viewSlipInvoice.claimId || `SIN-${viewSlipInvoice.id.substring(0, 8)}` : '';
+  // === AMÉLIORATION AJOUTÉE : préfixe CLM (retour utilisateur, 2026-09-12 — les références de
+  // réclamation commencent désormais par CLM, plus par SIN), pour cette référence de repli
+  // affichée quand la facture ne porte pas encore de claimId.
+  const slipClaimRef = viewSlipInvoice ? viewSlipInvoice.claimId || `CLM-${viewSlipInvoice.id.substring(0, 8)}` : '';
 
   // === AMÉLIORATION AJOUTÉE : harmonisation des couleurs de boutons — ce bouton utilisait un
   // gris générique (bg-slate-700) identique pour Admin ET Superviseur, au lieu de suivre la
@@ -398,7 +401,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             filteredInvoices.map((inv) => {
               const covered = inv.coveredAmount !== undefined ? inv.coveredAmount : (inv.amount * (inv.coveragePercentage || 80)) / 100;
               const copay = Math.max(0, inv.amount - covered);
-              const claimRef = inv.claimId || `SIN-${inv.id.substring(0, 8)}`;
+              const claimRef = inv.claimId || `CLM-${inv.id.substring(0, 8)}`;
 
               return (
                 <div key={inv.id} className="bg-white rounded-2xl border border-[#E8EDF2] shadow-xs p-4 space-y-3">
@@ -552,7 +555,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   filteredInvoices.map((inv) => {
                     const covered = inv.coveredAmount !== undefined ? inv.coveredAmount : (inv.amount * (inv.coveragePercentage || 80)) / 100;
                     const copay = Math.max(0, inv.amount - covered);
-                    const claimRef = inv.claimId || `SIN-${inv.id.substring(0, 8)}`;
+                    const claimRef = inv.claimId || `CLM-${inv.id.substring(0, 8)}`;
 
                     return (
                       <tr key={inv.id} className="hover:bg-[#F8FAFC]/80 transition">
