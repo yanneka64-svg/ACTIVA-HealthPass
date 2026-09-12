@@ -8,7 +8,7 @@
 // rejet existantes. Objectif : remplacer la navigation entre plusieurs écrans pour reconstituer
 // le contexte d'un sinistre par une seule vue.
 import React, { useMemo, useState } from 'react';
-import { X, FileText, User, Building2, DollarSign, Clock, Phone, Mail, CheckCircle2, XCircle } from 'lucide-react';
+import { X, FileText, User, Building2, DollarSign, Clock, Phone, Mail, CheckCircle2, XCircle, LayoutGrid } from 'lucide-react';
 import { Claim, Member, Organization, Provider, Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
@@ -83,6 +83,20 @@ export const Claim360Panel: React.FC<Claim360PanelProps> = ({ claim, members, or
     timeline: t.claim360.tabTimeline,
   };
 
+  // === AMÉLIORATION AJOUTÉE : harmonisation visuelle (retour utilisateur, 2026-09-12 — "fond
+  // blanc") — même palette de pastille de statut que celle déjà utilisée dans ClaimsView
+  // (Decision History : Validated en émeraude, Returned/pending en ambre, Rejected en rose).
+  const statusPill: Record<string, { label: string; className: string }> = {
+    pending: { label: t.pending, className: 'bg-amber-50 text-amber-800 border-amber-200' },
+    approved: { label: t.validated, className: 'bg-emerald-50 text-[#00A859] border-emerald-200' },
+    returned: { label: t.claims.returnedStatus, className: 'bg-amber-50 text-amber-800 border-amber-200' },
+    rejected: { label: t.rejectedStatus, className: 'bg-rose-50 text-rose-600 border-rose-200' },
+  };
+  const statusPillStyle = statusPill[claim.status] || {
+    label: claim.status,
+    className: 'bg-slate-100 text-slate-700 border-slate-200',
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
@@ -92,21 +106,28 @@ export const Claim360Panel: React.FC<Claim360PanelProps> = ({ claim, members, or
         className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-[#0A347B] to-[#0D2B63] text-white px-6 py-5 flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">{t.claim360.panelTitle}</p>
-            <h3 className="font-black text-lg mt-0.5 truncate">{claim.reference} — {claim.memberName}</h3>
-            <p className="text-xs text-white/75 mt-1 truncate">{claim.organization} · {claim.provider}</p>
+        {/* Header — === AMÉLIORATION AJOUTÉE : fond blanc (auparavant dégradé bleu marine),
+            harmonisé avec les autres fenêtres de l'interface (retour utilisateur, 2026-09-12 —
+            voir AttachmentBiometricViewerModal.tsx pour le même traitement déjà appliqué). === */}
+        <div className="bg-white px-6 py-4 text-slate-900 flex items-center justify-between gap-4 border-b border-slate-200">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 flex-shrink-0">
+              <LayoutGrid className="w-5 h-5 text-[#0A347B]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t.claim360.panelTitle}</p>
+              <h3 className="font-extrabold text-sm sm:text-base text-slate-900 truncate">{claim.reference} — {claim.memberName}</h3>
+              <p className="text-[11px] text-slate-500 truncate">{claim.organization} · {claim.provider}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold border border-white/30 text-white bg-white/10">
-              {claim.status}
+            <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold border ${statusPillStyle.className}`}>
+              {statusPillStyle.label}
             </span>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-white/10 transition cursor-pointer"
+              className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -154,6 +175,16 @@ export const Claim360Panel: React.FC<Claim360PanelProps> = ({ claim, members, or
                   <span className="text-slate-500">{t.claim360.cardNumberLabel}</span>
                   <span className="font-bold text-slate-800 font-mono">{claim.memberCardNo}</span>
                 </div>
+                {/* === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur,
+                    2026-09-12 — "la réclamation doit avoir la référence de la fiche maladie et
+                    la référence de la réclamation") — affichée uniquement quand ce claim a été
+                    rattaché à une fiche maladie lors de sa soumission (AgentClaimsView.tsx). */}
+                {claim.medicalFormReference && (
+                  <div className="flex justify-between border-b border-slate-100 pb-2">
+                    <span className="text-slate-500">{t.claim360.medicalFormReferenceLabel}</span>
+                    <span className="font-bold text-slate-800 font-mono">{claim.medicalFormReference}</span>
+                  </div>
+                )}
               </div>
               {(claim.rejectionReason || claim.returnReason || claim.comments) && (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs text-slate-600">

@@ -30,7 +30,7 @@ import {
   Fingerprint,
   ChevronDown,
 } from 'lucide-react';
-import { Claim, Member, Provider, Language, MedicalAct, ClaimAttachment, Organization, Ceiling } from '../../types';
+import { Claim, Member, Provider, Language, MedicalAct, ClaimAttachment, Organization, Ceiling, MedicalForm } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { checkCareEligibility } from '../../services/eligibilityService';
@@ -54,6 +54,11 @@ interface AgentClaimsViewProps {
   // === AMÉLIORATION AJOUTÉE : Claim 360 — historique d'audit déjà chargé dans App.tsx, réutilisé
   // par la section Timeline du modal de détail. Optionnel : absent, la section n'affiche rien.
   logs?: any[];
+  // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+  // fiches maladie déjà chargées dans App.tsx, réutilisées pour proposer à l'Agent de rattacher
+  // la réclamation en cours à une fiche déjà émise pour ce bénéficiaire. Optionnel : absent, le
+  // sélecteur ne s'affiche simplement jamais (comportement inchangé).
+  medicalForms?: MedicalForm[];
   onCreateClaim: (claim: Partial<Claim>) => void;
 }
 
@@ -94,6 +99,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   lang,
   preselectedMember = null,
   logs = [],
+  medicalForms = [],
   onCreateClaim,
 }) => {
   const t = useTranslation(lang);
@@ -163,6 +169,10 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   const [isFingerprintModalOpen, setIsFingerprintModalOpen] = useState(false);
   const [fingerprintVerification, setFingerprintVerification] = useState<{ score: number } | null>(null);
 
+  // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+  // fiche maladie optionnellement rattachée à la réclamation en cours de saisie.
+  const [selectedMedicalFormId, setSelectedMedicalFormId] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prescriptionInputRef = useRef<HTMLInputElement>(null);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
@@ -194,6 +204,29 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       ) || null
     );
   }, [members, memberCardInput, principalNameInput]);
+
+  // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+  // fiches maladie déjà émises pour ce bénéficiaire (par numéro de carte) et pas encore
+  // rattachées à une autre réclamation, proposées à l'Agent dans le sélecteur "Link to Medical
+  // Form" de la section 1.
+  const linkableMedicalForms = useMemo(() => {
+    const card = memberCardInput.trim().toLowerCase();
+    if (!card) return [];
+    return medicalForms
+      .filter((f) => f.memberCardNo?.toLowerCase() === card && !f.claimId)
+      .sort((a, b) => new Date(b.issueDate || 0).getTime() - new Date(a.issueDate || 0).getTime());
+  }, [medicalForms, memberCardInput]);
+
+  // Garde la sélection cohérente avec la liste ci-dessus : efface un choix devenu invalide (ex:
+  // changement de numéro de carte) et présélectionne automatiquement l'unique fiche disponible,
+  // quand il n'y en a qu'une — l'agent reste libre de la désélectionner via l'option "None".
+  useEffect(() => {
+    if (selectedMedicalFormId && !linkableMedicalForms.some((f) => f.id === selectedMedicalFormId)) {
+      setSelectedMedicalFormId('');
+    } else if (!selectedMedicalFormId && linkableMedicalForms.length === 1) {
+      setSelectedMedicalFormId(linkableMedicalForms[0].id);
+    }
+  }, [linkableMedicalForms, selectedMedicalFormId]);
 
   // === AMÉLIORATION AJOUTÉE : préremplissage automatique du formulaire lorsque l'agent
   // arrive depuis la fiche d'identification via le bouton "New Claim".
@@ -466,8 +499,14 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
     if (invoiceFile) allAttachments.push(invoiceFile);
     allAttachments.push(...uploadedAttachments);
 
+    // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+    // fiche maladie choisie dans le sélecteur "Link to Medical Form" ci-dessous, le cas échéant.
+    const linkedMedicalForm = linkableMedicalForms.find((f) => f.id === selectedMedicalFormId);
+
     onCreateClaim({
-      reference: `SIN-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      // === AMÉLIORATION AJOUTÉE : préfixe CLM (retour utilisateur, 2026-09-12 — "la référence
+      // de la réclamation ... doit commencer par CLM et non SIN"), remplace l'ancien préfixe SIN.
+      reference: `CLM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
       memberCardNo: finalCardNo,
       memberName: finalName,
       organization: finalOrg,
@@ -488,7 +527,9 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       comments: `Patient: ${finalPatient} (${patientRelationship}). Physician: ${doctorName || 'N/A'}. Supporting docs: ${allAttachments.length} document(s) attached.`,
       prescriptionUrl: prescriptionFile?.url || (allAttachments.find(a => a.type === 'image' || a.type === 'pdf')?.url),
       invoiceDocumentUrl: invoiceFile?.url || (allAttachments[1]?.url),
-      attachments: allAttachments
+      attachments: allAttachments,
+      medicalFormId: linkedMedicalForm?.id,
+      medicalFormReference: linkedMedicalForm?.securityNumber
     });
 
     // Reset form
@@ -504,6 +545,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
     setUploadedAttachments([]);
     setMedicalActs([{ id: '1', category: 'General Practitioner Consultation', description: 'Consultation', amount: 35 }]);
     setFingerprintVerification(null);
+    setSelectedMedicalFormId('');
   };
 
   // Current month/year label used for the "Recent Claims History" section, consistent with
@@ -698,6 +740,33 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     </select>
                   </div>
                 </div>
+
+                {/* === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur,
+                    2026-09-12 — "chaque fiche maladie ... doit être ... liée ... à la
+                    réclamation dont elle fait l'objet") — visible uniquement quand au moins une
+                    fiche maladie déjà émise pour ce numéro de carte n'est pas encore rattachée à
+                    une autre réclamation ; facultatif, une réclamation reste soumissible sans
+                    fiche associée (facturation directe), comportement inchangé dans ce cas. */}
+                {linkableMedicalForms.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      {t.agentClaims.linkedMedicalFormLabel}
+                    </label>
+                    <select
+                      value={selectedMedicalFormId}
+                      onChange={(e) => setSelectedMedicalFormId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
+                    >
+                      <option value="">{t.agentClaims.linkedMedicalFormNone}</option>
+                      {linkableMedicalForms.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.securityNumber} — {f.issueDate}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1">{t.agentClaims.linkedMedicalFormHint}</p>
+                  </div>
+                )}
 
                 {/* Secondary fields: Organization / Relationship / Attached Dependents quick-select
                     (kept from the previous form — not shown in the reference layout but still
@@ -1482,6 +1551,15 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   <span className="text-slate-400 font-medium block">{t.agentClaims.attendingPhysicianDetail}</span>
                   <span className="font-bold text-slate-800">{selectedClaimDetail.doctorName || t.agentClaims.notSpecified}</span>
                 </div>
+                {/* === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur,
+                    2026-09-12) — affichée uniquement quand ce claim a été rattaché à une fiche
+                    maladie lors de sa soumission. */}
+                {selectedClaimDetail.medicalFormReference && (
+                  <div>
+                    <span className="text-slate-400 font-medium block">{t.agentClaims.linkedMedicalFormDetail}</span>
+                    <span className="font-bold text-slate-800 font-mono">{selectedClaimDetail.medicalFormReference}</span>
+                  </div>
+                )}
               </div>
 
               {selectedClaimDetail.comments && !selectedClaimDetail.rejectionReason && (
