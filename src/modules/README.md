@@ -14,10 +14,11 @@ the user's request rather than kept behind a flag.
 - `timeline/EntityTimeline.tsx` — reusable component reading the already-existing `auditLogs`
   collection, filtered client-side by `entityId`. No new Firestore read, no new field.
 - `claim360/Claim360Panel.tsx` — tabbed panel (Overview/Member/Provider/Financial/Timeline)
-  aggregating data already passed as props to the Claims screens. Behind `hp3_claim_360`
-  (shadow mode, default off). Wired as a new "View" button in `ClaimsView.tsx` (previously had
-  no detail view at all) and as an additive Timeline section appended to the existing detail
-  modal in `AgentClaimsView.tsx` (that modal's own content is left untouched).
+  aggregating data already passed as props to the Claims screens. Wired as a new "View" button
+  in `ClaimsView.tsx` (previously had no detail view at all) and as an additive Timeline section
+  appended to the existing detail modal in `AgentClaimsView.tsx` (that modal's own content is
+  left untouched). Behind `hp3_claim_360` — started in shadow mode (default off), verified in
+  browser, then **promoted to production on 2026-09-12** (default on, direct user request).
 
 ## Convention
 
