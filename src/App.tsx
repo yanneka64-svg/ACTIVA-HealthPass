@@ -685,9 +685,22 @@ export default function App() {
   };
 
   const handleCreateClaim = async (newClaim: Partial<Claim>) => {
-    await WorkflowService.submitClaim(newClaim, currentUser);
-    setToastMessage("Claim submitted for review.");
-    setTimeout(() => setToastMessage(null), 3000);
+    const { medicalFormLinkFailed } = await WorkflowService.submitClaim(newClaim, currentUser);
+    // === AMÉLIORATION AJOUTÉE : robustesse (auto-revue, 2026-09-12) — le claim est toujours créé
+    // avec succès à ce stade ; si seul le report du lien vers la fiche maladie a échoué en
+    // arrière-plan, on le signale distinctement plutôt que de laisser l'agent croire (ou ne
+    // jamais savoir) que le rattachement a fonctionné.
+    if (medicalFormLinkFailed) {
+      setToastMessage(
+        lang === 'fr'
+          ? "Réclamation soumise, mais une erreur est survenue lors du rattachement à la fiche maladie — à vérifier manuellement."
+          : "Claim submitted, but an error occurred while linking it to the medical form — please verify manually."
+      );
+      setTimeout(() => setToastMessage(null), 6000);
+    } else {
+      setToastMessage("Claim submitted for review.");
+      setTimeout(() => setToastMessage(null), 3000);
+    }
   };
 
   // ENROLLMENTS HANDLERS WITH POPULATION UPON APPROVAL

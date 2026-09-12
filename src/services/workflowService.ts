@@ -414,7 +414,7 @@ export const WorkflowService = {
   submitClaim: async (
     claimData: Partial<Claim>,
     currentUser: any
-  ): Promise<void> => {
+  ): Promise<{ medicalFormLinkFailed: boolean }> => {
     const payload: Partial<Claim> = {
       ...claimData,
       status: 'pending',
@@ -440,8 +440,19 @@ export const WorkflowService = {
     // reste qu'à reporter le sens inverse sur la fiche elle-même, une fois l'id du nouveau claim
     // connu. Comportement inchangé pour tout claim soumis sans fiche associée (facturation
     // directe) : payload.medicalFormId est alors absent et ce bloc ne s'exécute pas.
+    // === AMÉLIORATION AJOUTÉE : robustesse (auto-revue, 2026-09-12) — le claim ci-dessus est
+    // DÉJÀ créé avec succès à ce stade ; une panne réseau/permission sur ce report ne doit
+    // jamais faire échouer toute la soumission (l'agent perdrait sa saisie alors que le claim
+    // existe déjà en base). L'échec est donc absorbé ici et signalé à l'appelant via la valeur
+    // de retour, pour un message distinct côté UI plutôt qu'un échec silencieux.
+    let medicalFormLinkFailed = false;
     if (payload.medicalFormId) {
-      await FirestoreService.linkMedicalFormToClaim(payload.medicalFormId, claimRef.id, payload.reference);
+      try {
+        await FirestoreService.linkMedicalFormToClaim(payload.medicalFormId, claimRef.id, payload.reference);
+      } catch (err) {
+        console.error('linkMedicalFormToClaim failed (the claim itself was still created successfully):', err);
+        medicalFormLinkFailed = true;
+      }
     }
 
     // Notify Supervisor of new claim submission
@@ -454,6 +465,8 @@ export const WorkflowService = {
       type: 'claim',
       targetSection: 'claims_validation',
     });
+
+    return { medicalFormLinkFailed };
   },
 
   /**

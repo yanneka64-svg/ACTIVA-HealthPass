@@ -496,6 +496,20 @@ export const FirestoreService = {
   },
   deleteClaim: async (id: string) => {
     try {
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (auto-revue, 2026-09-12) — sans
+      // ce nettoyage, la fiche maladie rattachée continuerait d'afficher indéfiniment la
+      // référence d'une réclamation supprimée. Lecture + mise à jour BEST-EFFORT : une panne à
+      // cette étape (permission, réseau, fiche déjà supprimée) ne doit jamais empêcher la
+      // suppression du claim lui-même, qui reste l'opération demandée.
+      try {
+        const claimSnap = await getDoc(doc(db, 'claims', id));
+        const medicalFormId = claimSnap.exists() ? (claimSnap.data() as Claim).medicalFormId : undefined;
+        if (medicalFormId) {
+          await updateDoc(doc(db, 'medicalForms', medicalFormId), { claimId: null, claimReference: null });
+        }
+      } catch (linkErr) {
+        console.error('Failed to clear the reverse MedicalForm link on claim delete (non-blocking):', linkErr);
+      }
       return await deleteDoc(doc(db, 'claims', id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `claims/${id}`);
@@ -777,7 +791,22 @@ export const FirestoreService = {
       const batch = writeBatch(db);
       if (snap.exists()) batch.delete(ref);
       if (clinicalSnap.exists()) batch.delete(clinicalRef);
-      return await batch.commit();
+      const result = await batch.commit();
+
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (auto-revue, 2026-09-12) — sans ce
+      // nettoyage, une réclamation rattachée continuerait d'afficher indéfiniment la référence
+      // d'une fiche maladie désormais archivée/supprimée. BEST-EFFORT : une panne à cette étape
+      // ne doit jamais empêcher la suppression déjà effectuée ci-dessus.
+      const linkedClaimId = snap.exists() ? (snap.data() as MedicalForm).claimId : undefined;
+      if (linkedClaimId) {
+        try {
+          await updateDoc(doc(db, 'claims', linkedClaimId), { medicalFormId: null, medicalFormReference: null });
+        } catch (linkErr) {
+          console.error('Failed to clear the reverse Claim link on medical form delete (non-blocking):', linkErr);
+        }
+      }
+
+      return result;
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `medicalForms/${id}`);
       throw err;
