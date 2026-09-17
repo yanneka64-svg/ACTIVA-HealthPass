@@ -15,20 +15,47 @@ export const FALLBACK_TIMEOUT = 40_000;
  * -> "Sign Out"). Navigating to '/' while already authenticated shows the dashboard, not the
  * login form, so switching accounts mid-test (Agent -> Supervisor) requires an explicit logout
  * first — otherwise #login-username never appears and the next step times out.
+ * === AMÉLIORATION AJOUTÉE : tient désormais compte du nouvel écran de sélection d'espace de
+ * travail (WorkspaceSelectionView), affiché avant la page de connexion tant qu'aucun espace
+ * n'a été choisi (demande explicite, 2026-09-17) — voir `#workspace-select-agent` dans
+ * WorkspaceSelectionView.tsx. Le choix de l'espace ("Medical Agent") n'a aucune incidence sur
+ * le rôle réellement résolu après connexion (déterminé côté serveur à partir du compte) : le
+ * traverser avec n'importe quel espace suffit pour atteindre le formulaire de connexion.
  */
+async function reachLoginForm(page: Page): Promise<void> {
+  const loginField = page.locator('#login-username');
+  const workspaceTile = page.locator('#workspace-select-agent');
+  await Promise.race([
+    loginField.waitFor({ state: 'visible', timeout: 20_000 }),
+    workspaceTile.waitFor({ state: 'visible', timeout: 20_000 }),
+  ]);
+  if (await workspaceTile.isVisible().catch(() => false)) {
+    await workspaceTile.click();
+  }
+  await loginField.waitFor({ state: 'visible', timeout: 20_000 });
+}
+
 async function logoutIfNeeded(page: Page): Promise<void> {
   // Right after navigation, the app is still resolving auth state asynchronously: wait for
-  // either the login form (signed out) or the profile button (already signed in) to settle.
+  // either the workspace-selection screen / login form (signed out) or the profile button
+  // (already signed in) to settle.
   const loginField = page.locator('#login-username');
+  const workspaceTile = page.locator('#workspace-select-agent');
   const profileButton = page.locator('#user-profile-button');
   await Promise.race([
     loginField.waitFor({ state: 'visible', timeout: 20_000 }),
+    workspaceTile.waitFor({ state: 'visible', timeout: 20_000 }),
     profileButton.waitFor({ state: 'visible', timeout: 20_000 }),
   ]);
-  if (!(await profileButton.isVisible().catch(() => false))) return;
+  if (!(await profileButton.isVisible().catch(() => false))) {
+    await reachLoginForm(page);
+    return;
+  }
   await profileButton.click();
   await page.click('button:has-text("Sign Out")');
-  await loginField.waitFor({ state: 'visible', timeout: 20_000 });
+  // Signing out clears the previously chosen workspace (see App.tsx handleLogout ->
+  // sessionStorage.clear()), so the workspace-selection screen reappears first.
+  await reachLoginForm(page);
 }
 
 export async function loginAs(

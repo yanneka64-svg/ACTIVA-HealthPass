@@ -29,7 +29,7 @@ export const SlaBadge: React.FC<SlaBadgeProps> = ({ result, className = '', lang
   return (
     <span
       title={tooltip}
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border bg-rose-50 text-rose-700 border-rose-200 ${className}`}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border bg-rose-50 text-rose-700 border-rose-200 ${className}`}
     >
       <Timer className="w-3 h-3" />
       <span>{badgeText}</span>

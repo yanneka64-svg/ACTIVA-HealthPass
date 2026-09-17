@@ -695,7 +695,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </svg>
               <div className="absolute flex flex-col items-center justify-center text-center">
                 <span className="text-xs font-bold text-slate-800">100%</span>
-                <span className="text-[9px] text-slate-400">Total</span>
+                <span className="text-[10px] text-slate-400">Total</span>
               </div>
             </div>
 
@@ -865,7 +865,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div key={idx} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-4 h-4 rounded bg-slate-100 font-bold text-[9px] text-slate-700 flex items-center justify-center flex-shrink-0">
+                      <span className="w-4 h-4 rounded bg-slate-100 font-bold text-[10px] text-slate-700 flex items-center justify-center flex-shrink-0">
                         {idx + 1}
                       </span>
                       <span className="font-semibold text-slate-800 truncate max-w-[200px]">

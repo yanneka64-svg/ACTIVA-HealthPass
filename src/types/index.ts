@@ -140,6 +140,15 @@ export interface ClaimAttachment {
 }
 
 export interface Claim {
+  // === AMÉLIORATION AJOUTÉE : lien bidirectionnel Claim <-> MedicalForm (retour utilisateur,
+  // 2026-09-12 — "chaque fiche maladie ... doit être ... liée ... à la réclamation dont elle
+  // fait l'objet") — `medicalFormId` est l'id Firestore du document `medicalForms/{id}`
+  // (fiche maladie) dont ce claim est issu, `medicalFormReference` en est le numéro de sécurité
+  // humainement lisible (format AMID-YY-DD-XXXX, voir medicalFormUtils.ts), dupliqué ici pour
+  // un affichage immédiat sans jointure. Optionnels : un claim peut toujours être soumis sans
+  // fiche maladie associée (facturation directe), comportement inchangé dans ce cas.
+  medicalFormId?: string;
+  medicalFormReference?: string;
   currency?: 'USD' | 'LRD';
   doctorName?: string;
   medicalActs?: { name: string; amount: number; category?: string; description?: string }[];
@@ -351,6 +360,13 @@ export interface MedicalForm {
   // "à purger immédiatement", seulement "pas encore évaluée". Purement informative — aucune
   // suppression automatique n'est déclenchée par ce champ.
   retentionUntil?: string;
+  // === AMÉLIORATION AJOUTÉE : lien bidirectionnel Claim <-> MedicalForm (retour utilisateur,
+  // 2026-09-12) — renseigné après coup, quand un Agent rattache cette fiche à une réclamation
+  // lors de la soumission (voir AgentClaimsView.tsx / WorkflowService.submitClaim). Absent tant
+  // que la fiche n'a pas encore été utilisée pour soumettre une réclamation : comportement
+  // inchangé pour tout l'historique existant et pour les fiches jamais réclamées.
+  claimId?: string;
+  claimReference?: string;
 }
 
 export type OrgStatus = 'Active' | 'Actif' | 'Expired' | 'Expiré' | 'Suspended' | 'Suspendu';

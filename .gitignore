@@ -31,3 +31,9 @@ playwright-report/
 # permanent avec functions/src/ (déjà désynchronisée avant même ce commit) sans aucun bénéfice,
 # le déploiement ne dépendant jamais de la copie committée.
 functions/lib/
+
+# === AMÉLIORATION AJOUTÉE : outil d'exploration local (2026-09-10) ===
+# Sortie de /graphify (graphe de connaissances du dépôt, généré localement pour naviguer/
+# comprendre le code) — artefact d'analyse propre à chaque machine, jamais utile au dépôt ni au
+# déploiement, jamais committé.
+graphify-out/

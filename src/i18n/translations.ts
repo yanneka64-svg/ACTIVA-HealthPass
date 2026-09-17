@@ -130,6 +130,9 @@ export const translations = {
       tooManyAttempts: 'Too many failed attempts. Please wait a moment and try again.',
       weakPassword: 'Password must be at least 6 characters long.',
       authFailedFallback: 'Authentication failed. Please check your credentials.',
+      // === AMÉLIORATION AJOUTÉE : audit UX (2026-09-11) — voir loginTimeoutMs dans
+      // LoginView.tsx pour le contexte du correctif associé.
+      loginTimeoutError: 'This is taking longer than expected. Please check your connection and try again.',
       changePasswordTitle: 'Mandatory Password Reset',
       changePasswordSubtitle: 'For your first login, please establish a secure new password.',
       currentPassword: 'Current password',
@@ -142,6 +145,26 @@ export const translations = {
       updatePasswordBtn: 'Update & Proceed',
       invalidCredentials: 'Invalid credentials. Please try again.',
       passwordChangedSuccess: 'Password successfully updated.',
+      // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail, affiché
+      // avant la page de connexion (demande explicite) — voir WorkspaceSelectionView.tsx.
+      workspaceSelectTitle: 'Welcome',
+      workspaceSelectSubtitle: 'Select your workspace to continue.',
+      workspaceAgentTitle: 'Medical Agent',
+      workspaceAgentDesc: 'Identification, medical records, claims and enrollments',
+      workspaceSupervisorTitle: 'Supervisor',
+      workspaceSupervisorDesc: 'Claims & enrollments validation, reports',
+      workspaceAdminTitle: 'Administrator',
+      workspaceAdminDesc: 'Full management: members, organizations, ceilings, accounts',
+      workspaceSelectedPrefix: 'Workspace: ',
+      workspaceChangeLink: 'Change workspace',
+      // === AMÉLIORATION AJOUTÉE : nouvelle accroche de la carte de connexion (redesign
+      // explicite, 2026-09-17) — remplace visuellement `signInSubtitle` (conservée, toujours
+      // utilisée telle quelle ailleurs) sur cet écran précis.
+      loginHeading: 'Access your secure workspace',
+      // === AMÉLIORATION AJOUTÉE : libellé visible de la flèche de retour vers l'écran de
+      // sélection d'espace de travail (demande explicite, 2026-09-17) — indique clairement sa
+      // destination plutôt qu'une simple icône seule.
+      backToHome: 'Back to home',
     },
 
     // Dashboard
@@ -681,7 +704,6 @@ export const translations = {
       // restent en anglais : valeurs métier comparées/stockées ailleurs (getBenefitBadgeStyle,
       // benefitLimits, Ceiling.careType), pas du texte d'interface.
       eligibilityBadge: 'Real-Time Eligibility Verification',
-      eligibilityDesc: 'Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.',
       primaryInsuredLabel: 'Primary Insured',
       yearsUnit: 'years',
       spouseLabel: 'Spouse',
@@ -753,6 +775,50 @@ export const translations = {
       nextBenefitsLimitsBtn: 'Next: Benefits & Limits',
       nextReviewSaveBtn: 'Next: Review & Save',
       saveBenefitLimitsBtn: 'Save Benefit Limits',
+    },
+
+    // === AMÉLIORATION AJOUTÉE : module Claim 360 (revue 2026-09-12, roadmap de modernisation)
+    // — panneau à onglets agrégeant des données déjà chargées (membre/organisation/prestataire/
+    // timeline d'audit), derrière le flag hp3_claim_360. Aucune nouvelle collection Firestore.
+    claim360: {
+      panelTitle: 'Claim Reference',
+      tabOverview: 'Overview',
+      tabMember: 'Member',
+      tabProvider: 'Provider',
+      tabFinancial: 'Financial',
+      tabTimeline: 'Timeline',
+      overviewSectionTitle: 'Claim Summary',
+      careTypeLabel: 'Care Type',
+      serviceDateLabel: 'Service Date',
+      attendingPhysicianLabel: 'Attending Physician',
+      cardNumberLabel: 'Card Number',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      medicalFormReferenceLabel: 'Medical Form Reference',
+      financialSectionTitle: 'Financial Snapshot',
+      billedLabel: 'Billed',
+      coverageRateLabel: 'Coverage',
+      coveredLabel: 'Covered',
+      memberShareLabel: 'Member Share',
+      memberSectionTitle: 'Member & Organization',
+      organizationLabel: 'Organization',
+      policyNumberLabel: 'Policy Number',
+      // === AMÉLIORATION AJOUTÉE : détails complémentaires de l'assuré à côté de la carte
+      // membre (retour utilisateur, 2026-09-12) ===
+      memberNotFoundLabel: 'No matching member record — showing claim data only.',
+      complementaryDetailsTitle: 'Complementary Details',
+      phoneLabel: 'Phone',
+      emailLabel: 'Email',
+      enrollmentDateLabel: 'Enrollment Date',
+      dependentsCountLabel: 'Registered Dependents',
+      balancesSectionTitle: 'Coverage Balances',
+      outpatientLabel: 'Outpatient (used / ceiling)',
+      inpatientLabel: 'Inpatient (used / ceiling)',
+      providerSectionTitle: 'Healthcare Provider',
+      providerTypeLabel: 'Type',
+      providerLocationLabel: 'Location',
+      providerKypLabel: 'KYP Status',
+      timelineTitle: 'Activity Timeline',
+      noTimelineEvents: 'No recorded activity yet.',
     },
 
     // Accounts
@@ -907,6 +973,7 @@ export const translations = {
       resetPasswordFailedToast: 'Failed to reset password. Please try again.',
       accountActivatedToastTemplate: 'Account {name} activated.',
       accountDeactivatedToastTemplate: 'Account {name} deactivated.',
+      accountStatusUpdateFailedToastTemplate: 'Failed to update account {name}. Please try again.',
       deleteAccountFailedToastTemplate: 'Failed to delete account {email}. Please try again.',
       accountDeletedToastTemplate: 'Account {email} deleted.',
       mobileAccessEnabledToastTemplate: 'Mobile access enabled for {email}',
@@ -1185,6 +1252,11 @@ export const translations = {
       patientTreatedLabel: 'Patient Treated (Beneficiary):',
       patientTreatedPlaceholder: 'Full name of the patient...',
       cardNumberLabel: 'HealthPass Card Number:',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      linkedMedicalFormLabel: 'Link to Medical Form (Fiche Maladie):',
+      linkedMedicalFormNone: 'No medical form — direct claim',
+      linkedMedicalFormHint: 'Optional: attach this claim to a medical form already issued for this beneficiary.',
+      linkedMedicalFormDetail: 'Linked Medical Form',
       serviceCurrencyLabel: 'Service Currency:',
       usdOption: 'USD ($) — US Dollars (Standard)',
       lrdOption: 'LRD (L$) — Liberian Dollars',
@@ -1389,6 +1461,8 @@ export const translations = {
       statusIssuedActive: 'Issued / Active',
       medicalFormPrefix: 'Medical Form —',
       beneficiaryPrefix: 'Beneficiary:',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      linkedClaimPrefix: 'Claim:',
       insuredBeneficiary: 'Insured Beneficiary',
       companySponsor: 'Company / Sponsor',
       providerFacility: 'Provider / Facility',
@@ -1550,6 +1624,7 @@ export const translations = {
       tooManyAttempts: 'Trop de tentatives échouées. Veuillez patienter un instant et réessayer.',
       weakPassword: 'Le mot de passe doit contenir au moins 6 caractères.',
       authFailedFallback: 'Échec de l\'authentification. Veuillez vérifier vos identifiants.',
+      loginTimeoutError: 'La connexion prend plus de temps que prévu. Vérifiez votre connexion internet et réessayez.',
       changePasswordTitle: 'Réinitialisation obligatoire du mot de passe',
       changePasswordSubtitle: 'Pour votre première connexion, veuillez définir un nouveau mot de passe sécurisé.',
       currentPassword: 'Mot de passe actuel',
@@ -1562,6 +1637,20 @@ export const translations = {
       updatePasswordBtn: 'Mettre à jour et continuer',
       invalidCredentials: 'Identifiants invalides. Veuillez réessayer.',
       passwordChangedSuccess: 'Mot de passe mis à jour avec succès.',
+      // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail, affiché
+      // avant la page de connexion (demande explicite) — voir WorkspaceSelectionView.tsx.
+      workspaceSelectTitle: 'Bienvenue',
+      workspaceSelectSubtitle: 'Sélectionnez votre espace de travail pour continuer.',
+      workspaceAgentTitle: 'Agent Médical',
+      workspaceAgentDesc: 'Identification, dossiers médicaux, réclamations et adhésions',
+      workspaceSupervisorTitle: 'Superviseur',
+      workspaceSupervisorDesc: 'Validation des réclamations et adhésions, rapports',
+      workspaceAdminTitle: 'Administrateur',
+      workspaceAdminDesc: 'Gestion complète : membres, organisations, plafonds, comptes',
+      workspaceSelectedPrefix: 'Espace : ',
+      workspaceChangeLink: "Changer d'espace",
+      loginHeading: 'Accédez à votre espace de travail sécurisé',
+      backToHome: "Retour à l'accueil",
     },
 
     dashboard: {
@@ -2066,7 +2155,6 @@ export const translations = {
       ceilingsSaved: 'Plafonds enregistrés avec succès.',
       currency: 'Devise',
       eligibilityBadge: "Vérification d'éligibilité en temps réel",
-      eligibilityDesc: "La validation d'âge en temps réel bloque automatiquement les réclamations et invalide la couverture si une personne assurée dépasse la limite d'âge de la police configurée à la date des soins.",
       primaryInsuredLabel: 'Assuré principal',
       yearsUnit: 'ans',
       spouseLabel: 'Conjoint(e)',
@@ -2138,6 +2226,47 @@ export const translations = {
       nextBenefitsLimitsBtn: 'Suivant : Prestations et limites',
       nextReviewSaveBtn: 'Suivant : Vérifier et enregistrer',
       saveBenefitLimitsBtn: 'Enregistrer les limites de prestation',
+    },
+
+    claim360: {
+      panelTitle: 'Référence du sinistre',
+      tabOverview: 'Aperçu',
+      tabMember: 'Assuré',
+      tabProvider: 'Prestataire',
+      tabFinancial: 'Financier',
+      tabTimeline: 'Historique',
+      overviewSectionTitle: 'Résumé du sinistre',
+      careTypeLabel: 'Type de soins',
+      serviceDateLabel: 'Date des soins',
+      attendingPhysicianLabel: 'Médecin traitant',
+      cardNumberLabel: 'Numéro de carte',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      medicalFormReferenceLabel: 'Référence de la fiche maladie',
+      financialSectionTitle: 'Aperçu financier',
+      billedLabel: 'Facturé',
+      coverageRateLabel: 'Couverture',
+      coveredLabel: 'Pris en charge',
+      memberShareLabel: 'Part assuré',
+      memberSectionTitle: 'Assuré et organisation',
+      organizationLabel: 'Organisation',
+      policyNumberLabel: 'Numéro de police',
+      // === AMÉLIORATION AJOUTÉE : détails complémentaires de l'assuré à côté de la carte
+      // membre (retour utilisateur, 2026-09-12) ===
+      memberNotFoundLabel: "Aucune fiche assuré correspondante — seules les données du sinistre sont affichées.",
+      complementaryDetailsTitle: 'Détails complémentaires',
+      phoneLabel: 'Téléphone',
+      emailLabel: 'E-mail',
+      enrollmentDateLabel: "Date d'adhésion",
+      dependentsCountLabel: 'Ayants droit enregistrés',
+      balancesSectionTitle: 'Soldes de couverture',
+      outpatientLabel: 'Ambulatoire (utilisé / plafond)',
+      inpatientLabel: 'Hospitalisation (utilisé / plafond)',
+      providerSectionTitle: 'Prestataire de santé',
+      providerTypeLabel: 'Type',
+      providerLocationLabel: 'Localisation',
+      providerKypLabel: 'Statut KYP',
+      timelineTitle: "Historique d'activité",
+      noTimelineEvents: 'Aucune activité enregistrée pour l\'instant.',
     },
 
     accounts: {
@@ -2285,6 +2414,7 @@ export const translations = {
       resetPasswordFailedToast: 'Échec de la réinitialisation du mot de passe. Veuillez réessayer.',
       accountActivatedToastTemplate: 'Compte {name} activé.',
       accountDeactivatedToastTemplate: 'Compte {name} désactivé.',
+      accountStatusUpdateFailedToastTemplate: 'Échec de la mise à jour du compte {name}. Veuillez réessayer.',
       deleteAccountFailedToastTemplate: 'Échec de la suppression du compte {email}. Veuillez réessayer.',
       accountDeletedToastTemplate: 'Compte {email} supprimé.',
       mobileAccessEnabledToastTemplate: 'Accès mobile activé pour {email}',
@@ -2551,6 +2681,11 @@ export const translations = {
       patientTreatedLabel: 'Patient traité (Bénéficiaire) :',
       patientTreatedPlaceholder: 'Nom complet du patient...',
       cardNumberLabel: 'Numéro de carte HealthPass :',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      linkedMedicalFormLabel: 'Lier à une fiche maladie :',
+      linkedMedicalFormNone: 'Aucune fiche maladie — réclamation directe',
+      linkedMedicalFormHint: 'Facultatif : rattacher cette réclamation à une fiche maladie déjà émise pour ce bénéficiaire.',
+      linkedMedicalFormDetail: 'Fiche maladie liée',
       serviceCurrencyLabel: 'Devise du service :',
       usdOption: 'USD ($) — Dollars américains (Standard)',
       lrdOption: 'LRD (L$) — Dollars libériens',
@@ -2753,6 +2888,8 @@ export const translations = {
       statusIssuedActive: 'Émis / Actif',
       medicalFormPrefix: 'Formulaire médical —',
       beneficiaryPrefix: 'Bénéficiaire :',
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12)
+      linkedClaimPrefix: 'Réclamation :',
       insuredBeneficiary: 'Assuré bénéficiaire',
       companySponsor: 'Entreprise / Sponsor',
       providerFacility: 'Prestataire / Établissement',

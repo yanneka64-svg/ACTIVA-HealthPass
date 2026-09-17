@@ -496,6 +496,20 @@ export const FirestoreService = {
   },
   deleteClaim: async (id: string) => {
     try {
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (auto-revue, 2026-09-12) — sans
+      // ce nettoyage, la fiche maladie rattachée continuerait d'afficher indéfiniment la
+      // référence d'une réclamation supprimée. Lecture + mise à jour BEST-EFFORT : une panne à
+      // cette étape (permission, réseau, fiche déjà supprimée) ne doit jamais empêcher la
+      // suppression du claim lui-même, qui reste l'opération demandée.
+      try {
+        const claimSnap = await getDoc(doc(db, 'claims', id));
+        const medicalFormId = claimSnap.exists() ? (claimSnap.data() as Claim).medicalFormId : undefined;
+        if (medicalFormId) {
+          await updateDoc(doc(db, 'medicalForms', medicalFormId), { claimId: null, claimReference: null });
+        }
+      } catch (linkErr) {
+        console.error('Failed to clear the reverse MedicalForm link on claim delete (non-blocking):', linkErr);
+      }
       return await deleteDoc(doc(db, 'claims', id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `claims/${id}`);
@@ -641,6 +655,23 @@ export const FirestoreService = {
       throw err;
     }
   },
+  // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04, retour
+  // utilisateur 2026-09-11 — "toujours ouvert" dans HEALTH_DATA_GOVERNANCE_REVIEW_2026-09-05.md,
+  // risque déjà matérialisé une fois via SEC-01) === App.tsx écrivait encore directement sur
+  // `accounts/{uid}` via le SDK Firestore (`setDoc(..., { merge: true })`) pour relier un compte
+  // pré-provisionné sous l'ancienne collection `users/{uid}` à l'uid Firebase Auth réel — un
+  // second chemin d'écriture, hors de ce fichier, qui risquait de ne pas recevoir un futur
+  // correctif appliqué uniquement ici. Isolé dans sa propre méthode (plutôt que réutiliser
+  // `addAccount`) car le `merge: true` a une sémantique différente d'un `setDoc` classique : il
+  // préserve tout champ déjà présent sur le document au lieu de l'écraser intégralement.
+  linkLegacyUserAccount: async (id: string, data: any) => {
+    try {
+      return await setDoc(doc(db, 'accounts', id), data, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `accounts/${id}`);
+      throw err;
+    }
+  },
 
   // Medical Forms
   // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.1)
@@ -707,6 +738,20 @@ export const FirestoreService = {
       throw err;
     }
   },
+  // === AMÉLIORATION AJOUTÉE : lien bidirectionnel Claim <-> MedicalForm (retour utilisateur,
+  // 2026-09-12) — patch ciblé (2 champs) plutôt que updateMedicalForm ci-dessus, qui exige
+  // l'objet MedicalForm complet : au moment où WorkflowService.submitClaim relie une fiche
+  // maladie à la réclamation qui vient d'être créée, seuls l'id de la fiche et les identifiants
+  // du nouveau claim sont disponibles. Autorisé par les mêmes règles Firestore que
+  // updateMedicalForm (voir firestore.rules, match /medicalForms/{formId}, allow update).
+  linkMedicalFormToClaim: async (medicalFormId: string, claimId: string, claimReference?: string) => {
+    try {
+      return await updateDoc(doc(db, 'medicalForms', medicalFormId), { claimId, claimReference });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `medicalForms/${medicalFormId}`);
+      throw err;
+    }
+  },
   // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
   // — CRITIQUE, et section 2.1) ===
   // Avant le correctif 2.5, ces deux fonctions supprimaient physiquement et IRRÉVERSIBLEMENT un
@@ -746,7 +791,22 @@ export const FirestoreService = {
       const batch = writeBatch(db);
       if (snap.exists()) batch.delete(ref);
       if (clinicalSnap.exists()) batch.delete(clinicalRef);
-      return await batch.commit();
+      const result = await batch.commit();
+
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (auto-revue, 2026-09-12) — sans ce
+      // nettoyage, une réclamation rattachée continuerait d'afficher indéfiniment la référence
+      // d'une fiche maladie désormais archivée/supprimée. BEST-EFFORT : une panne à cette étape
+      // ne doit jamais empêcher la suppression déjà effectuée ci-dessus.
+      const linkedClaimId = snap.exists() ? (snap.data() as MedicalForm).claimId : undefined;
+      if (linkedClaimId) {
+        try {
+          await updateDoc(doc(db, 'claims', linkedClaimId), { medicalFormId: null, medicalFormReference: null });
+        } catch (linkErr) {
+          console.error('Failed to clear the reverse Claim link on medical form delete (non-blocking):', linkErr);
+        }
+      }
+
+      return result;
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `medicalForms/${id}`);
       throw err;

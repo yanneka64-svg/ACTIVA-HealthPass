@@ -767,7 +767,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <p className="font-bold text-sm text-slate-800 truncate">{policy.organizationId}</p>
                         <p className="text-[11px] text-slate-500 font-mono">{policy.policyNumber}</p>
                       </div>
-                      <span className={`shrink-0 px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${POLICY_STATUS_BADGE[coverage.status]}`}>{policyStatusLabels[coverage.status] || coverage.status}</span>
+                      <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold border ${POLICY_STATUS_BADGE[coverage.status]}`}>{policyStatusLabels[coverage.status] || coverage.status}</span>
                     </div>
                     <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
                       <span>{policy.effectiveDate} &rarr; {policy.expirationDate}</span>
@@ -810,7 +810,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <td className="py-3 px-4 text-slate-600">{policy.nextPaymentDueDate || '—'}</td>
                         <td className="py-3 px-4 text-right font-bold text-rose-600">{formatAmount(policy.outstandingAmount || 0)}</td>
                         <td className="py-3 px-4 text-center">
-                          <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${POLICY_STATUS_BADGE[coverage.status]}`}>{policyStatusLabels[coverage.status] || coverage.status}</span>
+                          <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${POLICY_STATUS_BADGE[coverage.status]}`}>{policyStatusLabels[coverage.status] || coverage.status}</span>
                         </td>
                       </tr>
                     ))}
@@ -855,35 +855,35 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t.invoices.reconciliationApproved}</p>
               <p className="text-lg font-black text-slate-900 mt-1">{formatAmount(reconciliationSummary.approvedAmount)}</p>
-              <p className="text-[10.5px] text-slate-400 mt-0.5">{reconciliationSummary.approvedCount} {t.invoices.invoiceCountSuffix}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">{reconciliationSummary.approvedCount} {t.invoices.invoiceCountSuffix}</p>
             </div>
             <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
               <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> {t.invoices.paidBadge}
               </p>
               <p className="text-lg font-black text-emerald-700 mt-1">{formatAmount(reconciliationSummary.paidAmount)}</p>
-              <p className="text-[10.5px] text-emerald-600/80 mt-0.5">{reconciliationSummary.paidCount} {t.invoices.invoiceCountSuffix}</p>
+              <p className="text-[11px] text-emerald-600/80 mt-0.5">{reconciliationSummary.paidCount} {t.invoices.invoiceCountSuffix}</p>
             </div>
             <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
               <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" /> {t.invoices.outstandingBadge}
               </p>
               <p className="text-lg font-black text-amber-700 mt-1">{formatAmount(reconciliationSummary.outstandingAmount)}</p>
-              <p className="text-[10.5px] text-amber-600/80 mt-0.5">{reconciliationSummary.outstandingCount} {t.invoices.invoiceCountSuffix}</p>
+              <p className="text-[11px] text-amber-600/80 mt-0.5">{reconciliationSummary.outstandingCount} {t.invoices.invoiceCountSuffix}</p>
             </div>
             <div className="p-3.5 rounded-xl bg-orange-50 border border-orange-200">
               <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wide flex items-center gap-1">
                 <ScanSearch className="w-3 h-3" /> {t.invoices.reconciliationRefacted}
               </p>
               <p className="text-lg font-black text-orange-700 mt-1">{formatAmount(reconciliationSummary.refactedAmount)}</p>
-              <p className="text-[10.5px] text-orange-600/80 mt-0.5">{reconciliationSummary.refactedCount} {t.invoices.invoiceCountSuffix}</p>
+              <p className="text-[11px] text-orange-600/80 mt-0.5">{reconciliationSummary.refactedCount} {t.invoices.invoiceCountSuffix}</p>
             </div>
             <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200">
               <p className="text-[10px] font-bold text-rose-700 uppercase tracking-wide flex items-center gap-1">
                 <Undo2 className="w-3 h-3" /> {t.invoices.reconciliationPendingRecovery}
               </p>
               <p className="text-lg font-black text-rose-700 mt-1">{formatAmount(reconciliationSummary.pendingRecoveryAmount)}</p>
-              <p className="text-[10.5px] text-rose-600/80 mt-0.5">{reconciliationSummary.pendingRecoveryCount} {t.invoices.invoiceCountSuffix}</p>
+              <p className="text-[11px] text-rose-600/80 mt-0.5">{reconciliationSummary.pendingRecoveryCount} {t.invoices.invoiceCountSuffix}</p>
             </div>
           </div>
 
@@ -903,7 +903,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <p className="font-bold text-sm text-slate-800 truncate">{inv.reference}</p>
                         <p className="text-[11px] text-slate-500 truncate">{inv.organization}</p>
                       </div>
-                      <span className={`shrink-0 px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${inv.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                      <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold border ${inv.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                         {inv.paymentStatus === 'paid' ? t.invoices.paidBadge : t.invoices.outstandingBadge}
                       </span>
                     </div>
@@ -912,7 +912,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <span className="font-bold text-slate-800">{formatAmount(inv.payableAmountUSD ?? inv.amount)}</span>
                     </div>
                     {inv.refactionApplied && (
-                      <div className="text-[10.5px] text-orange-700 font-semibold">
+                      <div className="text-[11px] text-orange-700 font-semibold">
                         {t.invoices.reconciliationRefacted} {formatAmount(inv.refactionTotalUSD || 0)}
                         {(inv.refactionTotalUSD || 0) - (inv.recoveredTotalUSD || 0) > 0 && ` — ${formatAmount((inv.refactionTotalUSD || 0) - (inv.recoveredTotalUSD || 0))} ${t.reports.pendingRecoverySuffix}`}
                       </div>
@@ -944,7 +944,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                           <td className="py-3 px-4 text-slate-600 truncate max-w-[160px]">{inv.provider}</td>
                           <td className="py-3 px-4 text-right font-bold text-slate-800">{formatAmount(inv.payableAmountUSD ?? inv.amount)}</td>
                           <td className="py-3 px-4 text-center">
-                            <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${inv.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                            <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${inv.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                               {inv.paymentStatus === 'paid' ? t.invoices.paidBadge : t.invoices.outstandingBadge}
                             </span>
                           </td>

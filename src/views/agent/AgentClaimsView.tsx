@@ -30,11 +30,16 @@ import {
   Fingerprint,
   ChevronDown,
 } from 'lucide-react';
-import { Claim, Member, Provider, Language, MedicalAct, ClaimAttachment, Organization, Ceiling } from '../../types';
+import { Claim, Member, Provider, Language, MedicalAct, ClaimAttachment, Organization, Ceiling, MedicalForm } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { checkCareEligibility } from '../../services/eligibilityService';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
+// === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12), derrière le
+// flag hp3_claim_360 — ajoute une section Timeline au modal de détail existant, sans toucher au
+// reste de son contenu (voir plus bas).
+import { isFeatureEnabled } from '../../config/featureFlags';
+import { EntityTimeline } from '../../modules/timeline/EntityTimeline';
 
 interface AgentClaimsViewProps {
   claims: Claim[];
@@ -46,6 +51,14 @@ interface AgentClaimsViewProps {
   // === AMÉLIORATION AJOUTÉE : assuré présélectionné (venant de la fiche d'identification,
   // bouton "New Claim") pour préremplir automatiquement la réclamation.
   preselectedMember?: Member | null;
+  // === AMÉLIORATION AJOUTÉE : Claim 360 — historique d'audit déjà chargé dans App.tsx, réutilisé
+  // par la section Timeline du modal de détail. Optionnel : absent, la section n'affiche rien.
+  logs?: any[];
+  // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+  // fiches maladie déjà chargées dans App.tsx, réutilisées pour proposer à l'Agent de rattacher
+  // la réclamation en cours à une fiche déjà émise pour ce bénéficiaire. Optionnel : absent, le
+  // sélecteur ne s'affiche simplement jamais (comportement inchangé).
+  medicalForms?: MedicalForm[];
   onCreateClaim: (claim: Partial<Claim>) => void;
 }
 
@@ -85,9 +98,12 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   ceilings = [],
   lang,
   preselectedMember = null,
+  logs = [],
+  medicalForms = [],
   onCreateClaim,
 }) => {
   const t = useTranslation(lang);
+  const claim360Enabled = isFeatureEnabled('hp3_claim_360');
   // === AMÉLIORATION AJOUTÉE : versions traduites de DOC_CATEGORY_LABELS/DOC_CATEGORY_TAGS
   // (constantes de module ci-dessus, gardées pour l'énumération des clés DocCategory via
   // Object.keys — l'ordre et les clés restent indépendants de la langue).
@@ -153,6 +169,10 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   const [isFingerprintModalOpen, setIsFingerprintModalOpen] = useState(false);
   const [fingerprintVerification, setFingerprintVerification] = useState<{ score: number } | null>(null);
 
+  // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+  // fiche maladie optionnellement rattachée à la réclamation en cours de saisie.
+  const [selectedMedicalFormId, setSelectedMedicalFormId] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prescriptionInputRef = useRef<HTMLInputElement>(null);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +204,29 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       ) || null
     );
   }, [members, memberCardInput, principalNameInput]);
+
+  // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+  // fiches maladie déjà émises pour ce bénéficiaire (par numéro de carte) et pas encore
+  // rattachées à une autre réclamation, proposées à l'Agent dans le sélecteur "Link to Medical
+  // Form" de la section 1.
+  const linkableMedicalForms = useMemo(() => {
+    const card = memberCardInput.trim().toLowerCase();
+    if (!card) return [];
+    return medicalForms
+      .filter((f) => f.memberCardNo?.toLowerCase() === card && !f.claimId)
+      .sort((a, b) => new Date(b.issueDate || 0).getTime() - new Date(a.issueDate || 0).getTime());
+  }, [medicalForms, memberCardInput]);
+
+  // Garde la sélection cohérente avec la liste ci-dessus : efface un choix devenu invalide (ex:
+  // changement de numéro de carte) et présélectionne automatiquement l'unique fiche disponible,
+  // quand il n'y en a qu'une — l'agent reste libre de la désélectionner via l'option "None".
+  useEffect(() => {
+    if (selectedMedicalFormId && !linkableMedicalForms.some((f) => f.id === selectedMedicalFormId)) {
+      setSelectedMedicalFormId('');
+    } else if (!selectedMedicalFormId && linkableMedicalForms.length === 1) {
+      setSelectedMedicalFormId(linkableMedicalForms[0].id);
+    }
+  }, [linkableMedicalForms, selectedMedicalFormId]);
 
   // === AMÉLIORATION AJOUTÉE : préremplissage automatique du formulaire lorsque l'agent
   // arrive depuis la fiche d'identification via le bouton "New Claim".
@@ -456,8 +499,14 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
     if (invoiceFile) allAttachments.push(invoiceFile);
     allAttachments.push(...uploadedAttachments);
 
+    // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+    // fiche maladie choisie dans le sélecteur "Link to Medical Form" ci-dessous, le cas échéant.
+    const linkedMedicalForm = linkableMedicalForms.find((f) => f.id === selectedMedicalFormId);
+
     onCreateClaim({
-      reference: `SIN-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      // === AMÉLIORATION AJOUTÉE : préfixe CLM (retour utilisateur, 2026-09-12 — "la référence
+      // de la réclamation ... doit commencer par CLM et non SIN"), remplace l'ancien préfixe SIN.
+      reference: `CLM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
       memberCardNo: finalCardNo,
       memberName: finalName,
       organization: finalOrg,
@@ -478,7 +527,9 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       comments: `Patient: ${finalPatient} (${patientRelationship}). Physician: ${doctorName || 'N/A'}. Supporting docs: ${allAttachments.length} document(s) attached.`,
       prescriptionUrl: prescriptionFile?.url || (allAttachments.find(a => a.type === 'image' || a.type === 'pdf')?.url),
       invoiceDocumentUrl: invoiceFile?.url || (allAttachments[1]?.url),
-      attachments: allAttachments
+      attachments: allAttachments,
+      medicalFormId: linkedMedicalForm?.id,
+      medicalFormReference: linkedMedicalForm?.securityNumber
     });
 
     // Reset form
@@ -494,6 +545,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
     setUploadedAttachments([]);
     setMedicalActs([{ id: '1', category: 'General Practitioner Consultation', description: 'Consultation', amount: 35 }]);
     setFingerprintVerification(null);
+    setSelectedMedicalFormId('');
   };
 
   // Current month/year label used for the "Recent Claims History" section, consistent with
@@ -505,7 +557,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       {/* Page Header Banner */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0a2e6b] flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-[var(--brand-900)] flex items-center justify-center shrink-0">
             <PlusCircle className="w-5 h-5" />
           </div>
           <div>
@@ -522,7 +574,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
           <button
             type="button"
             onClick={() => setFormActivated(true)}
-            className="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer bg-[#0a2e6b] hover:bg-[#07214f] text-white shadow-xs"
+            className="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer bg-[var(--brand-900)] hover:bg-[#07214f] text-white shadow-xs"
           >
             <PlusCircle className="w-4 h-4" />
             <span>{t.agentClaims.newClaimBtn}</span>
@@ -573,7 +625,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               {/* HIGH FREQUENCY ALERT */}
               {frequencyWarning && (
                 <div className="bg-blue-50 border border-blue-200 text-blue-900 p-3.5 rounded-2xl flex gap-3 items-start animate-in zoom-in-95 shadow-2xs">
-                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[#0a2e6b]" />
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[var(--brand-900)]" />
                   <div>
                     <p className="text-xs font-bold leading-relaxed">{frequencyWarning}</p>
                   </div>
@@ -597,7 +649,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer lg:cursor-default"
                 >
                   <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-[#0a2e6b]" />
+                    <User className="w-4 h-4 text-[var(--brand-900)]" />
                     {/* === AMÉLIORATION AJOUTÉE : "& Coverage Balances" retiré du titre de la
                         section (les deux cartes de solde de couverture juste en dessous ont
                         aussi été retirées, sur demande explicite) — rien ne remplace cet
@@ -629,7 +681,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       value={principalNameInput}
                       onChange={(e) => handlePrincipalNameChange(e.target.value)}
                       placeholder={t.agentClaims.principalInsuredPlaceholder}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
                     />
                     <datalist id="members-name-list">
@@ -650,7 +702,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       value={patientName}
                       onChange={(e) => setPatientName(e.target.value)}
                       placeholder={t.agentClaims.patientTreatedPlaceholder}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
                     />
                   </div>
@@ -665,7 +717,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       value={memberCardInput}
                       onChange={(e) => handleCardInputChange(e.target.value)}
                       placeholder="e.g. AMID-260903-00023..."
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
                     />
                     <datalist id="members-card-list">
@@ -684,13 +736,40 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     <select
                       value={currency}
                       onChange={(e) => setCurrency(e.target.value as 'USD' | 'LRD')}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                     >
                       <option value="USD">{t.agentClaims.usdOption}</option>
                       <option value="LRD">{t.agentClaims.lrdOption}</option>
                     </select>
                   </div>
                 </div>
+
+                {/* === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur,
+                    2026-09-12 — "chaque fiche maladie ... doit être ... liée ... à la
+                    réclamation dont elle fait l'objet") — visible uniquement quand au moins une
+                    fiche maladie déjà émise pour ce numéro de carte n'est pas encore rattachée à
+                    une autre réclamation ; facultatif, une réclamation reste soumissible sans
+                    fiche associée (facturation directe), comportement inchangé dans ce cas. */}
+                {linkableMedicalForms.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      {t.agentClaims.linkedMedicalFormLabel}
+                    </label>
+                    <select
+                      value={selectedMedicalFormId}
+                      onChange={(e) => setSelectedMedicalFormId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
+                    >
+                      <option value="">{t.agentClaims.linkedMedicalFormNone}</option>
+                      {linkableMedicalForms.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.securityNumber} — {f.issueDate}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1">{t.agentClaims.linkedMedicalFormHint}</p>
+                  </div>
+                )}
 
                 {/* Secondary fields: Organization / Relationship / Attached Dependents quick-select
                     (kept from the previous form — not shown in the reference layout but still
@@ -706,7 +785,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         value={organizationInput}
                         onChange={(e) => setOrganizationInput(e.target.value)}
                         placeholder={t.agentClaims.orgSponsorPlaceholder}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       />
                     </div>
                     <div>
@@ -716,7 +795,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       <select
                         value={patientRelationship}
                         onChange={(e) => setPatientRelationship(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       >
                         <option value="Principal">{t.agentClaims.relationshipPrincipal}</option>
                         <option value="Spouse">{t.agentClaims.relationshipSpouse}</option>
@@ -736,12 +815,12 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                           onClick={() => handleBeneficiarySelect(b.name, b.relation)}
                           className={`px-2 py-0.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
                             patientName === b.name
-                              ? 'bg-[#0a2e6b] text-white shadow-2xs'
+                              ? 'bg-[var(--brand-900)] text-white shadow-2xs'
                               : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
                         >
                           <span>{b.name}</span>
-                          <span className="text-[9px] opacity-80">({b.relation})</span>
+                          <span className="text-[10px] opacity-80">({b.relation})</span>
                         </button>
                       ))}
                     </div>
@@ -757,7 +836,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2 cursor-pointer lg:cursor-default"
                 >
                   <div className="flex items-center gap-2">
-                    <Building className="w-4 h-4 text-[#0a2e6b]" />
+                    <Building className="w-4 h-4 text-[var(--brand-900)]" />
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
                       {t.agentClaims.section2Title}
                     </h4>
@@ -774,7 +853,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     <select
                       value={selectedProviderName}
                       onChange={(e) => setSelectedProviderName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
                     >
                       <option value="">{t.agentClaims.selectProviderOption}</option>
@@ -795,7 +874,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       value={doctorName}
                       onChange={(e) => setDoctorName(e.target.value)}
                       placeholder={t.agentClaims.physicianPlaceholder}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
                     />
                   </div>
@@ -813,13 +892,13 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     onClick={() => toggleMobileSection(3)}
                     className="flex items-center gap-2 cursor-pointer lg:cursor-default"
                   >
-                    <Activity className="w-4 h-4 text-[#0a2e6b]" />
+                    <Activity className="w-4 h-4 text-[var(--brand-900)]" />
                     <div>
                       <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                         <span>{t.agentClaims.section3TitlePrefix} ({medicalActs.length})</span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 3 ? 'rotate-180' : ''}`} />
                       </h4>
-                      <p className="text-[10.5px] text-slate-400 font-medium">
+                      <p className="text-[11px] text-slate-400 font-medium">
                         {t.agentClaims.itemizedBreakdownPrefix} {currency === 'USD' ? t.agentClaims.usdFull : t.agentClaims.lrdFull}
                       </p>
                     </div>
@@ -832,7 +911,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         type="button"
                         onClick={() => setCurrency('USD')}
                         className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
-                          currency === 'USD' ? 'bg-[#0a2e6b] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
+                          currency === 'USD' ? 'bg-[var(--brand-900)] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                       >
                         USD ($)
@@ -841,7 +920,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         type="button"
                         onClick={() => setCurrency('LRD')}
                         className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
-                          currency === 'LRD' ? 'bg-[#0a2e6b] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
+                          currency === 'LRD' ? 'bg-[var(--brand-900)] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
                       >
                         LRD (L$)
@@ -942,7 +1021,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 {/* === AMÉLIORATION AJOUTÉE : bandeau de calcul automatisé du co-paiement ACTIVA,
                     basé sur le taux de couverture contractuel de l'organisation de l'assuré
                     (85% / 15% par défaut si l'organisation n'est pas identifiée). === */}
-                <div className="p-4 bg-[#0a2e6b] rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-white">
+                <div className="p-4 bg-[var(--brand-900)] rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-white">
                   <div>
                     <span className="text-[11px] font-extrabold text-emerald-300 uppercase tracking-wide">
                       {t.agentClaims.copayCalcPrefix} ({coverageRatePercent}% / {(100 - coverageRatePercent).toFixed(0)}%) — {currency === 'USD' ? 'US Dollar (USD)' : 'Liberian Dollar (LRD)'}
@@ -973,13 +1052,13 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-pointer lg:cursor-default"
                 >
                   <div className="flex items-center gap-2">
-                    <Paperclip className="w-4 h-4 text-[#0a2e6b]" />
+                    <Paperclip className="w-4 h-4 text-[var(--brand-900)]" />
                     <div>
                       <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                         <span>{t.agentClaims.section4TitlePrefix} ({allAttachmentsForDisplay.length})</span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 4 ? 'rotate-180' : ''}`} />
                       </h4>
-                      <p className="text-[10.5px] text-slate-400 font-medium">
+                      <p className="text-[11px] text-slate-400 font-medium">
                         {t.agentClaims.uploadHint}
                       </p>
                     </div>
@@ -998,7 +1077,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       <select
                         value={documentCategory}
                         onChange={(e) => setDocumentCategory(e.target.value as DocCategory)}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[#0a2e6b]"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       >
                         {(Object.keys(DOC_CATEGORY_LABELS) as DocCategory[]).map((cat) => (
                           <option key={cat} value={cat}>
@@ -1036,12 +1115,12 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       onDragLeave={() => setIsDraggingFile(false)}
                       onDrop={handleDrop}
                       className={`p-6 border-2 border-dashed rounded-xl text-center transition ${
-                        isDraggingFile ? 'border-[#0a2e6b] bg-blue-50/60' : 'border-slate-300 bg-slate-50/60'
+                        isDraggingFile ? 'border-[var(--brand-900)] bg-blue-50/60' : 'border-slate-300 bg-slate-50/60'
                       }`}
                     >
-                      <UploadCloud className={`w-7 h-7 mx-auto mb-2 ${isDraggingFile ? 'text-[#0a2e6b]' : 'text-slate-400'}`} />
+                      <UploadCloud className={`w-7 h-7 mx-auto mb-2 ${isDraggingFile ? 'text-[var(--brand-900)]' : 'text-slate-400'}`} />
                       <p className="text-xs font-bold text-slate-700">{t.agentClaims.dragDropHint}</p>
-                      <p className="text-[10.5px] text-slate-400 mt-0.5">{t.agentClaims.dragDropSubHint}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{t.agentClaims.dragDropSubHint}</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -1049,7 +1128,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                           else if (documentCategory === 'invoice') invoiceInputRef.current?.click();
                           else fileInputRef.current?.click();
                         }}
-                        className="mt-3 px-4 py-2 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-lg text-xs font-bold transition cursor-pointer inline-flex items-center gap-1.5"
+                        className="mt-3 px-4 py-2 bg-[var(--brand-900)] hover:bg-[#07214f] text-white rounded-lg text-xs font-bold transition cursor-pointer inline-flex items-center gap-1.5"
                       >
                         <Upload className="w-3.5 h-3.5" />
                         <span>{t.agentClaims.browseFiles}</span>
@@ -1079,7 +1158,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                               )}
                               <div className="min-w-0">
                                 <p className="font-bold text-slate-800 text-[11px] truncate">{attachment.name}</p>
-                                <p className="text-[9px] text-slate-400 uppercase tracking-wide font-bold">
+                                <p className="text-[10px] text-slate-400 uppercase tracking-wide font-bold">
                                   {docCategoryTags[category]} • {attachment.size}
                                 </p>
                               </div>
@@ -1088,7 +1167,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setPreviewDocModal(attachment)}
-                                className="p-1 text-slate-500 hover:text-[#0a2e6b] cursor-pointer"
+                                className="p-1 text-slate-500 hover:text-[var(--brand-900)] cursor-pointer"
                                 title={t.agentClaims.previewTitle}
                               >
                                 <Eye className="w-3.5 h-3.5" />
@@ -1143,7 +1222,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     (!principalNameInput.trim() && !memberCardInput.trim()) ||
                     (eligibilityStatus !== null && !eligibilityStatus.isEligible)
                       ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                      : 'bg-[#0a2e6b] hover:bg-[#07214f] text-white cursor-pointer'
+                      : 'bg-[var(--brand-900)] hover:bg-[#07214f] text-white cursor-pointer'
                   }`}
                 >
                   <Receipt className="w-4 h-4" />
@@ -1166,7 +1245,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
             <h3 className="font-extrabold text-xs sm:text-sm text-slate-900">
               {t.agentClaims.historyTitlePrefix} ({claimsHistoryCount})
             </h3>
-            <p className="text-[10.5px] text-slate-400">{t.agentClaims.historySubtitle}</p>
+            <p className="text-[11px] text-slate-400">{t.agentClaims.historySubtitle}</p>
           </div>
           <div className="relative w-full sm:w-72">
             <input
@@ -1174,7 +1253,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={t.agentClaims.searchClaimsPlaceholder}
-              className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0a2e6b] transition"
+              className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] transition"
             />
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
           </div>
@@ -1195,7 +1274,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-mono font-bold text-xs text-[#0a2e6b]">{claim.reference}</span>
+                    <span className="font-mono font-bold text-xs text-[var(--brand-900)]">{claim.reference}</span>
                     <span className="text-[10px] text-slate-400 ml-2">{claim.serviceDate}</span>
                   </div>
                   <span
@@ -1232,7 +1311,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
-                  <span className="px-2 py-0.5 rounded bg-blue-50 text-[#0a2e6b] text-[10px] font-bold">
+                  <span className="px-2 py-0.5 rounded bg-blue-50 text-[var(--brand-900)] text-[10px] font-bold">
                     {claim.careType}
                   </span>
                   {claim.attachments && claim.attachments.length > 0 && (
@@ -1274,7 +1353,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     onClick={() => setSelectedClaimDetail(claim)}
                     className="hover:bg-slate-50 transition cursor-pointer"
                   >
-                    <td className="py-3 px-4 font-bold text-[#0a2e6b] whitespace-nowrap">
+                    <td className="py-3 px-4 font-bold text-[var(--brand-900)] whitespace-nowrap">
                       {claim.reference}
                       <span className="block text-[10px] text-slate-400 font-normal">{claim.serviceDate}</span>
                     </td>
@@ -1289,7 +1368,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-md bg-blue-50 text-[#0a2e6b] text-[10px] font-bold inline-block">
+                      <span className="px-2 py-0.5 rounded-md bg-blue-50 text-[var(--brand-900)] text-[10px] font-bold inline-block">
                         {claim.careType}
                       </span>
                     </td>
@@ -1342,7 +1421,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       {previewDocModal && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden">
-            <div className="bg-[#0a2e6b] p-4 text-white flex items-center justify-between">
+            <div className="bg-[var(--brand-900)] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4" />
                 <span className="font-bold text-xs truncate max-w-sm">{previewDocModal.name}</span>
@@ -1363,7 +1442,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 />
               ) : (
                 <div className="p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-3">
-                  <div className="w-16 h-16 rounded-2xl bg-blue-100 text-[#0a2e6b] flex items-center justify-center mx-auto">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-100 text-[var(--brand-900)] flex items-center justify-center mx-auto">
                     {previewDocModal.type === 'word' ? <File className="w-8 h-8" /> : <FileText className="w-8 h-8" />}
                   </div>
                   <h4 className="font-extrabold text-slate-800 text-sm">{previewDocModal.name}</h4>
@@ -1373,7 +1452,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               <a
                 href={previewDocModal.url}
                 download={previewDocModal.name}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0a2e6b] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--brand-900)] hover:bg-[#07214f] text-white rounded-xl text-xs font-bold transition shadow-xs"
               >
                 <Download className="w-4 h-4" />
                 <span>{t.agentClaims.downloadDocument}</span>
@@ -1387,7 +1466,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       {selectedClaimDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden animate-in zoom-in-95 max-h-[90vh] flex flex-col">
-            <div className="bg-[#0a2e6b] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0">
+            <div className="bg-[var(--brand-900)] p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="font-bold text-base">{t.agentClaims.claimRecordPrefix} {selectedClaimDetail.reference}</h3>
                 <p className="text-xs text-blue-100">{t.agentClaims.serviceDatePrefix} {selectedClaimDetail.serviceDate}</p>
@@ -1470,17 +1549,26 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 </div>
                 <div>
                   <span className="text-slate-400 font-medium block">{t.agentClaims.healthcareFacilityDetail}</span>
-                  <span className="font-bold text-[#0a2e6b]">{selectedClaimDetail.provider}</span>
+                  <span className="font-bold text-[var(--brand-900)]">{selectedClaimDetail.provider}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 font-medium block">{t.agentClaims.attendingPhysicianDetail}</span>
                   <span className="font-bold text-slate-800">{selectedClaimDetail.doctorName || t.agentClaims.notSpecified}</span>
                 </div>
+                {/* === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur,
+                    2026-09-12) — affichée uniquement quand ce claim a été rattaché à une fiche
+                    maladie lors de sa soumission. */}
+                {selectedClaimDetail.medicalFormReference && (
+                  <div>
+                    <span className="text-slate-400 font-medium block">{t.agentClaims.linkedMedicalFormDetail}</span>
+                    <span className="font-bold text-slate-800 font-mono">{selectedClaimDetail.medicalFormReference}</span>
+                  </div>
+                )}
               </div>
 
               {selectedClaimDetail.comments && !selectedClaimDetail.rejectionReason && (
                 <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl text-slate-700">
-                  <span className="font-bold text-[#0a2e6b] block mb-1">{t.agentClaims.detailsBeneficiaryLabel}</span>
+                  <span className="font-bold text-[var(--brand-900)] block mb-1">{t.agentClaims.detailsBeneficiaryLabel}</span>
                   <p>{selectedClaimDetail.comments}</p>
                 </div>
               )}
@@ -1489,7 +1577,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               {selectedClaimDetail.attachments && selectedClaimDetail.attachments.length > 0 && (
                 <div>
                   <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-1.5">
-                    <Paperclip className="w-3.5 h-3.5 text-[#0a2e6b]" />
+                    <Paperclip className="w-3.5 h-3.5 text-[var(--brand-900)]" />
                     <span>{t.agentClaims.submittedDocsPrefix} ({selectedClaimDetail.attachments.length})</span>
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1507,7 +1595,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         <a
                           href={att.url}
                           download={att.name}
-                          className="p-1 rounded bg-white border border-slate-200 text-slate-700 hover:text-[#0a2e6b]"
+                          className="p-1 rounded bg-white border border-slate-200 text-slate-700 hover:text-[var(--brand-900)]"
                           title={t.agentClaims.downloadTitle}
                         >
                           <Download className="w-3.5 h-3.5" />
@@ -1547,7 +1635,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
               <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
                 <span className="text-sm font-bold text-slate-700">{t.agentClaims.totalClaimAmountFooter}</span>
                 <div className="text-right">
-                  <span className="text-lg font-black text-[#0a2e6b] block">
+                  <span className="text-lg font-black text-[var(--brand-900)] block">
                     ${selectedClaimDetail.amount?.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
                   </span>
                   <span className="text-xs font-bold text-slate-500">
@@ -1555,6 +1643,21 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12)
+                  — section Timeline ajoutée au modal existant, derrière hp3_claim_360. Le reste
+                  du modal (ci-dessus) reste strictement inchangé. */}
+              {claim360Enabled && (
+                <div className="pt-3 border-t border-slate-100">
+                  <EntityTimeline
+                    logs={logs}
+                    entityId={selectedClaimDetail.id}
+                    entityType="claim"
+                    title={t.claim360.timelineTitle}
+                    emptyLabel={t.claim360.noTimelineEvents}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

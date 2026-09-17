@@ -1,6 +1,6 @@
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, getDoc, getDocs, onSnapshot, setDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, getDocs, onSnapshot, collection } from 'firebase/firestore';
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   Language,
@@ -26,6 +26,9 @@ import { Topbar } from './components/Topbar';
 import { SyncIssueBanner } from './components/SyncIssueBanner';
 import { FallbackAlertBanner } from './components/FallbackAlertBanner';
 import { LoginView } from './components/auth/LoginView';
+// === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande explicite),
+// affiché avant LoginView — voir usage plus bas (bloc `authStatus === 'unauthenticated'`).
+import { WorkspaceSelectionView } from './components/auth/WorkspaceSelectionView';
 import { AuthLoadingScreen } from './components/auth/AuthLoadingScreen';
 import { AuthBlockedScreen } from './components/auth/AuthBlockedScreen';
 import { ChangePasswordModal } from './components/auth/ChangePasswordModal';
@@ -123,6 +126,40 @@ export default function App() {
   const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [forcedFirstLogin, setForcedFirstLogin] = useState(false);
   const [forcedPasswordExpiry, setForcedPasswordExpiry] = useState(false);
+
+  // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande
+  // explicite), affiché avant la page de connexion tant qu'aucun espace n'a été choisi.
+  // Persisté en sessionStorage (comme `activa_current_section` déjà utilisé ailleurs dans ce
+  // fichier) pour survivre à un rechargement de page ; nettoyé automatiquement à la
+  // déconnexion (voir `handleLogout`, qui appelle déjà `sessionStorage.clear()`), pour que
+  // l'utilisateur retrouve bien l'écran de sélection après s'être déconnecté. Purement une
+  // question de navigation/affichage avant connexion — aucun impact sur l'authentification
+  // Firebase, la résolution du rôle ou les sections accessibles une fois connecté.
+  const WORKSPACE_SELECTION_STORAGE_KEY = 'activa_selected_workspace';
+  const [selectedWorkspace, setSelectedWorkspace] = useState<AppRole | null>(() => {
+    try {
+      return (sessionStorage.getItem(WORKSPACE_SELECTION_STORAGE_KEY) as AppRole | null) || null;
+    } catch {
+      return null;
+    }
+  });
+  const handleSelectWorkspace = (role: AppRole) => {
+    setSelectedWorkspace(role);
+    try {
+      sessionStorage.setItem(WORKSPACE_SELECTION_STORAGE_KEY, role);
+    } catch {
+      // sessionStorage indisponible -> l'écran de sélection réapparaîtra simplement au
+      // prochain rechargement, sans bloquer la navigation en cours.
+    }
+  };
+  const handleBackToWorkspaceSelection = () => {
+    setSelectedWorkspace(null);
+    try {
+      sessionStorage.removeItem(WORKSPACE_SELECTION_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
 
   // Inactivity Auto-Logout
   // === AMÉLIORATION AJOUTÉE : délai réduit à 5 minutes (300s) d'inactivité, avertissement
@@ -293,7 +330,11 @@ export default function App() {
                 const usersDocSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
                 if (usersDocSnap.exists()) {
                   const uData = usersDocSnap.data();
-                  await setDoc(doc(db, 'accounts', firebaseUser.uid), { ...uData, id: firebaseUser.uid }, { merge: true });
+                  // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04,
+                  // 2026-09-11) — passe par FirestoreService.linkLegacyUserAccount() au lieu
+                  // d'un setDoc direct, pour que la collection accounts n'ait plus qu'un seul
+                  // chemin d'écriture (voir src/services/firestore.ts). Comportement identique.
+                  await FirestoreService.linkLegacyUserAccount(firebaseUser.uid, { ...uData, id: firebaseUser.uid });
                   return;
                 }
 
@@ -681,9 +722,22 @@ export default function App() {
   };
 
   const handleCreateClaim = async (newClaim: Partial<Claim>) => {
-    await WorkflowService.submitClaim(newClaim, currentUser);
-    setToastMessage("Claim submitted for review.");
-    setTimeout(() => setToastMessage(null), 3000);
+    const { medicalFormLinkFailed } = await WorkflowService.submitClaim(newClaim, currentUser);
+    // === AMÉLIORATION AJOUTÉE : robustesse (auto-revue, 2026-09-12) — le claim est toujours créé
+    // avec succès à ce stade ; si seul le report du lien vers la fiche maladie a échoué en
+    // arrière-plan, on le signale distinctement plutôt que de laisser l'agent croire (ou ne
+    // jamais savoir) que le rattachement a fonctionné.
+    if (medicalFormLinkFailed) {
+      setToastMessage(
+        lang === 'fr'
+          ? "Réclamation soumise, mais une erreur est survenue lors du rattachement à la fiche maladie — à vérifier manuellement."
+          : "Claim submitted, but an error occurred while linking it to the medical form — please verify manually."
+      );
+      setTimeout(() => setToastMessage(null), 6000);
+    } else {
+      setToastMessage("Claim submitted for review.");
+      setTimeout(() => setToastMessage(null), 3000);
+    }
   };
 
   // ENROLLMENTS HANDLERS WITH POPULATION UPON APPROVAL
@@ -828,10 +882,35 @@ export default function App() {
     const orgFailures = orgResults.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
 
     // 2. Add or update members in Firestore — every record attempted independently
+    //
+    // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (revue 2026-09-11 — doublons sur import
+    // partiellement échoué) ===
+    // Constat : un import réparti sur `Promise.allSettled` peut réussir pour une partie des
+    // lignes et échouer pour le reste (ex. coupure réseau à mi-parcours). Si l'utilisateur
+    // relance ALORS le même import, `parseMemberExcel`/`parseActivaMultiOrgExcel` régénèrent un
+    // `id` client tout neuf (`mem-imp-${Date.now()}-...`) pour chaque ligne — le seul rempart
+    // contre une recréation en double des lignes déjà enregistrées avec succès est que l'état
+    // local `members` (alimenté par l'abonnement Firestore temps réel) ait déjà rattrapé ces
+    // écritures avant le nouvel essai, ce qui n'est jamais garanti (latence réseau, retry trop
+    // rapide, rechargement de page). En cas de décalage, `i.id` ne correspond à AUCUN membre
+    // existant et la ligne repart sur `addMember` → doublon Firestore.
+    // Correctif : avant de choisir addMember/updateMember, on revérifie CHAQUE ligne par sa clé
+    // métier stable (`cardNo`, déjà unique et obligatoire — voir Centralized Card Number
+    // Management System) contre l'état `members` le plus frais disponible à cet instant, en plus
+    // de la correspondance par `id`. Si une ligne "nouvelle" selon le parseur correspond en
+    // réalité à un `cardNo` déjà présent en base, elle est redirigée vers `updateMember` avec le
+    // VRAI id Firestore — élimine le doublon au lieu de compter sur le seul timing de la
+    // synchronisation temps réel.
     const memberResults = await Promise.allSettled(
       imported.map((i) => {
-        if (i.id && members.some((m) => m.id === i.id)) {
-          return FirestoreService.updateMember(i as Member);
+        const existingById = i.id ? members.find((m) => m.id === i.id) : undefined;
+        const existingByCard =
+          !existingById && i.cardNo
+            ? members.find((m) => m.cardNo?.toLowerCase() === i.cardNo!.toLowerCase())
+            : undefined;
+        const existing = existingById || existingByCard;
+        if (existing) {
+          return FirestoreService.updateMember({ ...i, id: existing.id } as Member);
         }
         return FirestoreService.addMember(i);
       })
@@ -1076,11 +1155,26 @@ export default function App() {
 
   // 2. Unauthenticated screen: render clean, secured Login view
   if (authStatus === 'unauthenticated') {
+    // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande
+    // explicite), affiché en premier tant qu'aucun espace n'a été choisi — voir
+    // `selectedWorkspace` ci-dessus. Une fois un espace choisi, la page de connexion existante
+    // (LoginView) s'affiche exactement comme avant, avec juste un rappel de l'espace choisi.
+    if (!selectedWorkspace) {
+      return (
+        <WorkspaceSelectionView
+          lang={lang}
+          onLanguageChange={handleLanguageChange}
+          onSelectWorkspace={handleSelectWorkspace}
+        />
+      );
+    }
     return (
       <LoginView
         onLoginSuccess={handleLoginSuccess}
         lang={lang}
         onLanguageChange={handleLanguageChange}
+        selectedWorkspace={selectedWorkspace}
+        onBackToWorkspaceSelection={handleBackToWorkspaceSelection}
       />
     );
   }
@@ -1292,6 +1386,8 @@ export default function App() {
                 ceilings={ceilings}
                 lang={lang}
                 preselectedMember={selectedMemberForClaim}
+                logs={logs}
+                medicalForms={medicalForms}
                 onCreateClaim={handleCreateClaim}
               />
             ) : (
@@ -1302,6 +1398,7 @@ export default function App() {
                 organizations={organizations}
                 providers={providers}
                 members={members}
+                logs={logs}
                 onApprove={handleApproveClaim}
                 onReject={handleRejectClaim}
                 onReturn={handleReturnClaim}
@@ -1397,6 +1494,7 @@ export default function App() {
               organizations={organizations}
               providers={providers}
               members={members}
+              logs={logs}
               onApprove={handleApproveClaim}
               onReject={handleRejectClaim}
               onReturn={handleReturnClaim}
@@ -1528,7 +1626,7 @@ export default function App() {
                 <Icon className={`w-5 h-5 ${isActive ? activeRoleTheme.palette.activeIconColor : ''}`} />
                 <span className="text-[10px] mt-0.5">{item.label}</span>
                 {!!item.badge && item.badge > 0 && (
-                  <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                  <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[10px] font-black rounded-full flex items-center justify-center">
                     {item.badge}
                   </span>
                 )}
@@ -1587,12 +1685,16 @@ export default function App() {
 
               await updatePassword(auth.currentUser, newPwd);
 
-              const { doc, updateDoc, deleteField: deleteFieldFn } = await import('firebase/firestore');
+              const { deleteField: deleteFieldFn } = await import('firebase/firestore');
               // === AMÉLIORATION AJOUTÉE : sécurité (audit) — l'utilisateur vient de définir
               // son vrai mot de passe Firebase Auth ; tout mot de passe (en clair ou haché)
               // encore stocké sur ce compte pour l'ancien mécanisme de secours n'a plus lieu
               // d'être conservé — Firebase Auth fait désormais foi à chaque connexion.
-              await updateDoc(doc(db, 'accounts', auth.currentUser.uid), {
+              // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04,
+              // 2026-09-11) — passe par FirestoreService.updateAccount() au lieu d'un updateDoc
+              // direct (voir src/services/firestore.ts). Comportement identique.
+              await FirestoreService.updateAccount({
+                id: auth.currentUser.uid,
                 isTemporaryPassword: false,
                 mustChangePassword: false,
                 passwordChangedAt: new Date().toISOString(),

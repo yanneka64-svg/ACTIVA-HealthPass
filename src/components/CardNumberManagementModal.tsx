@@ -91,7 +91,7 @@ export const CardNumberManagementModal: React.FC<CardNumberManagementModalProps>
         </div>
 
         <div className="p-6 space-y-5 overflow-y-auto">
-          <p className="text-[10.5px] text-slate-400 leading-relaxed">
+          <p className="text-[11px] text-slate-400 leading-relaxed">
             Format: 11 alphanumeric characters (A-Z, 0-9) — entered manually at enrollment, or already
             present in the file used for Excel import. Numbers are never generated automatically.
           </p>

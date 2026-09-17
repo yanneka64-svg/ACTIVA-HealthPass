@@ -1,8 +1,7 @@
 import { FirestoreService } from '../../services/firestore';
 import { createUserWithEmailAndPassword, updatePassword } from 'firebase/auth';
-import { auth, secondaryAuth, db, functions } from '../../lib/firebase';
+import { auth, secondaryAuth, functions } from '../../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import { doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import {
   ShieldCheck,
@@ -450,7 +449,11 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
         passwordChangedAt: new Date().toISOString(),
         createdAt: new Date().toISOString().split('T')[0]
       };
-      await setDoc(doc(db, 'accounts', uid), newAccountDoc);
+      // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04, retour
+      // utilisateur 2026-09-11) — passe par FirestoreService.addAccount() au lieu d'un setDoc
+      // direct, pour que la collection accounts n'ait plus qu'un seul chemin d'écriture (voir
+      // src/services/firestore.ts). Comportement identique.
+      await FirestoreService.addAccount(newAccountDoc);
     } catch (err: any) {
       console.error(err);
       setFormError(err.message || t.accounts.firebaseCreationErrorFallback);
@@ -532,7 +535,11 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
 
     try {
       // Update in Firestore
-      await updateDoc(doc(db, 'accounts', selectedAccount.id), {
+      // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04, retour
+      // utilisateur 2026-09-11) — passe par FirestoreService.updateAccount() au lieu d'un
+      // updateDoc direct (voir src/services/firestore.ts). Comportement identique.
+      await FirestoreService.updateAccount({
+        id: selectedAccount.id,
         email: formData.email,
         fullName: formData.fullName,
         position: formData.position,
@@ -605,15 +612,29 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
     });
   };
 
-  const handleToggleStatus = (acc: UserAccount) => {
+  // === AMÉLIORATION AJOUTÉE : sécurité/correctif (revue d'audit, 2026-09-11) — cette fonction
+  // affichait auparavant un toast de succès inconditionnel juste après avoir lancé l'écriture
+  // Firestore, dont l'échec était silencieusement ignoré (`.catch(() => {})`) : un compte que
+  // l'on croit désactivé (ex. employé parti) pouvait rester actif en base si l'écriture
+  // échouait, sans que rien ne le signale à l'écran. Passe désormais par un await + try/catch,
+  // même pattern que handleDeleteAccount juste en dessous : le toast de succès ne s'affiche
+  // qu'après confirmation réelle de l'écriture, et un échec affiche un toast d'erreur explicite
+  // au lieu de rien.
+  const handleToggleStatus = async (acc: UserAccount) => {
     const updatedStatus = !acc.isActive;
-    
-    // Sync with Firestore
-    import('firebase/firestore').then(({ doc, updateDoc }) => {
-      updateDoc(doc(db, 'accounts', acc.id), { isActive: updatedStatus }).catch(() => {});
-    });
-    
     const accLabel = acc.fullName || acc.username;
+
+    try {
+      await FirestoreService.updateAccount({ id: acc.id, isActive: updatedStatus });
+    } catch (err: any) {
+      console.error('Account status update failed:', err);
+      showToast(
+        err?.message ||
+          t.accounts.accountStatusUpdateFailedToastTemplate.replace('{name}', accLabel)
+      );
+      return;
+    }
+
     showToast(
       updatedStatus
         ? t.accounts.accountActivatedToastTemplate.replace('{name}', accLabel)
@@ -825,7 +846,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                         <span className="text-[10px] text-slate-400 block mt-1">
                           {t.accounts.createdOnLabel} {acc.createdAt}
                           {!acc.isActive && (
-                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700">
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
                               {t.accounts.inactiveBadge}
                             </span>
                           )}
@@ -1851,7 +1872,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
                       <tr key={row.id} className="hover:bg-slate-50 transition-colors">
                         <td className="py-3 px-3">
                           <div className="font-bold text-slate-900">{row.feature}</div>
-                          <div className="text-[10.5px] text-slate-500">{row.description}</div>
+                          <div className="text-[11px] text-slate-500">{row.description}</div>
                         </td>
                         <td className="py-3 px-3">
                           <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] font-bold">

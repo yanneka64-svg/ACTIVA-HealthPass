@@ -36,11 +36,11 @@
 // principe de cloisonnement plutôt que de le réintroduire à moitié.
 //
 // Compatibilité : les fichiers déjà déposés AVANT le correctif de cloisonnement suivent
-// l'ancien format plat (`member-photos/{fichier}`, sans segment d'organisation). Ils restent
-// lisibles/écrits par tout utilisateur actif authentifié exactement comme avant (règle
-// `legacy` ci-dessous) — aucune régression sur les photos déjà en place. La validation
-// MIME/taille n'est pas rétro-appliquée à ces anciens chemins (risquerait de bloquer des
-// fichiers déjà stockés qui n'auraient jamais été validés à l'écriture).
+// l'ancien format plat (`member-photos/{fichier}`, sans segment d'organisation). Depuis le
+// correctif du 2026-09-11 (voir la règle `legacy` ci-dessous), ces chemins sont fermés en
+// lecture/écriture pour tout nouvel accès — sans casser l'affichage des photos déjà en place,
+// dont l'URL de téléchargement déjà émise reste valable indépendamment des règles Storage
+// (voir le commentaire détaillé sur la règle `legacy`).
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
@@ -111,15 +111,39 @@ service firebase.storage {
     }
 
     // --- Chemins plats historiques (pré-existants avant le cloisonnement par organisation,
-    // sans segment d'organisation) — comportement inchangé : authentifié + compte actif
-    // uniquement, sans validation MIME/taille rétroactive. Suppression alignée sur le
-    // durcissement du 2026-09-06 (Admin uniquement, cohérent avec les chemins ci-dessus). ---
+    // sans segment d'organisation) ---
+    //
+    // === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11 — anciens chemins Storage non
+    // cloisonnés) ===
+    // Constat : `allow read, write: if isSignedIn() && isActiveUser()` ci-dessous donnait à
+    // TOUT utilisateur actif authentifié, quelle que soit son organisation, un accès en
+    // lecture/écriture à N'IMPORTE QUEL fichier sous ces deux préfixes plats — exactement le
+    // défaut de cloisonnement par organisation que le correctif du 2026-09-05 (voir plus haut)
+    // visait à corriger, laissé ouvert ici pour ces deux seuls chemins. Vérifié : les 3 seuls
+    // appelants de `uploadPhotoOrFallback` dans l'application (MembersView.tsx,
+    // AgentEnrollmentsView.tsx, EnrollmentsView.tsx) passent TOUJOURS `organization` (chaîne non
+    // vide, validée en amont — voir `!formOrg.trim()` dans MembersView.tsx) : plus AUCUNE
+    // écriture applicative n'atterrit sur ces chemins plats depuis le correctif du 2026-09-05,
+    // seuls des fichiers déposés AVANT lui y restent.
+    // Correctif : `write` fermé (`if false`) — aucun flux légitime n'écrit plus ici, une
+    // écriture sur ce chemin ne peut donc plus provenir que d'un contournement de l'UI.
+    // `read` fermé également (`if false`) SANS casser l'affichage des photos déjà enregistrées :
+    // `getDownloadURL()` (déjà appelé une fois, au moment de l'upload) renvoie une URL portant
+    // un jeton d'accès propre au fichier — ce jeton, une fois émis et stocké dans le champ
+    // `photoUrl` du membre/de l'inscription en Firestore, donne accès au fichier indépendamment
+    // des règles de sécurité Storage (comportement documenté de Firebase Storage), donc les
+    // `<img src={photoUrl}>` déjà affichés continuent de fonctionner à l'identique. Ce que ce
+    // correctif ferme, c'est la possibilité pour un utilisateur authentifié de N'IMPORTE QUELLE
+    // organisation de FORGER lui-même un nouveau jeton (`ref(storage, 'member-photos/...').
+    // getDownloadURL()`) pour un fichier qu'il n'a jamais légitimement reçu — exactement le
+    // scénario de fuite inter-organisation documenté par l'audit. Suppression conservée
+    // Admin uniquement (permet un nettoyage/une purge de ces anciens fichiers si besoin).
     match /member-photos/{fileName} {
-      allow read, write: if isSignedIn() && isActiveUser();
+      allow read, write: if false;
       allow delete: if isAdmin();
     }
     match /enrollment-photos/{fileName} {
-      allow read, write: if isSignedIn() && isActiveUser();
+      allow read, write: if false;
       allow delete: if isAdmin();
     }
 

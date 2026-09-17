@@ -235,9 +235,26 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Retained Amount</label>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <div className="flex flex-col">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 h-3.5 leading-[14px]">Original</label>
+                        {hasOriginalBreakdown ? (
+                          <div className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 text-right">
+                            {formatAmount(act.amount)}
+                          </div>
+                        ) : (
+                          <input
+                            type="number"
+                            value={act.amount}
+                            min={0}
+                            step="0.01"
+                            onChange={(e) => handleActAmountChange(i, e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-right"
+                          />
+                        )}
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 h-3.5 leading-[14px]">Retained</label>
                         <input
                           type="number"
                           value={retained[i]}
@@ -245,11 +262,11 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                           min={0}
                           step="0.01"
                           onChange={(e) => handleRetainedChange(i, e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-right"
                         />
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Rejected (Réfaction)</label>
+                      <div className="flex flex-col">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 h-3.5 leading-[14px] truncate" title="Rejected (Réfaction)">Rejected</label>
                         <input
                           type="number"
                           value={rejected}
@@ -257,7 +274,7 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                           min={0}
                           step="0.01"
                           onChange={(e) => handleRefactedChange(i, e.target.value)}
-                          className={`w-full px-3 py-2 rounded-lg text-xs font-bold border ${rejected > 0 ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-slate-200 text-slate-800'}`}
+                          className={`w-full px-3 py-2 rounded-lg text-xs font-bold border text-right ${rejected > 0 ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-slate-200 text-slate-800'}`}
                         />
                       </div>
                     </div>
@@ -289,7 +306,7 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
             )}
 
             {!hasOriginalBreakdown && (
-              <p className={`text-[10.5px] font-semibold ${linesMismatch ? 'text-rose-600' : 'text-slate-400'}`}>
+              <p className={`text-[11px] font-semibold ${linesMismatch ? 'text-rose-600' : 'text-slate-400'}`}>
                 Lines total: {formatAmount(totalOriginal)} of {formatAmount(invoice.amount)} — must match the original invoice amount exactly.
               </p>
             )}

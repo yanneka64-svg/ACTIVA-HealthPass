@@ -29,7 +29,10 @@ import { Member, Claim, Language, Organization, HealthPolicy } from '../../types
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
-import { formatRelationship, getMemberDependents } from '../settings/MembersView';
+// === AMÉLIORATION AJOUTÉE : import direct depuis le module utilitaire léger (auto-revue,
+// 2026-09-12) — mêmes fonctions, déplacées depuis MembersView.tsx vers memberUtils.ts (aucun
+// changement de comportement). Voir le commentaire dans src/utils/memberUtils.ts.
+import { formatRelationship, getMemberDependents } from '../../utils/memberUtils';
 // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring — la
 // vérification de couverture est intégrée directement dans le parcours d'identification
 // existant, en réutilisant le même moteur centralisé que partout ailleurs (Claims, Reports,
@@ -149,16 +152,16 @@ const CircularGauge: React.FC<{
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-sm font-black text-slate-800">{usedPct}%</span>
-            <span className="text-[8px] font-bold text-slate-400 uppercase">{usedText}</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase">{usedText}</span>
           </div>
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{remainingBalanceText}</div>
           <div className="text-lg font-black text-[#00A859] truncate">{balanceLabel}</div>
-          <div className="text-[10.5px] text-slate-500 font-medium truncate">{ofText} {ceilingLabel} {ceilingSuffixText}</div>
+          <div className="text-[11px] text-slate-500 font-medium truncate">{ofText} {ceilingLabel} {ceilingSuffixText}</div>
         </div>
       </div>
-      <div className="text-[10.5px] text-slate-500 font-medium pt-1 border-t border-slate-100">
+      <div className="text-[11px] text-slate-500 font-medium pt-1 border-t border-slate-100">
         {consumedText} <span className="font-bold text-slate-700">{consumedLabel}</span>
       </div>
     </div>
@@ -400,6 +403,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     <div className="space-y-6">
       {/* 1. TOP SEARCH & ACTION BAR */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center gap-3">
+        {/* === AMÉLIORATION AJOUTÉE : cohérence des couleurs (audit design, 2026-09-11) —
+            l'accent Agent de cet écran utilisait #0A347B/#08285e, distinct du token officiel
+            `brand-900` (#0a2e6b, roleTheme.ts) utilisé pour ce même rôle sémantique ailleurs
+            dans l'app. Unifié sur #0a2e6b/#07214f dans tout le fichier — aucun changement
+            visuel perceptible, juste une seule et même teinte partout. */}
         <form onSubmit={handleSearchSubmit} className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
@@ -407,7 +415,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t.agentId.searchPlaceholder}
-            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A347B] focus:bg-white transition"
+            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
           />
         </form>
 
@@ -424,7 +432,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             <button
               type="button"
               onClick={onNewEnrollment}
-              className="px-4 py-3 rounded-xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[#0A347B] hover:bg-[#08285e] text-white whitespace-nowrap"
+              className="px-4 py-3 rounded-xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[var(--brand-900)] hover:bg-[#07214f] text-white whitespace-nowrap"
             >
               <PlusCircle className="w-4 h-4" />
               <span>{t.agentId.newEnrollment}</span>
@@ -483,14 +491,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     type="button"
                     onClick={() => setSelectedBeneficiary(b)}
                     className={`w-full text-left p-3 rounded-xl border transition flex items-center gap-3 cursor-pointer ${
-                      isSelected ? 'border-[#0A347B] bg-blue-50/60 ring-1 ring-[#0A347B]/30' : 'border-slate-200 hover:bg-slate-50'
+                      isSelected ? 'border-[var(--brand-900)] bg-blue-50/60 ring-1 ring-[var(--brand-900)]/30' : 'border-slate-200 hover:bg-slate-50'
                     }`}
                   >
                     <div className="relative w-11 h-11 rounded-xl bg-blue-100/60 border border-blue-200 flex items-center justify-center overflow-hidden shrink-0">
                       {b.photoUrl ? (
                         <img src={b.photoUrl} alt={b.fullName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
-                        <User className="w-5 h-5 text-[#0A347B]" />
+                        <User className="w-5 h-5 text-[var(--brand-900)]" />
                       )}
                       {(b.hasBiometrics || b.fingerprintScore) && (
                         <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
@@ -500,17 +508,17 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-xs text-slate-900 truncate">{b.fullName}</div>
-                      <div className="font-mono text-[11px] font-bold text-[#0A347B]">{b.cardNo}</div>
-                      <div className="text-[10.5px] text-slate-400 truncate flex items-center gap-1">
+                      <div className="font-mono text-[11px] font-bold text-[var(--brand-900)]">{b.cardNo}</div>
+                      <div className="text-[11px] text-slate-400 truncate flex items-center gap-1">
                         <Building2 className="w-3 h-3 shrink-0" />
                         <span className="truncate">{b.organization}</span>
                       </div>
-                      <div className="text-[10.5px] text-slate-400">
+                      <div className="text-[11px] text-slate-400">
                         {age !== null ? `${age} ${t.agentId.ageUnit}` : '—'} • {t.agentId.genderLabel} {b.gender === 'F' ? 'F' : 'M'}
                       </div>
                     </div>
                     <span
-                      className={`shrink-0 px-2 py-0.5 rounded-full text-[9.5px] font-bold ${
+                      className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         b.status === 'Active' || b.status === 'Actif'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -546,7 +554,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             <button
               type="button"
               onClick={() => setSelectedBeneficiary(null)}
-              className="lg:hidden flex items-center gap-1.5 text-xs font-bold text-[#0A347B] hover:text-[#08285e] cursor-pointer"
+              className="lg:hidden flex items-center gap-1.5 text-xs font-bold text-[var(--brand-900)] hover:text-[#07214f] cursor-pointer"
             >
               <ChevronRight className="w-3.5 h-3.5 rotate-180" />
               <span>{t.agentId.newSearch}</span>
@@ -606,7 +614,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                       </span>
                     )}
                     {(selectedBeneficiary.hasBiometrics || selectedBeneficiary.fingerprintScore) && (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-[#0A347B] border border-blue-200">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-50 text-[var(--brand-900)] border border-blue-200">
                         {t.agentId.icaoCompliant}
                       </span>
                     )}
@@ -689,7 +697,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                   >
                     <div className="flex items-center justify-between gap-2">
                       <h4
-                        className={`text-[10.5px] font-black uppercase tracking-wide flex items-center gap-1 ${
+                        className={`text-[11px] font-black uppercase tracking-wide flex items-center gap-1 ${
                           policyCoverage.status === 'Active'
                             ? 'text-emerald-800'
                             : policyCoverage.status === 'Expiring Soon'
@@ -706,7 +714,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                           {policyCoverage.status === 'Pending Renewal' && t.agentId.policyPendingRenewal}
                         </span>
                       </h4>
-                      <span className="text-[9.5px] font-mono font-bold text-slate-500 shrink-0">{t.agentId.policyLabel} {selectedPolicy.policyNumber}</span>
+                      <span className="text-[10px] font-mono font-bold text-slate-500 shrink-0">{t.agentId.policyLabel} {selectedPolicy.policyNumber}</span>
                     </div>
 
                     {policyCoverage.status === 'Active' && (
@@ -751,7 +759,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                      <Shield className="w-4 h-4 text-[#0A347B]" />
+                      <Shield className="w-4 h-4 text-[var(--brand-900)]" />
                       <span>{t.agentId.coverageBalancesTitle}</span>
                     </h4>
                     <span className="text-[11px] font-semibold text-slate-400">{t.agentId.contractualCeilings}</span>
@@ -761,7 +769,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     <CircularGauge
                       label={t.agentId.outpatientConsultation}
                       icon={<Stethoscope className="w-3.5 h-3.5" />}
-                      ringColor="#0A347B"
+                      ringColor="#0a2e6b"
                       unitLabel="USD ($)"
                       balanceLabel={formatAmount(selectedBeneficiary.outpatientBalanceUSD ?? 500)}
                       ceilingLabel={formatAmount(selectedBeneficiary.outpatientCeilingUSD ?? 500)}
@@ -822,11 +830,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                        <Users className="w-4 h-4 text-[#0A347B]" />
+                        <Users className="w-4 h-4 text-[var(--brand-900)]" />
                         <span>{t.agentId.familyDependents} ({dependentsList.length + 1})</span>
                       </h4>
                     </div>
-                    <span className="block text-[10.5px] font-semibold text-slate-400 -mt-2">{t.agentId.clickToSelect}</span>
+                    <span className="block text-[11px] font-semibold text-slate-400 -mt-2">{t.agentId.clickToSelect}</span>
 
                     <div className="grid grid-cols-2 gap-2.5">
                       {/* Principal (Self) */}
@@ -841,11 +849,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                             type="button"
                             onClick={() => handleSelectFamilyMember(principalSelf.fullName, true)}
                             className={`relative text-left p-2.5 rounded-xl border transition cursor-pointer ${
-                              isSelf ? 'border-[#0A347B] bg-blue-50/60 ring-1 ring-[#0A347B]/30' : 'border-slate-200 hover:bg-slate-50'
+                              isSelf ? 'border-[var(--brand-900)] bg-blue-50/60 ring-1 ring-[var(--brand-900)]/30' : 'border-slate-200 hover:bg-slate-50'
                             }`}
                           >
                             {isSelf && (
-                              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#0A347B] flex items-center justify-center">
+                              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[var(--brand-900)] flex items-center justify-center">
                                 <Check className="w-2.5 h-2.5 text-white" />
                               </span>
                             )}
@@ -853,12 +861,12 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                               {principalSelf.photoUrl ? (
                                 <img src={principalSelf.photoUrl} alt={principalSelf.fullName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                               ) : (
-                                <User className="w-4 h-4 text-[#0A347B]" />
+                                <User className="w-4 h-4 text-[var(--brand-900)]" />
                               )}
                             </div>
                             <div className="font-bold text-[11px] text-slate-900 truncate">{principalSelf.fullName}</div>
-                            <div className="text-[9.5px] font-bold text-[#0A347B]">{t.agentId.principalSelf}</div>
-                            <div className="text-[9.5px] text-slate-400 font-mono">
+                            <div className="text-[10px] font-bold text-[var(--brand-900)]">{t.agentId.principalSelf}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">
                               {calculateAgeNumber(principalSelf.birthDate) ?? '—'} {t.agentId.ageUnit}
                             </div>
                           </button>
@@ -876,11 +884,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                             type="button"
                             onClick={() => handleSelectFamilyMember(dep.fullName, false)}
                             className={`relative text-left p-2.5 rounded-xl border transition cursor-pointer ${
-                              isSelectedDep ? 'border-[#0A347B] bg-blue-50/60 ring-1 ring-[#0A347B]/30' : 'border-slate-200 hover:bg-slate-50'
+                              isSelectedDep ? 'border-[var(--brand-900)] bg-blue-50/60 ring-1 ring-[var(--brand-900)]/30' : 'border-slate-200 hover:bg-slate-50'
                             }`}
                           >
                             {isSelectedDep && (
-                              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#0A347B] flex items-center justify-center">
+                              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[var(--brand-900)] flex items-center justify-center">
                                 <Check className="w-2.5 h-2.5 text-white" />
                               </span>
                             )}
@@ -888,8 +896,8 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                               <User className="w-4 h-4 text-slate-400" />
                             </div>
                             <div className="font-bold text-[11px] text-slate-900 truncate">{dep.fullName}</div>
-                            <div className="text-[9.5px] font-bold text-slate-500 truncate">{formatRelationship(dep.relationship)}</div>
-                            <div className="text-[9.5px] text-slate-400 font-mono">
+                            <div className="text-[10px] font-bold text-slate-500 truncate">{formatRelationship(dep.relationship)}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">
                               {dep.age ? `${dep.age} ${t.agentId.ageUnit}` : '—'}
                             </div>
                           </button>
@@ -909,7 +917,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                   <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                       <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-[#0A347B]" />
+                        <Clock className="w-4 h-4 text-[var(--brand-900)]" />
                         <span>{t.agentId.careHistory}</span>
                       </h4>
                       <span className="text-[10px] font-semibold text-slate-400">{currentMonthLabel}</span>
@@ -926,10 +934,10 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <div className="font-bold text-xs text-slate-800">{claim.serviceDate}</div>
-                                <div className="text-[10px] text-[#0A347B] font-mono">{claim.reference}</div>
+                                <div className="text-[10px] text-[var(--brand-900)] font-mono">{claim.reference}</div>
                               </div>
                               <span
-                                className={`shrink-0 inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
+                                className={`shrink-0 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                   claim.status === 'Validated' || claim.status === 'Approved' || claim.status === 'approved'
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : claim.status === 'Rejected' || claim.status === 'rejected'
