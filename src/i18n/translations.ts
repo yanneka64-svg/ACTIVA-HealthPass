@@ -145,6 +145,22 @@ export const translations = {
       updatePasswordBtn: 'Update & Proceed',
       invalidCredentials: 'Invalid credentials. Please try again.',
       passwordChangedSuccess: 'Password successfully updated.',
+      // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail, affiché
+      // avant la page de connexion (demande explicite) — voir WorkspaceSelectionView.tsx.
+      workspaceSelectTitle: 'Welcome',
+      workspaceSelectSubtitle: 'Select your workspace to continue.',
+      workspaceAgentTitle: 'Medical Agent',
+      workspaceAgentDesc: 'Identification, medical records, claims and enrollments',
+      workspaceSupervisorTitle: 'Supervisor',
+      workspaceSupervisorDesc: 'Claims & enrollments validation, reports',
+      workspaceAdminTitle: 'Administrator',
+      workspaceAdminDesc: 'Full management: members, organizations, ceilings, accounts',
+      workspaceSelectedPrefix: 'Workspace: ',
+      workspaceChangeLink: 'Change workspace',
+      // === AMÉLIORATION AJOUTÉE : nouvelle accroche de la carte de connexion (redesign
+      // explicite, 2026-09-17) — remplace visuellement `signInSubtitle` (conservée, toujours
+      // utilisée telle quelle ailleurs) sur cet écran précis.
+      loginHeading: 'Access your secure workspace',
     },
 
     // Dashboard
@@ -1614,6 +1630,19 @@ export const translations = {
       updatePasswordBtn: 'Mettre à jour et continuer',
       invalidCredentials: 'Identifiants invalides. Veuillez réessayer.',
       passwordChangedSuccess: 'Mot de passe mis à jour avec succès.',
+      // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail, affiché
+      // avant la page de connexion (demande explicite) — voir WorkspaceSelectionView.tsx.
+      workspaceSelectTitle: 'Bienvenue',
+      workspaceSelectSubtitle: 'Sélectionnez votre espace de travail pour continuer.',
+      workspaceAgentTitle: 'Agent Médical',
+      workspaceAgentDesc: 'Identification, dossiers médicaux, réclamations et adhésions',
+      workspaceSupervisorTitle: 'Superviseur',
+      workspaceSupervisorDesc: 'Validation des réclamations et adhésions, rapports',
+      workspaceAdminTitle: 'Administrateur',
+      workspaceAdminDesc: 'Gestion complète : membres, organisations, plafonds, comptes',
+      workspaceSelectedPrefix: 'Espace : ',
+      workspaceChangeLink: "Changer d'espace",
+      loginHeading: 'Accédez à votre espace de travail sécurisé',
     },
 
     dashboard: {

@@ -1,23 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff } from 'lucide-react';
+import { Lock, User, LogIn, AlertCircle, Globe, Eye, EyeOff } from 'lucide-react';
 import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { Logo } from '../Logo';
-import activaLogoOriginal from '../../assets/logos/logo-activa.png';
-// === AMÉLIORATION AJOUTÉE : photo fournie par l'utilisateur pour remplacer le fond bleu uni
-// du panneau gauche de la page de connexion (retour utilisateur explicite, 2026-09-11).
-import loginDoctorPhoto from '../../assets/login-doctor.webp';
 import { auth, functions, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { getClientLocationInfo, parseUserAgent } from '../../utils/geoUtils';
 import { FirestoreService } from '../../services/firestore';
+import { AppRole } from '../../utils/authUtils';
 
 interface LoginViewProps {
   onLoginSuccess: (user: any, accountData?: any) => void;
   lang: Language;
   onLanguageChange?: (lang: Language) => void;
+  // === AMÉLIORATION AJOUTÉE : props optionnelles (demande explicite) reliant ce formulaire au
+  // nouvel écran de sélection d'espace de travail (WorkspaceSelectionView, affiché avant cette
+  // page). Purement informatif/navigation : aucun impact sur la validation, l'authentification
+  // Firebase ou les messages d'erreur ci-dessous, strictement inchangés. Optionnelles pour ne
+  // rien casser si ce composant est utilisé ailleurs sans cet écran en amont.
+  selectedWorkspace?: AppRole | null;
+  onBackToWorkspaceSelection?: () => void;
 }
 
 // === ADDED IMPROVEMENT (security): temporary client-side lockout after repeated failed
@@ -97,6 +101,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
   onLoginSuccess,
   lang,
   onLanguageChange,
+  selectedWorkspace,
+  onBackToWorkspaceSelection,
 }) => {
   // === AMÉLIORATION AJOUTÉE : cet écran ignorait totalement `lang`/`onLanguageChange`
   // jusqu'ici (props déclarées mais jamais utilisées) — voir aussi les deux pastilles de
@@ -108,20 +114,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [lockoutRemainingSec, setLockoutRemainingSec] = useState(0);
-  // === AMÉLIORATION AJOUTÉE : correctif logo (retour utilisateur, 2026-09-11 — "le logo sur
-  // la bande bleue" affiche parfois une icône d'image cassée à la déconnexion) — un échec de
-  // chargement réseau ponctuel (asset local pourtant déjà mis en cache par le navigateur, mais
-  // parfois manqué juste après le remontage de cet écran à la déconnexion) ne se corrigeait
-  // jamais tout seul : une <img> standard n'a aucune logique de nouvelle tentative après une
-  // erreur. Jusqu'à 3 nouvelles tentatives, avec un court délai croissant ; `key` forcé à
-  // changer pour que React recrée bien un nouveau nœud <img> (remettre `src` à l'identique ne
-  // relance pas toujours une requête réseau dans tous les navigateurs).
-  const [logoRetryCount, setLogoRetryCount] = useState(0);
-  const handleLogoLoadError = () => {
-    if (logoRetryCount < 3) {
-      setTimeout(() => setLogoRetryCount((c) => c + 1), 350 * (logoRetryCount + 1));
-    }
-  };
+  // === AMÉLIORATION AJOUTÉE : état/gestion de nouvelle tentative de l'ancien logo du panneau
+  // bleu retirés (demande explicite, 2026-09-17) — ils ne servaient qu'à cette <img>, désormais
+  // supprimée avec le panneau lui-même.
 
   // Live countdown while locked out, so the user sees when they can retry.
   useEffect(() => {
@@ -410,259 +405,158 @@ export const LoginView: React.FC<LoginViewProps> = ({
     }
   };
 
-  // === AMÉLIORATION AJOUTÉE : page de connexion refaite en écran divisé (split-screen),
-  // sur demande explicite. Le panneau gauche reprend EXACTEMENT le dégradé bleu et le motif
-  // de courbes décoratif de la sidebar de l'interface Agent (voir src/theme/roleTheme.ts —
-  // AGENT_THEME.palette.sidebarGradient — et src/components/Sidebar.tsx pour le motif SVG).
-  // Le logo est désormais uniquement sur la partie blanche, agrandi et centré au-dessus de
-  // "Welcome Back!" pour être mieux mis en valeur. Le comportement du formulaire (validation,
-  // authentification Firebase, messages d'erreur) est strictement inchangé — seule la mise en
-  // page a été retravaillée. Sur mobile (le panneau bleu est masqué en dessous de lg), une
-  // barre compacte reprend les mêmes informations (portail sécurisé, langue, copyright) pour
-  // ne rien perdre de ce qui existait avant.
+  // === AMÉLIORATION AJOUTÉE : redesign complet de cet écran (demande explicite, 2026-09-17,
+  // maquette de référence fournie par l'utilisateur) — remplace l'ancien écran divisé
+  // (panneau bleu, déjà retiré) par une carte centrée unique sur fond neutre clair : badge
+  // circulaire (emblème ACTIVA), accroche, liseré bleu, champs encadrés, bouton ardoise avec
+  // icône de connexion. Comportement du formulaire (validation, authentification Firebase,
+  // verrouillage après échecs répétés, messages d'erreur, sélecteur de langue) strictement
+  // inchangé — seule la mise en page/l'habillage visuel a été retravaillé.
   return (
-    <div className="min-h-screen w-full flex font-sans antialiased select-none">
-      {/* Mobile-only top bar — repris du header existant, visible uniquement quand le panneau
-          bleu (masqué en dessous de lg) n'est pas affiché. */}
-      <div className="lg:hidden fixed top-0 inset-x-0 z-20 flex items-center justify-between gap-2 px-4 py-3 bg-white border-b border-[#E8EDF2]">
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63]">
-          <Shield className="w-3.5 h-3.5 text-[#0A347B]" />
-          <span>{t.auth.securePortal}</span>
-        </div>
-        {/* === AMÉLIORATION AJOUTÉE : véritable liste déroulante (2026-09-10, retour utilisateur
-            explicite — "je préfère la sélection") au lieu d'un bouton à cliquer pour basculer. === */}
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#EEF2F7] font-sans antialiased select-none px-4 py-10 relative">
+      {/* Sélecteur de langue — même comportement qu'avant (liste déroulante EN/FR), désormais
+          toujours visible en haut à droite (un seul sélecteur, quelle que soit la largeur
+          d'écran, puisqu'il n'y a plus de mise en page distincte mobile/desktop). */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
         <div className="relative">
-          <Globe className="w-3.5 h-3.5 text-[#0A34A3] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Globe className="w-3.5 h-3.5 text-[#0A34A3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <select
             value={lang || 'en'}
             onChange={(e) => onLanguageChange?.(e.target.value as Language)}
-            className="appearance-none pl-7 pr-5 py-1 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-[11px] font-semibold text-[#0D2B63] cursor-pointer focus:outline-none"
+            className="appearance-none pl-8 pr-6 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs cursor-pointer focus:outline-none"
             aria-label="Select display language"
           >
-            <option value="en">EN</option>
-            <option value="fr">FR</option>
+            <option value="en">English (Default)</option>
+            <option value="fr">Français</option>
           </select>
         </div>
       </div>
 
-      {/* LEFT PANEL — dégradé bleu + motif de courbes, identiques à la sidebar Agent.
-          === AMÉLIORATION AJOUTÉE : élargi (46%/44% -> 56%/54%) pour réduire d'autant la
-          largeur du panneau blanc du formulaire (retour utilisateur explicite). ===
-          === AMÉLIORATION AJOUTÉE : photo (docteur avec tablette) posée en fond du panneau,
-          à la place du bleu uni (retour utilisateur explicite, 2026-09-11 — "remplace le bleu
-          par la photo"). Le dégradé bleu d'origine est conservé en surcouche semi-transparente
-          au-dessus de la photo afin que le logo et les textes blancs restent parfaitement
-          lisibles, comme avant. === */}
-      <div
-        className="hidden lg:flex lg:w-[56%] xl:w-[54%] relative overflow-hidden flex-col justify-between p-10 xl:p-14 bg-cover bg-center"
-        style={{ backgroundImage: `url(${loginDoctorPhoto})` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-[#072659]/90 via-[#0A347B]/85 to-[#0D2B63]/92 pointer-events-none" />
-        {/* Halo lumineux — identique à Sidebar.tsx (accentGlow Agent: bg-blue-400/20) */}
-        <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
-
-        {/* === AMÉLIORATION AJOUTÉE : entrée en fondu/glissement, en cascade, du badge, du
-            titre, du texte et du copyright — sur demande explicite ("je veux que ces données
-            soient animées"). Contenu, couleurs et mise en page strictement inchangés.
-            === AMÉLIORATION AJOUTÉE : animation changée pour un glissement LATÉRAL plus lent
-            (2026-09-10, retour utilisateur — proposition "B" choisie parmi 5 alternatives
-            présentées via un aperçu, avec la consigne explicite "plus lent") — voir
-            src/index.css (.login-anim-slide-left, .login-anim-delay-1..4).
-            === AMÉLIORATION AJOUTÉE : le badge "ACTIVA Cloud Secure Portal" est remplacé par
-            le logo Activa exact (asset src/assets/logos/logo-activa.png), uniquement sur
-            cette page. Après plusieurs essais de recolorisation en blanc (retouches
-            successives pour la taille et la netteté), retour à la version la plus simple sur
-            demande explicite ("faisons simple, adopte plutôt le logo activa original sous
-            fond blanc, conserve la taille du logo telle qu'il existe actuellement") :
-            couleurs d'origine du logo (jamais retouchées, donc jamais floues), posées sur une
-            plaque blanche pour rester lisibles sur le fond bleu marine du panneau. Taille de
-            l'image inchangée (h-12).
-            === AMÉLIORATION AJOUTÉE : logo figé, non animé (retour utilisateur, 2026-09-11 —
-            "je ne veux pas que le logo de ACTIVA soit animé, il doit être figé") — classes
-            login-anim-slide-left/login-anim-delay-1 retirées de ce seul badge (visible
-            immédiatement, sans glissement ni délai). Le titre, le texte et le copyright
-            juste en dessous restent animés comme avant — seul le logo est concerné. === */}
-        <div className="relative z-10 self-start bg-white rounded-lg px-3 py-2 shadow-sm">
-          <img
-            key={logoRetryCount}
-            src={activaLogoOriginal}
-            alt="Activa"
-            className="h-12 w-auto"
-            onError={handleLogoLoadError}
-          />
-        </div>
-
-        <div className="relative z-10">
-          <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight login-anim-slide-left login-anim-delay-2">
-            {t.auth.heroGreetingLine1}<br />ACTIVA HealthPass!
-          </h1>
-          <p className="mt-5 text-sm xl:text-[15px] text-[#EAF2FF]/90 font-medium leading-relaxed max-w-sm login-anim-slide-left login-anim-delay-3">
-            {t.auth.heroDescription}
-          </p>
-        </div>
-
-        <div className="relative z-10 text-xs text-white/60 font-medium login-anim-slide-left login-anim-delay-4">
-          {t.auth.copyright}
-        </div>
-      </div>
-
-      {/* RIGHT PANEL — blanc, logo + formulaire */}
-      <div className="flex-1 bg-white relative flex flex-col">
-        {/* Language selector, desktop only (position reprise de l'ancien header) — ===
-            AMÉLIORATION AJOUTÉE : véritable liste déroulante (2026-09-10, retour utilisateur
-            explicite — "je préfère la sélection") au lieu d'un bouton à cliquer pour basculer,
-            même sélecteur que la pastille mobile ci-dessus et que le Topbar une fois connecté. === */}
-        <div className="hidden lg:block absolute top-6 right-6 xl:top-10 xl:right-10 z-10">
-          <div className="relative">
-            <Globe className="w-3.5 h-3.5 text-[#0A34A3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <select
-              value={lang || 'en'}
-              onChange={(e) => onLanguageChange?.(e.target.value as Language)}
-              className="appearance-none pl-8 pr-6 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] shadow-2xs cursor-pointer focus:outline-none"
-              aria-label="Select display language"
-            >
-              <option value="en">English (Default)</option>
-              <option value="fr">Français</option>
-            </select>
+      <div className="w-full max-w-[420px]">
+        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-[#E8EDF2] p-8 sm:p-10">
+          {/* === AMÉLIORATION AJOUTÉE : logo complet ACTIVA HealthPass (emblème + wordmark),
+              demande explicite, à la place du seul emblème dans un badge circulaire. === */}
+          <div className="flex justify-center">
+            <Logo size="lg" showTagline={true} transparent={true} />
           </div>
-        </div>
 
-        {/* === AMÉLIORATION AJOUTÉE : contenu remonté légèrement (retour utilisateur, 2026-09-07)
-            — le padding-haut réduit (par rapport au padding des autres côtés) fait remonter le
-            bloc logo+formulaire dans son conteneur centré, sans autre changement de mise en
-            page. === */}
-        <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-10 xl:p-16 pt-16 lg:pt-6">
-          {/* === AMÉLIORATION AJOUTÉE : largeur légèrement réduite (retour utilisateur, 2026-09-07
-              — max-w-[400px] -> max-w-[360px]), cohérent avec le resserrement des champs
-              ci-dessous ("Compact & fin"). === */}
-          <div className="w-full max-w-[360px]">
-            {/* Logo agrandi et centré, mieux mis en valeur qu'avant. === AMÉLIORATION
-                AJOUTÉE : espace réduit entre le logo et "Welcome Back!" (mb-8 -> mb-5, puis
-                mb-5 -> mb-4, puis mb-4 -> mb-3 sur nouvelle demande explicite : "faire remonter
-                Welcome Back et sign in to access... pour avoir un peu d'espace entre la mention
-                username et sign in to access") — le bloc titre/sous-titre remonte pour libérer
-                de l'espace en dessous, avant le formulaire (voir mt-4 -> mt-6 plus bas). === */}
-            <div className="flex justify-center mb-3">
-              <Logo size="2xl" showTagline={true} transparent={true} />
+          {/* === AMÉLIORATION AJOUTÉE : accroche réduite en écriture normale (demande
+              explicite) — n'est plus mise en avant comme un titre (gras, plus grand) mais
+              reste lisible comme un sous-texte discret sous le logo. === */}
+          <p className="mt-4 text-xs sm:text-sm font-normal text-[#5B7091] text-center">
+            {t.auth.loginHeading}
+          </p>
+          <div className="mt-3 mx-auto w-10 h-1 rounded-full bg-[#0A34A3]" />
+
+          {/* Rappel de l'espace de travail choisi sur l'écran précédent
+              (WorkspaceSelectionView) + lien pour en changer sans passer par le bouton
+              "retour" du navigateur. N'apparaît que si ces props optionnelles sont fournies —
+              comportement du formulaire ci-dessous strictement inchangé. */}
+          {selectedWorkspace && (
+            <div className="mt-4 flex items-center justify-center gap-2 text-[11px] sm:text-xs">
+              <span className="text-[#5B7091] font-medium">
+                {t.auth.workspaceSelectedPrefix}
+                <span className="font-bold text-[#0D2B63]">
+                  {selectedWorkspace === 'Agent' && t.auth.workspaceAgentTitle}
+                  {selectedWorkspace === 'Supervisor' && t.auth.workspaceSupervisorTitle}
+                  {selectedWorkspace === 'Admin' && t.auth.workspaceAdminTitle}
+                </span>
+              </span>
+              {onBackToWorkspaceSelection && (
+                <button
+                  type="button"
+                  id="login-change-workspace"
+                  onClick={onBackToWorkspaceSelection}
+                  className="text-[#0A34A3] font-semibold hover:underline cursor-pointer"
+                >
+                  {t.auth.workspaceChangeLink}
+                </button>
+              )}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+            {/* Error Alert Box */}
+            {error && (
+              <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-[#DC4C4C] shrink-0 mt-0.5" />
+                <div className="flex-1 leading-relaxed">{error}</div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-[11px] font-bold text-[#0D2B63] uppercase tracking-wide mb-1.5">
+                {t.auth.usernameLabel}
+              </label>
+              <div className="relative">
+                <User className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  id="login-username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder=""
+                  className="w-full pl-10 pr-3 py-2.5 bg-white border border-[#E2E8F0] rounded-xl text-sm text-[#0D2B63] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/10 transition duration-150"
+                  autoComplete="username"
+                  required
+                />
+              </div>
             </div>
 
-            {/* === AMÉLIORATION AJOUTÉE : titre "Welcome Back!" retiré (retour utilisateur
-                explicite) — le sous-titre seul introduit désormais le formulaire.
-                === AMÉLIORATION AJOUTÉE : mention "ACTIVA HealthPass" retirée du sous-titre
-                (retour utilisateur explicite). === */}
-            <p className="mt-1.5 text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
-              {t.auth.signInSubtitle}
-            </p>
-
-            {/* === AMÉLIORATION AJOUTÉE : espace réduit davantage (retour utilisateur, 2026-09-07
-                — un premier resserrement mt-7/space-y-4/py-3 -> mt-5/space-y-3/py-2.5 était trop
-                léger pour être perceptible) : au-dessus du formulaire (mt-5 -> mt-4), et
-                champs/bouton plus compacts (py-2.5 -> py-2) ; aucun champ ni comportement retiré.
-                === AMÉLIORATION AJOUTÉE : style "Compact & fin" (retenu sur la maquette mobile,
-                appliqué ici au desktop) — les champs Username/Password passent d'un cadre rempli
-                (fond #F8FAFC, bordure pleine, angles arrondis) à un simple soulignement fin, sur
-                fond transparent, plus étroit et plus discret.
-                === AMÉLIORATION AJOUTÉE : espace entre les champs Username/Password/Sign In élargi
-                (space-y-2 -> space-y-6, retour utilisateur avec modèle de référence à l'appui)
-                pour reprendre le même espacement entre interlignes que ce modèle — largeur,
-                style et couleurs des champs strictement inchangés.
-                === AMÉLIORATION AJOUTÉE : espace au-dessus du formulaire élargi (mt-4 -> mt-6,
-                puis mt-6 -> mt-7 sur nouvelle demande explicite : "plus d'espace mais pas trop"),
-                retour utilisateur : "avoir un peu d'espace entre la mention username et sign in
-                to access...") pour dégager le champ Username du sous-titre. === */}
-            <form onSubmit={handleSubmit} className="mt-7 space-y-6">
-              {/* Error Alert Box */}
-              {error && (
-                <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
-                  <AlertCircle className="w-4 h-4 text-[#DC4C4C] shrink-0 mt-0.5" />
-                  <div className="flex-1 leading-relaxed">{error}</div>
-                </div>
-              )}
-
-              {/* === AMÉLIORATION AJOUTÉE : libellé simplifié en "Username" et exemple d'adresse
-                  e-mail retiré du placeholder (champ vide) — le champ accepte toujours email OU
-                  nom d'utilisateur exactement comme avant, seul l'affichage change. === */}
-              {/* === AMÉLIORATION AJOUTÉE : interligne légèrement augmenté (retour utilisateur) —
-                  espace label -> champ (mb-1 -> mb-1.5) et hauteur interne du champ (py-1.5 ->
-                  py-2), pour Username comme pour Password ci-dessous ; largeur, style "fin" et
-                  couleurs strictement inchangés. === */}
-              <div>
-                <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
-                  {t.auth.usernameLabel}
-                </label>
-                <div className="relative">
-                  <input
-                    id="login-username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder=""
-                    className="w-full pl-6 pr-2 py-2 bg-transparent border-0 border-b border-[#E8EDF2] rounded-none text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-b-[#0A34A3] transition duration-150"
-                    autoComplete="username"
-                    required
-                  />
-                  <User className="w-3.5 h-3.5 text-[#778FAF] absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-[13px] font-semibold text-[#0D2B63] mb-1.5">
-                  {t.auth.passwordLabel}
-                </label>
-                <div className="relative">
-                  <input
-                    id="login-password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder=""
-                    className="w-full pl-6 pr-8 py-2 bg-transparent border-0 border-b border-[#E8EDF2] rounded-none text-xs sm:text-[13px] text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-b-[#0A34A3] transition duration-150"
-                    autoComplete="current-password"
-                    required
-                  />
-                  <Lock className="w-3.5 h-3.5 text-[#778FAF] absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <button
-                    id="login-toggle-password"
-                    type="button"
-                    tabIndex={-1}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setShowPassword((prev) => !prev);
-                    }}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-[#778FAF] hover:text-[#0D2B63] focus:outline-none transition rounded-lg hover:bg-slate-200/50 cursor-pointer select-none"
-                    aria-label={showPassword ? t.auth.hidePassword : t.auth.showPassword}
-                    title={showPassword ? t.auth.hidePassword : t.auth.showPassword}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-3.5 h-3.5" />
-                    ) : (
-                      <Eye className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Sign In Button */}
-              <div>
+            {/* Password */}
+            <div>
+              <label className="block text-[11px] font-bold text-[#0D2B63] uppercase tracking-wide mb-1.5">
+                {t.auth.passwordLabel}
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder=""
+                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-[#E2E8F0] rounded-xl text-sm text-[#0D2B63] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/10 transition duration-150"
+                  autoComplete="current-password"
+                  required
+                />
                 <button
-                  id="login-submit-button"
-                  type="submit"
-                  disabled={isLoggingIn || lockoutRemainingSec > 0}
-                  className="w-full py-2 px-4 rounded-lg bg-[#0A347B] hover:bg-[#072659] active:bg-[#051D45] text-white text-xs sm:text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  id="login-toggle-password"
+                  type="button"
+                  tabIndex={-1}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setShowPassword((prev) => !prev);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#94A3B8] hover:text-[#0D2B63] focus:outline-none transition rounded-lg hover:bg-slate-100 cursor-pointer select-none"
+                  aria-label={showPassword ? t.auth.hidePassword : t.auth.showPassword}
+                  title={showPassword ? t.auth.hidePassword : t.auth.showPassword}
                 >
-                  <span>{lockoutRemainingSec > 0 ? `${t.auth.tryAgainPrefix}${lockoutRemainingSec}${t.auth.tryAgainSuffix}` : isLoggingIn ? t.auth.signingIn : t.auth.signInBtn}</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
-            </form>
-          </div>
+            </div>
+
+            {/* Sign In Button */}
+            <button
+              id="login-submit-button"
+              type="submit"
+              disabled={isLoggingIn || lockoutRemainingSec > 0}
+              className="w-full py-2.5 px-4 rounded-xl bg-[#404E62] hover:bg-[#2C394C] active:bg-[#1E293B] text-white text-sm font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>{lockoutRemainingSec > 0 ? `${t.auth.tryAgainPrefix}${lockoutRemainingSec}${t.auth.tryAgainSuffix}` : isLoggingIn ? t.auth.signingIn : t.auth.signInBtn}</span>
+            </button>
+          </form>
         </div>
 
-        {/* Mobile-only footer copyright — repris de l'ancien pied de carte */}
-        <div className="lg:hidden text-center text-xs text-[#778FAF] font-medium py-4 border-t border-[#E8EDF2]">
+        <p className="mt-6 text-center text-xs text-[#94A3B8] font-medium">
           {t.auth.copyright}
-        </div>
+        </p>
       </div>
     </div>
   );
