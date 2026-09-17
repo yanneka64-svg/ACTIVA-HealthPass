@@ -36,6 +36,45 @@ cette passe (hors périmètre strict de la demande, qui visait les scripts `fix_
 
 **Action prise :** aucune — le travail demandé existe déjà et est correctement documenté.
 
+### 1.bis Audit détaillé des 7 scripts actifs (`scripts/*.ts`, `scripts/loadtest.mjs`)
+
+Chaque script a été lu intégralement. Aucun ne contient de secret en dur (tous exigent leurs
+identifiants/clés via variables d'environnement, avec `requireEnv()` qui échoue explicitement si
+absent) — cohérent avec l'historique documenté dans leurs propres en-têtes
+(`docs/security/BACKEND_AUDIT_2026-09-06_REMEDIATION.md` : plusieurs réintroductions accidentelles
+de secrets en dur, corrigées à chaque fois).
+
+| Script | Opération | `--dry-run` | Confirmation interactive avant écriture | Log horodaté persisté sur disque | Secret en dur |
+|---|---|---|---|---|---|
+| `resetCompromisedPassword.ts` | Écriture Auth (mot de passe, SDK client) | **Non** | Non | Non (console uniquement) | Aucun |
+| `migratePlaintextPasswords.ts` | Écriture Firestore `accounts` (bulk, PBKDF2-SHA256 150k iter.) | Oui | Non (le flag suffit à passer en LIVE) | Non (console uniquement) | Aucun |
+| `auditOrgScopeCoverage.ts` | Lecture seule | N/A | N/A | Non (console uniquement) | Aucun |
+| `revokeCompromisedAccountAccess.ts` | Écriture Auth (disable + révocation tokens, SDK Admin + ADC) | Oui | Non | Non (console uniquement) | Aucun |
+| `rotatePasswordNoHardcode.ts` | Écriture Auth (mot de passe) + écriture `.env.local` (0600, gitignored) | **Non** | Non | Non (seul le nouveau credential est écrit, pas un log d'exécution) | Aucun |
+| `deactivateCompromisedAccount.ts` | Écriture Firestore `accounts.isActive` | Oui | Non (garde-fou automatique : refuse si admin = cible) | Non (console uniquement) | Aucun |
+| `loadtest.mjs` | Aucune écriture — HTTP vers endpoints publics uniquement | N/A | N/A | Non (console uniquement) | Aucun |
+
+**Constat :** ce sont des outils manuels de type "break-glass" (opérateur humain, jamais planifiés
+ni appelés par l'application ou la CI), pas un risque d'exécution automatique non désirée. Deux
+lacunes réelles, identiques sur les 7 scripts :
+
+1. **Aucune confirmation interactive** ("tapez OUI pour continuer") avant une écriture réelle —
+   4 scripts s'appuient uniquement sur le flag `--dry-run` (opt-in, pas de garde-fou si l'opérateur
+   omet le flag par erreur) ; 2 scripts (`resetCompromisedPassword.ts`,
+   `rotatePasswordNoHardcode.ts`) n'ont même pas de mode `--dry-run`.
+2. **Aucun log d'exécution horodaté persisté sur disque** — toute la sortie va uniquement sur la
+   console (perdue si l'opérateur ne la redirige pas lui-même vers un fichier).
+
+**Recommandation (proposée, non appliquée) :** ajouter un petit helper partagé optionnel
+(ex. `scripts/lib/opsSafety.ts`) fournissant (a) une invite de confirmation interactive
+(contournable par une variable `CONFIRM=yes` pour un usage non interactif/CI si nécessaire un
+jour), et (b) l'écriture en parallèle de la sortie console vers un fichier
+`scripts/logs/<nom-script>-<horodatage>.log` (dossier à ajouter au `.gitignore`). Cela n'altère
+aucun comportement métier (scripts opérationnels hors application), reste strictement additif, et
+peut être fait script par script sans risque de régression sur l'app elle-même. **En attente de
+votre validation avant implémentation**, conformément à la prudence demandée sur toute
+modification touchant à la sécurité opérationnelle.
+
 ## 2. Déplacement vers `scripts/migrations/` + confirmation interactive + logs
 
 **Non fait, et je recommande de ne PAS le faire tel quel.** Les scripts archivés sont
@@ -98,18 +137,10 @@ absolue n°3 de ce brief ("aucune décision métier sensible... uniquement côt�
   embarquée dans le bundle client pour que le SDK fonctionne ; la sécurité réelle vient des
   règles Firestore/Storage + App Check, jamais de la confidentialité de cette clé). Je le
   précise explicitement pour éviter une fausse alerte lors d'un futur audit.
-- **`firebase-blueprint.json`** — **trouvaille réelle, à traiter** : ce fichier définit un jeu de
-  règles Firestore radicalement plus permissif que les règles réellement déployées
-  (`"accounts": { read: true }`, `"write": "request.auth != null"` pour absolument toutes les
-  collections métier — équivalent à "tout utilisateur connecté peut tout lire/écrire"). Vérifié :
-  **ce fichier n'est référencé nulle part** dans le code, les scripts, ou la CI (recherche
-  exhaustive). C'est un vestige du gabarit AI Studio initial, jamais lu par l'application — les
-  vraies règles vivent exclusivement dans `firestore.rules` (durci, testé par 89 tests
-  d'émulateur). Il est aujourd'hui totalement inerte, mais **trompeur** pour quiconque l'ouvrirait
-  en pensant qu'il reflète la sécurité réelle. **Je recommande de le supprimer** (aucune
-  référence trouvée = aucun risque de casse) plutôt que de le garder comme confusion potentielle
-  — mais je n'ai pas supprimé ce fichier de configuration sans votre confirmation explicite,
-  conformément à la prudence demandée sur tout ce qui touche à la sécurité/configuration.
+- **`firebase-blueprint.json`** — vestige inerte du gabarit AI Studio initial, définissant des
+  règles Firestore radicalement plus permissives et trompeuses par rapport aux vraies règles
+  déployées (`firestore.rules`, durci, testé par 89 tests d'émulateur). Confirmé non référencé
+  nulle part (code, scripts, CI). **Supprimé, avec votre confirmation explicite du 2026-09-17.**
 - **`bun.lock`** : coexiste avec `package-lock.json`. **Déjà documenté** dans `README.md`
   ("un `bun.lock` est aussi présent mais non utilisé par la CI ; préférer npm"). Pas une
   découverte nouvelle, déjà tranché.
@@ -132,12 +163,12 @@ confirmant la prise en compte).
 | Élément | Statut réel constaté | Action recommandée |
 |---|---|---|
 | 24 scripts `fix_*`/`patch_*`/`update_*` | Déjà archivés + documentés (`scripts/archive/README.md`) | Aucune — déjà fait |
-| 7 scripts d'administration actifs (`scripts/*.ts`) | Existent, non audités en détail dans cette passe | Audit de détail si souhaité (hors périmètre initial) |
+| 7 scripts d'administration actifs (`scripts/*.ts`, `scripts/loadtest.mjs`) | Audités en détail (voir §1.bis) : aucun secret en dur, mais aucune confirmation interactive ni log horodaté persisté | Hardening proposé (helper partagé opt-in) — en attente de validation |
 | `@google/genai` côté client | N'existe pas dans ce dépôt | Aucune |
 | `server.ts` (Express) | Rôle clair, `requireAuth` correctement implémenté, fail-closed | Aucune |
 | `.env.example` | Propre (aucune valeur) | Aucune |
 | `firebase-applet-config.json` | Clé publique par conception, pas un secret | Aucune (juste documenté ici pour éviter une fausse alerte future) |
-| `firebase-blueprint.json` | Vestige inerte, non référencé, règles trompeuses | **Recommandé : suppression — en attente de votre confirmation** |
+| `firebase-blueprint.json` | Vestige inerte, non référencé, règles trompeuses | **Fait : supprimé** |
 | `bun.lock` | Déjà documenté comme non utilisé par la CI | Aucune |
 | `firestore-debug.log` | Fichier local transitoire, déjà gitignoré | Supprimé localement |
 | `package.json` name | `"react-example"` | **Fait : renommé en `"activa-healthpass"`** |
@@ -151,11 +182,10 @@ git.
 
 ## Risques résiduels identifiés
 
-1. `firebase-blueprint.json` reste dans le dépôt tant que vous n'avez pas confirmé sa
-   suppression — risque de confusion pour un futur audit, aucun risque d'exécution (fichier
-   inerte).
-2. Les 7 scripts d'administration actifs (`scripts/*.ts`) n'ont pas été audités individuellement
-   dans cette passe — statut de confirmation interactive/logs horodatés non vérifié pour chacun.
+1. Les 7 scripts d'administration actifs n'ont ni confirmation interactive avant écriture réelle,
+   ni log d'exécution horodaté persisté (voir §1.bis) — proposition de hardening additive en
+   attente de validation, aucun script n'a été modifié dans cette passe.
 
-**Phase 1 terminée. En attente de votre validation explicite avant de passer à la Phase 2**,
-conformément à votre instruction.
+**Phase 1 terminée (mise à jour du 2026-09-17) : suppression de `firebase-blueprint.json`
+effectuée et audit détaillé des 7 scripts actifs livré. En attente de votre validation explicite
+avant de passer à la Phase 2**, conformément à votre instruction.
