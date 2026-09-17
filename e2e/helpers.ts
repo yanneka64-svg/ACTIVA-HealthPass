@@ -84,6 +84,12 @@ export interface EnrollmentFormInput {
   firstName: string;
   birthDate: string; // YYYY-MM-DD
   mobilePhone: string;
+  // === AMÉLIORATION AJOUTÉE : correctif E2E (2026-09-17) === Champ requis depuis le passage à
+  // la saisie manuelle du numéro de carte (cardNumberService.ts, "Centralized Card Number
+  // Management System", 2026-09-09) — l'ancienne génération automatique au format
+  // AMID-YYMMDD-NNNNN n'existe plus. 11 caractères alphanumériques (A-Z, 0-9), voir
+  // CARD_NUMBER_REGEX dans src/services/cardNumberService.ts.
+  cardNo: string;
 }
 
 /**
@@ -93,8 +99,22 @@ export interface EnrollmentFormInput {
  */
 export async function submitEnrollment(page: Page, input: EnrollmentFormInput): Promise<void> {
   await page.click('text=Enrollments');
+  // === AMÉLIORATION AJOUTÉE : correctif E2E (2026-09-17) === Le formulaire d'enrôlement reste
+  // grisé/inactif (opacity-50, pointer-events-none — voir AgentEnrollmentsView.tsx) tant que
+  // l'onglet "New Beneficiary Enrollment" n'a pas été explicitement cliqué (comportement
+  // applicatif introduit le 2026-09-10, après l'écriture initiale de ce helper le 2026-09-07,
+  // jamais mis à jour depuis). Sans ce clic, le clic final sur le bouton de soumission était
+  // bloqué indéfiniment (élément parent interceptant le pointeur), faisant échouer ce test alors
+  // que l'application elle-même fonctionne comme prévu.
+  await page.click('text=New Beneficiary Enrollment');
   await page.waitForSelector('label:has-text("Last Name:")', { timeout: 10_000 });
 
+  // Le libellé n'est pas un frère direct du champ (un badge "ACTIVA UNIQUE IDENTIFIER" s'intercale
+  // dans le même conteneur) — même approche que pour "Affiliated Organization" plus bas.
+  await page
+    .locator('label:has-text("Health Card Number")')
+    .locator('xpath=following::input[1]')
+    .fill(input.cardNo);
   await page.locator('label:text-is("Last Name:") + input').fill(input.lastName);
   await page.locator('label:text-is("First Name:") + input').fill(input.firstName);
   await page.locator('label:text-is("Date of Birth:") + input').fill(input.birthDate);
@@ -137,6 +157,11 @@ export interface ClaimFormInput {
 /** Submits a medical claim as the currently logged-in Agent. Call after loginAsAgent(). */
 export async function submitClaim(page: Page, input: ClaimFormInput): Promise<void> {
   await page.click('text=Claims Processing');
+  // === AMÉLIORATION AJOUTÉE : correctif E2E (2026-09-17) === Même mécanisme de formulaire
+  // grisé/inactif que pour l'enrôlement (voir submitEnrollment ci-dessus) : le bouton "New
+  // Claim" (AgentClaimsView.tsx, ajouté le 2026-09-10) doit être cliqué avant que le formulaire
+  // ne devienne interactif.
+  await page.click('text=New Claim');
   await page.waitForSelector('label:has-text("Principal Insured (Name)")', { timeout: 10_000 });
 
   await page.locator('label:has-text("Principal Insured (Name)") + input').fill(input.principalName);

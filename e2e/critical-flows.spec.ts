@@ -21,6 +21,11 @@ test.describe.configure({ mode: 'serial' });
 
 const BENEFICIARY = { lastName: 'E2ECriticalLast', firstName: 'E2ECriticalFirst' };
 const FULL_NAME = `${BENEFICIARY.lastName} ${BENEFICIARY.firstName}`;
+// === AMÉLIORATION AJOUTÉE : correctif E2E (2026-09-17) === Depuis le passage à la saisie
+// manuelle du numéro de carte (voir e2e/helpers.ts), ce numéro n'est plus généré par
+// l'application : c'est ce test qui le choisit, au format attendu (11 caractères
+// alphanumériques — CARD_NUMBER_REGEX dans src/services/cardNumberService.ts).
+const ENROLLED_CARD_NO = 'E2ECR1T1CAL';
 
 let generatedCardNumber: string | null = null;
 let claimReference: string | null = null;
@@ -35,17 +40,15 @@ test.describe('Parcours critiques ACTIVA HealthPass', () => {
       firstName: BENEFICIARY.firstName,
       birthDate: '1990-05-15',
       mobilePhone: '+231770000123',
+      cardNo: ENROLLED_CARD_NO,
     });
 
     await page.click('text=Submitted Requests');
     const row = page.locator('tr', { hasText: FULL_NAME });
     await expect(row).toBeVisible({ timeout: 10_000 });
     await expect(row).toContainText('Pending Review');
-
-    const cardCell = await row.locator('td').first().innerText();
-    const match = cardCell.match(/AMID-\d{6}-\d{5}/);
-    expect(match, `Expected a generated AMID- card number, got: ${cardCell}`).not.toBeNull();
-    generatedCardNumber = match![0];
+    await expect(row).toContainText(ENROLLED_CARD_NO);
+    generatedCardNumber = ENROLLED_CARD_NO;
   });
 
   test("2. Approbation de dossier : un Superviseur valide l'enrôlement et active la carte", async ({
@@ -79,8 +82,11 @@ test.describe('Parcours critiques ACTIVA HealthPass', () => {
     const claimRow = page.locator('tr', { hasText: FULL_NAME }).first();
     await expect(claimRow).toBeVisible({ timeout: 10_000 });
     const refCell = await claimRow.locator('td').first().innerText();
-    const refMatch = refCell.match(/SIN-\d{4}-\d+/);
-    expect(refMatch, `Expected a claim reference like SIN-2026-1234, got: ${refCell}`).not.toBeNull();
+    // === AMÉLIORATION AJOUTÉE : correctif E2E (2026-09-17) === Le préfixe réel généré par
+    // l'application (AgentClaimsView.tsx) est "CLM-", jamais "SIN-" — corrigé pour refléter le
+    // comportement actuel, jamais observé ailleurs dans le code (voir aussi seedData.ts).
+    const refMatch = refCell.match(/CLM-\d{4}-\d+/);
+    expect(refMatch, `Expected a claim reference like CLM-2026-1234, got: ${refCell}`).not.toBeNull();
     claimReference = refMatch![0];
 
     await loginAsSupervisor(page);
