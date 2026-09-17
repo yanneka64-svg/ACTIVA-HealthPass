@@ -19,7 +19,8 @@ import {
   Loader2,
   Trash2,
 } from 'lucide-react';
-import { Member, Organization, Provider, Ceiling, HealthPolicy } from '../../types';
+import { Member, Organization, Provider, Ceiling, HealthPolicy, Language } from '../../types';
+import { useTranslation } from '../../i18n/translations';
 import { checkCareEligibility } from '../../services/eligibilityService';
 import { getPolicyCoverageStatus } from '../../services/policyEngine';
 import { uploadDocumentToStorage } from '../../utils/storageUtils';
@@ -29,28 +30,6 @@ import {
   ClaimDocumentType,
   ServiceNature,
 } from '../../types/healthClaims';
-
-const SERVICE_NATURE_OPTIONS: { value: ServiceNature; label: string; inpatient?: boolean }[] = [
-  { value: 'consultation', label: 'Consultation' },
-  { value: 'pharmacy', label: 'Pharmacy' },
-  { value: 'laboratory', label: 'Laboratory' },
-  { value: 'imaging', label: 'Imaging' },
-  { value: 'emergency', label: 'Emergency' },
-  { value: 'hospitalization', label: 'Hospitalization', inpatient: true },
-  { value: 'surgery', label: 'Surgery', inpatient: true },
-  { value: 'maternity', label: 'Maternity', inpatient: true },
-  { value: 'other', label: 'Other' },
-];
-
-const DOCUMENT_TYPE_OPTIONS: { value: ClaimDocumentType; label: string }[] = [
-  { value: 'invoice', label: 'Invoice' },
-  { value: 'prescription', label: 'Prescription' },
-  { value: 'lab_result', label: 'Lab Result' },
-  { value: 'medical_report', label: 'Medical Report' },
-  { value: 'hospitalization_form', label: 'Hospitalization Form' },
-  { value: 'receipt', label: 'Receipt' },
-  { value: 'other', label: 'Other' },
-];
 
 const ACCEPTED_DOCUMENT_TYPES = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
 
@@ -85,6 +64,7 @@ interface PendingDocument {
 }
 
 export interface ClaimCaseWizardProps {
+  lang: Language;
   members: Member[];
   organizations: Organization[];
   providers: Provider[];
@@ -96,6 +76,7 @@ export interface ClaimCaseWizardProps {
 }
 
 export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
+  lang,
   members,
   organizations,
   providers,
@@ -105,6 +86,33 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
   onSubmit,
   onCancel,
 }) => {
+  const t = useTranslation(lang || 'en').healthClaimsWizard;
+
+  // === AMÉLIORATION AJOUTÉE : dictionnaires dépendants de la langue (i18n, voir
+  // FRONTEND_CRITICAL_ANALYSIS.md §7) — déplacés à l'intérieur du composant (plutôt que
+  // constantes de module) car leurs libellés dépendent désormais de `t`.
+  const SERVICE_NATURE_OPTIONS: { value: ServiceNature; label: string; inpatient?: boolean }[] = [
+    { value: 'consultation', label: t.serviceNatureConsultation },
+    { value: 'pharmacy', label: t.serviceNaturePharmacy },
+    { value: 'laboratory', label: t.serviceNatureLaboratory },
+    { value: 'imaging', label: t.serviceNatureImaging },
+    { value: 'emergency', label: t.serviceNatureEmergency },
+    { value: 'hospitalization', label: t.serviceNatureHospitalization, inpatient: true },
+    { value: 'surgery', label: t.serviceNatureSurgery, inpatient: true },
+    { value: 'maternity', label: t.serviceNatureMaternity, inpatient: true },
+    { value: 'other', label: t.serviceNatureOther },
+  ];
+
+  const DOCUMENT_TYPE_OPTIONS: { value: ClaimDocumentType; label: string }[] = [
+    { value: 'invoice', label: t.documentTypeInvoice },
+    { value: 'prescription', label: t.documentTypePrescription },
+    { value: 'lab_result', label: t.documentTypeLabResult },
+    { value: 'medical_report', label: t.documentTypeMedicalReport },
+    { value: 'hospitalization_form', label: t.documentTypeHospitalizationForm },
+    { value: 'receipt', label: t.documentTypeReceipt },
+    { value: 'other', label: t.documentTypeOther },
+  ];
+
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // --- Step 1: Identification ---------------------------------------------------------------
@@ -278,13 +286,14 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
 
       await onSubmit(claimCase);
     } catch (err: any) {
-      setSubmitError(err?.message || 'Failed to submit the claim. Please try again.');
+      setSubmitError(err?.message || t.submissionError);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const stepLabels = ['Identification', 'Claim Information', 'Supporting Documents'];
+  const stepLabels = [t.stepIdentification, t.stepClaimInformation, t.stepSupportingDocuments];
+  const careTypeLabel = isInpatientService ? t.inpatient : t.outpatient;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -326,14 +335,14 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by card number or insured name..."
+              placeholder={t.searchPlaceholder}
               className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0A347B]/30"
             />
           </div>
 
           <div className="space-y-1.5 max-h-64 overflow-y-auto">
             {filteredMembers.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-6">No matching insured members found.</p>
+              <p className="text-xs text-slate-400 text-center py-6">{t.noMatchingMembers}</p>
             )}
             {filteredMembers.map((m) => (
               <button
@@ -361,31 +370,31 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
             <div className="mt-5 border-t border-slate-100 pt-4 space-y-3">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                 <div>
-                  <div className="text-slate-400 font-semibold uppercase tracking-wide">Card No.</div>
+                  <div className="text-slate-400 font-semibold uppercase tracking-wide">{t.cardNoLabel}</div>
                   <div className="text-slate-800 font-medium">{selectedMember.cardNo}</div>
                 </div>
                 <div>
-                  <div className="text-slate-400 font-semibold uppercase tracking-wide">Relationship</div>
+                  <div className="text-slate-400 font-semibold uppercase tracking-wide">{t.relationshipLabel}</div>
                   <div className="text-slate-800 font-medium">{selectedMember.relationship}</div>
                 </div>
                 <div>
-                  <div className="text-slate-400 font-semibold uppercase tracking-wide">Organization</div>
+                  <div className="text-slate-400 font-semibold uppercase tracking-wide">{t.organizationLabel}</div>
                   <div className="text-slate-800 font-medium">{selectedMember.organization}</div>
                 </div>
                 {selectedOrganization && (
                   <>
                     <div>
-                      <div className="text-slate-400 font-semibold uppercase tracking-wide">Policy Number</div>
+                      <div className="text-slate-400 font-semibold uppercase tracking-wide">{t.policyNumberLabel}</div>
                       <div className="text-slate-800 font-medium">{selectedOrganization.policyNumber}</div>
                     </div>
                     <div>
-                      <div className="text-slate-400 font-semibold uppercase tracking-wide">Coverage Period</div>
+                      <div className="text-slate-400 font-semibold uppercase tracking-wide">{t.coveragePeriodLabel}</div>
                       <div className="text-slate-800 font-medium">
                         {selectedOrganization.effectiveDate} &rarr; {selectedOrganization.expirationDate}
                       </div>
                     </div>
                     <div>
-                      <div className="text-slate-400 font-semibold uppercase tracking-wide">Coverage Rate</div>
+                      <div className="text-slate-400 font-semibold uppercase tracking-wide">{t.coverageRateLabel}</div>
                       <div className="text-slate-800 font-medium">{selectedOrganization.coverageRate}%</div>
                     </div>
                   </>
@@ -395,7 +404,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
               {eligibility && !eligibility.isEligible && (
                 <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
                   <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-700 font-medium">{eligibility.reason || 'This insured member is not currently eligible for a new claim.'}</p>
+                  <p className="text-xs text-red-700 font-medium">{eligibility.reason || t.ineligibleFallback}</p>
                 </div>
               )}
 
@@ -424,14 +433,12 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
                           : 'text-emerald-700'
                       }`}
                     >
-                      Policy status: {policyCoverage.status}
+                      {t.policyStatusPrefix} {policyCoverage.status}
                     </p>
                     {contractIsExpiredOrSuspended && (
                       <>
                         <p className="text-xs text-red-600 mt-1">
-                          This organization's contract is {policyCoverage.status.toLowerCase()}. You may still
-                          register this claim for record-keeping, but it will very likely be rejected or held for
-                          review until coverage is restored.
+                          {t.contractWarning(policyCoverage.status.toLowerCase())}
                         </p>
                         <label className="flex items-center gap-2 mt-2 text-xs text-red-700 font-medium">
                           <input
@@ -439,7 +446,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
                             checked={policyWarningAcknowledged}
                             onChange={(e) => setPolicyWarningAcknowledged(e.target.checked)}
                           />
-                          I acknowledge this contract is {policyCoverage.status.toLowerCase()} and want to proceed.
+                          {t.acknowledgeContractPrefix} {policyCoverage.status.toLowerCase()} {t.acknowledgeContractSuffix}
                         </label>
                       </>
                     )}
@@ -456,7 +463,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
               onClick={() => setStep(2)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-[#0A347B] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#072659]"
             >
-              Next <ChevronRight className="w-4 h-4" />
+              {t.next} <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -467,15 +474,15 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-semibold text-slate-500">Claim Reference</label>
+              <label className="text-xs font-semibold text-slate-500">{t.claimReferenceLabel}</label>
               <input value={reference} disabled className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500">Claim Date</label>
+              <label className="text-xs font-semibold text-slate-500">{t.claimDateLabel}</label>
               <input value={claimDate} disabled className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500">Service Nature</label>
+              <label className="text-xs font-semibold text-slate-500">{t.serviceNatureLabel}</label>
               <select
                 value={serviceNature}
                 onChange={(e) => setServiceNature(e.target.value as ServiceNature)}
@@ -489,13 +496,13 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500">Provider</label>
+              <label className="text-xs font-semibold text-slate-500">{t.providerLabel}</label>
               <select
                 value={providerId}
                 onChange={(e) => setProviderId(e.target.value)}
                 className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
               >
-                <option value="">Select a provider...</option>
+                <option value="">{t.selectProviderPlaceholder}</option>
                 {providers.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -504,7 +511,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500">Doctor Name</label>
+              <label className="text-xs font-semibold text-slate-500">{t.doctorNameLabel}</label>
               <input
                 value={doctorName}
                 onChange={(e) => setDoctorName(e.target.value)}
@@ -512,7 +519,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500">Diagnosis</label>
+              <label className="text-xs font-semibold text-slate-500">{t.diagnosisLabel}</label>
               <input
                 value={diagnosis}
                 onChange={(e) => setDiagnosis(e.target.value)}
@@ -520,7 +527,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500">Claimed Amount</label>
+              <label className="text-xs font-semibold text-slate-500">{t.claimedAmountLabel}</label>
               <div className="mt-1 flex gap-2">
                 <input
                   type="number"
@@ -541,7 +548,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
               </div>
             </div>
             <div className="sm:col-span-2">
-              <label className="text-xs font-semibold text-slate-500">Comments</label>
+              <label className="text-xs font-semibold text-slate-500">{t.commentsLabel}</label>
               <textarea
                 value={comments}
                 onChange={(e) => setComments(e.target.value)}
@@ -553,41 +560,41 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
 
           {/* Guarantee verification panel (spec §6) */}
           <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
-            <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">Guarantee Verification</h4>
+            <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3">{t.guaranteeVerificationTitle}</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div>
-                <div className="text-slate-400">Claimed Amount</div>
+                <div className="text-slate-400">{t.claimedAmountKpi}</div>
                 <div className="font-bold text-slate-800">{formatMoney(guarantee.claimed, currency)}</div>
               </div>
               <div>
-                <div className="text-slate-400">Eligible Amount</div>
+                <div className="text-slate-400">{t.eligibleAmountKpi}</div>
                 <div className="font-bold text-slate-800">{formatMoney(guarantee.eligible, currency)}</div>
               </div>
               <div>
-                <div className="text-slate-400">Coverage Rate</div>
+                <div className="text-slate-400">{t.coverageRateKpi}</div>
                 <div className="font-bold text-slate-800">{coverageRatePercent}%</div>
               </div>
               <div>
-                <div className="text-slate-400">Deductible</div>
+                <div className="text-slate-400">{t.deductibleKpi}</div>
                 <div className="font-bold text-slate-800">
-                  {guarantee.franchise > 0 ? formatMoney(guarantee.franchise, currency) : 'Not configured'}
+                  {guarantee.franchise > 0 ? formatMoney(guarantee.franchise, currency) : t.deductibleNotConfigured}
                 </div>
               </div>
               <div>
-                <div className="text-slate-400">Insured Amount (ACTIVA pays)</div>
+                <div className="text-slate-400">{t.insuredAmountKpi}</div>
                 <div className="font-bold text-emerald-600">{formatMoney(guarantee.insuredAmount, currency)}</div>
               </div>
               <div>
-                <div className="text-slate-400">Remaining Ceiling ({isInpatientService ? 'Inpatient' : 'Outpatient'})</div>
+                <div className="text-slate-400">{t.remainingCeilingKpi(careTypeLabel)}</div>
                 <div className="font-bold text-slate-800">
-                  {guarantee.hasCeilingData ? formatMoney(remainingCeiling as number, 'USD') : 'Not available'}
+                  {guarantee.hasCeilingData ? formatMoney(remainingCeiling as number, 'USD') : t.remainingCeilingNotAvailable}
                 </div>
               </div>
             </div>
             {guarantee.exceedsCeiling && (
               <div className="flex items-center gap-2 mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                The claimed amount exceeds the insured's remaining {isInpatientService ? 'inpatient' : 'outpatient'} ceiling.
+                {t.exceedsCeilingWarning(careTypeLabel)}
               </div>
             )}
           </div>
@@ -598,7 +605,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
               onClick={() => setStep(1)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100"
             >
-              <ChevronLeft className="w-4 h-4" /> Back
+              <ChevronLeft className="w-4 h-4" /> {t.back}
             </button>
             <button
               type="button"
@@ -606,7 +613,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
               onClick={() => setStep(3)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-[#0A347B] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#072659]"
             >
-              Next <ChevronRight className="w-4 h-4" />
+              {t.next} <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -629,7 +636,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
             </select>
             <label className="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-lg py-4 text-xs font-semibold text-slate-500 cursor-pointer hover:border-[#0A347B]/40">
               <Upload className="w-4 h-4" />
-              Browse files (PDF, JPG, PNG)
+              {t.browseFilesLabel}
               <input
                 type="file"
                 accept={ACCEPTED_DOCUMENT_TYPES}
@@ -642,7 +649,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
 
           <div className="space-y-1.5">
             {pendingDocuments.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-6">No documents added yet.</p>
+              <p className="text-xs text-slate-400 text-center py-6">{t.noDocumentsYet}</p>
             )}
             {pendingDocuments.map((doc) => (
               <div
@@ -660,7 +667,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
                   type="button"
                   onClick={() => removeDocument(doc.localId)}
                   className="text-slate-400 hover:text-red-500"
-                  aria-label="Remove document"
+                  aria-label={t.removeDocument}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -681,7 +688,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
               disabled={submitting}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
             >
-              <ChevronLeft className="w-4 h-4" /> Back
+              <ChevronLeft className="w-4 h-4" /> {t.back}
             </button>
             <div className="flex items-center gap-2">
               {onCancel && (
@@ -691,7 +698,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
                   disabled={submitting}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-slate-500 hover:bg-slate-100 disabled:opacity-40"
                 >
-                  <X className="w-4 h-4" /> Cancel
+                  <X className="w-4 h-4" /> {t.cancel}
                 </button>
               )}
               <button
@@ -701,7 +708,7 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
                 className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white disabled:opacity-40 hover:bg-emerald-700"
               >
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                Submit Claim
+                {t.submitClaim}
               </button>
             </div>
           </div>

@@ -26,5 +26,33 @@ export default defineConfig(() => {
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
+    // === AMÉLIORATION AJOUTÉE : découpage explicite des dépendances tierces en chunks dédiés
+    // (voir FRONTEND_CRITICAL_ANALYSIS.md §4.2) — react/react-dom et le SDK Firebase changent
+    // rarement d'une version à l'autre de l'application, contrairement au code applicatif
+    // (App.tsx, services, vues) qui change à chaque déploiement. Sans ce découpage, Rollup les
+    // mélange dans le même chunk "index" que le code applicatif : le navigateur d'un utilisateur
+    // doit alors retélécharger la totalité de React et Firebase à chaque nouveau déploiement,
+    // même si ni l'un ni l'autre n'a changé. Ce changement ne modifie que la RÉPARTITION du code
+    // déjà présent entre fichiers de sortie — aucun code applicatif, aucun comportement,
+    // n'est modifié. Les vues restent découpées séparément comme avant (React.lazy dans
+    // App.tsx, inchangé) ; xlsx/jsPDF/html2canvas étaient déjà automatiquement isolés par
+    // Rollup dans leurs propres chunks (vérifié : ils n'apparaissent pas dans le chunk
+    // principal) et n'ont donc pas besoin d'être ajoutés ici.
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (id.includes('node_modules')) {
+              if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
+                return 'vendor-react';
+              }
+              if (id.includes('/firebase/') || id.includes('/@firebase/')) {
+                return 'vendor-firebase';
+              }
+            }
+          },
+        },
+      },
+    },
   };
 });
