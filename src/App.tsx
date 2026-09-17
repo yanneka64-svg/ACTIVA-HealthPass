@@ -59,14 +59,14 @@ const ClaimsView = lazy(() => import('./features/claims/ClaimsView').then((m) =>
 const InvoicesView = lazy(() => import('./views/InvoicesView').then((m) => ({ default: m.InvoicesView })));
 const EnrollmentsView = lazy(() => import('./views/EnrollmentsView').then((m) => ({ default: m.EnrollmentsView })));
 const ReportsView = lazy(() => import('./views/ReportsView').then((m) => ({ default: m.ReportsView })));
-const MembersView = lazy(() => import('./views/settings/MembersView').then((m) => ({ default: m.MembersView })));
+const MembersView = lazy(() => import('./features/members/MembersView').then((m) => ({ default: m.MembersView })));
 const OrganizationsView = lazy(() => import('./views/settings/OrganizationsView').then((m) => ({ default: m.OrganizationsView })));
 const ProvidersView = lazy(() => import('./views/settings/ProvidersView').then((m) => ({ default: m.ProvidersView })));
 const CeilingsView = lazy(() => import('./views/settings/CeilingsView').then((m) => ({ default: m.CeilingsView })));
 const AccountsView = lazy(() => import('./views/settings/AccountsView').then((m) => ({ default: m.AccountsView })));
 const LogsView = lazy(() => import('./views/settings/LogsView').then((m) => ({ default: m.LogsView })));
 
-const AgentIdentificationView = lazy(() => import('./views/agent/AgentIdentificationView').then((m) => ({ default: m.AgentIdentificationView })));
+const AgentIdentificationView = lazy(() => import('./features/members/AgentIdentificationView').then((m) => ({ default: m.AgentIdentificationView })));
 const AgentMedicalFormView = lazy(() => import('./views/agent/AgentMedicalFormView').then((m) => ({ default: m.AgentMedicalFormView })));
 const AgentClaimsView = lazy(() => import('./features/claims/AgentClaimsView').then((m) => ({ default: m.AgentClaimsView })));
 const AgentEnrollmentsView = lazy(() => import('./views/agent/AgentEnrollmentsView').then((m) => ({ default: m.AgentEnrollmentsView })));
