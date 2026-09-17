@@ -445,19 +445,19 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       </div>
 
       {/* 4 Stats KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Card 1: Total Billed */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               {t.reports.totalBilled}
             </span>
-            <div className={`w-10 h-10 rounded-xl bg-slate-100 ${roleTheme.palette.primaryText} flex items-center justify-center`}>
-              <DollarSign className="w-5 h-5" />
+            <div className={`w-9 h-9 rounded-xl bg-slate-100 ${roleTheme.palette.primaryText} flex items-center justify-center`}>
+              <DollarSign className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-black text-slate-900">
+            <span className="text-xl font-black text-slate-900">
               {formatAmount(totalBilled)}
             </span>
           </div>
@@ -467,17 +467,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         {/* Card 2: Total Reimbursed */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               {t.reports.totalReimbursed}
             </span>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#00A859] flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#00A859] flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-black text-[#00A859]">
+            <span className="text-xl font-black text-[#00A859]">
               {formatAmount(totalReimbursed)}
             </span>
           </div>
@@ -487,17 +487,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         {/* Card 3: Average Processing Turnaround */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               {t.reports.avgProcessingTime}
             </span>
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Clock className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Clock className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-black text-slate-900">{avgProcessingTime}</span>
+            <span className="text-xl font-black text-slate-900">{avgProcessingTime}</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1 font-medium">
             {t.reports.kpiTargetSla}
@@ -505,17 +505,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         {/* Card 4: Rejection Rate */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               {t.reports.rejectionRate}
             </span>
-            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-2xl font-black text-rose-600">{rejectionRate}</span>
+            <span className="text-xl font-black text-rose-600">{rejectionRate}</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1 font-medium">
             {t.reports.kpiPrescriptionCompliance}
@@ -524,10 +524,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       </div>
 
       {/* 2 Horizontal Bar Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Horizontal Bar Chart 1: Invoicing by Provider */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-6">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
               <div className={`w-8 h-8 rounded-lg bg-slate-100 ${roleTheme.palette.primaryText} flex items-center justify-center`}>
                 <Stethoscope className="w-4 h-4" />
@@ -579,8 +579,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         {/* Horizontal Bar Chart 2: Invoicing by Organization */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-6">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 text-[#00A859] flex items-center justify-center">
                 <Building className="w-4 h-4" />
@@ -655,62 +655,62 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4.5">
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.activePoliciesKpi}</span>
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><ShieldCheck className="w-5 h-5" /></div>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><ShieldCheck className="w-4 h-4" /></div>
               </div>
-              <div className="mt-3"><span className="text-2xl font-black text-emerald-600">{policyKpis.active}</span></div>
+              <div className="mt-3"><span className="text-xl font-black text-emerald-600">{policyKpis.active}</span></div>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.expiringSoonKpi}</span>
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><Clock className="w-5 h-5" /></div>
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><Clock className="w-4 h-4" /></div>
               </div>
-              <div className="mt-3"><span className="text-2xl font-black text-amber-600">{policyKpis.expiringSoon}</span></div>
+              <div className="mt-3"><span className="text-xl font-black text-amber-600">{policyKpis.expiringSoon}</span></div>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.suspendedPoliciesKpi}</span>
-                <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><AlertTriangle className="w-5 h-5" /></div>
+                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><AlertTriangle className="w-4 h-4" /></div>
               </div>
-              <div className="mt-3"><span className="text-2xl font-black text-rose-600">{policyKpis.suspended}</span></div>
+              <div className="mt-3"><span className="text-xl font-black text-rose-600">{policyKpis.suspended}</span></div>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.expiredPoliciesKpi}</span>
-                <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center"><XCircle className="w-5 h-5" /></div>
+                <div className="w-9 h-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center"><XCircle className="w-4 h-4" /></div>
               </div>
-              <div className="mt-3"><span className="text-2xl font-black text-red-700">{policyKpis.expired}</span></div>
+              <div className="mt-3"><span className="text-xl font-black text-red-700">{policyKpis.expired}</span></div>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.totalAnnualPremiumKpi}</span>
-                <div className={`w-10 h-10 rounded-xl bg-slate-100 ${roleTheme.palette.primaryText} flex items-center justify-center`}><DollarSign className="w-5 h-5" /></div>
+                <div className={`w-9 h-9 rounded-xl bg-slate-100 ${roleTheme.palette.primaryText} flex items-center justify-center`}><DollarSign className="w-4 h-4" /></div>
               </div>
-              <div className="mt-3"><span className="text-2xl font-black text-slate-900">{formatAmount(policyKpis.totalAnnualPremium)}</span></div>
+              <div className="mt-3"><span className="text-xl font-black text-slate-900">{formatAmount(policyKpis.totalAnnualPremium)}</span></div>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.outstandingPremiumKpi}</span>
-                <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><AlertTriangle className="w-5 h-5" /></div>
+                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><AlertTriangle className="w-4 h-4" /></div>
               </div>
-              <div className="mt-3"><span className="text-2xl font-black text-rose-600">{formatAmount(policyKpis.outstandingPremium)}</span></div>
+              <div className="mt-3"><span className="text-xl font-black text-rose-600">{formatAmount(policyKpis.outstandingPremium)}</span></div>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.premiumPaidKpi}</span>
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><CheckCircle2 className="w-5 h-5" /></div>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><CheckCircle2 className="w-4 h-4" /></div>
               </div>
-              <div className="mt-3"><span className="text-2xl font-black text-emerald-600">{formatAmount(policyKpis.premiumPaid)}</span></div>
+              <div className="mt-3"><span className="text-xl font-black text-emerald-600">{formatAmount(policyKpis.premiumPaid)}</span></div>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.reports.overduePremiumKpi}</span>
-                <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center"><XCircle className="w-5 h-5" /></div>
+                <div className="w-9 h-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center"><XCircle className="w-4 h-4" /></div>
               </div>
-              <div className="mt-3"><span className="text-2xl font-black text-red-700">{formatAmount(policyKpis.overduePremium)}</span></div>
+              <div className="mt-3"><span className="text-xl font-black text-red-700">{formatAmount(policyKpis.overduePremium)}</span></div>
             </div>
           </div>
 

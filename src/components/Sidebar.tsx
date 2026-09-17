@@ -217,7 +217,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       className={`w-[248px] ${sidebarPhoto ? 'bg-cover bg-center' : theme.palette.sidebarGradient} text-white flex flex-col h-full shadow-2xl select-none border-r ${theme.palette.sidebarBorder} relative overflow-hidden`}
-      style={sidebarPhoto ? { backgroundImage: `url(${sidebarPhoto})` } : undefined}
+      // === AMÉLIORATION AJOUTÉE : couleur de fond unie posée derrière la photo (retour
+      // utilisateur explicite — "les images ont du mal à charger" sur les différentes pages) —
+      // cette photo est présente sur CHAQUE page authentifiée (le sidebar reste monté en
+      // permanence), donc tout délai de chargement réseau (première connexion, connexion
+      // mobile lente dans l'un des 7 pays où l'app est déployée) était jusqu'ici visible comme
+      // un flash de fond blanc/transparent le temps que l'image se charge, `background-image`
+      // et `background-color` étant deux propriétés CSS distinctes qui ne se substituent pas
+      // l'une à l'autre. `theme.palette.sidebarBg` (couleur unie déjà utilisée ailleurs pour ce
+      // même rôle) s'affiche donc désormais immédiatement, la photo venant simplement se peindre
+      // par-dessus dès qu'elle est prête — aucun flash, quelle que soit la vitesse du réseau.
+      style={{
+        backgroundColor: theme.palette.sidebarBg,
+        ...(sidebarPhoto ? { backgroundImage: `url(${sidebarPhoto})` } : {}),
+      }}
     >
       {/* === AMÉLIORATION AJOUTÉE : photo en fond pour les 3 rôles (Agent, Superviseur, Admin),
           avec le dégradé d'origine de chaque rôle (theme.palette.sidebarGradient — bleu marine
