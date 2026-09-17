@@ -1,0 +1,34 @@
+# === AMÉLIORATION AJOUTÉE : sécurité (préparation Go-Live, 2026-09-07) ===
+# Surveillance automatique des vulnérabilités de dépendances (npm racine, npm functions/, et les
+# actions GitHub elles-mêmes) avec propositions de mise à jour hebdomadaires groupées par lot
+# pour limiter le nombre de PR. Les mises à jour de dépendances doivent être testées comme
+# n'importe quel changement (npm run test:all, tests de règles Firestore sur émulateur, build)
+# avant fusion — ce fichier ne remplace pas cette validation, il ne fait que la déclencher.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+
+  - package-ecosystem: "npm"
+    directory: "/functions"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

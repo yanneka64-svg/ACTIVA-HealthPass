@@ -35,8 +35,8 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   // affiché auparavant peu importe le rôle connecté) ; fenêtre passée au blanc.
   const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
-  const accentBtnClass = isAdmin ? 'bg-slate-700 hover:bg-slate-800' : isSupervisor ? 'bg-[#0F766E] hover:bg-[#115E59]' : 'bg-[#0a2e6b] hover:bg-[#07214f]';
-  const accentRingClass = isAdmin ? 'focus:ring-slate-500' : isSupervisor ? 'focus:ring-[#0F766E]' : 'focus:ring-[#0a2e6b]';
+  const accentBtnClass = isAdmin || isSupervisor ? 'bg-slate-700 hover:bg-slate-800' : 'bg-[#0a2e6b] hover:bg-[#07214f]';
+  const accentRingClass = isAdmin || isSupervisor ? 'focus:ring-slate-500' : 'focus:ring-[#0a2e6b]';
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

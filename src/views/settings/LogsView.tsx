@@ -31,26 +31,44 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
   // complet reste consultable en un clic via ce bouton, et reste exportable en CSV/JSON.
   const [showFullHistory, setShowFullHistory] = useState(false);
 
+  // === AMÉLIORATION AJOUTÉE : robustesse (retour utilisateur — page blanche/"Cannot read
+  // properties of undefined (reading 'toLowerCase')") — cause racine : `logs` (venant de
+  // FirestoreService.subscribeToLogs) lit TOUTE la collection `auditLogs`, qui contient deux
+  // formes de documents différentes (voir firestore.rules) : les journaux de connexion
+  // (userEmail/ipAddress/userAgent/status) que cette page affiche, ET les journaux d'action
+  // métier (userId/action/category/entityType — ENROLLMENT_APPROVED, DATA_EXPORTED...) qui
+  // n'ont AUCUN de ces champs. Le composant traitait pourtant chaque entrée comme si elle
+  // avait forcément la forme "connexion" (cast `as LoginLog` côté service), donc dès qu'une
+  // entrée d'action métier apparaissait dans les données, le filtre plantait sur un champ
+  // manquant. Filtré ici aux seules entrées de connexion (mêmes champs que
+  // isPreAuthLoginLogValid dans firestore.rules) — les journaux d'action métier restent
+  // intacts en base, simplement pas affichés dans CETTE table dont les colonnes (IP/Browser/
+  // Location) ne les concernent pas.
+  const loginOnlyLogs = useMemo(
+    () => logs.filter((log) => log.status === 'success' || log.status === 'failed'),
+    [logs]
+  );
+
   const latestLoginPerUser = useMemo(() => {
     const byUser = new Map<string, LoginLog>();
-    for (const log of logs) {
+    for (const log of loginOnlyLogs) {
       const existing = byUser.get(log.userEmail);
       if (!existing || log.timestamp > existing.timestamp) {
         byUser.set(log.userEmail, log);
       }
     }
     return Array.from(byUser.values());
-  }, [logs]);
+  }, [loginOnlyLogs]);
 
-  const baseLogs = showFullHistory ? logs : latestLoginPerUser;
+  const baseLogs = showFullHistory ? loginOnlyLogs : latestLoginPerUser;
 
   const filteredLogs = useMemo(() => {
     return baseLogs
       .filter((log) => {
         const matchSearch =
-          log.userEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          log.ipAddress.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          log.userAgent.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (log.userEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (log.ipAddress || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (log.userAgent || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
           (log.location && log.location.toLowerCase().includes(searchTerm.toLowerCase()));
 
         const matchStatus = statusFilter === 'ALL' || log.status === statusFilter;
@@ -68,7 +86,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
       `"${l.userEmail}"`,
       `"${l.profile}"`,
       `"${l.ipAddress}"`,
-      `"${l.userAgent.replace(/"/g, '""')}"`,
+      `"${(l.userAgent || '').replace(/"/g, '""')}"`,
       `"${l.status}"`,
       // === AMÉLIORATION AJOUTÉE : sécurité (audit) — un repli sur une fausse localisation
       // fixe ("Monrovia, LR") faisait croire à une géolocalisation réelle même quand la
@@ -106,7 +124,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search logs by email, IP address, user agent, location..."
+            placeholder={t.logs.searchPlaceholder}
             className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -118,7 +136,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)]"
           >
-            <option value="ALL">All Statuses</option>
+            <option value="ALL">{t.logs.allStatusesOption}</option>
             <option value="success">{t.logs.success}</option>
             <option value="failed">{t.logs.failed}</option>
           </select>
@@ -131,10 +149,10 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
             type="button"
             onClick={() => setShowFullHistory((v) => !v)}
             className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] cursor-pointer flex items-center gap-1.5 whitespace-nowrap transition"
-            title={showFullHistory ? 'Show only the latest login per user' : 'Show every recorded login attempt'}
+            title={showFullHistory ? t.logs.showLatestOnlyTitle : t.logs.showFullHistoryTitle}
           >
             <ListFilter className="w-3.5 h-3.5" />
-            <span>{showFullHistory ? 'Latest per user only' : 'Show full history'}</span>
+            <span>{showFullHistory ? t.logs.latestPerUserOnlyBtn : t.logs.showFullHistoryBtn}</span>
           </button>
 
           {/* === AMÉLIORATION AJOUTÉE : "CSV" et "JSON" fusionnés en un seul bouton "Export" (menu déroulant) === */}
@@ -153,7 +171,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
           <div className="flex items-center gap-3">
             <History className="w-4 h-4 text-[var(--brand-900)]" />
             <h3 className="font-extrabold text-sm text-slate-900">
-              {showFullHistory ? t.logs.title : `${t.logs.title} — Latest login per user`}
+              {showFullHistory ? t.logs.title : `${t.logs.title} — ${t.logs.latestLoginTitleSuffix}`}
             </h3>
             <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-black">
               {filteredLogs.length}
@@ -161,7 +179,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
           </div>
           {!showFullHistory && (
             <span className="text-[11px] text-slate-400 font-medium">
-              {logs.length} total entries kept in the immutable audit trail
+              {t.logs.totalEntriesKeptTemplate.replace('{n}', String(logs.length))}
             </span>
           )}
         </div>
@@ -179,7 +197,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
                   <th className="py-3 px-4">{t.logs.user}</th>
                   <th className="py-3 px-4">{t.logs.ipAddress}</th>
                   <th className="py-3 px-4">{t.logs.userAgent}</th>
-                  <th className="py-3 px-4">Location</th>
+                  <th className="py-3 px-4">{t.logs.location}</th>
                   <th className="py-3 px-4 text-center">{t.status}</th>
                 </tr>
               </thead>
@@ -208,7 +226,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ lang, logs }) => {
                           géolocalisation réelle même quand la valeur stockée était vide.
                           Remplacé par 'Unknown', honnête et cohérent avec la colonne IP
                           ADDRESS ci-contre. */}
-                      <span>{log.location || 'Unknown'}</span>
+                      <span>{log.location || t.logs.unknownLocation}</span>
                     </td>
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
                       {log.status === 'success' ? (

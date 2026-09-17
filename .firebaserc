@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "gen-lang-client-0957905786"
+    "default": "gen-lang-client-0957905786",
+    "production": "gen-lang-client-0957905786",
+    "staging": "gen-lang-client-0957905786-staging"
   }
 }

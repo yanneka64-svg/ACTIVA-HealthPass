@@ -3,6 +3,14 @@
 // fiables hors-ligne. Chaque appel échoue silencieusement si l'API n'est pas disponible
 // (anciens navigateurs, contexte non autorisé avant interaction utilisateur, etc.) afin de
 // ne jamais bloquer une action métier à cause du son.
+//
+// === AMÉLIORATION AJOUTÉE : icône de coupure du son ("baffle") retirée du Topbar sur toutes
+// les pages (2026-09-10, demande explicite) — playSuccessSound/playNotificationSound/
+// playLoginSound/playLogoutSound (connexion, validation, notification, déconnexion) jouent donc
+// désormais toujours, sans condition, y compris pour un navigateur ayant précédemment coupé le
+// son via l'icône aujourd'hui supprimée. isSoundEnabled/setSoundEnabled/toggleSound restent
+// disponibles ci-dessous (utilisées par playErrorSound, seule restée conditionnelle) mais ne
+// sont plus pilotées par aucune interface — plus aucun moyen pour l'utilisateur de les couper.
 
 const SOUND_ENABLED_KEY = 'activa_sound_enabled';
 
@@ -114,7 +122,6 @@ function playTone(
  * successfully validated (approve, save, submit, create, etc.).
  */
 export function playSuccessSound(): void {
-  if (!isSoundEnabled()) return;
   const ctx = getAudioContext();
   if (!ctx) return;
   try {
@@ -130,7 +137,6 @@ export function playSuccessSound(): void {
  * Short, distinct double-ping played when a new notification is received.
  */
 export function playNotificationSound(): void {
-  if (!isSoundEnabled()) return;
   const ctx = getAudioContext();
   if (!ctx) return;
   try {
@@ -147,7 +153,6 @@ export function playNotificationSound(): void {
  * Distinct from playSuccessSound (3 notes instead of 2).
  */
 export function playLoginSound(): void {
-  if (!isSoundEnabled()) return;
   const ctx = getAudioContext();
   if (!ctx) return;
   try {
@@ -184,7 +189,6 @@ export function playErrorSound(): void {
  * Different from validation and error sounds.
  */
 export function playLogoutSound(): void {
-  if (!isSoundEnabled()) return;
   const ctx = getAudioContext();
   if (!ctx) return;
   try {

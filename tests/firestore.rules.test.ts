@@ -78,6 +78,34 @@ describe('Phase 1.3 — isolation par organisation (accounts.assignedOrganizatio
     await assertSucceeds(asUser('agentNoScope').doc('claims/c1').get());
   });
 
+  // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+  // "Missing or insufficient permissions" observée en production sur members/claims/invoices) ===
+  // Preuve reproductible : avant le correctif (`resource.data.organization` en notation
+  // pointée), un document dépourvu du champ `organization` faisait ÉCHOUER l'évaluation de la
+  // règle (pas juste refuser CE document précis), ce qui bloquait toute la requête
+  // `onSnapshot`/lecture en temps réel — visible en production sur des données antérieures à
+  // l'introduction de ce champ (Phase 1.3). `resource.data.get('organization', null)` retombe
+  // sur `null`, donc sur le même comportement rétrocompatible que documenté plus haut pour
+  // `assignedOrganizations()` absent : accès autorisé par défaut (deny-by-default restant
+  // opt-in, jamais activé globalement).
+  it('un document members/claims/invoices SANS champ organization reste lisible (non-régression, cause racine du bug de production)', async () => {
+    await seedAccount('agentLegacyDoc', { profile: 'Agent' });
+    await seedDoc('claims', 'cLegacy', { status: 'pending', createdBy: 'someoneElse' });
+    await seedDoc('members', 'mLegacy', { cardNo: 'AMID-260101-00099' });
+    await seedDoc('invoices', 'iLegacy', { amount: 50 });
+
+    await assertSucceeds(asUser('agentLegacyDoc').doc('claims/cLegacy').get());
+    await assertSucceeds(asUser('agentLegacyDoc').doc('members/mLegacy').get());
+    await assertSucceeds(asUser('agentLegacyDoc').doc('invoices/iLegacy').get());
+  });
+
+  it('un document SANS champ organization reste REFUSÉ pour un Agent dont le périmètre est explicitement restreint', async () => {
+    await seedAccount('agentScopedLegacyDoc', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('claims', 'cLegacyScoped', { status: 'pending', createdBy: 'someoneElse' });
+
+    await assertFails(asUser('agentScopedLegacyDoc').doc('claims/cLegacyScoped').get());
+  });
+
   it('avec assignedOrganizations=[OrgA] : un Agent PEUT lire un claim de OrgA', async () => {
     await seedAccount('agentOrgA', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
     await seedDoc('claims', 'c1', { organization: 'OrgA', status: 'pending', createdBy: 'someoneElse' });
@@ -585,7 +613,433 @@ describe('Phase 2.3 — audit trail : create pré-authentification restreint à 
         entityId: 'c1',
         entityType: 'claim',
         details: 'Claim approved.',
+        // Requis depuis le renforcement anti-usurpation de la piste d'audit (voir
+        // isBusinessAuditLogValid() dans firestore.rules) : timestamp désormais obligatoire.
+        timestamp: new Date().toISOString(),
       })
     );
+  });
+});
+
+// === AMÉLIORATION AJOUTÉE : Phase 3, revue de gouvernance des données de santé (2026-09-05,
+// section 2.1) — séparation identité/contenu clinique. Le contenu clinique des NOUVEAUX
+// formulaires médicaux vit désormais dans le document séparé
+// `medicalForms/{formId}/clinical/content` (voir FirestoreService.addMedicalForm et
+// firestore.rules) plutôt que dans le document `medicalForms/{formId}` lui-même. Ces tests
+// prouvent que : (a) le cloisonnement par organisation s'applique aussi à cette sous-collection
+// (héritée du document parent, puisque le sous-document lui-même n'a pas de champ
+// `organization`), (b) seul un Admin peut la supprimer, et (c) les formulaires legacy
+// (contenu clinique intégré au document parent, jamais migré de force) continuent de
+// fonctionner sans aucune régression.
+describe('Phase 3 / 2.1 — medicalForms/{formId}/clinical/{clinicalId} : cloisonnement hérité du parent', () => {
+  it('un Agent avec accès à l\'organisation du formulaire parent PEUT lire le sous-document clinique', async () => {
+    await seedAccount('agentClinicalRead', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formA', { organization: 'OrgA', memberName: 'X' });
+    await seedDoc('medicalForms/formA/clinical', 'content', { presumedDiagnosis: 'encv1:abc' });
+
+    await assertSucceeds(asUser('agentClinicalRead').doc('medicalForms/formA/clinical/content').get());
+  });
+
+  it('un Agent SANS accès à l\'organisation du formulaire parent NE PEUT PAS lire le sous-document clinique (REFUS)', async () => {
+    await seedAccount('agentClinicalNoAccess', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formB', { organization: 'OrgB', memberName: 'Y' });
+    await seedDoc('medicalForms/formB/clinical', 'content', { presumedDiagnosis: 'encv1:abc' });
+
+    await assertFails(asUser('agentClinicalNoAccess').doc('medicalForms/formB/clinical/content').get());
+  });
+
+  it('un Agent avec accès à l\'organisation PEUT créer le sous-document clinique', async () => {
+    await seedAccount('agentClinicalCreate', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formC', { organization: 'OrgA', memberName: 'Z' });
+
+    await assertSucceeds(
+      asUser('agentClinicalCreate')
+        .doc('medicalForms/formC/clinical/content')
+        .set({ presumedDiagnosis: 'encv1:xyz', updatedAt: new Date().toISOString() })
+    );
+  });
+
+  it('un Agent SANS accès à l\'organisation NE PEUT PAS créer le sous-document clinique (REFUS)', async () => {
+    await seedAccount('agentClinicalCreateNoAccess', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formD', { organization: 'OrgB', memberName: 'W' });
+
+    await assertFails(
+      asUser('agentClinicalCreateNoAccess')
+        .doc('medicalForms/formD/clinical/content')
+        .set({ presumedDiagnosis: 'encv1:xyz', updatedAt: new Date().toISOString() })
+    );
+  });
+
+  it('un Agent avec accès PEUT mettre à jour le sous-document clinique', async () => {
+    await seedAccount('agentClinicalUpdate', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formE', { organization: 'OrgA', memberName: 'V' });
+    await seedDoc('medicalForms/formE/clinical', 'content', { presumedDiagnosis: 'encv1:old' });
+
+    await assertSucceeds(
+      asUser('agentClinicalUpdate')
+        .doc('medicalForms/formE/clinical/content')
+        .set({ presumedDiagnosis: 'encv1:new', updatedAt: new Date().toISOString() })
+    );
+  });
+
+  it('un Agent (non-Admin) NE PEUT PAS supprimer le sous-document clinique, même avec accès à l\'organisation (REFUS)', async () => {
+    await seedAccount('agentClinicalDelete', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formF', { organization: 'OrgA', memberName: 'U' });
+    await seedDoc('medicalForms/formF/clinical', 'content', { presumedDiagnosis: 'encv1:abc' });
+
+    await assertFails(asUser('agentClinicalDelete').doc('medicalForms/formF/clinical/content').delete());
+  });
+
+  it('un Admin PEUT supprimer le sous-document clinique', async () => {
+    await seedAccount('adminClinicalDelete', { profile: 'Admin' });
+    await seedDoc('medicalForms', 'formG', { organization: 'OrgA', memberName: 'T' });
+    await seedDoc('medicalForms/formG/clinical', 'content', { presumedDiagnosis: 'encv1:abc' });
+
+    await assertSucceeds(asUser('adminClinicalDelete').doc('medicalForms/formG/clinical/content').delete());
+  });
+
+  it('un Admin garde un accès total au sous-document clinique, même hors de son assignedOrganizations', async () => {
+    await seedAccount('adminClinicalRead', { profile: 'Admin', assignedOrganizations: ['OrgZ'] });
+    await seedDoc('medicalForms', 'formH', { organization: 'OrgQ', memberName: 'S' });
+    await seedDoc('medicalForms/formH/clinical', 'content', { presumedDiagnosis: 'encv1:abc' });
+
+    await assertSucceeds(asUser('adminClinicalRead').doc('medicalForms/formH/clinical/content').get());
+  });
+
+  it('non-régression : un formulaire legacy (contenu clinique intégré au document parent) reste lisible normalement', async () => {
+    await seedAccount('agentLegacyForm', { profile: 'Agent', assignedOrganizations: ['OrgA'] });
+    await seedDoc('medicalForms', 'formLegacy', {
+      organization: 'OrgA',
+      memberName: 'Legacy',
+      doctorPrescription: { presumedDiagnosis: 'encv1:legacy' },
+    });
+
+    await assertSucceeds(asUser('agentLegacyForm').doc('medicalForms/formLegacy').get());
+  });
+});
+
+// --- Revue complète 2026-09-06, finding A1 : auto-élévation de privilège sur accounts.create --
+
+describe('Revue 2026-09-06 (A1) — accounts.create : pas d\'auto-élévation de privilège', () => {
+  it('un utilisateur non-Admin ne peut PAS s\'auto-créer un compte "Supervisor" actif (auto-élévation)', async () => {
+    await assertFails(
+      asUser('attackerSupervisor')
+        .doc('accounts/attackerSupervisor')
+        .set({ profile: 'Supervisor', isActive: true, permissions: ['approve_claims', 'view_audit_logs'] })
+    );
+  });
+
+  it('un utilisateur non-Admin ne peut PAS s\'auto-créer un compte "Agent" actif via écriture directe (contourne le flux d\'app, qui passe toujours par un Admin)', async () => {
+    await assertFails(
+      asUser('attackerAgent')
+        .doc('accounts/attackerAgent')
+        .set({ profile: 'Agent', isActive: true })
+    );
+  });
+
+  it('non-régression : un Admin peut toujours créer un compte pour un tiers, y compris "Supervisor"', async () => {
+    await seedAccount('adminCreator', { profile: 'Admin' });
+    await assertSucceeds(
+      asUser('adminCreator')
+        .doc('accounts/newSupervisor')
+        .set({ profile: 'Supervisor', isActive: true, permissions: ['approve_claims'] })
+    );
+  });
+
+  it('non-régression : un Admin peut toujours créer un compte "Agent" pour un tiers', async () => {
+    await seedAccount('adminCreator2', { profile: 'Admin' });
+    await assertSucceeds(
+      asUser('adminCreator2')
+        .doc('accounts/newAgent')
+        .set({ profile: 'Agent', isActive: true })
+    );
+  });
+});
+
+// --- Revue complète 2026-09-06, finding A3 : lecture des notifications non cloisonnée --------
+
+describe('Revue 2026-09-06 (A3) — notifications : lecture restreinte au destinataire réel', () => {
+  it('un utilisateur NE PEUT PAS lire une notification adressée par recipientId à quelqu\'un d\'autre', async () => {
+    await seedAccount('agentBystander', { profile: 'Agent' });
+    await seedDoc('notifications', 'n1', {
+      recipientId: 'someoneElseUid',
+      message: 'Claim #123 for John Doe ($4500) was approved.',
+    });
+
+    await assertFails(asUser('agentBystander').doc('notifications/n1').get());
+  });
+
+  it('un utilisateur NE PEUT PAS lire une notification diffusée à un autre rôle (recipientRole)', async () => {
+    await seedAccount('agentBystander2', { profile: 'Agent' });
+    await seedDoc('notifications', 'n2', {
+      recipientRole: 'Supervisor',
+      message: 'A new claim is pending validation.',
+    });
+
+    await assertFails(asUser('agentBystander2').doc('notifications/n2').get());
+  });
+
+  it('le destinataire direct (recipientId) peut lire sa propre notification', async () => {
+    await seedAccount('agentOwner', { profile: 'Agent' });
+    await seedDoc('notifications', 'n3', {
+      recipientId: 'agentOwner',
+      message: 'Your claim was approved.',
+    });
+
+    await assertSucceeds(asUser('agentOwner').doc('notifications/n3').get());
+  });
+
+  it('un utilisateur dont le rôle correspond à recipientRole peut lire la notification diffusée (non-régression Topbar)', async () => {
+    await seedAccount('supervisorReader', { profile: 'Supervisor' });
+    await seedDoc('notifications', 'n4', {
+      recipientRole: 'Supervisor',
+      message: 'A new claim is pending validation.',
+    });
+
+    await assertSucceeds(asUser('supervisorReader').doc('notifications/n4').get());
+  });
+
+  it('non-régression : alias Supervisor/Superviseur reste couvert', async () => {
+    await seedAccount('supervisorFr', { profile: 'Superviseur' });
+    await seedDoc('notifications', 'n5', { recipientRole: 'Supervisor', message: 'x' });
+
+    await assertSucceeds(asUser('supervisorFr').doc('notifications/n5').get());
+  });
+
+  it('un Admin garde un accès total à toutes les notifications', async () => {
+    await seedAccount('adminNotif', { profile: 'Admin' });
+    await seedDoc('notifications', 'n6', { recipientId: 'someoneElseUid', message: 'x' });
+
+    await assertSucceeds(asUser('adminNotif').doc('notifications/n6').get());
+  });
+
+  it('non-régression : une notification legacy sans recipientId/recipientRole reste lisible par tout utilisateur actif', async () => {
+    await seedAccount('agentLegacyNotif', { profile: 'Agent' });
+    await seedDoc('notifications', 'n7', { message: 'Legacy broadcast notification', unread: true });
+
+    await assertSucceeds(asUser('agentLegacyNotif').doc('notifications/n7').get());
+  });
+});
+
+// === AMÉLIORATION AJOUTÉE : revue d'audit 2026-09-11 — écriture des notifications non
+// restreinte (`allow write: if isSignedIn()`), laissée hors périmètre du correctif A3
+// ci-dessus (qui ne portait que sur la lecture). Preuve reproductible du resserrement.
+describe('Revue 2026-09-11 — notifications : écriture restreinte au destinataire réel', () => {
+  it('un utilisateur actif peut créer une notification adressée à un autre (recipientId) — cas normal', async () => {
+    await seedAccount('agentNotifCreator', { profile: 'Agent' });
+
+    await assertSucceeds(
+      asUser('agentNotifCreator').doc('notifications/created1').set({
+        recipientId: 'someoneElseUid',
+        message: 'Your claim was approved.',
+        unread: true,
+      })
+    );
+  });
+
+  it('un utilisateur actif peut créer une notification diffusée par rôle (recipientRole) — cas normal', async () => {
+    await seedAccount('agentNotifCreator2', { profile: 'Agent' });
+
+    await assertSucceeds(
+      asUser('agentNotifCreator2').doc('notifications/created2').set({
+        recipientRole: 'Supervisor',
+        message: 'A new claim is pending validation.',
+        unread: true,
+      })
+    );
+  });
+
+  it('la création d\'une notification SANS recipientId ni recipientRole échoue (document malformé)', async () => {
+    await seedAccount('agentNotifNoTarget', { profile: 'Agent' });
+
+    await assertFails(
+      asUser('agentNotifNoTarget').doc('notifications/created3').set({
+        message: 'No addressee at all.',
+        unread: true,
+      })
+    );
+  });
+
+  it('un compte désactivé ne peut plus créer de notification', async () => {
+    await seedAccount('agentNotifInactive', { profile: 'Agent', isActive: false });
+
+    await assertFails(
+      asUser('agentNotifInactive').doc('notifications/created4').set({
+        recipientId: 'someoneElseUid',
+        message: 'x',
+        unread: true,
+      })
+    );
+  });
+
+  it('le destinataire direct (recipientId) peut marquer sa propre notification comme lue', async () => {
+    await seedAccount('agentNotifOwner', { profile: 'Agent' });
+    await seedDoc('notifications', 'w1', {
+      recipientId: 'agentNotifOwner',
+      message: 'Your claim was approved.',
+      unread: true,
+    });
+
+    await assertSucceeds(asUser('agentNotifOwner').doc('notifications/w1').update({ unread: false }));
+  });
+
+  it('un destinataire par rôle (recipientRole) peut marquer une notification diffusée comme lue', async () => {
+    await seedAccount('supNotifOwner', { profile: 'Supervisor' });
+    await seedDoc('notifications', 'w2', {
+      recipientRole: 'Supervisor',
+      message: 'A new claim is pending validation.',
+      unread: true,
+    });
+
+    await assertSucceeds(asUser('supNotifOwner').doc('notifications/w2').update({ unread: false }));
+  });
+
+  it('un utilisateur NE PEUT PAS modifier la notification de quelqu\'un d\'autre', async () => {
+    await seedAccount('agentNotifBystander', { profile: 'Agent' });
+    await seedDoc('notifications', 'w3', {
+      recipientId: 'someoneElseUid',
+      message: 'Your claim was approved.',
+      unread: true,
+    });
+
+    await assertFails(asUser('agentNotifBystander').doc('notifications/w3').update({ unread: false }));
+  });
+
+  it('même le destinataire ne peut pas modifier un autre champ que unread (ex. message)', async () => {
+    await seedAccount('agentNotifTamper', { profile: 'Agent' });
+    await seedDoc('notifications', 'w4', {
+      recipientId: 'agentNotifTamper',
+      message: 'Your claim was approved.',
+      unread: true,
+    });
+
+    await assertFails(
+      asUser('agentNotifTamper').doc('notifications/w4').update({ message: 'Tampered message' })
+    );
+  });
+
+  it('un Admin peut marquer comme lue la notification de n\'importe qui', async () => {
+    await seedAccount('adminNotifWrite', { profile: 'Admin' });
+    await seedDoc('notifications', 'w5', {
+      recipientId: 'someoneElseUid',
+      message: 'x',
+      unread: true,
+    });
+
+    await assertSucceeds(asUser('adminNotifWrite').doc('notifications/w5').update({ unread: false }));
+  });
+
+  it('un utilisateur non-Admin ne peut pas supprimer une notification', async () => {
+    await seedAccount('agentNotifDelete', { profile: 'Agent' });
+    await seedDoc('notifications', 'w6', { recipientId: 'agentNotifDelete', message: 'x' });
+
+    await assertFails(asUser('agentNotifDelete').doc('notifications/w6').delete());
+  });
+
+  it('un Admin peut supprimer une notification', async () => {
+    await seedAccount('adminNotifDelete', { profile: 'Admin' });
+    await seedDoc('notifications', 'w7', { recipientId: 'someoneElseUid', message: 'x' });
+
+    await assertSucceeds(asUser('adminNotifDelete').doc('notifications/w7').delete());
+  });
+});
+
+// --- Revue complète 2026-09-06, finding A4 : whitelist healthPolicies.update incomplète -------
+
+describe('Revue 2026-09-06 (A4) — healthPolicies.update : champs de synchro automatique autorisés', () => {
+  it('un Agent peut mettre à jour suspensionReason/suspensionDate lors d\'une synchro automatique de statut', async () => {
+    await seedAccount('agentSync', { profile: 'Agent' });
+    await seedDoc('healthPolicies', 'OrgSyncA', {
+      status: 'Active',
+      coverageBlocked: false,
+      organization: 'OrgSyncA',
+    });
+
+    await assertSucceeds(
+      asUser('agentSync').doc('healthPolicies/OrgSyncA').update({
+        status: 'Suspended',
+        coverageBlocked: true,
+        suspensionReason: 'Payment overdue',
+        suspensionDate: '2026-09-06',
+        updatedAt: '2026-09-06T00:00:00.000Z',
+      })
+    );
+  });
+
+  it('un Agent peut mettre à jour reactivationDate lors d\'une réactivation automatique', async () => {
+    await seedAccount('agentSync2', { profile: 'Agent' });
+    await seedDoc('healthPolicies', 'OrgSyncB', {
+      status: 'Suspended',
+      coverageBlocked: false,
+      organization: 'OrgSyncB',
+    });
+
+    await assertSucceeds(
+      asUser('agentSync2').doc('healthPolicies/OrgSyncB').update({
+        status: 'Active',
+        reactivationDate: '2026-09-06',
+        updatedAt: '2026-09-06T00:00:00.000Z',
+      })
+    );
+  });
+
+  it('non-régression : un Agent ne peut toujours pas modifier un champ hors liste (ex: organization)', async () => {
+    await seedAccount('agentSync3', { profile: 'Agent' });
+    await seedDoc('healthPolicies', 'OrgSyncC', {
+      status: 'Active',
+      coverageBlocked: false,
+      organization: 'OrgSyncC',
+    });
+
+    await assertFails(
+      asUser('agentSync3').doc('healthPolicies/OrgSyncC').update({ organization: 'HijackedOrg' })
+    );
+  });
+
+  it('non-régression : un Agent ne peut toujours pas débloquer une couverture déjà suspendue via ce chemin', async () => {
+    await seedAccount('agentSync4', { profile: 'Agent' });
+    await seedDoc('healthPolicies', 'OrgSyncD', {
+      status: 'Suspended',
+      coverageBlocked: true,
+      organization: 'OrgSyncD',
+    });
+
+    await assertFails(
+      asUser('agentSync4').doc('healthPolicies/OrgSyncD').update({ coverageBlocked: false })
+    );
+  });
+});
+
+// --- Revue complète 2026-09-06, finding #5 : préparation du deny-by-default (opt-in) ----------
+
+describe('Revue 2026-09-06 (#5) — hasOrgAccess() : deny-by-default en opt-in par compte', () => {
+  it('non-régression : un Agent SANS assignedOrganizations ET SANS orgAccessPolicy garde un accès illimité (comportement actuel inchangé)', async () => {
+    await seedAccount('agentNoPolicy', { profile: 'Agent' });
+    await seedDoc('claims', 'cNoPolicy', { organization: 'AnyOrgWhatsoever', createdByUid: 'someoneElse' });
+
+    await assertSucceeds(asUser('agentNoPolicy').doc('claims/cNoPolicy').get());
+  });
+
+  it('un Agent avec orgAccessPolicy:"strict" ET sans assignedOrganizations perd l\'accès (deny-by-default activé)', async () => {
+    await seedAccount('agentStrictNoScope', { profile: 'Agent', orgAccessPolicy: 'strict' });
+    await seedDoc('claims', 'cStrict1', { organization: 'OrgX', createdByUid: 'someoneElse' });
+
+    await assertFails(asUser('agentStrictNoScope').doc('claims/cStrict1').get());
+  });
+
+  it('un Agent avec orgAccessPolicy:"strict" ET un assignedOrganizations explicite reste scopé normalement (l\'opt-in ne change rien quand un périmètre existe déjà)', async () => {
+    await seedAccount('agentStrictScoped', { profile: 'Agent', orgAccessPolicy: 'strict', assignedOrganizations: ['OrgY'] });
+    await seedDoc('claims', 'cStrict2', { organization: 'OrgY', createdByUid: 'someoneElse' });
+    await seedDoc('claims', 'cStrict3', { organization: 'OrgZ', createdByUid: 'someoneElse' });
+
+    await assertSucceeds(asUser('agentStrictScoped').doc('claims/cStrict2').get());
+    await assertFails(asUser('agentStrictScoped').doc('claims/cStrict3').get());
+  });
+
+  it('un Admin garde un accès total même avec orgAccessPolicy:"strict" posé sur son propre compte', async () => {
+    await seedAccount('adminStrict', { profile: 'Admin', orgAccessPolicy: 'strict' });
+    await seedDoc('claims', 'cStrictAdmin', { organization: 'AnyOrg', createdByUid: 'someoneElse' });
+
+    await assertSucceeds(asUser('adminStrict').doc('claims/cStrictAdmin').get());
   });
 });

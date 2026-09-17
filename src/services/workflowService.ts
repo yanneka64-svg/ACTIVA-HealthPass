@@ -1,10 +1,69 @@
 import { Enrollment, Claim, Member, Organization, InvoiceItem, AppNotification, DependentItem, DependentRelationship, HealthPolicy } from '../types';
 import { FirestoreService } from './firestore';
 import { getPolicyCoverageStatus } from './policyEngine';
-import { generateNextCardNumber } from './cardNumberService';
 // === AMÉLIORATION AJOUTÉE : câblage des Cloud Functions (Phase 3/5), sur demande explicite.
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '../lib/firebase';
+import { runTransaction, doc } from 'firebase/firestore';
+import { functions, db, auth } from '../lib/firebase';
+import { recordServerFallback } from '../utils/fallbackTelemetry';
+
+// === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07, décision explicite) ===
+// Le filet de sécurité client sur claims/enrollments (voir approveClaim/rejectClaim/
+// approveEnrollment/rejectEnrollment ci-dessous) n'a jamais vérifié le statut courant du
+// document avant d'écrire — exactement la même faille déjà corrigée côté serveur dans
+// functions/src/claimsService.ts/enrollmentsService.ts (finding A2, 2026-09-06), mais restée
+// ouverte sur CE chemin de repli. Décision explicite : garder le fallback (le supprimer
+// bloquerait toute approbation si les Cloud Functions ne tournent pas), mais lui appliquer la
+// même garde. Vérification par transaction Firestore juste avant l'écriture de repli (lecture +
+// contrôle atomiques ; l'écriture elle-même reste hors transaction, comme le reste de ce chemin
+// de repli déjà existant — voir FirestoreService.updateClaim/updateEnrollment) : réduit
+// drastiquement, sans réécrire toute l'architecture de ce chemin de secours, la fenêtre pendant
+// laquelle un double-clic ou deux superviseurs concurrents pourraient générer une facture ou un
+// membre en double via CE chemin précis (le chemin serveur, prioritaire, est lui déjà protégé
+// atomiquement par la transaction de claimsService.ts/enrollmentsService.ts).
+export async function assertStillPendingForClientFallback(
+  collectionName: 'claims' | 'enrollments',
+  id: string
+): Promise<void> {
+  // === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11 — revalidation serveur du rôle sur le
+  // fallback client) ===
+  // Constat : ce chemin de repli écrit directement via le SDK Firestore, sans passer par
+  // `processClaimDecision`/`processEnrollmentDecision` — son SEUL rempart contre une approbation
+  // par un utilisateur non autorisé est donc `firestore.rules` (`userProfile()`/`isAdmin()`/
+  // `isSupervisor()`/`isActiveUser()`), évalué à partir du jeton d'authentification que le
+  // navigateur a EN MÉMOIRE. Or ce jeton n'est rafraîchi automatiquement par le SDK Firebase
+  // Auth qu'environ une fois par heure : un utilisateur rétrogradé (Supervisor -> Agent) ou
+  // désactivé par un Admin pendant ce délai continue de présenter un jeton portant l'ANCIEN rôle/
+  // statut actif, même si `syncAccountClaims` (functions/src/index.ts) a déjà mis à jour le
+  // Custom Claim côté serveur au moment même du changement — la même fenêtre existe côté Cloud
+  // Function (`resolveUserRole` retombe aussi en priorité sur `context.auth.token.role`), mais
+  // celle-ci est le chemin PRIORITAIRE, tandis que ce repli n'est emprunté qu'en cas
+  // d'indisponibilité de la Cloud Function : il mérite une garde dédiée plutôt que de compter
+  // sur le même délai de propagation.
+  // Correctif : forcer le rafraîchissement du jeton juste avant la vérification de statut
+  // ci-dessous — `getIdToken(true)` interroge Firebase Auth et obtient un jeton reflétant l'état
+  // `accounts/{uid}` le plus récent, avant que `firestore.rules` n'évalue le rôle/statut actif
+  // pour l'écriture de repli. Best-effort : un échec du rafraîchissement (ex. hors ligne) ne
+  // bloque pas la vérification ci-dessous, qui reste protégée par firestore.rules avec le jeton
+  // disponible, exactement comme avant ce correctif.
+  if (auth.currentUser) {
+    await auth.currentUser.getIdToken(true).catch(() => {});
+  }
+
+  await runTransaction(db, async (tx) => {
+    const ref = doc(db, collectionName, id);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) {
+      throw new Error(`This ${collectionName === 'claims' ? 'claim' : 'enrollment'} no longer exists.`);
+    }
+    const status = (snap.data() as { status?: string }).status || 'pending';
+    if (status !== 'pending') {
+      throw new Error(
+        `This ${collectionName === 'claims' ? 'claim' : 'enrollment'} has already been decided (current status: '${status}') and cannot be decided again.`
+      );
+    }
+  });
+}
 
 /**
  * Service to execute end-to-end multi-role workflows and keep Firestore records,
@@ -71,42 +130,68 @@ export const WorkflowService = {
       );
     }
 
-    const updated: Enrollment = {
-      ...enr,
-      status: 'approved',
-      decisionDate: new Date().toISOString().split('T')[0],
-      approvedBy: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Medical Supervisor',
-    };
-    await FirestoreService.updateEnrollment(updated);
+    // === AMÉLIORATION AJOUTÉE : sécurité (Go-Live Santé / SoD) — Exécution autoritaire côté serveur
+    // via la Cloud Function `processEnrollmentDecision`. Applique la séparation des tâches (SoD),
+    // la mise à jour atomique dans une transaction Firestore, la synchronisation avec l'annuaire
+    // des membres et l'écriture de l'audit log immuable.
+    let handledByServer = false;
+    try {
+      const callProcessEnrollment = httpsCallable<
+        { enrollmentId: string; decision: 'approved' | 'rejected'; approverName?: string; approverRole?: string },
+        { success: boolean; memberId?: string }
+      >(functions, 'processEnrollmentDecision');
+      const result = await callProcessEnrollment({
+        enrollmentId: enr.id,
+        decision: 'approved',
+        approverName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+        approverRole: currentUser?.profile || currentUser?.role,
+      });
+      handledByServer = !!result.data?.success;
+    } catch (err) {
+      console.warn('Cloud Function "processEnrollmentDecision" unavailable — falling back to client-side approval:', err);
+      recordServerFallback('processEnrollmentDecision', `Approval fallback for ${enr.id}`);
+    }
 
-    // Sync into Insured Members
-    await WorkflowService.syncApprovedEnrollmentToMembers(enr, members);
+    if (!handledByServer) {
+      await assertStillPendingForClientFallback('enrollments', enr.id);
 
-    // Persistent notification to the Agent
-    await FirestoreService.addNotification({
-      recipientRole: 'Agent',
-      recipientEmail: enr.creatorEmail,
-      recipientId: enr.createdBy,
-      title: 'Enrollment Approved ✓',
-      message: `Card #${enr.cardNo} (${enr.fullName}) has been approved by ${currentUser?.fullName || 'Supervisor'} and added to Insured Members.`,
-      timestamp: new Date().toISOString(),
-      unread: true,
-      type: 'enrollment',
-      targetSection: 'enrollments',
-      entityId: enr.id,
-    });
+      const updated: Enrollment = {
+        ...enr,
+        status: 'approved',
+        decisionDate: new Date().toISOString().split('T')[0],
+        approvedBy: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Medical Supervisor',
+      };
+      await FirestoreService.updateEnrollment(updated);
 
-    // Enriched audit log
-    await FirestoreService.addLog({
-      userId: currentUser?.uid || 'supervisor',
-      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
-      userRole: currentUser?.role || 'Supervisor',
-      action: 'ENROLLMENT_APPROVED',
-      category: 'Enrollments',
-      entityId: enr.id,
-      entityType: 'enrollment',
-      details: `Enrollment for ${enr.fullName} (Card #${enr.cardNo}) approved by ${currentUser?.fullName || 'Supervisor'}.`,
-    });
+      // Sync into Insured Members
+      await WorkflowService.syncApprovedEnrollmentToMembers(enr, members);
+
+      // Persistent notification to the Agent
+      await FirestoreService.addNotification({
+        recipientRole: 'Agent',
+        recipientEmail: enr.creatorEmail,
+        recipientId: enr.createdBy,
+        title: 'Enrollment Approved ✓',
+        message: `Card #${enr.cardNo} (${enr.fullName}) has been approved by ${currentUser?.fullName || 'Supervisor'} and added to Insured Members.`,
+        timestamp: new Date().toISOString(),
+        unread: true,
+        type: 'enrollment',
+        targetSection: 'enrollments',
+        entityId: enr.id,
+      });
+
+      // Enriched audit log
+      await FirestoreService.addLog({
+        userId: currentUser?.uid || 'supervisor',
+        userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
+        userRole: currentUser?.role || 'Supervisor',
+        action: 'ENROLLMENT_APPROVED',
+        category: 'Enrollments',
+        entityId: enr.id,
+        entityType: 'enrollment',
+        details: `Enrollment for ${enr.fullName} (Card #${enr.cardNo}) approved by ${currentUser?.fullName || 'Supervisor'}.`,
+      });
+    }
   },
 
   /**
@@ -123,39 +208,63 @@ export const WorkflowService = {
       );
     }
 
-    const updated: Enrollment = {
-      ...enr,
-      status: 'rejected',
-      decisionDate: new Date().toISOString().split('T')[0],
-      rejectionReason: reason,
-    };
-    await FirestoreService.updateEnrollment(updated);
+    // === AMÉLIORATION AJOUTÉE : câblage de la Cloud Function `processEnrollmentDecision` pour le rejet
+    let handledByServer = false;
+    try {
+      const callProcessEnrollment = httpsCallable<
+        { enrollmentId: string; decision: 'approved' | 'rejected'; approverName?: string; approverRole?: string; rejectionReason?: string },
+        { success: boolean }
+      >(functions, 'processEnrollmentDecision');
+      const result = await callProcessEnrollment({
+        enrollmentId: enr.id,
+        decision: 'rejected',
+        approverName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+        approverRole: currentUser?.profile || currentUser?.role,
+        rejectionReason: reason,
+      });
+      handledByServer = !!result.data?.success;
+    } catch (err) {
+      console.warn('Cloud Function "processEnrollmentDecision" unavailable — falling back to client-side rejection:', err);
+      recordServerFallback('processEnrollmentDecision', `Rejection fallback for ${enr.id}`);
+    }
 
-    // Persistent notification to the Agent
-    await FirestoreService.addNotification({
-      recipientRole: 'Agent',
-      recipientEmail: enr.creatorEmail,
-      recipientId: enr.createdBy,
-      title: 'Enrollment Rejected ✗',
-      message: `Card #${enr.cardNo} (${enr.fullName}) was rejected by Supervisor. Reason: ${reason}`,
-      timestamp: new Date().toISOString(),
-      unread: true,
-      type: 'enrollment',
-      targetSection: 'enrollments',
-      entityId: enr.id,
-    });
+    if (!handledByServer) {
+      await assertStillPendingForClientFallback('enrollments', enr.id);
 
-    // Enriched audit log
-    await FirestoreService.addLog({
-      userId: currentUser?.uid || 'supervisor',
-      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
-      userRole: currentUser?.role || 'Supervisor',
-      action: 'ENROLLMENT_REJECTED',
-      category: 'Enrollments',
-      entityId: enr.id,
-      entityType: 'enrollment',
-      details: `Enrollment for ${enr.fullName} rejected by ${currentUser?.fullName || 'Supervisor'}. Reason: ${reason}`,
-    });
+      const updated: Enrollment = {
+        ...enr,
+        status: 'rejected',
+        decisionDate: new Date().toISOString().split('T')[0],
+        rejectionReason: reason,
+      };
+      await FirestoreService.updateEnrollment(updated);
+
+      // Persistent notification to the Agent
+      await FirestoreService.addNotification({
+        recipientRole: 'Agent',
+        recipientEmail: enr.creatorEmail,
+        recipientId: enr.createdBy,
+        title: 'Enrollment Rejected ✗',
+        message: `Card #${enr.cardNo} (${enr.fullName}) was rejected by Supervisor. Reason: ${reason}`,
+        timestamp: new Date().toISOString(),
+        unread: true,
+        type: 'enrollment',
+        targetSection: 'enrollments',
+        entityId: enr.id,
+      });
+
+      // Enriched audit log
+      await FirestoreService.addLog({
+        userId: currentUser?.uid || 'supervisor',
+        userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Supervisor',
+        userRole: currentUser?.role || 'Supervisor',
+        action: 'ENROLLMENT_REJECTED',
+        category: 'Enrollments',
+        entityId: enr.id,
+        entityType: 'enrollment',
+        details: `Enrollment for ${enr.fullName} rejected by ${currentUser?.fullName || 'Supervisor'}. Reason: ${reason}`,
+      });
+    }
   },
 
   /**
@@ -270,20 +379,15 @@ export const WorkflowService = {
           dependents: currentDeps,
         });
       } else {
-        // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
-        // explicite. Ce repli (déclenché quand l'ayant droit approuvé référence un assuré
-        // principal introuvable dans l'annuaire) générait auparavant un numéro aléatoire au
-        // format obsolète "ACT-PRI-XXXXX", contournant le système de numérotation
-        // centralisé. Génère désormais un numéro AMID-YYMMDD-NNNNN unique et transactionnel,
-        // uniquement dans ce cas de repli (si `mainInsuredCardNo` est déjà renseigné, il est
-        // conservé tel quel, sans y toucher).
-        const primaryCardNo =
-          enr.mainInsuredCardNo ||
-          (await generateNextCardNumber({
-            organization: enr.organization,
-            insuredName: enr.mainInsuredName || 'Principal Insured',
-            method: 'ENROLLMENT',
-          }));
+        // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — sur
+        // demande explicite, la génération automatique est retirée. Ce repli (déclenché
+        // quand l'ayant droit approuvé référence un assuré principal introuvable dans
+        // l'annuaire) n'est atteint QUE lorsque `enr.mainInsuredCardNo` est déjà renseigné —
+        // voir `isPrincipal` plus haut, qui traite un enrôlement sans `mainInsuredCardNo`
+        // comme son propre principal. Le numéro de carte du principal (déjà saisi
+        // manuellement/importé à l'enrôlement, jamais fabriqué ici) est donc simplement
+        // repris tel quel.
+        const primaryCardNo = enr.mainInsuredCardNo;
         // Create primary holder entry and attach dependent
         await FirestoreService.addMember({
           cardNo: primaryCardNo,
@@ -310,7 +414,7 @@ export const WorkflowService = {
   submitClaim: async (
     claimData: Partial<Claim>,
     currentUser: any
-  ): Promise<void> => {
+  ): Promise<{ medicalFormLinkFailed: boolean }> => {
     const payload: Partial<Claim> = {
       ...claimData,
       status: 'pending',
@@ -327,7 +431,29 @@ export const WorkflowService = {
         'Medical Provider Agent',
     };
 
-    await FirestoreService.addClaim(payload);
+    const claimRef = await FirestoreService.addClaim(payload);
+
+    // === AMÉLIORATION AJOUTÉE : lien bidirectionnel Claim <-> MedicalForm (retour utilisateur,
+    // 2026-09-12) — quand l'Agent a rattaché une fiche maladie existante à ce claim (voir le
+    // sélecteur "Link to Medical Form" dans AgentClaimsView.tsx), le claim porte déjà
+    // medicalFormId/medicalFormReference (écrits ci-dessus avec le reste du payload) ; il ne
+    // reste qu'à reporter le sens inverse sur la fiche elle-même, une fois l'id du nouveau claim
+    // connu. Comportement inchangé pour tout claim soumis sans fiche associée (facturation
+    // directe) : payload.medicalFormId est alors absent et ce bloc ne s'exécute pas.
+    // === AMÉLIORATION AJOUTÉE : robustesse (auto-revue, 2026-09-12) — le claim ci-dessus est
+    // DÉJÀ créé avec succès à ce stade ; une panne réseau/permission sur ce report ne doit
+    // jamais faire échouer toute la soumission (l'agent perdrait sa saisie alors que le claim
+    // existe déjà en base). L'échec est donc absorbé ici et signalé à l'appelant via la valeur
+    // de retour, pour un message distinct côté UI plutôt qu'un échec silencieux.
+    let medicalFormLinkFailed = false;
+    if (payload.medicalFormId) {
+      try {
+        await FirestoreService.linkMedicalFormToClaim(payload.medicalFormId, claimRef.id, payload.reference);
+      } catch (err) {
+        console.error('linkMedicalFormToClaim failed (the claim itself was still created successfully):', err);
+        medicalFormLinkFailed = true;
+      }
+    }
 
     // Notify Supervisor of new claim submission
     await FirestoreService.addNotification({
@@ -339,6 +465,8 @@ export const WorkflowService = {
       type: 'claim',
       targetSection: 'claims_validation',
     });
+
+    return { medicalFormLinkFailed };
   },
 
   /**
@@ -387,9 +515,12 @@ export const WorkflowService = {
       handledByServer = !!result.data?.success;
     } catch (err) {
       console.warn('Cloud Function "processClaimDecision" unavailable — falling back to client-side approval:', err);
+      recordServerFallback('processClaimDecision', `Approval fallback for ${claim.id}`);
     }
 
     if (!handledByServer) {
+      await assertStillPendingForClientFallback('claims', claim.id);
+
       const updated: Claim = {
         ...claim,
         status: 'approved',
@@ -430,6 +561,11 @@ export const WorkflowService = {
         careType: claim.careType,
         prescribingDoctor: claim.doctorName,
         coveragePercentage: org?.coverageRate ?? 80,
+        // === AMÉLIORATION AJOUTÉE : nouveau modèle de bordereau de règlement (voir
+        // InvoicesView.tsx / printUtils.ts) — conserve la référence du claim d'origine et le
+        // détail des actes médicaux, jusqu'ici perdus lors de la génération de la facture.
+        claimId: claim.reference,
+        medicalActs: claim.medicalActs,
       };
       await FirestoreService.addInvoice(newInvoice);
     }
@@ -483,9 +619,12 @@ export const WorkflowService = {
       handledByServer = !!result.data?.success;
     } catch (err) {
       console.warn('Cloud Function "processClaimDecision" unavailable — falling back to client-side rejection:', err);
+      recordServerFallback('processClaimDecision', `Rejection fallback for ${claim.id}`);
     }
 
     if (!handledByServer) {
+      await assertStillPendingForClientFallback('claims', claim.id);
+
       const updated: Claim = {
         ...claim,
         status: 'rejected',

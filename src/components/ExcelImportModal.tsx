@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileSpreadsheet, AlertTriangle, CheckCircle2, X, RefreshCw, Download, FileText, Users, UserCheck, ArrowRight } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, AlertTriangle, CheckCircle2, X, RefreshCw, Download, FileText, Users, UserCheck } from 'lucide-react';
 import { Language } from '../types';
 import { useTranslation } from '../i18n/translations';
 import { ImportResult, generateMemberTemplateExcel, downloadBlob } from '../utils/excelUtils';
-import { commitCardNumberPreview, getCurrentCounters, previewNextCardNumber } from '../services/cardNumberService';
+import { commitCardNumberPreview } from '../services/cardNumberService';
 import * as XLSX from 'xlsx';
 
 interface ExcelImportModalProps<T> {
@@ -56,8 +56,8 @@ export function ExcelImportModal<T>({
   const [fileError, setFileError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [finalSummary, setFinalSummary] = useState<{
-    total: number; retained: number; generated: number; duplicates: number; invalid: number;
-    lastAssigned: string | null; nextAvailable: string;
+    total: number; retained: number; duplicates: number; invalid: number;
+    lastAssigned: string | null;
   } | null>(null);
   const awaitingCardNumberConfirmation = !!(result?.success && result.cardNumberPreview && result.cardNumberPreview.length > 0 && !finalSummary);
 
@@ -208,25 +208,21 @@ export function ExcelImportModal<T>({
       await onSuccess(itemsToPersist as T[]);
 
       const retained = result.cardNumberPreview.filter((r) => r.action === 'Kept').length;
-      const generated = result.cardNumberPreview.filter((r) => r.action === 'Generated').length;
       const duplicates = result.cardNumberPreview.filter((r) => r.status === 'Duplicate').length;
       const invalid = result.cardNumberPreview.filter((r) => r.status === 'Invalid').length;
       const committedNumbers = result.cardNumberPreview
         .filter((r) => r.action !== 'None' && !failures.some((f) => f.rowIndex === r.rowIndex))
         .map((r) => r.cardNoFinal);
       const lastAssigned = committedNumbers.length > 0 ? committedNumbers[committedNumbers.length - 1] : null;
-      const nextAvailable = await previewNextCardNumber();
 
       setFinalSummary({
         total: result.cardNumberPreview.length,
         retained,
-        generated,
         duplicates,
         invalid,
         lastAssigned,
-        nextAvailable,
       });
-      setResult({ ...result, parsedItems: itemsToPersist as T[], created: generated, updated: 0, ignored: duplicates + invalid + failures.length });
+      setResult({ ...result, parsedItems: itemsToPersist as T[], created: retained, updated: 0, ignored: duplicates + invalid + failures.length });
     } catch (err: any) {
       setResult({
         ...result,
@@ -408,16 +404,23 @@ export function ExcelImportModal<T>({
           {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur
               demande explicite. Prévisualisation obligatoire avant import définitif (section
               10) : chaque ligne du fichier avec le n° de carte final calculé, l'action
-              (Kept/Generated/None) et le statut (Valid/Duplicate/Invalid). Rien n'a encore été
-              écrit en base à ce stade. === */}
+              (Kept/None) et le statut (Valid/Duplicate/Invalid). Rien n'a encore été
+              écrit en base à ce stade.
+              === AMÉLIORATION AJOUTÉE : génération automatique retirée (retour utilisateur —
+              "dorénavant les numéros de carte seront intégrés manuellement ... ou alors ils
+              seront importés dans un template existant") : chaque ligne DOIT désormais fournir
+              son propre Card No. (11 caractères alphanumériques) déjà présent dans le fichier
+              importé — une ligne sans numéro n'est plus complétée automatiquement, elle est
+              rejetée (statut Invalid). === */}
           {awaitingCardNumberConfirmation && result?.cardNumberPreview && (
             <div className="space-y-3">
               <div className="bg-sky-50 border border-sky-200 rounded-xl p-3.5 flex items-start gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-sky-600 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-sky-800 leading-relaxed">
                   Review the card numbers below before confirming — nothing is saved yet.
-                  Existing numbers are kept exactly as provided; blank rows get a new unique
-                  number automatically.
+                  Every row must already carry its own Card No. (11-character alphanumeric)
+                  from the import template; blank or invalid rows are rejected — no number is
+                  generated automatically.
                 </p>
               </div>
 
@@ -446,8 +449,6 @@ export function ExcelImportModal<T>({
                               className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                 row.action === 'Kept'
                                   ? 'bg-slate-100 text-slate-700'
-                                  : row.action === 'Generated'
-                                  ? 'bg-emerald-100 text-emerald-700'
                                   : 'bg-slate-100 text-slate-400'
                               }`}
                             >
@@ -475,18 +476,12 @@ export function ExcelImportModal<T>({
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div className="bg-white rounded-lg p-2.5 text-center border border-slate-200">
                   <span className="block text-lg font-black text-slate-700">
                     {result.cardNumberPreview.filter((r) => r.action === 'Kept').length}
                   </span>
                   <span className="text-[10px] font-medium text-slate-500">Retained</span>
-                </div>
-                <div className="bg-white rounded-lg p-2.5 text-center border border-emerald-100">
-                  <span className="block text-lg font-black text-emerald-600">
-                    {result.cardNumberPreview.filter((r) => r.action === 'Generated').length}
-                  </span>
-                  <span className="text-[10px] font-medium text-slate-500">Generated</span>
                 </div>
                 <div className="bg-white rounded-lg p-2.5 text-center border border-amber-100">
                   <span className="block text-lg font-black text-amber-600">
@@ -602,28 +597,23 @@ export function ExcelImportModal<T>({
                   final après confirmation d'un import de membres (section 22). === */}
               {finalSummary && (
                 <div className="pt-3 border-t border-emerald-100 space-y-2">
-                  <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="grid grid-cols-3 gap-3 text-xs">
                     <div className="bg-white rounded-lg p-2.5 border border-emerald-100">
                       <span className="block text-slate-400 text-[10px] font-bold uppercase">Total Records</span>
                       <span className="font-black text-slate-800">{finalSummary.total}</span>
                     </div>
                     <div className="bg-white rounded-lg p-2.5 border border-emerald-100">
-                      <span className="block text-slate-400 text-[10px] font-bold uppercase">Existing Retained</span>
+                      <span className="block text-slate-400 text-[10px] font-bold uppercase">Card Numbers Kept</span>
                       <span className="font-black text-slate-800">{finalSummary.retained}</span>
-                    </div>
-                    <div className="bg-white rounded-lg p-2.5 border border-emerald-100">
-                      <span className="block text-slate-400 text-[10px] font-bold uppercase">New Generated</span>
-                      <span className="font-black text-emerald-600">{finalSummary.generated}</span>
                     </div>
                     <div className="bg-white rounded-lg p-2.5 border border-emerald-100">
                       <span className="block text-slate-400 text-[10px] font-bold uppercase">Duplicates / Invalid</span>
                       <span className="font-black text-rose-600">{finalSummary.duplicates + finalSummary.invalid}</span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-xs bg-white rounded-lg p-2.5 border border-emerald-100 font-mono">
-                    <span className="text-slate-500">Last assigned: <strong className="text-slate-800">{finalSummary.lastAssigned || '—'}</strong></span>
-                    <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
-                    <span className="text-slate-500">Next available: <strong className="text-emerald-700">{finalSummary.nextAvailable}</strong></span>
+                  <div className="flex items-center gap-2 text-xs bg-white rounded-lg p-2.5 border border-emerald-100 font-mono">
+                    <span className="text-slate-500">Last committed:</span>
+                    <strong className="text-slate-800">{finalSummary.lastAssigned || '—'}</strong>
                   </div>
                 </div>
               )}

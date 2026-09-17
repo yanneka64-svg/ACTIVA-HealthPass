@@ -6,6 +6,7 @@
 // puisse diverger ou être contourné (voir aussi firestore.rules pour l'application côté
 // serveur des mêmes règles, sur la base du champ `coverageBlocked` persisté par ce moteur).
 import { HealthPolicy, Member, SuspensionReason } from '../types';
+import { recordServerFallback } from '../utils/fallbackTelemetry';
 
 // Seuils par défaut, configurables par police (HealthPolicy.gracePeriodDays /
 // expiringSoonWarningDays) — jamais codés en dur dans la logique de décision ci-dessous :
@@ -162,8 +163,14 @@ export async function evaluatePolicyWithServer(
         daysOverdue: data.daysPastDue,
       };
     }
+    // === AMÉLIORATION AJOUTÉE : fiabilité (audit 2026-09-05, FIAB-02) — rend visible un repli
+    // qui restait auparavant totalement silencieux (voir fallbackTelemetry.ts). Couvre aussi
+    // le cas d'une réponse HTTP non-OK (ex. 401/503), qui ne déclenche pas le `catch`
+    // ci-dessous puisqu'aucune exception n'est levée.
+    recordServerFallback('policies/evaluate', `organization=${policy.organizationId} status=${res.status}`);
   } catch {
     // Local fallback
+    recordServerFallback('policies/evaluate', `organization=${policy.organizationId}`);
   }
 
   return getPolicyCoverageStatus(policy, referenceDate);

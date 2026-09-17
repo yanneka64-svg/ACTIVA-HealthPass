@@ -4,6 +4,9 @@ import autoTable from 'jspdf-autotable';
 import { Member, Organization, Provider, Claim, InvoiceItem, DependentItem, DependentRelationship, HealthPolicy, PolicyPayment, CardNumberPreviewRow } from '../types';
 import { drawPdfLogoStrip, drawRefinedHeaderTitle, PDF_LOGO_STRIP_HEIGHT } from './pdfBranding';
 import { planCardNumbersForImport } from '../services/cardNumberService';
+// === AMÉLIORATION AJOUTÉE : rapport de réconciliation exportable (2026-09-10) — voir
+// exportReconciliationToExcel / exportReconciliationToPDF plus bas.
+import { ReconciliationSummary } from '../modules/reimbursement/reconciliation';
 
 // Normalization helper: remove accents, lowercase, trim, remove symbols
 export function normalizeHeader(header: string): string {
@@ -67,6 +70,88 @@ export function downloadBlob(blob: Blob, filename: string) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// === AMÉLIORATION AJOUTÉE : sécurité (revue 2026-09-11, section 2.6 — exports en masse non
+// maîtrisés) ===
+// Constat (docs/security/HEALTH_DATA_GOVERNANCE_REVIEW_2026-09-05.md, §2.6) : un export
+// Excel/PDF contenant des données personnelles/de santé quitte définitivement le périmètre
+// applicatif (fichier local non protégé, e-mail, clé USB...) sans aucune indication visuelle de
+// confidentialité, et sans aucune limite sur le nombre d'enregistrements qu'un clic peut
+// extraire. Le chiffrement du fichier lui-même (mentionné dans le même constat) est traité à
+// part — il exigerait un mot de passe à communiquer hors bande au destinataire, une décision
+// produit qui dépasse ce correctif ; les deux mesures ci-dessous ne demandent aucune décision de
+// ce type et s'appliquent uniformément aux exports qui portent des données de membres/claims/
+// factures/polices.
+export const MAX_EXPORT_ROWS = 5000;
+
+/**
+ * Enforces `MAX_EXPORT_ROWS` on a bulk export. Returns `true` when the export may proceed.
+ * When the limit is exceeded, alerts the user with actionable guidance and returns `false` —
+ * NEVER throws, so every call site can simply `if (!assertExportVolumeAllowed(...)) return;`
+ * without adding new error handling (this file is the only place this needs to be caught).
+ * Exported (like the other helpers below) purely so it can be unit tested directly.
+ */
+export function assertExportVolumeAllowed(rowCount: number, exportLabel: string): boolean {
+  if (rowCount <= MAX_EXPORT_ROWS) return true;
+  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert(
+      `Export "${exportLabel}" blocked: ${rowCount.toLocaleString('en-US')} records exceed the ` +
+        `${MAX_EXPORT_ROWS.toLocaleString('en-US')}-record limit for a single export. ` +
+        `Please narrow your filters (organization, date range, status) and export in smaller batches.`
+    );
+  }
+  return false;
+}
+
+export const EXPORT_CONFIDENTIALITY_NOTICE =
+  "CONFIDENTIAL — Contains personal and/or health data. Handle and store per your organization's data protection policy. Do not forward outside authorized personnel.";
+
+/**
+ * Prepends a one-row "Notice" sheet as the FIRST tab of `wb`, so the confidentiality notice is
+ * what a person sees when the exported workbook is opened — call right before `XLSX.write`.
+ */
+export function addExportConfidentialityNoticeSheet(wb: XLSX.WorkBook): void {
+  const ws = XLSX.utils.json_to_sheet(
+    [
+      { Notice: EXPORT_CONFIDENTIALITY_NOTICE },
+      { Notice: `Exported ${new Date().toISOString()}` },
+    ],
+    { skipHeader: true }
+  );
+  ws['!cols'] = [{ wch: 110 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Notice');
+  // XLSX.write orders sheets per wb.SheetNames — move the just-appended "Notice" tab to the
+  // front so it's the first (and only immediately visible) sheet on open.
+  wb.SheetNames.unshift(wb.SheetNames.pop()!);
+}
+
+/** Prepends the confidentiality notice as the first line of a CSV export. */
+export function withExportConfidentialityNoticeCSV(csvContent: string): string {
+  return `"${EXPORT_CONFIDENTIALITY_NOTICE.replace(/"/g, '""')}"\n${csvContent}`;
+}
+
+/**
+ * Draws a small confidentiality footer on every page of a jsPDF document. Call once, right
+ * before `doc.save(...)` — iterates all already-generated pages itself.
+ */
+export function drawExportConfidentialityFooter(doc: jsPDF): void {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184);
+    doc.setCharSpace(0);
+    doc.text(
+      'CONFIDENTIAL — Contains personal and/or health data — For authorized use only',
+      pageWidth / 2,
+      pageHeight - 5,
+      { align: 'center' }
+    );
+  }
 }
 
 // ================= MEMBER IMPORT =================
@@ -258,12 +343,13 @@ export async function parseMemberExcel(
         let ignored = 0;
         const updatedList: Member[] = [...existingMembers];
 
-        // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
-        // explicite. Pré-passe : détermine, pour chaque ligne portant un nom d'assuré, le
-        // numéro de carte final — conservé si déjà présent dans le fichier (après validation
-        // du format et vérification qu'il n'est pas déjà attribué à quelqu'un d'autre, en
-        // base ou ailleurs dans ce même fichier), généré automatiquement sinon (CASE 2,
-        // section 8 — auparavant une ligne sans "Card No." était silencieusement ignorée).
+        // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — sur
+        // demande explicite ("dorénavant les numéros de carte seront intégrés manuellement
+        // ... ou importés dans un template existant"). Pré-passe : détermine, pour chaque
+        // ligne portant un nom d'assuré, le numéro de carte final — conservé si déjà présent
+        // dans le fichier ET valide (11 caractères alphanumériques) ET non déjà attribué à
+        // quelqu'un d'autre (en base ou ailleurs dans ce même fichier), sinon la ligne est
+        // marquée invalide (plus aucune génération automatique pour une ligne vide).
         // Rien n'est réservé en base à ce stade : c'est un calcul en lecture seule (voir
         // planCardNumbersForImport), destiné à alimenter la prévisualisation obligatoire
         // avant import (section 10) — cardNumberPreview ci-dessous. La réservation réelle des
@@ -551,7 +637,11 @@ function parseDedicatedDependentsRows(
     const biometricsRaw = headerMap.biometrics ? String(row[headerMap.biometrics] || '').trim().toLowerCase() : '';
     const hasBiometrics = biometricsRaw ? !biometricsRaw.includes('no') && !biometricsRaw.includes('non') : true;
 
-    if (!depNameVal) {
+    // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — sur demande
+    // explicite, plus aucune génération/fabrication automatique de numéro de carte : une
+    // ligne sans son propre "Dependent Card No." explicite est désormais ignorée au lieu de
+    // recevoir un numéro fabriqué (ex: "DEP-1234", "{parentCard}-D123").
+    if (!depNameVal || !depCardVal) {
       ignored++;
       return;
     }
@@ -566,7 +656,7 @@ function parseDedicatedDependentsRows(
     }
 
     const age = parseAgeFromDob(dobVal);
-    const assignedDepCard = depCardVal || (parentCardVal ? `${parentCardVal}-D${Date.now().toString().slice(-3)}` : `DEP-${Date.now().toString().slice(-4)}`);
+    const assignedDepCard = depCardVal;
 
     const relLower = relVal.toLowerCase();
     const resolvedRel: DependentRelationship = (relLower.includes('conjoint') || relLower.includes('spouse') || relLower.includes('wife') || relLower.includes('husband'))
@@ -611,8 +701,15 @@ function parseDedicatedDependentsRows(
       };
       updated++;
     } else {
+      // === AMÉLIORATION AJOUTÉE (v3) : plus de numéro fabriqué pour le principal non trouvé
+      // — sans son propre "Principal Card No." explicite dans le fichier, la ligne est
+      // ignorée plutôt que de créer un assuré principal avec un numéro inventé.
+      if (!parentCardVal) {
+        ignored++;
+        return;
+      }
       // Create new principal with this dependent attached
-      const fallbackCardNo = parentCardVal || `ACT-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+      const fallbackCardNo = parentCardVal;
       const fallbackPrincipalName = parentNameVal || `Primary of ${depNameVal}`;
       const isSpouse = newDepItem.relationship === 'spouse';
 
@@ -679,7 +776,7 @@ export function generateMemberTemplateExcel() {
       'Statut',
     ],
     [
-      'AMID-00001-0001',
+      'A1B2C3D4E5F',
       'Samuel DOE',
       '14/05/1985',
       2,
@@ -688,7 +785,7 @@ export function generateMemberTemplateExcel() {
       '',
     ],
     [
-      'AMID-00002-0002',
+      'B2C3D4E5F6A',
       'Grace KOLLIE',
       '20/11/1992',
       1,
@@ -697,7 +794,7 @@ export function generateMemberTemplateExcel() {
       '',
     ],
     [
-      'AMID-00003-0003',
+      'C3D4E5F6A1B',
       'Alexander FREEMAN',
       '03/07/1980',
       0,
@@ -729,9 +826,9 @@ export function generateDependentsTemplateExcel() {
       'Biometrics',
     ],
     [
-      'ACT-2026-10350',
+      'DOE00010001',
       'Samuel DOE',
-      'ACT-2026-10350-SP',
+      'DOE00010002',
       'Mary DOE',
       'Spouse',
       '1988-09-22',
@@ -740,9 +837,9 @@ export function generateDependentsTemplateExcel() {
       'Yes',
     ],
     [
-      'ACT-2026-10350',
+      'DOE00010001',
       'Samuel DOE',
-      'ACT-2026-10350-C1',
+      'DOE00010003',
       'Lucas DOE',
       'Child',
       '2014-03-10',
@@ -751,9 +848,9 @@ export function generateDependentsTemplateExcel() {
       'Yes',
     ],
     [
-      'ACT-2026-10350',
+      'DOE00010001',
       'Samuel DOE',
-      'ACT-2026-10350-C2',
+      'DOE00010004',
       'Emma DOE',
       'Child',
       '2017-08-19',
@@ -762,9 +859,9 @@ export function generateDependentsTemplateExcel() {
       'Yes',
     ],
     [
-      'ACT-2026-10351',
+      'KOL00020001',
       'Grace KOLLIE',
-      'ACT-2026-10351-SP',
+      'KOL00020002',
       'Joseph KOLLIE',
       'Spouse',
       '1990-04-15',
@@ -773,9 +870,9 @@ export function generateDependentsTemplateExcel() {
       'Yes',
     ],
     [
-      'ACT-2026-10351',
+      'KOL00020001',
       'Grace KOLLIE',
-      'ACT-2026-10351-C1',
+      'KOL00020003',
       'Nathan KOLLIE',
       'Child',
       '2019-06-12',
@@ -1271,7 +1368,8 @@ export function generateMultiOrgTemplateExcel() {
     ['   (keep the spaces around the dash, as in the 2 example sheets provided)'],
     [''],
     ['2. Sheet "... - Staff" (1 row = 1 PRINCIPAL insured member):'],
-    ['   - Card No.: principal\'s card number (required, unique)'],
+    ['   - Card No.: principal\'s card number (required, unique, 11 alphanumeric characters —'],
+    ['     A-Z / 0-9, no auto-generation, must already be filled in this file)'],
     ['   - Primary Insured Name: principal\'s full name (required)'],
     ['   - Date of Birth: principal\'s date of birth (DD/MM/YYYY or YYYY-MM-DD)'],
     ['   - Contact: phone number (optional)'],
@@ -1285,7 +1383,8 @@ export function generateMultiOrgTemplateExcel() {
     [''],
     ['3. Sheet "... - Deps" (1 row = 1 dependent, spouse OR child) — gives each'],
     ['   dependent their OWN card number, used to identify/reimburse them:'],
-    ['   - Card No.: card number OWNED by the dependent (required, unique)'],
+    ['   - Card No.: card number OWNED by the dependent (required, unique, 11 alphanumeric'],
+    ['     characters — A-Z / 0-9)'],
     ['   - Relationship: "Spouse" for the spouse, or "Child 1" / "Child 2" / ... — the number'],
     ['     must EXACTLY match the "Child N Name" column on the Staff sheet'],
     ['   - Date of Birth: dependent\'s date of birth'],
@@ -1319,18 +1418,18 @@ export function generateMultiOrgTemplateExcel() {
   // staffBiometricsHeader dans parseActivaMultiOrgExcel.
   const staffData = [
     ['Card No.', 'Primary Insured Name', 'Date of Birth', 'Contact', 'Spouse Name', 'Spouse Date of Birth', 'Child 1 Name', 'Child 1 Date of Birth', 'Child 2 Name', 'Child 2 Date of Birth', 'Organization', 'Biometrics'],
-    ['EXG-00001-0001', 'Samuel DOE', '1985-05-14', '+231 88 000 1122', 'Mary DOE', '1987-02-20', 'James DOE', '2015-08-31', 'Linda DOE', '2018-12-11', 'Example Org', 'Yes'],
-    ['EXG-00002-0002', 'Grace KOLLIE', '1990-11-20', '+231 77 000 3344', '', '', 'Peter KOLLIE', '2020-04-04', '', '', 'Example Org', ''],
+    ['DOE00010001', 'Samuel DOE', '1985-05-14', '+231 88 000 1122', 'Mary DOE', '1987-02-20', 'James DOE', '2015-08-31', 'Linda DOE', '2018-12-11', 'Example Org', 'Yes'],
+    ['KOL00020001', 'Grace KOLLIE', '1990-11-20', '+231 77 000 3344', '', '', 'Peter KOLLIE', '2020-04-04', '', '', 'Example Org', ''],
   ];
   const wsStaff = XLSX.utils.aoa_to_sheet(staffData);
   XLSX.utils.book_append_sheet(wb, wsStaff, 'Example Org - Staff');
 
   const depsData = [
     ['Card No.', 'Relationship', 'Date of Birth', 'Primary Insured', 'Primary Card No.', 'Organization', 'Biometrics'],
-    ['EXG-00001-0002', 'Spouse', '1987-02-20', 'Samuel DOE', 'EXG-00001-0001', 'Example Org', ''],
-    ['EXG-00001-0003', 'Child 1', '2015-08-31', 'Samuel DOE', 'EXG-00001-0001', 'Example Org', ''],
-    ['EXG-00001-0004', 'Child 2', '2018-12-11', 'Samuel DOE', 'EXG-00001-0001', 'Example Org', ''],
-    ['EXG-00002-0005', 'Child 1', '2020-04-04', 'Grace KOLLIE', 'EXG-00002-0002', 'Example Org', ''],
+    ['DOE00010002', 'Spouse', '1987-02-20', 'Samuel DOE', 'DOE00010001', 'Example Org', ''],
+    ['DOE00010003', 'Child 1', '2015-08-31', 'Samuel DOE', 'DOE00010001', 'Example Org', ''],
+    ['DOE00010004', 'Child 2', '2018-12-11', 'Samuel DOE', 'DOE00010001', 'Example Org', ''],
+    ['KOL00020002', 'Child 1', '2020-04-04', 'Grace KOLLIE', 'KOL00020001', 'Example Org', ''],
   ];
   const wsDeps = XLSX.utils.aoa_to_sheet(depsData);
   XLSX.utils.book_append_sheet(wb, wsDeps, 'Example Org - Deps');
@@ -1340,6 +1439,7 @@ export function generateMultiOrgTemplateExcel() {
 }
 
 export function exportMembersToExcel(members: Member[], lang?: any) {
+  if (!assertExportVolumeAllowed(members.length, 'Insured Directory')) return;
   // Sheet 1: Principal Insured only
   const principalsData = members.map((m) => {
     const totalDeps = (m.dependents?.length || 0) + (m.children?.length || 0) + (m.spouseName ? 1 : 0);
@@ -1447,6 +1547,7 @@ export function exportMembersToExcel(members: Member[], lang?: any) {
     )
   );
   XLSX.utils.book_append_sheet(wb, wsDependents, 'Dependents');
+  addExportConfidentialityNoticeSheet(wb);
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(
@@ -1456,6 +1557,7 @@ export function exportMembersToExcel(members: Member[], lang?: any) {
 }
 
 export function exportMembersToCSV(members: Member[], lang?: any) {
+  if (!assertExportVolumeAllowed(members.length, 'Insured Members')) return;
   const headers = ['Card Number', 'Primary Insured', 'Spouse', 'Children', 'Organization', 'Relationship', 'Status', 'Date of Birth', 'Outpatient Balance (USD)', 'Outpatient Ceiling (USD)', 'Inpatient Balance (USD)', 'Inpatient Ceiling (USD)', 'Biometrics', 'Registration Date'];
   const rows = members.map(m => [
     `"${m.cardNo}"`,
@@ -1473,7 +1575,7 @@ export function exportMembersToCSV(members: Member[], lang?: any) {
     m.hasBiometrics ? 'Yes' : 'No',
     `"${m.createdAt || ''}"`,
   ]);
-  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const csvContent = withExportConfidentialityNoticeCSV([headers.join(','), ...rows.map(r => r.join(','))].join('\n'));
   downloadBlob(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), `ACTIVA_Insured_Members_${new Date().toISOString().split('T')[0]}.csv`);
 }
 
@@ -1890,6 +1992,7 @@ export function exportProvidersToCSV(providers: Provider[], lang?: any) {
 
 // ================= CLAIMS & INVOICES EXPORTS =================
 export function exportClaimsToExcel(claims: Claim[], lang?: any) {
+  if (!assertExportVolumeAllowed(claims.length, 'Benefit Claims')) return;
   const data = claims.map(c => ({
     'Claim Reference': c.reference,
     'Card Number': c.memberCardNo,
@@ -1903,6 +2006,10 @@ export function exportClaimsToExcel(claims: Claim[], lang?: any) {
     'Submission Date': c.submissionDate,
     'Status': c.status.toUpperCase(),
     'Attending Physician': c.doctorName || 'N/A',
+    // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12 —
+    // "comment ça se matérialise dans le reporting") — vide quand la réclamation n'a pas été
+    // rattachée à une fiche maladie (facturation directe), comportement inchangé dans ce cas.
+    'Linked Medical Form Reference': c.medicalFormReference || '',
     'Rejection / Return Reason': c.rejectionReason || c.returnReason || '',
     'Comments': c.comments || '',
   }));
@@ -1910,12 +2017,17 @@ export function exportClaimsToExcel(claims: Claim[], lang?: any) {
   const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Benefit Claims');
+  addExportConfidentialityNoticeSheet(wb);
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Benefit_Claims_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 export function exportClaimsToCSV(claims: Claim[], lang?: any) {
-  const headers = ['Claim Reference', 'Card Number', 'Insured Name', 'Organization', 'Healthcare Facility', 'Amount', 'Care Type', 'Service Date', 'Status', 'Reason'];
+  if (!assertExportVolumeAllowed(claims.length, 'Benefit Claims')) return;
+  // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+  // colonne "Linked Medical Form", vide quand la réclamation n'a pas été rattachée à une fiche
+  // maladie (facturation directe), comportement inchangé dans ce cas.
+  const headers = ['Claim Reference', 'Card Number', 'Insured Name', 'Organization', 'Healthcare Facility', 'Amount', 'Care Type', 'Service Date', 'Status', 'Linked Medical Form', 'Reason'];
   const rows = claims.map(c => [
     `"${c.reference}"`,
     `"${c.memberCardNo}"`,
@@ -1926,13 +2038,15 @@ export function exportClaimsToCSV(claims: Claim[], lang?: any) {
     `"${c.careType}"`,
     `"${c.serviceDate}"`,
     `"${c.status.toUpperCase()}"`,
+    `"${c.medicalFormReference || ''}"`,
     `"${c.rejectionReason || c.returnReason || ''}"`,
   ]);
-  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const csvContent = withExportConfidentialityNoticeCSV([headers.join(','), ...rows.map(r => r.join(','))].join('\n'));
   downloadBlob(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), `ACTIVA_Benefit_Claims_${new Date().toISOString().split('T')[0]}.csv`);
 }
 
 export function exportInvoicesToExcel(invoices: InvoiceItem[], lang?: any) {
+  if (!assertExportVolumeAllowed(invoices.length, 'Invoices & Settlements')) return;
   const data = invoices.map(i => ({
     'Invoice Reference': i.reference,
     'Patient Name': i.patientName,
@@ -1950,6 +2064,7 @@ export function exportInvoicesToExcel(invoices: InvoiceItem[], lang?: any) {
   const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Invoices & Settlements');
+  addExportConfidentialityNoticeSheet(wb);
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Invoices_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
@@ -1975,6 +2090,7 @@ export function exportReportsToExcel(providerDistribution: any[], orgDistributio
   }));
   const wsOrg = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(orgData));
   XLSX.utils.book_append_sheet(wb, wsOrg, 'By Organization');
+  addExportConfidentialityNoticeSheet(wb);
 
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Statistical_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -2109,7 +2225,148 @@ export function exportReportsToPDF(
     bodyStyles: { fontSize: 8 },
   });
 
+  drawExportConfidentialityFooter(doc);
   doc.save(`ACTIVA_Analytical_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+// === AMÉLIORATION AJOUTÉE : rapport de réconciliation des paiements, exportable (2026-09-10,
+// sur demande explicite de l'utilisateur). Jusqu'ici, le panneau "Payment Reconciliation"
+// (ReconciliationSummary.tsx) n'existait qu'en affichage direct sur l'écran Factures, sans
+// équivalent téléchargeable. Même population de factures et mêmes calculs que ce panneau
+// (computeReconciliationSummary) — ce rapport ne fait qu'exposer ces chiffres déjà existants
+// dans un document exportable, avec en plus le détail facture par facture.
+export function exportReconciliationToExcel(invoices: InvoiceItem[], summary: ReconciliationSummary) {
+  if (!assertExportVolumeAllowed(invoices.length, 'Payment Reconciliation')) return;
+  const wb = XLSX.utils.book_new();
+
+  const summaryData = [
+    { Metric: 'Approved Invoices', Count: summary.approvedCount, 'Amount (USD)': summary.approvedAmount },
+    { Metric: 'Paid', Count: summary.paidCount, 'Amount (USD)': summary.paidAmount },
+    { Metric: 'Outstanding', Count: summary.outstandingCount, 'Amount (USD)': summary.outstandingAmount },
+    { Metric: 'Refacted', Count: summary.refactedCount, 'Amount (USD)': summary.refactedAmount },
+    { Metric: 'Pending Recovery', Count: summary.pendingRecoveryCount, 'Amount (USD)': summary.pendingRecoveryAmount },
+  ];
+  const wsSummary = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(summaryData));
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+  const approvedInvoices = invoices.filter((i) => i.status === 'valid' || (i.status as string) === 'approved');
+  const detailData = approvedInvoices.map((i) => ({
+    'Reference': i.reference,
+    'Organization': i.organization,
+    'Provider': i.provider,
+    'Patient': i.patientName,
+    'Service Date': i.serviceDate,
+    'Original Amount (USD)': i.amount,
+    'Payable Amount (USD)': i.payableAmountUSD ?? i.amount,
+    'Payment Status': i.paymentStatus === 'paid' ? 'Paid' : 'Outstanding',
+    'Paid At': i.paidAt || '',
+    'Payment Reference': i.paymentReference || '',
+    'Refaction Applied': i.refactionApplied ? 'YES' : 'NO',
+    'Refacted Amount (USD)': i.refactionTotalUSD || 0,
+    'Recovered Amount (USD)': i.recoveredTotalUSD || 0,
+    'Pending Recovery (USD)': i.refactionApplied ? Math.max(0, (i.refactionTotalUSD || 0) - (i.recoveredTotalUSD || 0)) : 0,
+  }));
+  const wsDetail = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(detailData));
+  XLSX.utils.book_append_sheet(wb, wsDetail, 'Invoice Detail');
+  addExportConfidentialityNoticeSheet(wb);
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Payment_Reconciliation_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+export function exportReconciliationToPDF(invoices: InvoiceItem[], summary: ReconciliationSummary) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(10, 46, 107);
+  doc.rect(0, 0, pageWidth, 28, 'F');
+  doc.setFillColor(0, 168, 89);
+  doc.rect(0, 28, pageWidth, 3, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  drawRefinedHeaderTitle(doc, 'ACTIVA HEALTHCARE ASSURANCE', 15, 12, { charSpace: 0.2 });
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  drawRefinedHeaderTitle(doc, 'PAYMENT RECONCILIATION REPORT', 15, 19);
+  doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 15, 24);
+
+  drawPdfLogoStrip(doc, pageWidth, 31);
+  let currentY = 40 + PDF_LOGO_STRIP_HEIGHT;
+
+  doc.setTextColor(10, 46, 107);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  drawRefinedHeaderTitle(doc, '1. RECONCILIATION SUMMARY', 15, currentY, { charSpace: 0.15 });
+  currentY += 8;
+
+  const cardW = (pageWidth - 30 - 20) / 5;
+  const cardH = 22;
+  const kpiItems = [
+    { label: 'Approved', val: `$${summary.approvedAmount.toLocaleString('en-US')}`, sub: `${summary.approvedCount} inv.` },
+    { label: 'Paid', val: `$${summary.paidAmount.toLocaleString('en-US')}`, sub: `${summary.paidCount} inv.` },
+    { label: 'Outstanding', val: `$${summary.outstandingAmount.toLocaleString('en-US')}`, sub: `${summary.outstandingCount} inv.` },
+    { label: 'Refacted', val: `$${summary.refactedAmount.toLocaleString('en-US')}`, sub: `${summary.refactedCount} inv.` },
+    { label: 'Pending Recovery', val: `$${summary.pendingRecoveryAmount.toLocaleString('en-US')}`, sub: `${summary.pendingRecoveryCount} inv.` },
+  ];
+
+  kpiItems.forEach((k, idx) => {
+    const x = 15 + idx * (cardW + 5);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(x, currentY, cardW, cardH, 2, 2, 'F');
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(x, currentY, cardW, cardH, 2, 2, 'S');
+
+    doc.setTextColor(100, 116, 139);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.text(k.label, x + 3, currentY + 6);
+
+    doc.setTextColor(10, 46, 107);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(k.val, x + 3, currentY + 13);
+
+    doc.setTextColor(148, 163, 184);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.text(k.sub, x + 3, currentY + 19);
+  });
+
+  currentY += cardH + 12;
+
+  doc.setTextColor(10, 46, 107);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  drawRefinedHeaderTitle(doc, '2. INVOICE-LEVEL DETAIL (APPROVED)', 15, currentY, { charSpace: 0.15 });
+  currentY += 4;
+
+  const approvedInvoices = invoices.filter((i) => i.status === 'valid' || (i.status as string) === 'approved');
+  const rows = approvedInvoices.map((i) => [
+    i.reference,
+    i.organization,
+    `$${(i.payableAmountUSD ?? i.amount).toLocaleString('en-US')}`,
+    i.paymentStatus === 'paid' ? 'Paid' : 'Outstanding',
+    i.refactionApplied ? `$${(i.refactionTotalUSD || 0).toLocaleString('en-US')}` : '—',
+  ]);
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['Reference', 'Organization', 'Payable ($ USD)', 'Payment Status', 'Refacted ($ USD)']],
+    body: rows,
+    headStyles: {
+      fillColor: [13, 63, 143],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    bodyStyles: { fontSize: 7.5 },
+  });
+
+  drawExportConfidentialityFooter(doc);
+  doc.save(`ACTIVA_Payment_Reconciliation_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 // ================= ANALYTICAL PDF REPORT GENERATOR =================
@@ -2247,12 +2504,14 @@ export function generateExecutiveReportPDF(metrics: {
   doc.setFontSize(8);
   doc.text('ACTIVA Insurance — Official Management & Compliance Audit Trail', pageWidth / 2, finalY + 15, { align: 'center' });
 
+  drawExportConfidentialityFooter(doc);
   doc.save(`ACTIVA_Executive_Report_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 // ================= HEALTH POLICY & PREMIUM MONITORING EXPORTS =================
 // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
 export function exportPoliciesToExcel(policies: (HealthPolicy & { organizationName?: string })[], lang?: any) {
+  if (!assertExportVolumeAllowed(policies.length, 'Policies & Premiums')) return;
   const data = policies.map((p) => ({
     'Organization': p.organizationId,
     'Policy Number': p.policyNumber,
@@ -2271,6 +2530,7 @@ export function exportPoliciesToExcel(policies: (HealthPolicy & { organizationNa
   const ws = XLSX.utils.json_to_sheet(sanitizeRowsForExcel(data));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Policies & Premiums');
+  addExportConfidentialityNoticeSheet(wb);
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   downloadBlob(new Blob([wbout], { type: 'application/octet-stream' }), `ACTIVA_Policies_Premiums_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
@@ -2364,5 +2624,6 @@ export function exportPolicyDetailToPDF(
     columnStyles: { 0: { fontStyle: 'bold', textColor: [100, 116, 139] } },
   });
 
+  drawExportConfidentialityFooter(doc);
   doc.save(`ACTIVA_Policy_${policy.policyNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
 }

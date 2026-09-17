@@ -31,7 +31,7 @@ import {
   canDeleteRecord,
 } from '../services/permissions';
 import { getRoleTheme } from '../theme/roleTheme';
-import { generateNextCardNumber } from '../services/cardNumberService';
+import { reserveExistingCardNumber, isValidCardNumberFormat, normalizeCardNumber } from '../services/cardNumberService';
 
 interface EnrollmentsViewProps {
   lang: Language;
@@ -68,6 +68,18 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
   // === AMÉLIORATION AJOUTÉE : détection du rôle Superviseur pour aligner le vert (validation) et
   // éclaircir le rouge (rejet) sur l'interface Superviseur uniquement (Admin conserve ses couleurs actuelles) ===
   const isSupervisor = userRole === 'Superviseur' || userRole === 'Supervisor';
+  // === AMÉLIORATION AJOUTÉE : libellés traduits pour le lien de parenté (RelationshipType) —
+  // la VALEUR stockée (Principal/Conjoint/Enfant/Ascendant) reste en français, seul le texte
+  // affiché dans le sélecteur du formulaire "Nouvelle adhésion" est traduit.
+  const relationshipLabels: Record<string, string> = {
+    Principal: t.enrollments.relationshipPrimary,
+    Primary: t.enrollments.relationshipPrimary,
+    Conjoint: t.enrollments.relationshipSpouse,
+    Spouse: t.enrollments.relationshipSpouse,
+    Enfant: t.enrollments.relationshipChild,
+    Child: t.enrollments.relationshipChild,
+    Ascendant: t.enrollments.relationshipAscendant,
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('ALL');
@@ -199,13 +211,12 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
     }
   };
 
-  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
-  // explicite. Ce formulaire (Admin/Superviseur, distinct du formulaire Agent déjà corrigé)
-  // ne proposait même pas de champ de saisie pour "Card No." : `newEnrForm.cardNo` était donc
-  // TOUJOURS vide et retombait systématiquement sur un numéro aléatoire au format obsolète
-  // "ACT-2026-XXXX", contournant entièrement le système de numérotation centralisé. Corrigé
-  // pour générer un numéro AMID-YYMMDD-NNNNN unique et transactionnel, comme dans le
-  // formulaire d'enrôlement Agent.
+  // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — sur demande
+  // explicite ("dorénavant les numéros de carte seront intégrés manuellement ..."). Ce
+  // formulaire (Admin/Superviseur, distinct du formulaire Agent) ne proposait auparavant
+  // aucun champ de saisie pour "Card No." (voir git history) — un champ manuel requis a été
+  // ajouté ci-dessus. Le numéro saisi est validé (11 caractères alphanumériques) puis réservé
+  // de façon unique et transactionnelle.
   const [isGeneratingEnrCard, setIsGeneratingEnrCard] = useState(false);
   const [newEnrError, setNewEnrError] = useState<string | null>(null);
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -214,10 +225,15 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
     const fullName = newEnrForm.fullName || 'New Beneficiary';
     const organization = newEnrForm.organization || (organizations[0]?.name || 'Standard');
 
+    const cardNo = normalizeCardNumber(newEnrForm.cardNo);
+    if (!isValidCardNumberFormat(cardNo)) {
+      setNewEnrError('Health Card Number must be 11 alphanumeric characters (A-Z, 0-9).');
+      return;
+    }
+
     setIsGeneratingEnrCard(true);
-    let cardNo: string;
     try {
-      cardNo = await generateNextCardNumber({
+      await reserveExistingCardNumber(cardNo, {
         organization,
         insuredName: fullName,
         assignedBy: currentUser?.uid,
@@ -225,17 +241,25 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
         method: 'ENROLLMENT',
       });
     } catch (err: any) {
-      setNewEnrError(err?.message || 'Could not generate a card number. Please try again.');
+      setNewEnrError(err?.message || 'Could not reserve this card number. Please try again.');
       setIsGeneratingEnrCard(false);
       return;
     }
     setIsGeneratingEnrCard(false);
 
-    // === ADDED IMPROVEMENT: upload to Firebase Storage with an automatic fallback to the
-    // existing base64 storage on failure (see storageUtils.ts / MembersView.tsx).
-    const resolvedPhotoUrl = newEnrForm.photoUrl
-      ? await uploadPhotoOrFallback(newEnrForm.photoUrl, 'enrollment-photos', cardNo)
-      : newEnrForm.photoUrl;
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #7) — l'upload
+    // échoue désormais explicitement (fail-closed, voir storageUtils.ts) au lieu de dégrader
+    // silencieusement vers un stockage base64 ; l'enrôlement est bloqué avec un message clair
+    // plutôt que de continuer avec une photo mal stockée.
+    let resolvedPhotoUrl = newEnrForm.photoUrl;
+    if (newEnrForm.photoUrl) {
+      try {
+        resolvedPhotoUrl = await uploadPhotoOrFallback(newEnrForm.photoUrl, 'enrollment-photos', cardNo, organization);
+      } catch (err: any) {
+        setNewEnrError(err?.message || 'Could not save the photo. Please try again.');
+        return;
+      }
+    }
 
     onCreateEnrollment({
       reference: `ENR-2026-${Math.floor(100 + Math.random() * 900)}`,
@@ -266,7 +290,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
           <div className="flex items-center gap-2.5">
             <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <div>
-              <span className="font-extrabold block">Segregation of Duties (SoD):</span>
+              <span className="font-extrabold block">{t.enrollments.sodLabel}</span>
               <span>{sodAlertMessage}</span>
             </div>
           </div>
@@ -313,10 +337,10 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
             onChange={(e) => setSelectedStatusFilter(e.target.value)}
             className={`px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 ${roleTheme.palette.accentRing}`}
           >
-            <option value="ALL">All Statuses</option>
+            <option value="ALL">{t.claims.statusFilterAll}</option>
             <option value="pending">{t.pending}</option>
             <option value="approved">{t.validated}</option>
-            <option value="returned">Returned</option>
+            <option value="returned">{t.claims.returnedStatus}</option>
             <option value="rejected">{t.rejectedStatus}</option>
           </select>
 
@@ -345,7 +369,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
             </span>
           </div>
           <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-            Biometric identity verification & validation
+            {t.enrollments.pendingSubtitle}
           </span>
         </div>
 
@@ -355,7 +379,120 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
             <p>{t.dashboard.noPendingEnrollments}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* === AMÉLIORATION AJOUTÉE : liste en cartes sous md (retour utilisateur — tableau
+              qui débordait/illisible sur petit écran, même correctif que ClaimsView). Mêmes
+              données, actions et permissions que le tableau ci-dessous, en carte par dossier
+              au lieu de colonnes. Tableau desktop inchangé, masqué sous md à la place. === */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {pendingEnrollments.map((enr) => {
+              const approvalCheck = canApproveRecord(userRole, currentUser, enr);
+              return (
+                <div key={enr.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className={`font-bold text-sm ${roleTheme.palette.primaryText}`}>{enr.fullName}</p>
+                      <p className="text-[11px] text-slate-400 font-mono">{enr.cardNo}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px] shrink-0">
+                      {relationshipLabels[enr.relationship] || enr.relationship}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <span className="font-bold text-slate-600">{enr.reference}</span>
+                    <span>{enr.submissionDate}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 truncate">{enr.organization}</p>
+                  {enr.assignedAgentName && (
+                    <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold">
+                      {t.claims.assignedPrefix} {enr.assignedAgentName}
+                    </span>
+                  )}
+
+                  <div className="flex items-center flex-wrap gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedEnrForBiometrics(enr);
+                        setBiometricModalOpen(true);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                      title={t.enrollments.verifyBiometricTitle}
+                    >
+                      <Scan className="w-3.5 h-3.5 text-slate-600" />
+                      <span>{t.claims.verify}</span>
+                    </button>
+
+                    {userRole !== 'Agent' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleApproveAttempt(enr)}
+                          disabled={!approvalCheck.allowed}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                            approvalCheck.allowed
+                              ? (isSupervisor ? `${roleTheme.palette.primaryColor} text-white shadow-xs cursor-pointer` : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer')
+                              : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                          }`}
+                          title={approvalCheck.allowed ? t.approve : approvalCheck.reason}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{t.approve}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openRejectModal(enr)}
+                          className={`px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-bold transition flex items-center gap-1 ${isSupervisor ? 'text-rose-500' : 'text-rose-700'}`}
+                          title={t.reject}
+                        >
+                          <X className={`w-3.5 h-3.5 ${isSupervisor ? 'text-rose-400' : 'text-rose-600'}`} />
+                          <span>{t.reject}</span>
+                        </button>
+
+                        {canReturnRecord(userRole) && onReturn && (
+                          <button
+                            type="button"
+                            onClick={() => openReturnModal(enr)}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition flex items-center gap-1"
+                            title={t.enrollments.returnForCorrectionTitle}
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5 text-amber-700" />
+                            <span>{t.claims.returnAction}</span>
+                          </button>
+                        )}
+
+                        {canAssignRecord(userRole) && onAssign && (
+                          <button
+                            type="button"
+                            onClick={() => openAssignModal(enr)}
+                            className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition flex items-center gap-1"
+                            title={t.claims.assignTitle}
+                          >
+                            <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>{t.claims.assignAction}</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+
+                    {canDeleteRecord(userRole) && onDelete && (
+                      <button
+                        type="button"
+                        onClick={() => openDeleteModal(enr)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition ml-auto"
+                        title={t.enrollments.deleteAdminTitle}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -377,8 +514,8 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                           {enr.submissionDate}
                         </span>
                         {enr.assignedAgentName && (
-                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[9px] font-bold">
-                            Assigned: {enr.assignedAgentName}
+                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold">
+                            {t.claims.assignedPrefix} {enr.assignedAgentName}
                           </span>
                         )}
                       </td>
@@ -390,7 +527,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                       </td>
                       <td className="py-3.5 px-4">
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px]">
-                          {enr.relationship}
+                          {relationshipLabels[enr.relationship] || enr.relationship}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-slate-600 font-medium truncate max-w-[160px]">
@@ -405,10 +542,10 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                               setBiometricModalOpen(true);
                             }}
                             className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs"
-                            title={'Review biometric file before approval'}
+                            title={t.enrollments.verifyBiometricTitle}
                           >
                             <Scan className="w-3.5 h-3.5 text-slate-600" />
-                            <span>{'Verify'}</span>
+                            <span>{t.claims.verify}</span>
                           </button>
 
                           {userRole !== 'Agent' && (
@@ -444,10 +581,10 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                                   type="button"
                                   onClick={() => openReturnModal(enr)}
                                   className="px-2 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition flex items-center gap-1"
-                                  title="Return for correction"
+                                  title={t.enrollments.returnForCorrectionTitle}
                                 >
                                   <ArrowRightLeft className="w-3.5 h-3.5 text-amber-700" />
-                                  <span>Return</span>
+                                  <span>{t.claims.returnAction}</span>
                                 </button>
                               )}
 
@@ -456,10 +593,10 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                                   type="button"
                                   onClick={() => openAssignModal(enr)}
                                   className="px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition flex items-center gap-1"
-                                  title="Assign to agent"
+                                  title={t.claims.assignTitle}
                                 >
                                   <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-                                  <span>Assign</span>
+                                  <span>{t.claims.assignAction}</span>
                                 </button>
                               )}
                             </>
@@ -470,7 +607,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                               type="button"
                               onClick={() => openDeleteModal(enr)}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                              title="Delete (Admin)"
+                              title={t.enrollments.deleteAdminTitle}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -483,6 +620,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -504,7 +642,66 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
             {t.noData}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* === AMÉLIORATION AJOUTÉE : même correctif que la section "En attente" ci-dessus —
+              liste en cartes sous md, tableau desktop inchangé masqué à la place. === */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {historyEnrollments.map((enr) => (
+              <div key={enr.id} className="p-4 space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm text-slate-800">{enr.fullName}</p>
+                    <p className="text-[11px] text-slate-400 font-mono">{enr.cardNo}</p>
+                  </div>
+                  <span className="text-[11px] text-slate-500 shrink-0">{enr.decisionDate || enr.submissionDate}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                  <span className="font-bold text-slate-600">{enr.reference}</span>
+                  <span className="truncate max-w-[55%] text-right">{enr.organization}</span>
+                </div>
+
+                {enr.status === 'approved' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-[#00A859] border border-emerald-200 text-[11px] font-extrabold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{t.validated}</span>
+                  </span>
+                ) : enr.status === 'returned' ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-extrabold">
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    <span>{t.claims.returnedStatus}</span>
+                  </span>
+                ) : (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-50 border border-rose-200 ${isSupervisor ? 'text-rose-500' : 'text-rose-700'}`}>
+                    <XCircle className={`w-3.5 h-3.5 ${isSupervisor ? 'text-rose-400' : 'text-rose-600'}`} />
+                    <span>{t.rejectedStatus}</span>
+                  </span>
+                )}
+
+                <div className="flex items-center justify-between gap-2">
+                  {enr.rejectionReason || enr.returnReason ? (
+                    <span className={`text-[11px] font-semibold ${enr.status === 'returned' ? 'text-amber-800' : (isSupervisor ? 'text-rose-500' : 'text-rose-700')}`}>
+                      {enr.rejectionReason || enr.returnReason}
+                    </span>
+                  ) : (
+                    <span className={`text-[11px] font-medium ${isSupervisor ? roleTheme.palette.primaryText : 'text-emerald-700'}`}>
+                      {t.enrollments.healthCardIssuedActivated}
+                    </span>
+                  )}
+                  {canDeleteRecord(userRole) && (
+                    <button
+                      onClick={() => openDeleteModal(enr)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition shrink-0"
+                      title={t.enrollments.deleteAdminTitle}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -513,9 +710,9 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   <th className="py-3 px-4">{t.members.organization}</th>
                   <th className="py-3 px-4 text-center">{t.status}</th>
                   <th className="py-3 px-4">
-                    Reason / Decision
+                    {t.enrollments.reasonDecisionHeader}
                   </th>
-                  {canDeleteRecord(userRole) && <th className="py-3 px-4 text-right">Actions</th>}
+                  {canDeleteRecord(userRole) && <th className="py-3 px-4 text-right">{t.actions}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -545,7 +742,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                       ) : enr.status === 'returned' ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-extrabold">
                           <ArrowRightLeft className="w-3.5 h-3.5" />
-                          <span>Returned</span>
+                          <span>{t.claims.returnedStatus}</span>
                         </span>
                       ) : (
                         // === AMÉLIORATION AJOUTÉE : rouge éclairci pour le badge "Rejected" côté Superviseur ===
@@ -562,7 +759,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                         </span>
                       ) : (
                         <span className={`font-medium ${isSupervisor ? roleTheme.palette.primaryText : 'text-emerald-700'}`}>
-                          Health card issued & activated
+                          {t.enrollments.healthCardIssuedActivated}
                         </span>
                       )}
                     </td>
@@ -571,7 +768,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                         <button
                           onClick={() => openDeleteModal(enr)}
                           className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                          title="Delete (Admin)"
+                          title={t.enrollments.deleteAdminTitle}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -582,6 +779,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -596,7 +794,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 </div>
                 <div>
                   <h3 className="font-bold text-base">
-                    Return for correction
+                    {t.enrollments.returnForCorrectionTitle}
                   </h3>
                   <p className="text-xs text-amber-100">
                     {selectedEnrToReturn.reference} • {selectedEnrToReturn.fullName}
@@ -614,13 +812,13 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
             <form onSubmit={handleConfirmReturn} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Correction instructions <span className="text-rose-600">*</span>
+                  {t.enrollments.correctionInstructionsLabel} <span className="text-rose-600">*</span>
                 </label>
                 <textarea
                   rows={4}
                   value={returnReason}
                   onChange={(e) => setReturnReason(e.target.value)}
-                  placeholder="Specify missing documents or adjustments required..."
+                  placeholder={t.enrollments.correctionPlaceholder}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   required
                 />
@@ -638,7 +836,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   type="submit"
                   className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20"
                 >
-                  Confirm Return
+                  {t.claims.confirmReturn}
                 </button>
               </div>
             </form>
@@ -657,7 +855,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-slate-900">
-                    Assign to Agent
+                    {t.enrollments.assignToAgentModalTitle}
                   </h3>
                   <p className="text-xs text-slate-500">
                     {selectedEnrToAssign.reference} • {selectedEnrToAssign.fullName}
@@ -675,13 +873,13 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
             <form onSubmit={handleConfirmAssign} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Agent name or reference <span className="text-rose-600">*</span>
+                  {t.enrollments.agentNameLabel} <span className="text-rose-600">*</span>
                 </label>
                 <input
                   type="text"
                   value={assignAgentName}
                   onChange={(e) => setAssignAgentName(e.target.value)}
-                  placeholder="Ex: Agent Martin / ag.martin"
+                  placeholder={t.enrollments.agentNamePlaceholder}
                   className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 ${roleTheme.palette.accentRing}`}
                   required
                 />
@@ -699,7 +897,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   type="submit"
                   className={`px-5 py-2.5 rounded-xl ${roleTheme.palette.primaryColor} text-white text-xs font-bold`}
                 >
-                  Assign
+                  {t.claims.assignAction}
                 </button>
               </div>
             </form>
@@ -717,7 +915,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
               </div>
               <div>
                 <h3 className="font-extrabold text-base text-slate-900">
-                  Delete Enrollment?
+                  {t.enrollments.deleteEnrollmentTitle}
                 </h3>
                 <p className="text-xs text-slate-500">
                   {selectedEnrToDelete.reference} ({selectedEnrToDelete.fullName})
@@ -725,7 +923,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
               </div>
             </div>
             <p className="text-xs text-slate-600">
-              This action is irreversible and restricted to authorized Admins.
+              {t.enrollments.deleteIrreversibleNotice}
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <button
@@ -738,7 +936,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 onClick={handleConfirmDelete}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20"
               >
-                Delete
+                {t.delete}
               </button>
             </div>
           </div>
@@ -766,7 +964,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
             <form onSubmit={handleConfirmReject} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
-                  {'Rejection Reason'}{' '}
+                  {t.enrollments.rejectionReasonLabel}{' '}
                   <span className="text-rose-600">*</span>
                 </label>
                 <select
@@ -776,31 +974,31 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   required
                 >
                   <option value="">
-                    {'Select a reason...'}
+                    {t.enrollments.selectReasonOption}
                   </option>
                   <option value={'Invalid ID photo'}>
-                    {'Invalid or blurry ID photo'}
+                    {t.enrollments.reasonInvalidIdPhotoLabel}
                   </option>
                   <option
                     value={
                       'Unusable biometric fingerprint'
                     }
                   >
-                    {'Unusable biometric fingerprint'}
+                    {t.enrollments.reasonInvalidBiometricLabel}
                   </option>
                   <option
                     value={
                       'Missing relationship proof'
                     }
                   >
-                    {'Missing relationship proof (birth/marriage certificate)'}
+                    {t.enrollments.reasonMissingRelationshipProofLabel}
                   </option>
                   <option
                     value={
                       'Duplicate affiliation detected'
                     }
                   >
-                    {'Duplicate affiliation detected on policy'}
+                    {t.enrollments.reasonDuplicateAffiliationLabel}
                   </option>
                 </select>
               </div>
@@ -833,7 +1031,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
               <div>
                 <h3 className="font-bold text-base text-slate-900">{t.enrollments.newEnrollment}</h3>
                 <p className="text-xs text-slate-500">
-                  {'New beneficiary enrollment request'}
+                  {t.enrollments.newEnrollmentSubtitle}
                 </p>
               </div>
               <button
@@ -877,6 +1075,28 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 />
               </div>
 
+              {/* === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System —
+                  sur demande explicite ("dorénavant les numéros de carte seront intégrés
+                  manuellement ..."). Ce formulaire ne proposait auparavant aucun champ de
+                  saisie pour "Card No." (voir historique ci-dessus dans handleCreateSubmit) —
+                  ajouté ici, requis, 11 caractères alphanumériques, validé et réservé de façon
+                  unique/transactionnelle à la soumission. === */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {t.enrollments.healthCardNumberLabel}
+                </label>
+                <input
+                  type="text"
+                  value={newEnrForm.cardNo}
+                  onChange={(e) => setNewEnrForm({ ...newEnrForm, cardNo: e.target.value.toUpperCase().slice(0, 11) })}
+                  placeholder={t.enrollments.cardNoPlaceholder}
+                  maxLength={11}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold font-mono uppercase tracking-wide"
+                  required
+                />
+                <p className="text-[11px] text-slate-400 mt-1">{t.enrollments.cardNoHint}</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -893,16 +1113,16 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                   >
                     <option value="Principal">
-                      {'Primary'}
+                      {relationshipLabels.Principal}
                     </option>
                     <option value="Conjoint">
-                      {'Spouse'}
+                      {relationshipLabels.Conjoint}
                     </option>
                     <option value="Enfant">
-                      {'Child'}
+                      {relationshipLabels.Enfant}
                     </option>
                     <option value="Ascendant">
-                      {'Ascendant'}
+                      {relationshipLabels.Ascendant}
                     </option>
                   </select>
                 </div>
@@ -920,7 +1140,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                     required
                   >
                     <option value="">
-                      {'Select organization...'}
+                      {t.enrollments.orgSelectPlaceholder}
                     </option>
                     {organizations.map((org) => (
                       <option key={org.id} value={org.name}>
@@ -933,7 +1153,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <p className="text-xs font-bold text-slate-700 mb-1">
-                  Biometric Acquisitions:
+                  {t.enrollments.biometricAcquisitionsLabel}
                 </p>
                 
                 <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200">
@@ -947,16 +1167,16 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-800">
-                        Facial ID Photo
+                        {t.enrollments.facialIdPhotoLabel}
                       </p>
                       <p className="text-[11px] text-slate-500">
                         {newEnrForm.photoUrl ? (
                           <span className="text-emerald-700 font-semibold flex items-center gap-1">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            Photo captured
+                            {t.enrollments.photoCapturedLabel}
                           </span>
                         ) : (
-                          'Required for card issuance'
+                          t.enrollments.photoRequiredLabel
                         )}
                       </p>
                     </div>
@@ -967,7 +1187,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                     className={`px-3 py-1.5 rounded-lg ${roleTheme.palette.primaryColor} text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs`}
                   >
                     <Camera className="w-3.5 h-3.5" />
-                    <span>{newEnrForm.photoUrl ? 'Retake' : 'Open Camera'}</span>
+                    <span>{newEnrForm.photoUrl ? t.enrollments.retakeBtn : t.enrollments.openCameraBtn}</span>
                   </button>
                 </div>
                 
@@ -978,16 +1198,16 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-800">
-                        Biometric Fingerprint (FAP-20)
+                        {t.enrollments.fingerprintFapLabel}
                       </p>
                       <p className="text-[11px] text-slate-500">
                         {newEnrForm.fingerprintScore ? (
                           <span className="text-emerald-700 font-semibold flex items-center gap-1">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            {`NFIQ 2.0 Score: ${newEnrForm.fingerprintScore}%`}
+                            {t.enrollments.nfiqScoreTemplate.replace('{score}', String(newEnrForm.fingerprintScore))}
                           </span>
                         ) : (
-                          'USB optical scanner'
+                          t.enrollments.usbScannerLabel
                         )}
                       </p>
                     </div>
@@ -998,7 +1218,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                     className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <Fingerprint className="w-3.5 h-3.5" />
-                    <span>Trigger Scanner</span>
+                    <span>{t.enrollments.triggerScannerBtn}</span>
                   </button>
                 </div>
               </div>
@@ -1016,7 +1236,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   disabled={isGeneratingEnrCard}
                   className={`px-5 py-2.5 rounded-xl ${roleTheme.palette.primaryColor} text-white text-xs font-bold shadow-md disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
-                  {isGeneratingEnrCard ? 'Assigning card number…' : t.save}
+                  {isGeneratingEnrCard ? t.enrollments.assigningCardNumberLabel : t.save}
                 </button>
               </div>
             </form>
@@ -1030,7 +1250,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
         onClose={() => setCameraModalOpen(false)}
         onPhotoCaptured={(photo) => setNewEnrForm({ ...newEnrForm, photoUrl: photo, hasPhoto: true })}
         lang={lang}
-        title="Facial ID Photo Capture"
+        title={t.enrollments.facialIdCaptureModalTitle}
       />
 
       {/* Biometric Fingerprint Acquisition Modal */}
@@ -1045,7 +1265,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
           })
         }
         lang={lang}
-        title="Biometric Fingerprint Scanner (FAP-20)"
+        title={t.enrollments.fingerprintScannerModalTitle}
       />
 
       {/* BIOMETRIC & ATTACHMENT CONSULTATION MODAL */}

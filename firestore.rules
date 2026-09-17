@@ -85,8 +85,32 @@ service cloud.firestore {
         : (hasAccount() && ('assignedOrganizations' in getUserData()) ? getUserData().assignedOrganizations : null);
     }
 
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #5) ===
+    // Constat externe validé : `assignedOrganizations() == null → accès autorisé` est une
+    // logique "allow by default" — un compte Agent/Supervisor auquel un Admin n'a PAS encore
+    // assigné de périmètre d'organisations garde un accès illimité à toutes les organisations.
+    // C'est un choix rétrocompatible délibéré (voir commentaire Phase 1.3 ci-dessus), pas un
+    // oubli, mais il ne correspond pas à un objectif "deny by default" pour une application de
+    // gestion de données de santé.
+    // Décision explicite de cette revue : PRÉPARER le mécanisme deny-by-default SANS l'activer
+    // globalement — l'activer par défaut aujourd'hui bloquerait immédiatement tout Agent/
+    // Supervisor de production, puisqu'AUCUN compte n'a encore de `assignedOrganizations` peuplé
+    // (aucune UI Admin ne permet encore de le renseigner). Retenu : un opt-in explicite PAR
+    // COMPTE (`orgAccessPolicy: 'strict'`, absent par défaut) qu'un Admin pourra activer une
+    // fois qu'il aura vérifié/assigné le périmètre d'un compte donné — jamais activé
+    // globalement tant qu'aucun code ne pose ce champ. Comportement inchangé à 100% pour tout
+    // compte existant (aucun ne porte ce champ aujourd'hui) ; testé en non-régression.
+    function orgAccessDenyByDefault() {
+      return ('orgAccessPolicy' in request.auth.token && request.auth.token.orgAccessPolicy == 'strict')
+        || (hasAccount() && ('orgAccessPolicy' in getUserData()) && getUserData().orgAccessPolicy == 'strict');
+    }
+
     function hasOrgAccess(orgName) {
-      return isAdmin() || assignedOrganizations() == null || (orgName in assignedOrganizations());
+      return isAdmin() || (
+        assignedOrganizations() == null
+          ? !orgAccessDenyByDefault()
+          : (orgName in assignedOrganizations())
+      );
     }
 
     // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.4 — SoD, createdByUid déterminé serveur) ===
@@ -119,16 +143,41 @@ service cloud.firestore {
     }
 
     // accounts collection
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-01 — CRITIQUE) ===
+    // Avant ce correctif : `allow read: if true` exposait l'INTÉGRALITÉ de la collection
+    // `accounts` — identifiant, e-mail, rôle, permissions, périmètre d'organisations et,
+    // point le plus grave, `passwordHash`/`passwordSalt` (voire un mot de passe en clair pour
+    // les comptes non encore migrés) — à quiconque, sans authentification, via le SDK
+    // Firestore côté client (la configuration Firebase publique suffit). Cette règle n'existait
+    // que pour permettre à LoginView.tsx de résoudre un nom d'utilisateur en adresse e-mail
+    // avant authentification. Ce besoin est désormais couvert par la Cloud Function callable
+    // `resolveLoginIdentifier` (functions/src/index.ts), qui utilise le SDK Admin (donc ignore
+    // ces règles) et ne renvoie JAMAIS de hash/sel/mot de passe au client — voir aussi
+    // LoginView.tsx, qui n'effectue plus de lecture directe de cette collection.
+    // Correctif : lecture réservée au propriétaire du compte et à l'Admin, exactement comme
+    // la collection `users` ci-dessous. Aucune régression fonctionnelle : tout écran de
+    // l'application authentifié (AccountsView, Sidebar, permissions...) lit son propre compte
+    // ou celui d'un tiers uniquement en tant qu'Admin.
     match /accounts/{userId} {
-      // Lecture ouverte pour permettre la résolution pré-authentification identifiant -> email
-      // dans LoginView.tsx (HealthPass authentifie par nom d'utilisateur alors que Firebase Auth
-      // requiert une adresse e-mail). Les écritures, créations et suppressions restent strictement
-      // protégées (RBAC, intégrité du rôle et interdiction d'élévation de privilège).
-      allow read: if true;
-      allow create: if isSignedIn() && (
-        isAdmin() ||
-        (request.auth.uid == userId && request.resource.data.profile != 'Admin')
-      );
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding A1 — CRITIQUE) ===
+      // Problème : la branche `request.auth.uid == userId && profile != 'Admin'` permettait à
+      // QUICONQUE authentifié de s'auto-créer un document `accounts/{son propre uid}` avec
+      // `profile: 'Supervisor'` (ou 'Agent'), `isActive: true` et n'importe quelle liste de
+      // `permissions` — obtenant ainsi, via un simple appel SDK direct contournant l'UI, un accès
+      // Supervisor complet (approbation de claims/enrollments, lecture des logs d'audit, export
+      // de données de santé) sans jamais être invité par un Admin.
+      // Vérifié dans le code existant qu'aucun flux légitime ne dépend de cette branche : la
+      // création de compte par un Admin (`AccountsView.tsx`) écrit toujours via `db`/`auth`
+      // (l'app Firebase PRIMAIRE, donc la session de l'Admin), même quand le nouvel utilisateur
+      // Auth est créé via `secondaryAuth` (app secondaire dédiée à cet effet, justement pour ne
+      // jamais faire perdre sa session à l'Admin) — la requête d'écriture Firestore satisfait
+      // donc toujours `isAdmin()`, jamais cette branche de self-create. Le provisionnement Auth
+      // fait depuis `LoginView.tsx` (migration d'un mot de passe legacy) n'écrit lui-même jamais
+      // `accounts/{uid}` : il délègue au Cloud Function `ensureUserAccount` (SDK Admin, hors
+      // règles Firestore). Correctif : la création d'un document `accounts` est désormais
+      // réservée à un Admin, sans exception.
+      allow create: if isSignedIn() && isAdmin();
       // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — un utilisateur ne doit jamais
       // pouvoir s'auto-assigner ou s'auto-élargir un périmètre d'organisations via une
       // écriture directe sur son propre compte (élévation de privilège). Ajouté à la liste
@@ -165,10 +214,20 @@ service cloud.firestore {
 
     // members collection
     match /members/{memberId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+      // "Missing or insufficient permissions" en production) — `resource.data.organization` en
+      // notation pointée déclenche une ERREUR D'ÉVALUATION (pas juste `null`) sur tout document
+      // qui ne porte pas ce champ, ce qui refuse alors l'ENSEMBLE de la requête `onSnapshot` en
+      // temps réel (pas seulement ce document précis) : exactement le comportement observé
+      // (members/claims/invoices, les 3 seules collections cloisonnées par hasOrgAccess()).
+      // `resource.data.get('organization', null)` ne lève jamais cette erreur et retombe sur
+      // `null`, ce qui restaure le comportement pleinement rétrocompatible déjà documenté plus
+      // haut (Phase 1.3 / finding #5) pour les documents antérieurs à ce champ — jusqu'ici cette
+      // garantie n'était appliquée que côté compte (`assignedOrganizations()`), pas côté document.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null));
       allow create: if isSignedIn() && isActiveUser() && hasOrgAccess(request.resource.data.organization);
       allow update: if isSignedIn() && isActiveUser() &&
-        hasOrgAccess(resource.data.organization) &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
       allow delete: if isAdmin();
     }
@@ -244,10 +303,22 @@ service cloud.firestore {
     match /healthPolicies/{organizationName} {
       allow read: if isSignedIn();
       allow create, delete: if isAdmin();
+      // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding A4 — HAUTE) ===
+      // Problème : `syncPolicyStatuses` (src/services/workflowService.ts, chemin de secours
+      // client de la Cloud Function `syncPolicy`, exécuté pour TOUT rôle authentifié toutes les
+      // 5 minutes — voir App.tsx) écrit aussi `suspensionReason`/`suspensionDate`/
+      // `reactivationDate` lors d'une vraie transition de statut, en plus des 4 champs déjà
+      // couverts ici. Si la Cloud Function est indisponible, cet appel de secours échouait donc
+      // en `permission-denied` pour toute session non-Admin/Supervisor (ex. Agent) — le statut de
+      // police n'était alors jamais persisté pour cette session, sans que cela soit visible.
+      // Correctif : ces 3 champs ajoutés à la liste autorisée, avec la même portée que les 4
+      // déjà présents (dérivés automatiquement de l'état de la police, jamais saisis
+      // arbitrairement par l'utilisateur). Le garde-fou anti-déblocage de couverture
+      // (`coverageBlocked`) reste inchangé.
       allow update: if isSignedIn() && isActiveUser() && (
         isAdmin() || isSupervisor() ||
         (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'coverageBlocked', 'updatedAt', 'lastEvaluatedAt']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'coverageBlocked', 'updatedAt', 'lastEvaluatedAt', 'suspensionReason', 'suspensionDate', 'reactivationDate']) &&
           !(resource.data.coverageBlocked == true && request.resource.data.coverageBlocked != true)
         )
       );
@@ -258,7 +329,10 @@ service cloud.firestore {
     // organisation via hasOrgAccess() (voir définition plus haut) ; écriture inchangée
     // (déjà réservée à isAdmin(), qui passe toujours hasOrgAccess()).
     match /policyPayments/{paymentId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organizationId);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07) — même
+      // correctif que members/claims/invoices ci-dessous : accès sûr au champ, sans erreur
+      // d'évaluation sur un document qui ne le porte pas encore.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organizationId', null));
       allow write: if isAdmin();
     }
 
@@ -274,12 +348,23 @@ service cloud.firestore {
     // organisation via hasOrgAccess() ; empêche aussi de "déplacer" un claim vers une
     // organisation hors périmètre lors d'une mise à jour.
     match /claims/{claimId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+      // "Missing or insufficient permissions" en production) — `resource.data.organization` en
+      // notation pointée déclenche une ERREUR D'ÉVALUATION (pas juste `null`) sur tout document
+      // qui ne porte pas ce champ, ce qui refuse alors l'ENSEMBLE de la requête `onSnapshot` en
+      // temps réel (pas seulement ce document précis) : exactement le comportement observé
+      // (members/claims/invoices, les 3 seules collections cloisonnées par hasOrgAccess()).
+      // `resource.data.get('organization', null)` ne lève jamais cette erreur et retombe sur
+      // `null`, ce qui restaure le comportement pleinement rétrocompatible déjà documenté plus
+      // haut (Phase 1.3 / finding #5) pour les documents antérieurs à ce champ — jusqu'ici cette
+      // garantie n'était appliquée que côté compte (`assignedOrganizations()`), pas côté document.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null));
       allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization) &&
         hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
-        hasOrgAccess(resource.data.organization) &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) &&
+        (!('createdByUid' in request.resource.data) || !('createdByUid' in resource.data) || request.resource.data.createdByUid == resource.data.createdByUid) &&
         (!('status' in request.resource.data) || statusChangeAllowed(resource.data.status, request.resource.data.status)) && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
         ((isAdmin() || isSupervisor()) && !isSelfCreated(resource.data))
@@ -298,13 +383,74 @@ service cloud.firestore {
     // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — read/create/update cloisonnés par
     // organisation via hasOrgAccess().
     match /medicalForms/{formId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+      // "Missing or insufficient permissions" en production) — `resource.data.organization` en
+      // notation pointée déclenche une ERREUR D'ÉVALUATION (pas juste `null`) sur tout document
+      // qui ne porte pas ce champ, ce qui refuse alors l'ENSEMBLE de la requête `onSnapshot` en
+      // temps réel (pas seulement ce document précis) : exactement le comportement observé
+      // (members/claims/invoices, les 3 seules collections cloisonnées par hasOrgAccess()).
+      // `resource.data.get('organization', null)` ne lève jamais cette erreur et retombe sur
+      // `null`, ce qui restaure le comportement pleinement rétrocompatible déjà documenté plus
+      // haut (Phase 1.3 / finding #5) pour les documents antérieurs à ce champ — jusqu'ici cette
+      // garantie n'était appliquée que côté compte (`assignedOrganizations()`), pas côté document.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null));
       allow create: if isSignedIn() && isActiveUser() && !policyBlocksCoverage(request.resource.data.organization) &&
         hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
-        hasOrgAccess(resource.data.organization) &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
       allow delete: if isAdmin();
+
+      // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section
+      // 2.1) ===
+      // Constat : le document `medicalForms/{formId}` portait, dans le MÊME document,
+      // l'identité complète de l'assuré (nom, numéro de carte, date de naissance, sexe) ET le
+      // contenu clinique (diagnostic présumé, examens demandés, traitement prescrit — déjà
+      // chiffré applicativement depuis la section 3.1). Tout accès en lecture au document
+      // parent (listing pour l'historique, export, rapport) donnait donc accès au même
+      // « paquet » identité+clinique, même quand seul l'un des deux était réellement
+      // nécessaire.
+      // Correctif : le contenu clinique vit désormais dans un document séparé
+      // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05 & Go-Live Santé) ===
+      // Contenu clinique déporté dans cette sous-collection dédiée.
+      // RÈGLE STRICTE FAIL-CLOSED : toute écriture de champ clinique (presumedDiagnosis, requestedExams,
+      // treatmentOrder) DOIT impérativement être chiffrée applicativement avec le préfixe 'encv1:'.
+      // Un client ne peut EN AUCUN CAS persister des données médicales en clair dans Firestore.
+      match /clinical/{clinicalId} {
+        function parentOrganization() {
+          // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07) —
+          // même correctif que ci-dessus : accès sûr, sans erreur d'évaluation si le formulaire
+          // parent ne porte pas (encore) ce champ.
+          return get(/databases/$(database)/documents/medicalForms/$(formId)).data.get('organization', null);
+        }
+
+        function isEncryptedClinicalField(val) {
+          return val is string && (val.size() == 0 || val.matches('^encv1:.*'));
+        }
+
+        function hasEncryptedClinicalFields() {
+          return (!('presumedDiagnosis' in request.resource.data) || isEncryptedClinicalField(request.resource.data.presumedDiagnosis)) &&
+                 (!('requestedExams' in request.resource.data) || isEncryptedClinicalField(request.resource.data.requestedExams)) &&
+                 (!('treatmentOrder' in request.resource.data) || isEncryptedClinicalField(request.resource.data.treatmentOrder));
+        }
+
+        allow read: if isSignedIn() && hasOrgAccess(parentOrganization());
+        allow create, update: if isSignedIn() && isActiveUser() && hasOrgAccess(parentOrganization()) && hasEncryptedClinicalFields();
+        allow delete: if isAdmin();
+      }
+    }
+
+    // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
+    // — CRITIQUE) — archive immuable écrite par FirestoreService.deleteMedicalForm/
+    // deleteAllMedicalForms (src/services/firestore.ts) juste avant toute suppression physique
+    // d'un formulaire médical : conserve le contenu intégral du document supprimé, qui l'a
+    // supprimé, quand, et pourquoi. Jamais modifiable ni supprimable une fois écrite (comme
+    // auditLogs) ; lecture réservée à l'Admin, cohérent avec le fait que la suppression
+    // elle-même (medicalForms.delete ci-dessus) est déjà strictement Admin-only.
+    match /medicalFormsDeletionArchive/{archiveId} {
+      allow read: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn() && isAdmin();
+      allow update, delete: if false;
     }
 
     // enrollments collection (with SoD validation enforcement)
@@ -313,11 +459,22 @@ service cloud.firestore {
     // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3) — read/create/update cloisonnés par
     // organisation via hasOrgAccess().
     match /enrollments/{enrollmentId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+      // "Missing or insufficient permissions" en production) — `resource.data.organization` en
+      // notation pointée déclenche une ERREUR D'ÉVALUATION (pas juste `null`) sur tout document
+      // qui ne porte pas ce champ, ce qui refuse alors l'ENSEMBLE de la requête `onSnapshot` en
+      // temps réel (pas seulement ce document précis) : exactement le comportement observé
+      // (members/claims/invoices, les 3 seules collections cloisonnées par hasOrgAccess()).
+      // `resource.data.get('organization', null)` ne lève jamais cette erreur et retombe sur
+      // `null`, ce qui restaure le comportement pleinement rétrocompatible déjà documenté plus
+      // haut (Phase 1.3 / finding #5) pour les documents antérieurs à ce champ — jusqu'ici cette
+      // garantie n'était appliquée que côté compte (`assignedOrganizations()`), pas côté document.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null));
       allow create: if isSignedIn() && isActiveUser() && hasOrgAccess(request.resource.data.organization) && createdByUidValid();
       allow update: if isSignedIn() && isActiveUser() &&
-        hasOrgAccess(resource.data.organization) &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) &&
+        (!('createdByUid' in request.resource.data) || !('createdByUid' in resource.data) || request.resource.data.createdByUid == resource.data.createdByUid) &&
         (!('status' in request.resource.data) || statusChangeAllowed(resource.data.status, request.resource.data.status)) && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) ||
         ((isAdmin() || isSupervisor()) && !isSelfCreated(resource.data))
@@ -330,10 +487,20 @@ service cloud.firestore {
     // organisation via hasOrgAccess(). Séparé en deux règles (create/update) car `resource`
     // n'existe pas encore lors d'une création.
     match /invoices/{invoiceId} {
-      allow read: if isSignedIn() && hasOrgAccess(resource.data.organization);
+      // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur, 2026-09-07 — bannière
+      // "Missing or insufficient permissions" en production) — `resource.data.organization` en
+      // notation pointée déclenche une ERREUR D'ÉVALUATION (pas juste `null`) sur tout document
+      // qui ne porte pas ce champ, ce qui refuse alors l'ENSEMBLE de la requête `onSnapshot` en
+      // temps réel (pas seulement ce document précis) : exactement le comportement observé
+      // (members/claims/invoices, les 3 seules collections cloisonnées par hasOrgAccess()).
+      // `resource.data.get('organization', null)` ne lève jamais cette erreur et retombe sur
+      // `null`, ce qui restaure le comportement pleinement rétrocompatible déjà documenté plus
+      // haut (Phase 1.3 / finding #5) pour les documents antérieurs à ce champ — jusqu'ici cette
+      // garantie n'était appliquée que côté compte (`assignedOrganizations()`), pas côté document.
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null));
       allow create: if isSignedIn() && isActiveUser() && canValidate() && hasOrgAccess(request.resource.data.organization);
       allow update: if isSignedIn() && isActiveUser() && canValidate() &&
-        hasOrgAccess(resource.data.organization) &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
         (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization));
       allow delete: if isAdmin();
     }
@@ -384,14 +551,57 @@ service cloud.firestore {
     // métier authentifiées : ENROLLMENT_APPROVED, CLAIM_APPROVED, etc. — voir
     // WorkflowService.logAction, dont la forme `{userId,userName,userRole,action,category,
     // entityId,entityType,details}` ne recoupe jamais celle d'un journal de connexion).
+    // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour utilisateur — page blanche par
+    // moments, "Missing or insufficient permissions" sur auditLogs dans la console) — cause
+    // racine identifiée : FirestoreService.addLog (src/services/firestore.ts) ajoute
+    // TOUJOURS un champ `integrityHash` (scellé cryptographique d'intégrité) à CHAQUE écriture,
+    // y compris les journaux de connexion pré-authentification — mais ce champ n'était pas
+    // dans la liste `hasOnly` ci-dessous, donc CHAQUE tentative de connexion échouée (le seul
+    // cas d'usage pré-auth réel, voir LoginView.tsx) était systématiquement rejetée par cette
+    // règle, silencieusement (écriture "fire and forget", jamais affichée à l'écran) — la piste
+    // d'audit anti-brute-force ne journalisait donc en réalité JAMAIS un seul échec. Corrigé en
+    // autorisant ce champ, exactement comme le journal métier post-auth ci-dessous le fait déjà.
     function isPreAuthLoginLogValid(data) {
-      return data.keys().hasOnly(['userEmail', 'ipAddress', 'status', 'userAgent', 'browser', 'location', 'timestamp']) &&
+      return data.keys().hasOnly(['userEmail', 'ipAddress', 'status', 'userAgent', 'browser', 'location', 'timestamp', 'integrityHash']) &&
         'status' in data && (data.status == 'success' || data.status == 'failed');
+    }
+
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, DATA-03) ===
+    // Constat : `allow create: if isSignedIn()` acceptait auparavant N'IMPORTE QUEL champ et
+    // N'IMPORTE QUELLE valeur de la part d'un utilisateur authentifié, sans schéma imposé — un
+    // journal qui se veut pourtant un "suivi de sécurité immuable" (voir LogsView.tsx).
+    // Vérification exhaustive du code existant (WorkflowService.addLog, tous appels) : les
+    // écritures authentifiées suivent TOUJOURS l'une de deux formes exactes :
+    //  1. Journal de connexion (succès ou échec) — même forme que isPreAuthLoginLogValid()
+    //     ci-dessus, réutilisée telle quelle (voir App.tsx `handleLoginSuccess` et
+    //     LoginView.tsx, qui journalisent des connexions réussies APRÈS authentification avec
+    //     exactement cette forme).
+    //  2. Journal d'action métier — `{userId, userName, userRole, action, category, entityId,
+    //     entityType, details}` (voir WorkflowService.logAction, ENROLLMENT_APPROVED/REJECTED,
+    //     CLAIM_APPROVED/REJECTED...).
+    // Correctif : impose que toute écriture authentifiée corresponde à l'une de ces deux formes
+    // connues — sans changer aucun appelant existant, qui les respecte déjà tous. Empêche
+    // désormais qu'un client falsifie un événement d'audit sous une forme arbitraire.
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05 & Go-Live Santé) ===
+    // Renforcement anti-usurpation d'identité et intégrité de la piste d'audit :
+    // 1. userId DOIT correspondre à l'identifiant du jeton authentifié (request.auth.uid) ou 'system'
+    // 2. userRole DOIT correspondre au profil réel de l'utilisateur (aucun agent ne peut forger 'Admin')
+    // 3. timestamp obligatoire
+    // 4. update/delete strictement interdits (immuabilité absolue de la piste d'audit)
+    function isBusinessAuditLogValid(data) {
+      return data.keys().hasAll(['userId', 'action', 'category', 'timestamp']) &&
+        data.userId is string &&
+        (data.userId == request.auth.uid || data.userId == 'system') &&
+        (!('userRole' in data) || data.userRole == userProfile() || data.userRole == 'System') &&
+        data.action is string && data.action.size() > 0 &&
+        data.category is string && data.category.size() > 0 &&
+        data.timestamp is string;
     }
 
     match /auditLogs/{logId} {
       allow read: if isSignedIn() && (isAdmin() || isSupervisor());
-      allow create: if isSignedIn() || isPreAuthLoginLogValid(request.resource.data);
+      allow create: if isPreAuthLoginLogValid(request.resource.data) ||
+        (isSignedIn() && isBusinessAuditLogValid(request.resource.data));
       allow update, delete: if false;
     }
 
@@ -401,10 +611,76 @@ service cloud.firestore {
     // utilisateur actif pour rester cohérent avec l'absence de ciblage par uid dans le modèle
     // actuel (recipientRole, pas recipientUid) — resserrer nécessiterait d'abord d'ajouter ce
     // champ, hors périmètre de ce lot.
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding A3 — HAUTE) ===
+    // Problème : `allow read: if isSignedIn()` exposait l'INTÉGRALITÉ de la collection
+    // `notifications` à tout utilisateur authentifié, quel que soit son rôle ou son organisation
+    // — alors que le champ `message` contient déjà, en clair, des données sensibles (nom de
+    // patient, montant du sinistre, numéro de carte : voir WorkflowService, claimsService.ts,
+    // enrollmentsService.ts). Cette règle datait d'avant l'introduction de
+    // `recipientId`/`recipientEmail`/`recipientRole` (voir src/types/index.ts) — champs
+    // désormais peuplés partout où une notification est créée.
+    // Correctif : lecture restreinte au destinataire réel. Deux formes de ciblage coexistent
+    // légitimement dans le code existant et sont toutes deux préservées : une notification
+    // adressée à un utilisateur précis (`recipientId`) et une notification "diffusée" à tout un
+    // rôle (`recipientRole`, ex. "tout Superviseur" — voir Topbar.tsx, qui filtre déjà côté
+    // client exactement selon cette même logique). Une notification legacy dépourvue des deux
+    // champs (créée avant leur introduction) reste lisible par tout utilisateur actif, pour ne
+    // créer aucune régression sur les données existantes.
+    // === AMÉLIORATION AJOUTÉE : sécurité (revue d'audit, 2026-09-11) — `allow write: if
+    // isSignedIn()` était resté volontairement non restreint lors du correctif précédent
+    // (qui ne portait que sur la lecture), documenté à l'époque comme hors périmètre. Ce
+    // correctif referme cette porte, sans casser la fonction des notifications :
+    // - `create` : une notification est par nature créée par un utilisateur POUR un autre
+    //   (l'auteur n'est jamais le destinataire) — impossible de restreindre par destinataire
+    //   sans casser tous les envois existants (voir workflowService.ts, addNotification). On
+    //   exige à la place un compte actif (au lieu du simple isSignedIn — un compte désactivé
+    //   ne peut plus rien créer) et une adresse valide (recipientId OU recipientRole présent),
+    //   ce qui bloque déjà tout document de notification malformé/arbitraire.
+    // - `update` : réservé au destinataire réel (par recipientId ou recipientRole, même
+    //   logique que la lecture ci-dessus) ou à l'Admin, et seul le champ `unread` peut changer
+    //   — c'est la seule opération réellement utilisée par l'app (marquer comme lu, voir
+    //   firestore.ts markNotificationRead/markAllNotificationsRead), qui ne modifie jamais
+    //   titre/message/destinataire.
+    // - `delete` : réservé à l'Admin (aucun appelant actuel dans l'app ne supprime une
+    //   notification ; restriction la plus sûre par défaut).
     match /notifications/{notificationId} {
-      allow read, write: if isSignedIn();
+      allow read: if isActiveUser() && (
+        isAdmin() ||
+        resource.data.recipientId == request.auth.uid ||
+        (('recipientRole' in resource.data) && (
+          resource.data.recipientRole == userProfile() ||
+          // 'Supervisor'/'Superviseur' sont des alias équivalents ailleurs dans ce fichier
+          // (voir isSupervisor()) et côté client (voir src/utils/authUtils.ts normalizeRole) —
+          // préservés ici pour ne pas priver un Superviseur des notifications qui lui sont
+          // adressées sous l'autre graphie.
+          (userProfile() == 'Superviseur' && resource.data.recipientRole == 'Supervisor') ||
+          (userProfile() == 'Supervisor' && resource.data.recipientRole == 'Superviseur')
+        )) ||
+        (!('recipientId' in resource.data) && !('recipientRole' in resource.data))
+      );
+      allow create: if isActiveUser() && (
+        ('recipientId' in request.resource.data && request.resource.data.recipientId is string) ||
+        ('recipientRole' in request.resource.data && request.resource.data.recipientRole is string)
+      );
+      allow update: if isActiveUser() && (
+        isAdmin() ||
+        resource.data.recipientId == request.auth.uid ||
+        (('recipientRole' in resource.data) && (
+          resource.data.recipientRole == userProfile() ||
+          (userProfile() == 'Superviseur' && resource.data.recipientRole == 'Supervisor') ||
+          (userProfile() == 'Supervisor' && resource.data.recipientRole == 'Superviseur')
+        ))
+      ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unread']);
+      allow delete: if isAdmin();
     }
 
+    // === AMÉLIORATION AJOUTÉE : documentation (audit 2026-09-05, STRUCT-03) — `accounts` est
+    // l'UNIQUE source de vérité active pour l'identité/le rôle utilisateur (voir
+    // onAuthStateChanged dans App.tsx, qui écoute exclusivement `accounts/{uid}`). `users` n'est
+    // plus alimentée en écriture par le code applicatif courant ; elle n'est encore lue qu'en
+    // filet de secours (voir `ensureUserAccount`, functions/src/index.ts, étape 3) pour
+    // d'anciennes données de démonstration. À supprimer une fois cette dépendance résiduelle
+    // confirmée nulle en production — non fait ici pour éviter toute régression sans certitude.
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow write: if isAdmin();

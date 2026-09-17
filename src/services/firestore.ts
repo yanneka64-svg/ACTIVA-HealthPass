@@ -1,8 +1,24 @@
-import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, writeBatch, DocumentReference } from 'firebase/firestore';
+import { collection, collectionGroup, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc, onSnapshot, query, orderBy, limit, where, getDocs, writeBatch, DocumentReference } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { Member, Organization, Provider, Claim, InvoiceItem, Enrollment, Ceiling, LoginLog, AuditLog, MedicalForm, AppNotification, HealthPolicy, PolicyPayment } from '../types';
 import { getFullDemoData, seedInitialDemoDataIfEmpty } from './seedData';
 import { isNewSecurityNumberFormat, normalizeMedicalFormSecurityNumber } from '../utils/medicalFormUtils';
+import { computeMedicalFormRetentionUntil } from '../config/dataRetention';
+import { isDemoFallbackAllowed } from '../config/demoFallback';
+import { reportSyncIssue, clearSyncIssue } from '../utils/systemStatus';
+import { computeLogIntegrityHash } from '../utils/auditIntegrity';
+
+// === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5) —
+// voir deleteMedicalForm/deleteAllMedicalForms ci-dessous.
+const MEDICAL_FORMS_ARCHIVE_COLLECTION = 'medicalFormsDeletionArchive';
+// 3 écritures par document désormais possible (archive + suppression du parent + suppression
+// de la sous-collection clinical, voir section 2.1) — 150 * 3 = 450, sous la limite de 500
+// écritures par batch Firestore.
+const MEDICAL_FORMS_ARCHIVE_BATCH_SIZE = 150;
+// === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.1) — voir
+// addMedicalForm/deleteMedicalForm/deleteAllMedicalForms ci-dessous.
+const MEDICAL_FORM_CLINICAL_SUBCOLLECTION = 'clinical';
+const MEDICAL_FORM_CLINICAL_DOC_ID = 'content';
 
 export enum OperationType {
   CREATE = 'create',
@@ -64,20 +80,28 @@ export const FirestoreService = {
     onSnapshot(
       scopedQuery('members', 'organization', orgScope),
       (snap) => {
+        clearSyncIssue('members');
         if (!snap.empty) {
           const map = new Map<string, Member>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as Member));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.membersList || []) as Member[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'members');
-        const demo = getFullDemoData();
-        cb((demo.membersList || []) as Member[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.membersList || []) as Member[]);
+        } else {
+          reportSyncIssue('members', err);
+          cb([]);
+        }
       }
     ),
 
@@ -85,20 +109,28 @@ export const FirestoreService = {
     onSnapshot(
       collection(db, 'organizations'),
       (snap) => {
+        clearSyncIssue('organizations');
         if (!snap.empty) {
           const map = new Map<string, Organization>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as Organization));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.orgs || []) as Organization[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'organizations');
-        const demo = getFullDemoData();
-        cb((demo.orgs || []) as Organization[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.orgs || []) as Organization[]);
+        } else {
+          reportSyncIssue('organizations', err);
+          cb([]);
+        }
       }
     ),
 
@@ -106,20 +138,28 @@ export const FirestoreService = {
     onSnapshot(
       collection(db, 'providers'),
       (snap) => {
+        clearSyncIssue('providers');
         if (!snap.empty) {
           const map = new Map<string, Provider>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as Provider));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.providers || []) as Provider[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'providers');
-        const demo = getFullDemoData();
-        cb((demo.providers || []) as Provider[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.providers || []) as Provider[]);
+        } else {
+          reportSyncIssue('providers', err);
+          cb([]);
+        }
       }
     ),
 
@@ -127,20 +167,28 @@ export const FirestoreService = {
     onSnapshot(
       scopedQuery('claims', 'organization', orgScope),
       (snap) => {
+        clearSyncIssue('claims');
         if (!snap.empty) {
           const map = new Map<string, Claim>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as Claim));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.sampleClaims || []) as Claim[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'claims');
-        const demo = getFullDemoData();
-        cb((demo.sampleClaims || []) as Claim[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.sampleClaims || []) as Claim[]);
+        } else {
+          reportSyncIssue('claims', err);
+          cb([]);
+        }
       }
     ),
 
@@ -148,20 +196,28 @@ export const FirestoreService = {
     onSnapshot(
       scopedQuery('invoices', 'organization', orgScope),
       (snap) => {
+        clearSyncIssue('invoices');
         if (!snap.empty) {
           const map = new Map<string, InvoiceItem>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as InvoiceItem));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.sampleInvoices || []) as InvoiceItem[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'invoices');
-        const demo = getFullDemoData();
-        cb((demo.sampleInvoices || []) as InvoiceItem[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.sampleInvoices || []) as InvoiceItem[]);
+        } else {
+          reportSyncIssue('invoices', err);
+          cb([]);
+        }
       }
     ),
 
@@ -184,20 +240,28 @@ export const FirestoreService = {
     onSnapshot(
       collection(db, 'ceilings'),
       (snap) => {
+        clearSyncIssue('ceilings');
         if (!snap.empty) {
           const map = new Map<string, Ceiling>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id } as Ceiling));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb((demo.sampleCeilings || []) as Ceiling[]);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'ceilings');
-        const demo = getFullDemoData();
-        cb((demo.sampleCeilings || []) as Ceiling[]);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb((demo.sampleCeilings || []) as Ceiling[]);
+        } else {
+          reportSyncIssue('ceilings', err);
+          cb([]);
+        }
       }
     ),
 
@@ -216,20 +280,28 @@ export const FirestoreService = {
     onSnapshot(
       collection(db, 'accounts'),
       (snap) => {
+        clearSyncIssue('accounts');
         if (!snap.empty) {
           const map = new Map<string, any>();
           snap.docs.forEach((d) => map.set(d.id, { ...d.data(), id: d.id }));
           cb(Array.from(map.values()));
-        } else {
+        } else if (isDemoFallbackAllowed()) {
           const demo = getFullDemoData();
           cb(demo.defaultAccounts);
           seedInitialDemoDataIfEmpty();
+        } else {
+          cb([]);
         }
       },
       (err) => {
         handleFirestoreError(err, OperationType.GET, 'accounts');
-        const demo = getFullDemoData();
-        cb(demo.defaultAccounts);
+        if (isDemoFallbackAllowed()) {
+          const demo = getFullDemoData();
+          cb(demo.defaultAccounts);
+        } else {
+          reportSyncIssue('accounts', err);
+          cb([]);
+        }
       }
     ),
 
@@ -424,6 +496,20 @@ export const FirestoreService = {
   },
   deleteClaim: async (id: string) => {
     try {
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (auto-revue, 2026-09-12) — sans
+      // ce nettoyage, la fiche maladie rattachée continuerait d'afficher indéfiniment la
+      // référence d'une réclamation supprimée. Lecture + mise à jour BEST-EFFORT : une panne à
+      // cette étape (permission, réseau, fiche déjà supprimée) ne doit jamais empêcher la
+      // suppression du claim lui-même, qui reste l'opération demandée.
+      try {
+        const claimSnap = await getDoc(doc(db, 'claims', id));
+        const medicalFormId = claimSnap.exists() ? (claimSnap.data() as Claim).medicalFormId : undefined;
+        if (medicalFormId) {
+          await updateDoc(doc(db, 'medicalForms', medicalFormId), { claimId: null, claimReference: null });
+        }
+      } catch (linkErr) {
+        console.error('Failed to clear the reverse MedicalForm link on claim delete (non-blocking):', linkErr);
+      }
       return await deleteDoc(doc(db, 'claims', id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `claims/${id}`);
@@ -516,13 +602,26 @@ export const FirestoreService = {
     }
   },
 
-  // Logs & Audit Trail
+  // Logs & Audit Trail (Immuabilité et sceau cryptographique d'intégrité Go-Live Santé)
   addLog: async (data: Partial<AuditLog> | Partial<LoginLog>) => {
     try {
+      const timestamp = new Date().toISOString();
+      const userAgent = (data as any).userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : undefined);
+      const integrityHash = await computeLogIntegrityHash({
+        userId: (data as any).userId,
+        userEmail: (data as any).userEmail,
+        action: (data as any).action,
+        status: (data as any).status,
+        category: (data as any).category,
+        entityId: (data as any).entityId,
+        timestamp,
+      });
+
       return await addDoc(collection(db, 'auditLogs'), {
         ...data,
-        timestamp: new Date().toISOString(),
-        userAgent: (data as any).userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : undefined),
+        timestamp,
+        userAgent,
+        integrityHash,
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'auditLogs');
@@ -556,8 +655,33 @@ export const FirestoreService = {
       throw err;
     }
   },
+  // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04, retour
+  // utilisateur 2026-09-11 — "toujours ouvert" dans HEALTH_DATA_GOVERNANCE_REVIEW_2026-09-05.md,
+  // risque déjà matérialisé une fois via SEC-01) === App.tsx écrivait encore directement sur
+  // `accounts/{uid}` via le SDK Firestore (`setDoc(..., { merge: true })`) pour relier un compte
+  // pré-provisionné sous l'ancienne collection `users/{uid}` à l'uid Firebase Auth réel — un
+  // second chemin d'écriture, hors de ce fichier, qui risquait de ne pas recevoir un futur
+  // correctif appliqué uniquement ici. Isolé dans sa propre méthode (plutôt que réutiliser
+  // `addAccount`) car le `merge: true` a une sémantique différente d'un `setDoc` classique : il
+  // préserve tout champ déjà présent sur le document au lieu de l'écraser intégralement.
+  linkLegacyUserAccount: async (id: string, data: any) => {
+    try {
+      return await setDoc(doc(db, 'accounts', id), data, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `accounts/${id}`);
+      throw err;
+    }
+  },
 
   // Medical Forms
+  // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.1)
+  // ===
+  // Le contenu clinique (`doctorPrescription`, déjà chiffré à ce stade — voir
+  // encryptMedicalFormPrescription dans src/utils/sensitiveData.ts, appelé par l'écran avant
+  // cet appel) n'est plus écrit dans le document `medicalForms/{id}` lui-même : il est déplacé
+  // dans un document séparé `medicalForms/{id}/clinical/content`, avec sa propre règle
+  // Firestore (voir firestore.rules) — tout accès qui liste/exporte la collection `medicalForms`
+  // (historique, rapports) ne reçoit donc plus jamais automatiquement le contenu clinique.
   addMedicalForm: async (data: Partial<MedicalForm>) => {
     try {
       if (!isNewSecurityNumberFormat(data.securityNumber)) {
@@ -565,38 +689,185 @@ export const FirestoreService = {
         data.securityNumber = secNum;
         data.barcode = secNum;
       }
-      return await addDoc(collection(db, 'medicalForms'), data);
+      const { doctorPrescription, ...parentData } = data;
+      // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) —
+      // date de rétention indicative, purement informative (voir src/config/dataRetention.ts) :
+      // aucune suppression automatique n'en découle, elle sert seulement à signaler plus tard,
+      // à un Admin/Supervisor, les dossiers arrivés à échéance pour une revue manuelle.
+      parentData.retentionUntil = computeMedicalFormRetentionUntil(parentData.issueDate || new Date().toISOString());
+      const parentRef = await addDoc(collection(db, 'medicalForms'), parentData);
+
+      if (
+        doctorPrescription &&
+        (doctorPrescription.presumedDiagnosis || doctorPrescription.requestedExams || doctorPrescription.treatmentOrder)
+      ) {
+        try {
+          await setDoc(doc(db, 'medicalForms', parentRef.id, MEDICAL_FORM_CLINICAL_SUBCOLLECTION, MEDICAL_FORM_CLINICAL_DOC_ID), {
+            ...doctorPrescription,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (clinicalErr) {
+          // Si l'écriture des données cliniques échoue (ex: rejet par les règles de sécurité Firestore
+          // parce que les champs ne sont pas chiffrés ou permission refusée), nettoyer le document parent
+          // pour éviter un dossier incomplet et lever l'erreur (politique stricte fail-closed).
+          await deleteDoc(parentRef).catch(() => {});
+          handleFirestoreError(clinicalErr, OperationType.CREATE, `medicalForms/${parentRef.id}/clinical/${MEDICAL_FORM_CLINICAL_DOC_ID}`);
+          throw clinicalErr;
+        }
+      }
+
+      return parentRef;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'medicalForms');
       throw err;
     }
   },
+  // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.1)
+  // === `doctorPrescription` n'est plus jamais écrit dans le document parent — le contenu
+  // clinique vit désormais dans la sous-collection `clinical` (voir addMedicalForm ci-dessus).
+  // Aucun appelant actuel ne modifie le contenu clinique après création (seul le statut change,
+  // voir handleToggleStatus dans AgentMedicalFormView.tsx, qui exclut déjà ce champ) ; exclu ici
+  // de façon défensive pour qu'un futur appelant ne puisse pas, par mégarde, réécrire le
+  // contenu clinique en clair dans le document parent.
   updateMedicalForm: async (data: MedicalForm) => {
     try {
-      const { id, ...rest } = data;
+      const { id, doctorPrescription, ...rest } = data;
       return await updateDoc(doc(db, 'medicalForms', id), rest);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `medicalForms/${data.id}`);
       throw err;
     }
   },
-  deleteMedicalForm: async (id: string) => {
+  // === AMÉLIORATION AJOUTÉE : lien bidirectionnel Claim <-> MedicalForm (retour utilisateur,
+  // 2026-09-12) — patch ciblé (2 champs) plutôt que updateMedicalForm ci-dessus, qui exige
+  // l'objet MedicalForm complet : au moment où WorkflowService.submitClaim relie une fiche
+  // maladie à la réclamation qui vient d'être créée, seuls l'id de la fiche et les identifiants
+  // du nouveau claim sont disponibles. Autorisé par les mêmes règles Firestore que
+  // updateMedicalForm (voir firestore.rules, match /medicalForms/{formId}, allow update).
+  linkMedicalFormToClaim: async (medicalFormId: string, claimId: string, claimReference?: string) => {
     try {
-      return await deleteDoc(doc(db, 'medicalForms', id));
+      return await updateDoc(doc(db, 'medicalForms', medicalFormId), { claimId, claimReference });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `medicalForms/${medicalFormId}`);
+      throw err;
+    }
+  },
+  // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
+  // — CRITIQUE, et section 2.1) ===
+  // Avant le correctif 2.5, ces deux fonctions supprimaient physiquement et IRRÉVERSIBLEMENT un
+  // ou tous les formulaires médicaux, sans aucune trace de ce qui a été supprimé — pour
+  // `deleteAllMedicalForms`, cela signifiait l'effacement complet et silencieux de l'historique
+  // médical de toutes les organisations en une seule opération. Correctif : chaque document
+  // est désormais archivé (contenu intégral + qui/quand/pourquoi) dans la collection immuable
+  // `medicalFormsDeletionArchive` AVANT sa suppression — jamais perdu, jamais visible ailleurs
+  // que par un Admin (voir firestore.rules).
+  // Depuis le correctif 2.1, le contenu clinique vit dans une sous-collection séparée
+  // (`medicalForms/{id}/clinical/content`) — Firestore NE SUPPRIME JAMAIS automatiquement les
+  // sous-collections d'un document supprimé (contrairement à une suppression en cascade d'un
+  // SGBD relationnel) : sans ce correctif, supprimer un formulaire médical aurait laissé son
+  // contenu clinique orphelin indéfiniment dans Firestore, invisible mais jamais réellement
+  // effacé. Ces deux fonctions lisent, archivent, et suppriment désormais explicitement AUSSI
+  // ce document de sous-collection (s'il existe — un formulaire créé avant ce correctif n'en a
+  // pas).
+  deleteMedicalForm: async (id: string, reason?: string) => {
+    try {
+      const ref = doc(db, 'medicalForms', id);
+      const clinicalRef = doc(db, 'medicalForms', id, MEDICAL_FORM_CLINICAL_SUBCOLLECTION, MEDICAL_FORM_CLINICAL_DOC_ID);
+      const [snap, clinicalSnap] = await Promise.all([getDoc(ref), getDoc(clinicalRef)]);
+
+      if (snap.exists() || clinicalSnap.exists()) {
+        await setDoc(doc(db, MEDICAL_FORMS_ARCHIVE_COLLECTION, id), {
+          originalId: id,
+          data: snap.exists() ? snap.data() : null,
+          clinicalData: clinicalSnap.exists() ? clinicalSnap.data() : null,
+          deletedBy: auth.currentUser?.uid || 'unknown',
+          deletedByEmail: auth.currentUser?.email || null,
+          deletedAt: new Date().toISOString(),
+          reason: reason || null,
+          scope: 'single',
+        });
+      }
+
+      const batch = writeBatch(db);
+      if (snap.exists()) batch.delete(ref);
+      if (clinicalSnap.exists()) batch.delete(clinicalRef);
+      const result = await batch.commit();
+
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (auto-revue, 2026-09-12) — sans ce
+      // nettoyage, une réclamation rattachée continuerait d'afficher indéfiniment la référence
+      // d'une fiche maladie désormais archivée/supprimée. BEST-EFFORT : une panne à cette étape
+      // ne doit jamais empêcher la suppression déjà effectuée ci-dessus.
+      const linkedClaimId = snap.exists() ? (snap.data() as MedicalForm).claimId : undefined;
+      if (linkedClaimId) {
+        try {
+          await updateDoc(doc(db, 'claims', linkedClaimId), { medicalFormId: null, medicalFormReference: null });
+        } catch (linkErr) {
+          console.error('Failed to clear the reverse Claim link on medical form delete (non-blocking):', linkErr);
+        }
+      }
+
+      return result;
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `medicalForms/${id}`);
       throw err;
     }
   },
-  deleteAllMedicalForms: async () => {
+  deleteAllMedicalForms: async (reason?: string) => {
     try {
       const snap = await getDocs(collection(db, 'medicalForms'));
       if (snap.empty) return;
-      const batch = writeBatch(db);
-      snap.docs.forEach((d) => {
-        batch.delete(d.ref);
+      const docs = snap.docs;
+      const deletedBy = auth.currentUser?.uid || 'unknown';
+      const deletedByEmail = auth.currentUser?.email || null;
+      const deletedAt = new Date().toISOString();
+
+      // Une seule requête collectionGroup pour récupérer tous les documents `clinical` de
+      // TOUS les formulaires en une fois, plutôt qu'une lecture individuelle par formulaire.
+      const clinicalByFormId = new Map<string, Record<string, unknown>>();
+      try {
+        const clinicalSnap = await getDocs(collectionGroup(db, MEDICAL_FORM_CLINICAL_SUBCOLLECTION));
+        clinicalSnap.docs.forEach((cd) => {
+          const parentFormId = cd.ref.parent.parent?.id;
+          if (parentFormId) clinicalByFormId.set(parentFormId, cd.data());
+        });
+      } catch (clinicalErr) {
+        // Non-fatal : la suppression/l'archivage des documents parents continue sans le
+        // contenu clinique plutôt que d'échouer entièrement — signalé pour investigation.
+        console.warn('deleteAllMedicalForms: could not read clinical subcollection documents:', clinicalErr);
+      }
+
+      for (let i = 0; i < docs.length; i += MEDICAL_FORMS_ARCHIVE_BATCH_SIZE) {
+        const chunk = docs.slice(i, i + MEDICAL_FORMS_ARCHIVE_BATCH_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((d) => {
+          const clinicalData = clinicalByFormId.get(d.id) || null;
+          batch.set(doc(db, MEDICAL_FORMS_ARCHIVE_COLLECTION, d.id), {
+            originalId: d.id,
+            data: d.data(),
+            clinicalData,
+            deletedBy,
+            deletedByEmail,
+            deletedAt,
+            reason: reason || null,
+            scope: 'bulk',
+          });
+          batch.delete(d.ref);
+          if (clinicalData) {
+            batch.delete(doc(db, 'medicalForms', d.id, MEDICAL_FORM_CLINICAL_SUBCOLLECTION, MEDICAL_FORM_CLINICAL_DOC_ID));
+          }
+        });
+        await batch.commit();
+      }
+
+      await FirestoreService.addLog({
+        userId: deletedBy,
+        userName: deletedByEmail || 'Admin',
+        userRole: 'Admin',
+        action: 'MEDICAL_FORMS_BULK_DELETE',
+        category: 'MedicalForms',
+        entityType: 'medicalForms',
+        details: `Bulk-deleted ${docs.length} medical form(s) (including clinical content), archived to ${MEDICAL_FORMS_ARCHIVE_COLLECTION} beforehand.${reason ? ` Reason: ${reason}` : ''}`,
       });
-      await batch.commit();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'medicalForms');
       throw err;

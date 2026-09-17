@@ -1,4 +1,7 @@
-export type Language = 'en';
+// === AMÉLIORATION AJOUTÉE : sélecteur de langue (2026-09-10, demande explicite) — anglais reste
+// la langue par défaut ; le français s'ajoute comme option de consultation. Voir
+// src/i18n/translations.ts pour le dictionnaire complet des deux langues.
+export type Language = 'en' | 'fr';
 
 export type UserProfile = 'Admin' | 'Supervisor' | 'Superviseur' | 'Agent';
 
@@ -137,6 +140,15 @@ export interface ClaimAttachment {
 }
 
 export interface Claim {
+  // === AMÉLIORATION AJOUTÉE : lien bidirectionnel Claim <-> MedicalForm (retour utilisateur,
+  // 2026-09-12 — "chaque fiche maladie ... doit être ... liée ... à la réclamation dont elle
+  // fait l'objet") — `medicalFormId` est l'id Firestore du document `medicalForms/{id}`
+  // (fiche maladie) dont ce claim est issu, `medicalFormReference` en est le numéro de sécurité
+  // humainement lisible (format AMID-YY-DD-XXXX, voir medicalFormUtils.ts), dupliqué ici pour
+  // un affichage immédiat sans jointure. Optionnels : un claim peut toujours être soumis sans
+  // fiche maladie associée (facturation directe), comportement inchangé dans ce cas.
+  medicalFormId?: string;
+  medicalFormReference?: string;
   currency?: 'USD' | 'LRD';
   doctorName?: string;
   medicalActs?: { name: string; amount: number; category?: string; description?: string }[];
@@ -192,6 +204,72 @@ export interface InvoiceItem {
   careType: string;
   prescribingDoctor?: string;
   coveragePercentage: number;
+  // === AMÉLIORATION AJOUTÉE : ces trois champs étaient déjà lus par InvoicesView.tsx sans
+  // être déclarés ici — champs additifs formalisant un usage déjà existant, sans changement de
+  // comportement.
+  claimId?: string;
+  coveredAmount?: number;
+  patientPolicyNumber?: string;
+  // === AMÉLIORATION AJOUTÉE : détail des actes médicaux (nouveau modèle de bordereau de
+  // règlement — voir InvoicesView.tsx / printUtils.ts), miroir de Claim.medicalActs.
+  // Optionnel : les factures antérieures à ce correctif n'en disposent pas et retombent sur un
+  // affichage à ligne unique (careType/amount/coveredAmount).
+  medicalActs?: { name: string; amount: number; category?: string; description?: string }[];
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation (module
+  // src/modules/reimbursement/), derrière le flag `hp2_reimbursement_tracking` (désactivé par
+  // défaut, voir src/config/featureFlags.ts). Suivi du DÉCAISSEMENT réel, volontairement séparé
+  // du champ `status` existant ci-dessus (workflow d'approbation) — `status` garde son sens
+  // actuel partout où il est déjà lu (InvoicesView.tsx, printUtils.ts...), aucune régression.
+  // `payee` capture le cas réel confirmé par l'utilisateur (2026-09-10) : selon le prestataire/la
+  // police, ACTIVA règle soit directement le prestataire (facturation directe), soit rembourse
+  // l'assuré qui a payé d'avance — les deux cas coexistent, jamais un seul modèle imposé.
+  paymentStatus?: 'unpaid' | 'paid';
+  payee?: 'provider' | 'member';
+  paidAt?: string;
+  paymentReference?: string;
+  // === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical, avant paiement (2026-09-10, sur
+  // demande explicite de l'utilisateur). `amount` ci-dessus reste TOUJOURS le montant original
+  // facturé — jamais modifié — pour garder une traçabilité complète ; `payableAmountUSD` est le
+  // montant réellement dû après réfaction, calculé côté client (amount - refactionTotalUSD) et
+  // utilisé pour le paiement et la réconciliation à la place de `amount` quand présent. Quand
+  // aucune réfaction n'a été appliquée, ces champs restent tous `undefined` et le comportement
+  // est strictement identique à avant (repli sur `amount` partout où c'est lu).
+  refactionApplied?: boolean;
+  refactions?: InvoiceActRefaction[];
+  refactionTotalUSD?: number;
+  refactionAppliedAt?: string;
+  refactionAppliedBy?: string;
+  refactionAppliedByRole?: 'Admin' | 'Supervisor';
+  payableAmountUSD?: number;
+  // Recouvrement manuel (suivi uniquement, aucune compensation automatique) : quand le
+  // prestataire produit des justificatifs, une partie ou la totalité du montant refacté peut
+  // être enregistrée comme récupérée.
+  recoveries?: InvoiceRecovery[];
+  recoveredTotalUSD?: number;
+}
+
+// === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical (2026-09-10) — voir InvoiceItem
+// ci-dessus. Une entrée par acte médical dont le montant retenu diffère du montant original ;
+// `actIndex` référence la position dans `InvoiceItem.medicalActs[]`, `actName` est dupliqué pour
+// un affichage robuste même si ce tableau venait à changer de forme.
+export interface InvoiceActRefaction {
+  actIndex: number;
+  actName: string;
+  originalAmountUSD: number;
+  retainedAmountUSD: number;
+  rejectedAmountUSD: number;
+  reason: string;
+}
+
+// === AMÉLIORATION AJOUTÉE : recouvrement manuel d'un montant refacté (2026-09-10) — voir
+// InvoiceItem.recoveries ci-dessus.
+export interface InvoiceRecovery {
+  amountUSD: number;
+  recordedAt: string;
+  recordedBy: string;
+  recordedByRole: 'Admin' | 'Supervisor';
+  reference?: string;
+  notes?: string;
 }
 
 export interface Enrollment {
@@ -276,6 +354,19 @@ export interface MedicalForm {
   // medicalForms, cette collection n'ayant pas de notion de transition d'approbation
   // (status: issued/used/pending_return/completed — voir docs/security/CODE_AUDIT_MAP.md).
   createdByUid?: string;
+  // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) — date de
+  // rétention indicative (voir src/config/dataRetention.ts), calculée uniquement pour les
+  // formulaires créés après ce correctif. Absente sur l'historique existant : ne signifie jamais
+  // "à purger immédiatement", seulement "pas encore évaluée". Purement informative — aucune
+  // suppression automatique n'est déclenchée par ce champ.
+  retentionUntil?: string;
+  // === AMÉLIORATION AJOUTÉE : lien bidirectionnel Claim <-> MedicalForm (retour utilisateur,
+  // 2026-09-12) — renseigné après coup, quand un Agent rattache cette fiche à une réclamation
+  // lors de la soumission (voir AgentClaimsView.tsx / WorkflowService.submitClaim). Absent tant
+  // que la fiche n'a pas encore été utilisée pour soumettre une réclamation : comportement
+  // inchangé pour tout l'historique existant et pour les fiches jamais réclamées.
+  claimId?: string;
+  claimReference?: string;
 }
 
 export type OrgStatus = 'Active' | 'Actif' | 'Expired' | 'Expiré' | 'Suspended' | 'Suspendu';
@@ -484,6 +575,7 @@ export interface AuditLog {
   ip?: string;
   userAgent?: string;
   severity?: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+  integrityHash?: string;
 }
 
 export type NavSection =
@@ -521,24 +613,24 @@ export interface AppNotification {
 }
 
 // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
-// explicite. Voir src/services/cardNumberService.ts pour le moteur (génération
-// transactionnelle, migration, unicité).
+// explicite. Voir src/services/cardNumberService.ts pour le moteur (unicité, registre).
 //
-// === AMÉLIORATION AJOUTÉE (v2) : nouvelle structure de numéro AMID-YYMMDD-NNNNN — sur
-// demande explicite, remplace l'ancienne structure AMID-XXXXX-XXXX (deux séquences
-// indépendantes "printed"/"insured"). Le premier segment (6 chiffres) est désormais une
-// date d'émission (année, mois, jour) et non plus un compteur ; seul le second segment (5
-// chiffres, "assuredNumber") reste une séquence globale, unique et jamais réutilisée — un
-// registre d'unicité (une entrée par numéro complet) et une trace d'audit par attribution
-// (voir section 29 de la demande initiale) sont conservés à l'identique.
+// === AMÉLIORATION AJOUTÉE (v3 — saisie/import manuel) : sur demande explicite, les numéros
+// de carte ne sont plus générés automatiquement (ni à l'enrôlement, ni à l'import Excel) —
+// ils sont désormais intégrés manuellement (saisie à l'enrôlement) ou déjà présents dans le
+// fichier importé (template Admin), au format libre de 11 caractères alphanumériques (voir
+// CARD_NUMBER_REGEX dans cardNumberService.ts). `issueDate`/`assuredNumber` ci-dessous
+// deviennent optionnels : ils restent renseignés sur les attributions historiques
+// (ancienne structure AMID-YYMMDD-NNNNN) mais ne sont plus dérivables d'un numéro saisi
+// librement.
 export type CardAssignmentMethod = 'ENROLLMENT' | 'EXCEL_IMPORT' | 'MANUAL' | 'MIGRATION';
 
-// Document unique `counters/cardNumbers` — l'état courant de l'unique séquence restante
-// (assuredNumber, segment XXXXX). Le segment de date n'est plus un compteur : il est
-// recalculé à chaque émission à partir de la date d'émission de la carte concernée.
+// Document unique `counters/cardNumbers` — vestige de l'ancienne génération séquentielle
+// automatique (n'est plus lu ni écrit depuis le passage à la saisie/import manuel), conservé
+// uniquement pour ne pas casser la lecture d'un éventuel document historique.
 export interface CardNumberCounters {
-  lastAssuredNumber: number; // ex: 496 (segment XXXXX)
-  formatVersion?: 'v2'; // présent une fois la migration vers AMID-YYMMDD-NNNNN effectuée
+  lastAssuredNumber: number; // ex: 496 (segment XXXXX de l'ancienne structure)
+  formatVersion?: 'v2';
   updatedAt?: string;
 }
 
@@ -546,10 +638,10 @@ export interface CardNumberCounters {
 // document EST la contrainte d'unicité (deux assurés ne peuvent jamais créer le même id de
 // document). Sert aussi de trace d'audit ("Who / What / When / How", voir section 29).
 export interface CardNumberAssignment {
-  id: string; // = cardNumber, ex: "AMID-260903-00496"
+  id: string; // = cardNumber, ex: "A1B2C3D4E5F" (11 caractères alphanumériques)
   cardNumber: string;
-  issueDate: string; // "260903" (YYMMDD, segment XXXXXX)
-  assuredNumber: string; // "00496" (segment XXXXX)
+  issueDate?: string; // "260903" (YYMMDD) — présent uniquement sur les attributions historiques
+  assuredNumber?: string; // "00496" — présent uniquement sur les attributions historiques
   organization?: string | null;
   memberId?: string | null;
   insuredName?: string | null;

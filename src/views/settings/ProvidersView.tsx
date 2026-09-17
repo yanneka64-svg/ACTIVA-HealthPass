@@ -19,6 +19,7 @@ import { Provider, Language, ProviderType, KYPStatus } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { ExportDropdown } from '../../components/ExportDropdown';
+import { ADMIN_THEME } from '../../theme/roleTheme';
 import {
   exportProvidersToCSV,
   exportProvidersToExcel,
@@ -131,7 +132,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search provider by name, location, convention..."
+              placeholder={t.providers.searchPlaceholder}
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:bg-white"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -142,7 +143,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
             onChange={(e) => setTypeFilter(e.target.value)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
-            <option value="ALL">All Provider Types</option>
+            <option value="ALL">{t.providers.allProviderTypesOption}</option>
             <option value="Hôpital">{t.providers.types.hospital}</option>
             <option value="Clinique">{t.providers.types.clinic}</option>
             <option value="Pharmacie">{t.providers.types.pharmacy}</option>
@@ -156,7 +157,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
             onChange={(e) => setKypFilter(e.target.value)}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
-            <option value="ALL">All KYP Statuses</option>
+            <option value="ALL">{t.providers.allKypStatusesOption}</option>
             <option value="validated">{t.providers.kypValidated}</option>
             <option value="pending">{t.providers.kypPending}</option>
             <option value="rejected">{t.providers.kypRejected}</option>
@@ -181,10 +182,10 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
 
           <button
             onClick={openCreateModal}
-            className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className={`px-3.5 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer`}
           >
             <PlusCircle className="w-4 h-4" />
-            <span>New Provider</span>
+            <span>{t.providers.createBtn}</span>
           </button>
         </div>
       </div>
@@ -291,10 +292,10 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
             <div className="bg-white border-b border-slate-200 p-6 text-slate-900 flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-base text-slate-900">
-                  {editingProvider ? 'Edit Healthcare Provider' : t.providers.createBtn}
+                  {editingProvider ? t.providers.editProviderTitle : t.providers.createBtn}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Healthcare facility accreditation & contract
+                  {t.providers.modalSubtitle}
                 </p>
               </div>
               <button
@@ -314,7 +315,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                   type="text"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="e.g. JFK Medical Center"
+                  placeholder={t.providers.namePlaceholder}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                   required
                 />
@@ -362,7 +363,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                   type="text"
                   value={formLocation}
                   onChange={(e) => setFormLocation(e.target.value)}
-                  placeholder="e.g. Monrovia — Sinkor"
+                  placeholder={t.providers.locationPlaceholder}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium"
                   required
                 />
@@ -404,7 +405,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-md shadow-slate-900/20 cursor-pointer"
+                  className={`px-5 py-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-md shadow-slate-900/20 cursor-pointer`}
                 >
                   {t.save}
                 </button>

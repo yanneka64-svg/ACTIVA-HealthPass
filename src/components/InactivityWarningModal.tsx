@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShieldAlert, Clock, LogOut, CheckCircle2 } from 'lucide-react';
+import { getRoleTheme } from '../theme/roleTheme';
 
 interface InactivityWarningModalProps {
   isOpen: boolean;
@@ -24,12 +25,21 @@ export const InactivityWarningModal: React.FC<InactivityWarningModalProps> = ({
   const seconds = remainingSeconds % 60;
   const formattedTime = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
-  // === AMÉLIORATION AJOUTÉE : accent gris pour Admin (au lieu du bleu marine Agent
+  // === AMÉLIORATION AJOUTÉE : accent Admin/Superviseur (au lieu du bleu marine Agent
   // #0A347B affiché auparavant peu importe le rôle connecté) ===
   const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
-  const accentTextClass = isAdmin ? 'text-slate-800' : isSupervisor ? 'text-[#0F766E]' : 'text-[#0A347B]';
-  const accentBtnClass = isAdmin ? 'bg-slate-700 hover:bg-slate-800' : isSupervisor ? 'bg-[#0F766E] hover:bg-[#115E59]' : 'bg-[#0A347B] hover:bg-[#08285e]';
+  // === AMÉLIORATION AJOUTÉE : harmonisation des couleurs de boutons — ce bouton utilisait un
+  // gris générique (bg-slate-700) identique pour Admin ET Superviseur, différent de la couleur
+  // de leur propre barre latérale (rouge sombre pour Admin, gris pour Superviseur). Il suit
+  // maintenant exactement roleTheme.palette.primaryColor/primaryText, comme tous les autres
+  // boutons de l'interface.
+  const roleTheme = getRoleTheme(userRole);
+  // === AMÉLIORATION AJOUTÉE : cohérence des couleurs (audit design, 2026-09-11) — l'accent
+  // Agent utilisait ici #0A347B/#08285e, distinct du token officiel `brand-900` (#0a2e6b,
+  // roleTheme.ts) utilisé pour ce même rôle sémantique ailleurs. Unifié sur #0a2e6b/#07214f.
+  const accentTextClass = isAdmin || isSupervisor ? roleTheme.palette.primaryText : 'text-[#0a2e6b]';
+  const accentBtnClass = isAdmin || isSupervisor ? roleTheme.palette.primaryColor : 'bg-[#0a2e6b] hover:bg-[#07214f]';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-in fade-in">

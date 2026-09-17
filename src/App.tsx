@@ -1,7 +1,7 @@
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, getDoc, getDocs, onSnapshot, setDoc, collection } from 'firebase/firestore';
-import React, { useState, useEffect, useRef } from 'react';
+import { doc, getDoc, getDocs, onSnapshot, collection } from 'firebase/firestore';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   Language,
   NavSection,
@@ -20,11 +20,15 @@ import {
 } from './types';
 import { FirestoreService } from './services/firestore';
 import { WorkflowService } from './services/workflowService';
-import { migrateCardNumberCounters, migrateAllCardsToNewCardNumberFormat } from './services/cardNumberService';
 import { seedInitialDemoDataIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
+import { SyncIssueBanner } from './components/SyncIssueBanner';
+import { FallbackAlertBanner } from './components/FallbackAlertBanner';
 import { LoginView } from './components/auth/LoginView';
+// === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande explicite),
+// affiché avant LoginView — voir usage plus bas (bloc `authStatus === 'unauthenticated'`).
+import { WorkspaceSelectionView } from './components/auth/WorkspaceSelectionView';
 import { AuthLoadingScreen } from './components/auth/AuthLoadingScreen';
 import { AuthBlockedScreen } from './components/auth/AuthBlockedScreen';
 import { ChangePasswordModal } from './components/auth/ChangePasswordModal';
@@ -37,23 +41,31 @@ import {
 import { getRoleTheme, getRoleCssVars } from './theme/roleTheme';
 import { getClientLocationInfo, parseUserAgent } from './utils/geoUtils';
 
-// Views
-import { DashboardView } from './views/DashboardView';
-import { ClaimsView } from './views/ClaimsView';
-import { InvoicesView } from './views/InvoicesView';
-import { EnrollmentsView } from './views/EnrollmentsView';
-import { ReportsView } from './views/ReportsView';
-import { MembersView } from './views/settings/MembersView';
-import { OrganizationsView } from './views/settings/OrganizationsView';
-import { ProvidersView } from './views/settings/ProvidersView';
-import { CeilingsView } from './views/settings/CeilingsView';
-import { AccountsView } from './views/settings/AccountsView';
-import { LogsView } from './views/settings/LogsView';
+// === AMÉLIORATION AJOUTÉE : découpage de code (2026-09-10, demande explicite — logo/écran de
+// connexion parfois lents à charger). Ces 15 écrans ne servent qu'APRÈS connexion ; avant ce
+// changement, ils étaient tous regroupés dans le même paquet JavaScript que LoginView, donc
+// chargés et exécutés avant même que l'écran de connexion puisse s'afficher. En les import()-ant
+// dynamiquement via React.lazy, ils ne sont téléchargés qu'au moment où l'utilisateur (déjà
+// connecté) accède réellement à la section correspondante — voir le <Suspense> autour du routeur
+// de sections plus bas. LoginView et tout ce qui est nécessaire à la connexion restent chargés
+// immédiatement, inchangés. Aucune logique métier, aucune prop, aucun comportement de ces écrans
+// n'a changé — seul le moment où leur code est téléchargé change.
+const DashboardView = lazy(() => import('./views/DashboardView').then((m) => ({ default: m.DashboardView })));
+const ClaimsView = lazy(() => import('./views/ClaimsView').then((m) => ({ default: m.ClaimsView })));
+const InvoicesView = lazy(() => import('./views/InvoicesView').then((m) => ({ default: m.InvoicesView })));
+const EnrollmentsView = lazy(() => import('./views/EnrollmentsView').then((m) => ({ default: m.EnrollmentsView })));
+const ReportsView = lazy(() => import('./views/ReportsView').then((m) => ({ default: m.ReportsView })));
+const MembersView = lazy(() => import('./views/settings/MembersView').then((m) => ({ default: m.MembersView })));
+const OrganizationsView = lazy(() => import('./views/settings/OrganizationsView').then((m) => ({ default: m.OrganizationsView })));
+const ProvidersView = lazy(() => import('./views/settings/ProvidersView').then((m) => ({ default: m.ProvidersView })));
+const CeilingsView = lazy(() => import('./views/settings/CeilingsView').then((m) => ({ default: m.CeilingsView })));
+const AccountsView = lazy(() => import('./views/settings/AccountsView').then((m) => ({ default: m.AccountsView })));
+const LogsView = lazy(() => import('./views/settings/LogsView').then((m) => ({ default: m.LogsView })));
 
-import { AgentIdentificationView } from './views/agent/AgentIdentificationView';
-import { AgentMedicalFormView } from './views/agent/AgentMedicalFormView';
-import { AgentClaimsView } from './views/agent/AgentClaimsView';
-import { AgentEnrollmentsView } from './views/agent/AgentEnrollmentsView';
+const AgentIdentificationView = lazy(() => import('./views/agent/AgentIdentificationView').then((m) => ({ default: m.AgentIdentificationView })));
+const AgentMedicalFormView = lazy(() => import('./views/agent/AgentMedicalFormView').then((m) => ({ default: m.AgentMedicalFormView })));
+const AgentClaimsView = lazy(() => import('./views/agent/AgentClaimsView').then((m) => ({ default: m.AgentClaimsView })));
+const AgentEnrollmentsView = lazy(() => import('./views/agent/AgentEnrollmentsView').then((m) => ({ default: m.AgentEnrollmentsView })));
 import { InactivityWarningModal } from './components/InactivityWarningModal';
 import {
   playSuccessSound,
@@ -97,6 +109,16 @@ function signOutIfNewDeployment() {
   }
 }
 
+// === AMÉLIORATION AJOUTÉE : indicateur de chargement discret utilisé comme fallback du
+// <Suspense> autour des écrans en React.lazy ci-dessus — même esprit visuel qu'un état de
+// chargement existant dans l'app (spinner + libellé), pour ne pas introduire un nouveau style.
+const SectionLoadingFallback: React.FC = () => (
+  <div className="flex flex-col items-center justify-center gap-3 py-24 text-slate-400">
+    <div className="w-8 h-8 border-2 border-slate-200 border-t-[#0A347B] rounded-full animate-spin" />
+    <span className="text-xs font-semibold">Loading…</span>
+  </div>
+);
+
 export default function App() {
   // Authentication & Role Resolution State Machine
   const [authStatus, setAuthStatus] = useState<AuthStateStatus>('loading');
@@ -104,6 +126,40 @@ export default function App() {
   const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [forcedFirstLogin, setForcedFirstLogin] = useState(false);
   const [forcedPasswordExpiry, setForcedPasswordExpiry] = useState(false);
+
+  // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande
+  // explicite), affiché avant la page de connexion tant qu'aucun espace n'a été choisi.
+  // Persisté en sessionStorage (comme `activa_current_section` déjà utilisé ailleurs dans ce
+  // fichier) pour survivre à un rechargement de page ; nettoyé automatiquement à la
+  // déconnexion (voir `handleLogout`, qui appelle déjà `sessionStorage.clear()`), pour que
+  // l'utilisateur retrouve bien l'écran de sélection après s'être déconnecté. Purement une
+  // question de navigation/affichage avant connexion — aucun impact sur l'authentification
+  // Firebase, la résolution du rôle ou les sections accessibles une fois connecté.
+  const WORKSPACE_SELECTION_STORAGE_KEY = 'activa_selected_workspace';
+  const [selectedWorkspace, setSelectedWorkspace] = useState<AppRole | null>(() => {
+    try {
+      return (sessionStorage.getItem(WORKSPACE_SELECTION_STORAGE_KEY) as AppRole | null) || null;
+    } catch {
+      return null;
+    }
+  });
+  const handleSelectWorkspace = (role: AppRole) => {
+    setSelectedWorkspace(role);
+    try {
+      sessionStorage.setItem(WORKSPACE_SELECTION_STORAGE_KEY, role);
+    } catch {
+      // sessionStorage indisponible -> l'écran de sélection réapparaîtra simplement au
+      // prochain rechargement, sans bloquer la navigation en cours.
+    }
+  };
+  const handleBackToWorkspaceSelection = () => {
+    setSelectedWorkspace(null);
+    try {
+      sessionStorage.removeItem(WORKSPACE_SELECTION_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
 
   // Inactivity Auto-Logout
   // === AMÉLIORATION AJOUTÉE : délai réduit à 5 minutes (300s) d'inactivité, avertissement
@@ -258,60 +314,27 @@ export default function App() {
                 console.warn('ensureUserAccount callable notice:', cfErr);
               }
 
-              // Vérifie d'abord si un document de compte avec cet e-mail existe déjà dans la collection accounts
-              // (compte créé par un administrateur sous un identifiant distinct ou avec un e-mail conventionnel)
-              try {
-                const { collection, getDocs, setDoc, doc: firestoreDoc } = await import('firebase/firestore');
-                const accountsSnap = await getDocs(collection(db, 'accounts'));
-                const userEmailLower = (firebaseUser.email || '').toLowerCase().trim();
-                const emailUserPart = userEmailLower.split('@')[0];
-                // Gère les e-mails conventionnels ou générés avec timestamp (ex: "yannick.ekani_1788602379256" -> "yannick.ekani")
-                const cleanUsername = emailUserPart.split('_')[0].replace(/[^a-z0-9.]/g, '');
-
-                const matchedDoc = accountsSnap.docs.find((d) => {
-                  const acc = d.data();
-                  const accEmail = (acc.email || '').toLowerCase().trim();
-                  const accAuthEmail = (acc.authEmail || '').toLowerCase().trim();
-                  const accUsername = (acc.username || '').toLowerCase().trim();
-                  return (
-                    accEmail === userEmailLower ||
-                    accAuthEmail === userEmailLower ||
-                    (accUsername && (
-                      accUsername === emailUserPart ||
-                      accUsername === cleanUsername ||
-                      emailUserPart.startsWith(accUsername)
-                    ))
-                  );
-                });
-
-                if (matchedDoc) {
-                  const matchedData = matchedDoc.data();
-                  const accountToSave: Record<string, any> = {
-                    ...matchedData,
-                    id: firebaseUser.uid,
-                    authEmail: firebaseUser.email,
-                    updatedAt: new Date().toISOString(),
-                  };
-                  delete accountToSave.password;
-                  delete accountToSave.tempPassword;
-
-                  await setDoc(
-                    firestoreDoc(db, 'accounts', firebaseUser.uid),
-                    accountToSave,
-                    { merge: true }
-                  );
-                  return;
-                }
-              } catch (lookupErr) {
-                console.warn('Account email linkage lookup notice:', lookupErr);
-              }
+              // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-01) ===
+              // Le repli qui existait ici (`getDocs(collection(db,'accounts'))`, un scan complet
+              // de la collection pour retrouver un compte pré-provisionné sous un identifiant
+              // différent de l'uid Firebase Auth) a été retiré : il ne peut plus fonctionner
+              // maintenant que `accounts` n'est plus lisible en intégralité (voir
+              // firestore.rules) et duplique EXACTEMENT ce que la Cloud Function
+              // `ensureUserAccount` — déjà appelée juste au-dessus — effectue via le SDK Admin,
+              // qui ignore ces règles. Si `ensureUserAccount` n'a pas trouvé de correspondance,
+              // il n'y en a réellement pas ; inutile de retenter la même recherche côté client
+              // avec un accès désormais refusé.
 
               try {
                 // Check fallback users/{uid} document
                 const usersDocSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
                 if (usersDocSnap.exists()) {
                   const uData = usersDocSnap.data();
-                  await setDoc(doc(db, 'accounts', firebaseUser.uid), { ...uData, id: firebaseUser.uid }, { merge: true });
+                  // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04,
+                  // 2026-09-11) — passe par FirestoreService.linkLegacyUserAccount() au lieu
+                  // d'un setDoc direct, pour que la collection accounts n'ait plus qu'un seul
+                  // chemin d'écriture (voir src/services/firestore.ts). Comportement identique.
+                  await FirestoreService.linkLegacyUserAccount(firebaseUser.uid, { ...uData, id: firebaseUser.uid });
                   return;
                 }
 
@@ -348,8 +371,26 @@ export default function App() {
     };
   }, []);
 
-  // Language State (Pure English system)
-  const [lang] = useState<Language>('en');
+  // === AMÉLIORATION AJOUTÉE : sélecteur de langue réellement fonctionnel (2026-09-10, sur
+  // demande explicite) — `lang` était figé sur 'en' à vie (aucun setter extrait du useState).
+  // La préférence est maintenant persistée (localStorage) et modifiable via le Topbar ;
+  // l'anglais reste la langue par défaut pour tout navigateur n'ayant jamais choisi.
+  const [lang, setLangState] = useState<Language>(() => {
+    try {
+      const stored = localStorage.getItem('activa_lang');
+      return stored === 'fr' ? 'fr' : 'en';
+    } catch {
+      return 'en';
+    }
+  });
+  const handleLanguageChange = (next: Language) => {
+    setLangState(next);
+    try {
+      localStorage.setItem('activa_lang', next);
+    } catch {
+      // Préférence de langue non persistée (stockage indisponible) — reste active pour la session en cours.
+    }
+  };
 
   // Change Password Modal Triggered from Topbar
   const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
@@ -439,36 +480,22 @@ export default function App() {
     return () => clearInterval(interval);
   }, [authStatus, healthPolicies, members]);
 
-  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur demande
-  // explicite. Bootstrap automatique, une seule fois par session, des deux compteurs de
-  // numéros de carte (sections 3/18) : relevés au maximum réellement présent dans TOUTE la
-  // base (jamais seulement le dernier enregistrement créé — voir
-  // cardNumberService.migrateCardNumberCounters), avec backfill du registre d'unicité pour
-  // les cartes créées avant ce système. Idempotent — peut aussi être relancé à tout moment
-  // depuis Admin > Organizations > Cards > "Validate Card Number Sequence".
-  const cardNumberMigrationRanRef = useRef(false);
-  useEffect(() => {
-    if (authStatus !== 'authenticated' || cardNumberMigrationRanRef.current || members.length === 0) return;
-    cardNumberMigrationRanRef.current = true;
-    migrateCardNumberCounters(members).catch((err) => {
-      console.warn('Card number sequence bootstrap failed:', err);
-      cardNumberMigrationRanRef.current = false; // allow a retry on the next members update
-    });
-  }, [authStatus, members]);
-
-  // === AMÉLIORATION AJOUTÉE : purge unique de l'historique des formulaires médicaux sur demande explicite ===
-  const medicalFormsPurgedRef = useRef(false);
-  useEffect(() => {
-    if (authStatus !== 'authenticated' || medicalFormsPurgedRef.current) return;
-    medicalFormsPurgedRef.current = true;
-    FirestoreService.deleteAllMedicalForms()
-      .then(() => {
-        setMedicalForms([]);
-      })
-      .catch((err) => {
-        console.warn('Initial cleanup of medical forms history notice:', err);
-      });
-  }, [authStatus]);
+  // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
+  // — CRITIQUE) ===
+  // SUPPRIMÉ : cet effet déclenchait `FirestoreService.deleteAllMedicalForms()` — un effacement
+  // PHYSIQUE et IRRÉVERSIBLE de l'intégralité de l'historique médical, toutes organisations
+  // confondues — automatiquement, sans confirmation, dès qu'une session authentifiée chargeait
+  // l'application. Le commentaire d'origine ("purge unique... sur demande explicite")
+  // documentait une intention ponctuelle, mais son garde-fou (`useRef(false)`) est un état
+  // React en mémoire qui ne survit PAS à un rechargement de page : à chaque nouveau chargement
+  // de l'app par un compte Admin (le seul dont `firestore.rules` autorise réellement la
+  // suppression), l'intégralité des dossiers médicaux était de nouveau détruite silencieusement
+  // (seul un `console.warn` en cas d'échec, aucune trace en cas de succès). Retiré entièrement :
+  // la purge ponctuelle qui a pu être nécessaire à l'origine est un acte volontaire, déclenché
+  // une fois manuellement — jamais un comportement permanent au démarrage. La suppression
+  // manuelle (bouton "Clear All History", voir AgentMedicalFormView.tsx) reste disponible pour
+  // un Admin qui le souhaiterait explicitement, désormais avec archivage et confirmation
+  // renforcée (voir FirestoreService.deleteAllMedicalForms).
 
   const handleLoginSuccess = (user: any) => {
     // Son de bienvenue sur connexion utilisateur réussie (exécute un déblocage AudioContext dans le geste utilisateur)
@@ -481,6 +508,9 @@ export default function App() {
     // un service public de géolocalisation IP interrogé depuis le navigateur (voir
     // geoUtils.ts) ; repli sur 'Unknown' en cas d'échec, sans jamais bloquer la connexion
     // déjà réussie (l'appel est fait après coup, en tâche de fond).
+    // === AMÉLIORATION AJOUTÉE : sécurité/robustesse — .catch ajouté (retour utilisateur,
+    // "Uncaught (in promise) FirebaseError" en console) : cette journalisation en tâche de
+    // fond ne doit jamais faire remonter un rejet de promesse non intercepté.
     getClientLocationInfo().then(({ ipAddress, location }) => {
       FirestoreService.addLog({
         userEmail: user?.email || 'user@activa-assurance.com',
@@ -489,8 +519,8 @@ export default function App() {
         userAgent: navigator.userAgent,
         browser: parseUserAgent(navigator.userAgent),
         location,
-      });
-    });
+      }).catch((err) => console.warn('Successful-login audit log notice:', err));
+    }).catch((err) => console.warn('Successful-login geo lookup notice:', err));
   };
 
   const handleLogout = async () => {
@@ -692,9 +722,22 @@ export default function App() {
   };
 
   const handleCreateClaim = async (newClaim: Partial<Claim>) => {
-    await WorkflowService.submitClaim(newClaim, currentUser);
-    setToastMessage("Claim submitted for review.");
-    setTimeout(() => setToastMessage(null), 3000);
+    const { medicalFormLinkFailed } = await WorkflowService.submitClaim(newClaim, currentUser);
+    // === AMÉLIORATION AJOUTÉE : robustesse (auto-revue, 2026-09-12) — le claim est toujours créé
+    // avec succès à ce stade ; si seul le report du lien vers la fiche maladie a échoué en
+    // arrière-plan, on le signale distinctement plutôt que de laisser l'agent croire (ou ne
+    // jamais savoir) que le rattachement a fonctionné.
+    if (medicalFormLinkFailed) {
+      setToastMessage(
+        lang === 'fr'
+          ? "Réclamation soumise, mais une erreur est survenue lors du rattachement à la fiche maladie — à vérifier manuellement."
+          : "Claim submitted, but an error occurred while linking it to the medical form — please verify manually."
+      );
+      setTimeout(() => setToastMessage(null), 6000);
+    } else {
+      setToastMessage("Claim submitted for review.");
+      setTimeout(() => setToastMessage(null), 3000);
+    }
   };
 
   // ENROLLMENTS HANDLERS WITH POPULATION UPON APPROVAL
@@ -839,10 +882,35 @@ export default function App() {
     const orgFailures = orgResults.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
 
     // 2. Add or update members in Firestore — every record attempted independently
+    //
+    // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (revue 2026-09-11 — doublons sur import
+    // partiellement échoué) ===
+    // Constat : un import réparti sur `Promise.allSettled` peut réussir pour une partie des
+    // lignes et échouer pour le reste (ex. coupure réseau à mi-parcours). Si l'utilisateur
+    // relance ALORS le même import, `parseMemberExcel`/`parseActivaMultiOrgExcel` régénèrent un
+    // `id` client tout neuf (`mem-imp-${Date.now()}-...`) pour chaque ligne — le seul rempart
+    // contre une recréation en double des lignes déjà enregistrées avec succès est que l'état
+    // local `members` (alimenté par l'abonnement Firestore temps réel) ait déjà rattrapé ces
+    // écritures avant le nouvel essai, ce qui n'est jamais garanti (latence réseau, retry trop
+    // rapide, rechargement de page). En cas de décalage, `i.id` ne correspond à AUCUN membre
+    // existant et la ligne repart sur `addMember` → doublon Firestore.
+    // Correctif : avant de choisir addMember/updateMember, on revérifie CHAQUE ligne par sa clé
+    // métier stable (`cardNo`, déjà unique et obligatoire — voir Centralized Card Number
+    // Management System) contre l'état `members` le plus frais disponible à cet instant, en plus
+    // de la correspondance par `id`. Si une ligne "nouvelle" selon le parseur correspond en
+    // réalité à un `cardNo` déjà présent en base, elle est redirigée vers `updateMember` avec le
+    // VRAI id Firestore — élimine le doublon au lieu de compter sur le seul timing de la
+    // synchronisation temps réel.
     const memberResults = await Promise.allSettled(
       imported.map((i) => {
-        if (i.id && members.some((m) => m.id === i.id)) {
-          return FirestoreService.updateMember(i as Member);
+        const existingById = i.id ? members.find((m) => m.id === i.id) : undefined;
+        const existingByCard =
+          !existingById && i.cardNo
+            ? members.find((m) => m.cardNo?.toLowerCase() === i.cardNo!.toLowerCase())
+            : undefined;
+        const existing = existingById || existingByCard;
+        if (existing) {
+          return FirestoreService.updateMember({ ...i, id: existing.id } as Member);
         }
         return FirestoreService.addMember(i);
       })
@@ -1001,30 +1069,6 @@ export default function App() {
     });
   };
 
-  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System (v2) — migration
-  // ponctuelle de toutes les cartes déjà existantes vers la structure AMID-YYMMDD-NNNNN, sur
-  // demande explicite. Orchestrée ici (et non dans cardNumberService.ts directement) car
-  // c'est le seul endroit disposant déjà en mémoire de toutes les collections impactées
-  // (membres, sinistres, factures, fiches médicales, inscriptions).
-  const handleMigrateAllCards = async () => {
-    const summary = await migrateAllCardsToNewCardNumberFormat(
-      members,
-      claims,
-      invoices,
-      medicalForms,
-      enrollments,
-      { uid: currentUser?.uid, name: currentUser?.fullName || currentUser?.displayName || currentUser?.email }
-    );
-    await WorkflowService.logAction(
-      'CARD_NUMBER_FORMAT_MIGRATED',
-      'system',
-      'card-number-format-v2',
-      `Card number format migration to AMID-YYMMDD-NNNNN completed: ${summary.migratedMembers} members and ${summary.migratedDependents} dependents renumbered; ${summary.claimsUpdated} claims, ${summary.invoicesUpdated} invoices, ${summary.medicalFormsUpdated} medical forms and ${summary.enrollmentsUpdated} enrollments updated to match.`,
-      currentUser
-    );
-    return summary;
-  };
-
   // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
   const handleSaveHealthPolicy = (organizationName: string, data: Partial<HealthPolicy>) => {
     FirestoreService.upsertHealthPolicy(organizationName, data);
@@ -1089,9 +1133,9 @@ export default function App() {
     }
   };
 
-  const handleClearAllMedicalForms = async () => {
+  const handleClearAllMedicalForms = async (reason: string) => {
     try {
-      await FirestoreService.deleteAllMedicalForms();
+      await FirestoreService.deleteAllMedicalForms(reason);
       setMedicalForms([]);
     } catch (e) {
       console.error('Failed to clear medical forms history:', e);
@@ -1111,10 +1155,26 @@ export default function App() {
 
   // 2. Unauthenticated screen: render clean, secured Login view
   if (authStatus === 'unauthenticated') {
+    // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande
+    // explicite), affiché en premier tant qu'aucun espace n'a été choisi — voir
+    // `selectedWorkspace` ci-dessus. Une fois un espace choisi, la page de connexion existante
+    // (LoginView) s'affiche exactement comme avant, avec juste un rappel de l'espace choisi.
+    if (!selectedWorkspace) {
+      return (
+        <WorkspaceSelectionView
+          lang={lang}
+          onLanguageChange={handleLanguageChange}
+          onSelectWorkspace={handleSelectWorkspace}
+        />
+      );
+    }
     return (
       <LoginView
         onLoginSuccess={handleLoginSuccess}
         lang={lang}
+        onLanguageChange={handleLanguageChange}
+        selectedWorkspace={selectedWorkspace}
+        onBackToWorkspaceSelection={handleBackToWorkspaceSelection}
       />
     );
   }
@@ -1132,46 +1192,25 @@ export default function App() {
 
   // 4. Invalid or missing operational role screen
   if (authStatus === 'invalid_role' || !userRole) {
+    // === AMÉLIORATION AJOUTÉE : sécurité (audit 2026-09-05, SEC-01) — remplace le scan complet
+    // de `collection(db,'accounts')` qui existait ici (devenu impossible : cette collection
+    // n'est plus lisible en intégralité, voir firestore.rules) par un appel à la Cloud Function
+    // `ensureUserAccount` (SDK Admin, même logique de correspondance identifiant/e-mail,
+    // exécutée déjà de la même façon dans le listener onAuthStateChanged ci-dessus).
     const handleRetrySync = async () => {
       if (!auth.currentUser) return;
       setAuthStatus('loading');
       try {
-        const { collection, getDocs, setDoc, doc: firestoreDoc } = await import('firebase/firestore');
-        const accountsSnap = await getDocs(collection(db, 'accounts'));
-        const userEmailLower = (auth.currentUser.email || '').toLowerCase().trim();
-        const emailUserPart = userEmailLower.split('@')[0];
-        const cleanUsername = emailUserPart.split('_')[0].replace(/[^a-z0-9.]/g, '');
-
-        const matchedDoc = accountsSnap.docs.find((d) => {
-          const acc = d.data();
-          const accEmail = (acc.email || '').toLowerCase().trim();
-          const accAuthEmail = (acc.authEmail || '').toLowerCase().trim();
-          const accUsername = (acc.username || '').toLowerCase().trim();
-          return (
-            accEmail === userEmailLower ||
-            accAuthEmail === userEmailLower ||
-            (accUsername && (
-              accUsername === emailUserPart ||
-              accUsername === cleanUsername ||
-              emailUserPart.startsWith(accUsername)
-            ))
-          );
-        });
-
-        if (matchedDoc) {
-          const matchedData = matchedDoc.data();
-          const accountToSave: Record<string, any> = {
-            ...matchedData,
-            id: auth.currentUser.uid,
-            authEmail: auth.currentUser.email,
-            updatedAt: new Date().toISOString(),
-          };
-          delete accountToSave.password;
-          delete accountToSave.tempPassword;
-
-          await setDoc(firestoreDoc(db, 'accounts', auth.currentUser.uid), accountToSave, { merge: true });
-          return;
-        }
+        const { httpsCallable } = await import('firebase/functions');
+        const { functions } = await import('./lib/firebase');
+        const ensureFn = httpsCallable<{ identifier?: string }, { success: boolean; linked: boolean }>(
+          functions,
+          'ensureUserAccount'
+        );
+        await ensureFn({});
+        // Le listener onSnapshot(doc(db,'accounts', uid)) déjà actif se déclenchera
+        // automatiquement si un document a été lié — pas besoin de relire ici.
+        return;
       } catch (err) {
         console.warn('Manual retry sync notice:', err);
       }
@@ -1278,12 +1317,15 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 lg:ml-[240px] flex flex-col min-w-0 h-screen overflow-hidden">
+        <SyncIssueBanner />
+        <FallbackAlertBanner />
         {/* Topbar (outside the scroll container below — stays fixed at the top, un-scrolled) */}
         <Topbar
           currentSection={effectiveSection}
           currentUser={currentUser}
           userRole={activeRole}
           lang={lang}
+          onLanguageChange={handleLanguageChange}
           notifications={notifications}
           onMarkNotificationAsRead={(n) => FirestoreService.markNotificationRead(n.id)}
           onMarkAllNotificationsAsRead={() => FirestoreService.markAllNotificationsRead(notifications)}
@@ -1311,6 +1353,11 @@ export default function App() {
         <div className="flex-1 overflow-y-auto">
         {/* Section Router Content */}
         <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
+          {/* === AMÉLIORATION AJOUTÉE : limite Suspense pour les écrans en React.lazy ci-dessus —
+              affiche un indicateur de chargement discret le temps que le code de la section
+              demandée soit téléchargé (quasi instantané une fois en cache), au lieu de laisser
+              React lever une erreur. === */}
+          <Suspense fallback={<SectionLoadingFallback />}>
           {effectiveSection === 'dashboard' && (
             <DashboardView
               lang={lang}
@@ -1339,6 +1386,8 @@ export default function App() {
                 ceilings={ceilings}
                 lang={lang}
                 preselectedMember={selectedMemberForClaim}
+                logs={logs}
+                medicalForms={medicalForms}
                 onCreateClaim={handleCreateClaim}
               />
             ) : (
@@ -1349,6 +1398,7 @@ export default function App() {
                 organizations={organizations}
                 providers={providers}
                 members={members}
+                logs={logs}
                 onApprove={handleApproveClaim}
                 onReject={handleRejectClaim}
                 onReturn={handleReturnClaim}
@@ -1365,6 +1415,7 @@ export default function App() {
               invoices={invoices}
               userRole={activeRole}
               onDeleteInvoice={handleDeleteInvoice}
+              currentUser={currentUser}
             />
           )}
 
@@ -1443,6 +1494,7 @@ export default function App() {
               organizations={organizations}
               providers={providers}
               members={members}
+              logs={logs}
               onApprove={handleApproveClaim}
               onReject={handleRejectClaim}
               onReturn={handleReturnClaim}
@@ -1473,6 +1525,7 @@ export default function App() {
               invoices={invoices}
               userRole={activeRole}
               onDeleteInvoice={handleDeleteInvoice}
+              currentUser={currentUser}
             />
           )}
 
@@ -1523,7 +1576,6 @@ export default function App() {
               onAddPolicyPayment={handleAddPolicyPayment}
               onDeletePolicyPayment={handleDeletePolicyPayment}
               currentUser={currentUser}
-              onMigrateAllCards={handleMigrateAllCards}
             />
           )}
 
@@ -1552,6 +1604,7 @@ export default function App() {
           {effectiveSection === 'accounts' && <AccountsView lang={lang} />}
 
           {effectiveSection === 'logs' && <LogsView lang={lang} logs={logs} />}
+          </Suspense>
         </main>
         </div>
 
@@ -1573,7 +1626,7 @@ export default function App() {
                 <Icon className={`w-5 h-5 ${isActive ? activeRoleTheme.palette.activeIconColor : ''}`} />
                 <span className="text-[10px] mt-0.5">{item.label}</span>
                 {!!item.badge && item.badge > 0 && (
-                  <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                  <span className="absolute top-1 right-2 w-4 h-4 bg-[#10B981] text-white text-[10px] font-black rounded-full flex items-center justify-center">
                     {item.badge}
                   </span>
                 )}
@@ -1632,12 +1685,16 @@ export default function App() {
 
               await updatePassword(auth.currentUser, newPwd);
 
-              const { doc, updateDoc, deleteField: deleteFieldFn } = await import('firebase/firestore');
+              const { deleteField: deleteFieldFn } = await import('firebase/firestore');
               // === AMÉLIORATION AJOUTÉE : sécurité (audit) — l'utilisateur vient de définir
               // son vrai mot de passe Firebase Auth ; tout mot de passe (en clair ou haché)
               // encore stocké sur ce compte pour l'ancien mécanisme de secours n'a plus lieu
               // d'être conservé — Firebase Auth fait désormais foi à chaque connexion.
-              await updateDoc(doc(db, 'accounts', auth.currentUser.uid), {
+              // === AMÉLIORATION AJOUTÉE : centralisation des écritures Firestore (MODEL-04,
+              // 2026-09-11) — passe par FirestoreService.updateAccount() au lieu d'un updateDoc
+              // direct (voir src/services/firestore.ts). Comportement identique.
+              await FirestoreService.updateAccount({
+                id: auth.currentUser.uid,
                 isTemporaryPassword: false,
                 mustChangePassword: false,
                 passwordChangedAt: new Date().toISOString(),

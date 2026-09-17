@@ -15,15 +15,12 @@ import {
   RefreshCw,
   UserCheck,
   ShieldAlert,
-  Volume2,
-  VolumeX,
 } from 'lucide-react';
 import { Language, NavSection, AppNotification } from '../types';
 import { useTranslation } from '../i18n/translations';
 import { MiniLogo } from './Logo';
 import { normalizeRole } from '../utils/authUtils';
 import { getRoleTheme } from '../theme/roleTheme';
-import { isSoundEnabled, toggleSound } from '../utils/sound';
 
 interface TopbarProps {
   currentUser?: any;
@@ -44,6 +41,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   currentUser,
   userRole,
   currentSection,
+  lang,
+  onLanguageChange,
   notifications: propsNotifications,
   onMarkNotificationAsRead,
   onMarkAllNotificationsAsRead,
@@ -52,35 +51,34 @@ export const Topbar: React.FC<TopbarProps> = ({
   onLogout,
   onToggleSidebar,
 }) => {
-  const t = useTranslation('en');
+  // === AMÉLIORATION AJOUTÉE : useTranslation('en') en dur remplacé par `lang` (2026-09-10) —
+  // ce composant ignorait jusqu'ici totalement la langue active.
+  const t = useTranslation(lang || 'en');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => isSoundEnabled());
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
+  // === AMÉLIORATION AJOUTÉE : le badge "Online" reflète désormais l'état réel de la connexion
+  // (navigator.onLine + événements 'online'/'offline'), au lieu d'être toujours affiché en vert
+  // quelle que soit la connectivité réelle — demande explicite de l'utilisateur, 2026-09-10.
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   useEffect(() => {
-    const handleSoundToggle = (e: any) => {
-      if (e?.detail && typeof e.detail.enabled === 'boolean') {
-        setSoundEnabledState(e.detail.enabled);
-      } else {
-        setSoundEnabledState(isSoundEnabled());
-      }
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
     };
-    window.addEventListener('activa_sound_toggle', handleSoundToggle);
-    return () => window.removeEventListener('activa_sound_toggle', handleSoundToggle);
   }, []);
-
-  const handleToggleSound = () => {
-    const next = toggleSound();
-    setSoundEnabledState(next);
-  };
 
   const role = normalizeRole(userRole || currentUser?.profile || currentUser?.role);
   const theme = getRoleTheme(role);
   // Dynamic user ACTIVA entity from authenticated profile (Single Source of Truth)
   const userEntity = currentUser?.entity || (currentUser?.country ? (currentUser.country.startsWith('ACTIVA') ? currentUser.country : `ACTIVA ${currentUser.country}`) : 'ACTIVA Liberia');
-  const userPosition = currentUser?.position || (role === 'Supervisor' ? 'Medical Supervisor' : role === 'Agent' ? 'Front Desk Officer' : role === 'Admin' ? 'Head of Operations' : 'ACTIVA Staff');
+  const userPosition = currentUser?.position || (role === 'Supervisor' ? t.topbar.positions.supervisor : role === 'Agent' ? t.topbar.positions.agent : role === 'Admin' ? t.topbar.positions.admin : t.topbar.positions.staff);
 
   // Interactive Notifications State with fallback
   const [localNotifications, setLocalNotifications] = useState<AppNotification[]>([
@@ -161,45 +159,12 @@ export const Topbar: React.FC<TopbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // === AMÉLIORATION AJOUTÉE : titres/sous-titres de section extraits vers translations.ts
+  // (t.topbar.sections.*), au lieu d'être codés en dur en anglais — la bascule de langue
+  // s'applique désormais aussi à cet en-tête, sur toutes les pages. ===
   const getSectionTitle = () => {
-    switch (currentSection) {
-      case 'dashboard':
-        return { title: 'Executive Overview', subtitle: 'Global healthcare metrics and live processing KPIs' };
-      case 'identification':
-        return { title: 'Member Identification', subtitle: 'Member lookup, biometric verification, coverage entitlements, and care history' };
-      case 'medical_form':
-        return { title: 'Medical Form', subtitle: 'Issuance & management of healthcare authorization vouchers and prescriptions' };
-      case 'claims':
-        return { title: 'Medical Claims Management', subtitle: 'Incoming claims, coverage assessments, and settlements' };
-      case 'claims_validation':
-        return { title: 'Medical Claims Validation', subtitle: 'Review, verify and approve provider claims' };
-      case 'enrollments_validation':
-        return { title: 'Beneficiary Enrollments Validation', subtitle: 'Biometric and policyholder admission approvals' };
-      case 'validated_history':
-        return { title: 'Validated Claims History', subtitle: 'Archive and audit trail of approved medical claims' };
-      case 'receipts':
-        return { title: 'Direct Billing Receipts', subtitle: 'Disbursement vouchers and settlement receipts' };
-      case 'invoices':
-        return { title: 'Direct Billing Invoices', subtitle: 'Healthcare provider disbursements, slips, and receipts' };
-      case 'enrollments':
-        return { title: 'Beneficiary Enrollments', subtitle: 'Active policyholders, dependents, and biometric records' };
-      case 'reports':
-        return { title: 'Financial & Operational Reports', subtitle: 'Consolidated audits, payout analytics, and compliance' };
-      case 'members':
-        return { title: 'Insured Members Directory', subtitle: 'Policyholder profiles, plan tiers, and validity' };
-      case 'organizations':
-        return { title: 'Partner Organizations & Corporates', subtitle: 'Employer contracts, groups, and policy ceilings' };
-      case 'providers':
-        return { title: 'Healthcare Providers Network', subtitle: 'Accredited hospitals, clinics, and pharmacies' };
-      case 'ceilings':
-        return { title: 'Coverage Ceilings & Tiers', subtitle: 'Benefit limits, deductibles, and co-pay rules' };
-      case 'accounts':
-        return { title: 'System User Accounts', subtitle: 'Role-based access control, credentials, and permissions' };
-      case 'logs':
-        return { title: 'Audit & Access Logs', subtitle: 'Immutable security tracking and operational history' };
-      default:
-        return { title: t.appName, subtitle: t.adminPanel };
-    }
+    const s = t.topbar.sections as Record<string, { title: string; subtitle: string }>;
+    return s[currentSection] || { title: t.appName, subtitle: t.adminPanel };
   };
 
   const { title, subtitle } = getSectionTitle();
@@ -244,41 +209,37 @@ export const Topbar: React.FC<TopbarProps> = ({
           en dessous de md (768px), où seuls la cloche de notification et l'avatar restent
           visibles ; à partir de md elles réapparaissent comme avant === */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
-        {/* Online Status Badge */}
-        <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-[#ECFDF5] border border-emerald-200 rounded-full text-xs font-semibold text-[#047857]">
-          <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse"></div>
-          <span>Online</span>
-        </div>
+        {/* Online Status Badge — reflète navigator.onLine en direct (voir isOnline plus haut) */}
+        {isOnline ? (
+          <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-[#ECFDF5] border border-emerald-200 rounded-full text-xs font-semibold text-[#047857]">
+            <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse"></div>
+            <span>{t.online}</span>
+          </div>
+        ) : (
+          <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 rounded-full text-xs font-semibold text-rose-700">
+            <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
+            <span>{t.topbar.offline}</span>
+          </div>
+        )}
 
-        {/* Language Pill */}
-        <div
-          id="app-language-indicator"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[var(--brand-900)] shadow-2xs hover:bg-slate-50 transition cursor-default"
-          title="System Language: English (Official)"
-        >
-          <Globe className={`w-3.5 h-3.5 ${theme.palette.primaryText}`} />
-          <span>English</span>
+        {/* Language Selector — === AMÉLIORATION AJOUTÉE : véritable liste déroulante
+            (2026-09-10, retour utilisateur explicite — "je préfère la sélection") au lieu d'un
+            bouton à cliquer pour basculer d'une langue à l'autre. Préférence persistée via
+            onLanguageChange (App.tsx). Masqué en dessous de `sm` (comportement antérieur
+            inchangé par ailleurs). */}
+        <div className="hidden sm:block relative">
+          <Globe className={`w-3.5 h-3.5 ${theme.palette.primaryText} absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none`} />
+          <select
+            id="app-language-indicator"
+            value={lang || 'en'}
+            onChange={(e) => onLanguageChange?.(e.target.value as Language)}
+            className="appearance-none pl-8 pr-6 py-1.5 bg-white border border-[#E2E8F0] rounded-full text-xs font-semibold text-[var(--brand-900)] shadow-2xs hover:bg-slate-50 transition cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--brand-700)]"
+            aria-label="Select display language"
+          >
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+          </select>
         </div>
-
-        {/* Audio Feedback Toggle (Audio ON / MUTE) */}
-        <button
-          id="sound-toggle-button"
-          type="button"
-          onClick={handleToggleSound}
-          className={`p-2 rounded-xl transition cursor-pointer ${
-            soundEnabled
-              ? 'text-[#64748B] hover:text-slate-900 hover:bg-slate-50'
-              : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
-          }`}
-          title={soundEnabled ? 'Sound enabled (Click to mute)' : 'Sound muted (Click to enable)'}
-          aria-label={soundEnabled ? 'Mute sound' : 'Enable sound'}
-        >
-          {soundEnabled ? (
-            <Volume2 className="w-4 h-4 text-slate-700" />
-          ) : (
-            <VolumeX className="w-4 h-4 text-slate-400" />
-          )}
-        </button>
 
         {/* Notification Bell with Badge & Dropdown */}
         <div className="relative" ref={notifRef}>
@@ -296,7 +257,7 @@ export const Topbar: React.FC<TopbarProps> = ({
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-[#DC4C4C] text-white text-[9px] font-black rounded-full flex items-center justify-center animate-scaleIn">
+              <span className="absolute top-1 right-1 w-4 h-4 bg-[#DC4C4C] text-white text-[10px] font-black rounded-full flex items-center justify-center animate-scaleIn">
                 {unreadCount}
               </span>
             )}
@@ -320,11 +281,11 @@ export const Topbar: React.FC<TopbarProps> = ({
                 <div className="flex items-center gap-2">
                   {/* === ADDED IMPROVEMENT: notification panel colors aligned with the active role's theme === */}
                   <h3 className={`text-xs font-extrabold ${theme.palette.pageTitleColor} uppercase tracking-wider`}>
-                    Notifications
+                    {t.topbar.notifications}
                   </h3>
                   {unreadCount > 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-[#DC4C4C]/10 text-[#DC4C4C] text-[10px] font-black">
-                      {unreadCount} new
+                      {unreadCount} {t.topbar.newBadge}
                     </span>
                   )}
                 </div>
@@ -335,7 +296,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                     className={`text-[11px] font-bold ${theme.palette.pageTitleColor} hover:opacity-70 flex items-center gap-1 hover:underline cursor-pointer`}
                   >
                     <CheckCheck className="w-3.5 h-3.5" />
-                    <span>Mark all read</span>
+                    <span>{t.topbar.markAllRead}</span>
                   </button>
                 )}
               </div>
@@ -344,7 +305,7 @@ export const Topbar: React.FC<TopbarProps> = ({
               <div className="max-h-[360px] overflow-y-auto divide-y divide-[#F1F5F9]">
                 {notifications.length === 0 ? (
                   <div className="p-6 text-center text-xs text-[#778FAF]">
-                    No new notifications
+                    {t.topbar.noNewNotifications}
                   </div>
                 ) : (
                   notifications.map((notif) => (
@@ -382,7 +343,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                             {notif.title}
                           </p>
                           <span className="text-[10px] text-[#778FAF] shrink-0 font-medium">
-                            {notif.time || (notif.timestamp ? new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now')}
+                            {notif.time || (notif.timestamp ? new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : t.topbar.now)}
                           </span>
                         </div>
                         <p className="text-[11px] text-[#556987] leading-relaxed line-clamp-2">
@@ -390,7 +351,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                         </p>
                         {notif.targetSection && (
                           <div className={`mt-1.5 flex items-center gap-1 text-[10px] font-bold ${theme.palette.pageTitleColor}`}>
-                            <span>View details</span>
+                            <span>{t.topbar.viewDetails}</span>
                             <ExternalLink className="w-2.5 h-2.5" />
                           </div>
                         )}
@@ -444,7 +405,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                 {/* === ADDED IMPROVEMENT: the entity badge uses the active role's color instead of a fixed Agent blue === */}
                 <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
                   <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A859] text-[10px] font-extrabold border border-[#00A859]/30">
-                    Active: {role || 'User'}
+                    {t.topbar.activeLabel}: {role || t.topbar.userLabel}
                   </span>
                   <span className={`inline-block px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 ${theme.palette.pageTitleColor} text-[10px] font-black`}>
                     {userEntity}
@@ -462,7 +423,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                   className={`w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold ${theme.palette.pageTitleColor} hover:bg-[#F8FAFC] cursor-pointer`}
                 >
                   <KeyRound className="w-4 h-4 text-[#778FAF]" />
-                  <span>Change Password</span>
+                  <span>{t.changePassword}</span>
                 </button>
               </div>
 

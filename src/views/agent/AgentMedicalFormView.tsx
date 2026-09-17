@@ -32,6 +32,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Member, Provider, Organization, MedicalForm, UserProfile, Language } from '../../types';
+import { useTranslation } from '../../i18n/translations';
 import { generateMedicalFormPDF } from '../../utils/pdfMedicalForm';
 import { LogoIcon } from '../../components/Logo';
 import { ACTIVA_LOGO_WHITE_BASE64 } from '../../assets/logos'; // === AMÉLIORATION AJOUTÉE : logo Activa (blanc) pour la fiche médicale ===
@@ -41,6 +42,11 @@ import {
   isNewSecurityNumberFormat,
   matchesSecurityNumberSearch,
 } from '../../utils/medicalFormUtils';
+// === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+import { encryptMedicalFormPrescription, decryptMedicalFormPrescription } from '../../utils/sensitiveData';
+// === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) ===
+import { DEFAULT_MEDICAL_FORM_RETENTION_YEARS, isPastRetention } from '../../config/dataRetention';
+import { getRoleTheme } from '../../theme/roleTheme';
 
 interface AgentMedicalFormViewProps {
   providers: Provider[];
@@ -53,7 +59,7 @@ interface AgentMedicalFormViewProps {
   onCreateMedicalForm?: (form: Partial<MedicalForm>) => void;
   onUpdateMedicalForm?: (form: MedicalForm) => void;
   onDeleteMedicalForm?: (id: string) => Promise<void> | void;
-  onClearAllMedicalForms?: () => Promise<void> | void;
+  onClearAllMedicalForms?: (reason: string) => Promise<void> | void;
   initialMemberCardNo?: string | null;
   onConsumedInitialMember?: () => void;
 }
@@ -80,7 +86,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   organizations,
   medicalForms = [],
   userRole = 'Agent',
-  lang = 'en',
+  lang = 'en' as Language,
   preselectedMember,
   onCreateMedicalForm,
   onUpdateMedicalForm,
@@ -89,17 +95,39 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   initialMemberCardNo,
   onConsumedInitialMember,
 }) => {
+  const t = useTranslation(lang);
   const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
+  // === AMÉLIORATION AJOUTÉE : le formulaire de création (recherche assuré/prestataire,
+  // type de consultation, modalité de soin, etc.) ne doit devenir actif qu'après un clic
+  // explicite sur le bouton "New Medical Form" (retour utilisateur explicite, 2026-09-11) —
+  // auparavant il était déjà affiché et utilisable dès l'arrivée sur la page, car l'onglet
+  // "create" est l'onglet par défaut. Tant que ce drapeau est à `false`, un état neutre est
+  // affiché à la place (voir plus bas) ; aucun autre comportement du formulaire n'est modifié.
+  const [formActivated, setFormActivated] = useState(false);
 
   // Deletion modals state
   const [formToDelete, setFormToDelete] = useState<MedicalForm | null>(null);
   const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05, section 2.5
+  // — CRITIQUE) — confirmation renforcée (saisie d'une phrase exacte) et motif obligatoire
+  // avant toute suppression en masse de l'historique médical. Voir handleConfirmClearAll.
+  const CLEAR_ALL_CONFIRM_PHRASE = 'DELETE ALL';
+  const [clearAllConfirmText, setClearAllConfirmText] = useState('');
+  const [clearAllReason, setClearAllReason] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
-  // === AMÉLIORATION AJOUTÉE : la Fiche Médicale doit rester bleue côté Agent (branding Agent inchangé)
-  // mais s'afficher en vert/sarcelle aligné à la barre de menu côté Superviseur ===
-  const isSupervisorView = userRole === 'Supervisor';
+  // === AMÉLIORATION AJOUTÉE : couleurs alignées sur roleTheme.palette (retour utilisateur —
+  // "certains boutons sont encore en gris") — tout ce fichier utilisait un conditionnel figé
+  // (isSupervisorView ? gris #1F2937 : bleu Agent #0A347B), un reliquat d'une ancienne palette
+  // Superviseur jamais mis à jour depuis que Superviseur partage désormais le même bleu marine
+  // qu'Agent (voir SUPERVISOR_THEME). Remplacé partout par la même teinte bleue qu'Agent, pour
+  // les deux rôles — suit désormais automatiquement toute évolution de couleur par rôle, comme
+  // le reste de l'application. Seuls les boutons principaux ("New Medical Form"/"History"
+  // ci-dessous) suivent roleTheme.palette.primaryColor, qui porte déjà le liseré rouge fin côté
+  // Superviseur — le reste du formulaire (texte, bordures décoratives) reste volontairement
+  // identique entre les deux rôles, le rouge étant réservé aux éléments structurels.
+  const roleTheme = getRoleTheme(userRole);
 
   // Smart Autocomplete State for Member
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
@@ -119,6 +147,10 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       setSelectedMember(preselectedMember);
       setMemberSearchQuery(`${preselectedMember.principalName} (${preselectedMember.cardNo})`);
       setActiveTab('create');
+      // Arriver ici depuis un autre écran (ex: identification) équivaut à démarrer un
+      // nouveau formulaire — le formulaire doit donc être actif, comme après un clic
+      // explicite sur "New Medical Form".
+      setFormActivated(true);
     }
   }, [preselectedMember]);
 
@@ -195,11 +227,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   }, [practitionerType, doctorSpecialty, customSpecialty]);
 
   // Handle Form Generation
-  const handleGenerateForm = (e: React.FormEvent) => {
+  const handleGenerateForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     if (!selectedMember || !selectedProvider) {
-      setFormError('Please select both the insured member and the healthcare provider using smart search.');
+      setFormError(t.agentMedForm.selectBothError);
       return;
     }
 
@@ -231,10 +263,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       inpatientBalanceUSD: selectedMember.inpatientBalanceUSD ?? 8500,
       issueDate: new Date().toISOString().split('T')[0],
       status: 'issued',
-      // === AMÉLIORATION AJOUTÉE : sur demande explicite — pour un praticien Généraliste, ne
-      // plus préremplir "Dr. General Practitioner" quand l'agent ne saisit pas de nom : la
-      // place reste vide, réservée au médecin traitant qui la complètera lui-même à la main.
-      doctorName: doctorName || (practitionerType === 'Specialist' ? `Dr. Specialist (${effectiveSpecialty})` : undefined),
+      // === AMÉLIORATION AJOUTÉE : sur nouvelle demande explicite — pour un praticien
+      // Généraliste, préremplir "Dr. General Practitioner" quand l'agent ne saisit pas de nom
+      // (remplace le comportement précédent qui laissait le champ vide dans ce cas).
+      doctorName:
+        doctorName ||
+        (practitionerType === 'Specialist'
+          ? `Dr. Specialist (${effectiveSpecialty})`
+          : 'Dr. General Practitioner'),
       doctorPrescription: {
         presumedDiagnosis: presumedDiagnosis || undefined,
         requestedExams: requestedExams || undefined,
@@ -243,22 +279,40 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    setGeneratedForm(newForm);
-
     if (onCreateMedicalForm) {
-      onCreateMedicalForm(newForm);
+      try {
+        // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05 & Go-Live Santé) —
+        // Le chiffrement applicatif est STRICTEMENT FAIL-CLOSED : en cas d'indisponibilité ou
+        // d'erreur du service de chiffrement, l'émission est bloquée pour interdire la persistance
+        // de données de santé en clair (RGPD Art. 9 / ISO 27799).
+        const formToPersist = await encryptMedicalFormPrescription(newForm);
+        onCreateMedicalForm(formToPersist);
+        setGeneratedForm(newForm);
+      } catch (err: any) {
+        setFormError(err?.message || t.agentMedForm.encryptionFailError);
+        setGeneratedForm(null);
+        return;
+      }
+    } else {
+      setGeneratedForm(newForm);
     }
   };
 
   // PDF Download Handler
-  const handleDownloadPDF = (form: MedicalForm) => {
-    const doc = generateMedicalFormPDF(form);
+  // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) —
+  // déchiffre le contenu clinique (s'il est chiffré ; sinon aucun appel réseau, voir
+  // sensitiveData.ts) avant de générer le PDF, quel que soit le point d'entrée (aperçu
+  // immédiat après création, historique, modale de prévisualisation).
+  const handleDownloadPDF = async (form: MedicalForm) => {
+    const decrypted = await decryptMedicalFormPrescription(form);
+    const doc = generateMedicalFormPDF(decrypted);
     doc.save(`Medical_Form_ACTIVA_${form.securityNumber}.pdf`);
   };
 
   // Print Handler
-  const handlePrint = (form: MedicalForm) => {
-    const doc = generateMedicalFormPDF(form);
+  const handlePrint = async (form: MedicalForm) => {
+    const decrypted = await decryptMedicalFormPrescription(form);
+    const doc = generateMedicalFormPDF(decrypted);
     doc.autoPrint();
     const pdfBlob = doc.output('bloburl');
     window.open(pdfBlob, '_blank');
@@ -274,7 +328,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // navigateurs mobiles. Si l'appareil ne supporte pas le partage de fichiers (ex: certains
   // navigateurs de bureau), on retombe sur un téléchargement direct du PDF — jamais sur le
   // partage d'un lien vers l'application, qui n'est pas ce que l'utilisateur demande.
-  const handleShare = async (form: MedicalForm) => {
+  const handleShare = async (rawForm: MedicalForm) => {
+    // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+    const form = await decryptMedicalFormPrescription(rawForm);
     const pType = form.practitionerType === 'Specialist'
       ? `Specialist Physician (${form.doctorSpecialty || 'Specialized'})`
       : 'General Practitioner';
@@ -318,7 +374,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
           text: shareText,
           files: [pdfFile],
         });
-        setShareFeedback('Medical form PDF shared successfully!');
+        setShareFeedback(t.agentMedForm.shareSuccessMsg);
         setTimeout(() => setShareFeedback(null), 3000);
         return;
       } catch (err) {
@@ -333,14 +389,23 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
     // This device/browser cannot share files directly — download the PDF instead so the
     // person still gets the actual document, which they can then share manually.
     handleDownloadPDF(form);
-    setShareFeedback('Direct file sharing is not supported on this device — the PDF was downloaded instead.');
+    setShareFeedback(t.agentMedForm.shareFallbackMsg);
     setTimeout(() => setShareFeedback(null), 4000);
   };
 
   // Toggle status in history
   const handleToggleStatus = (form: MedicalForm, newStatus: 'issued' | 'used' | 'pending_return' | 'completed') => {
     if (onUpdateMedicalForm) {
-      onUpdateMedicalForm({ ...form, status: newStatus });
+      // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) ===
+      // `form` peut être `previewModalForm`, dont le contenu clinique a été DÉCHIFFRÉ pour
+      // l'affichage à l'écran (voir plus haut). Le renvoyer tel quel écraserait la version
+      // chiffrée stockée dans Firestore par du texte en clair au moindre changement de statut.
+      // `doctorPrescription` est un champ optionnel : l'omettre entièrement du payload
+      // d'update laisse la valeur déjà en base totalement inchangée (updateDoc ne touche que
+      // les clés fournies) — un simple changement de statut n'a de toute façon aucune raison
+      // de modifier le contenu clinique.
+      const { doctorPrescription, ...formWithoutPrescription } = form;
+      onUpdateMedicalForm({ ...formWithoutPrescription, status: newStatus });
     }
   };
 
@@ -361,10 +426,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // Clear all medical forms history
   const handleConfirmClearAll = async () => {
     if (!onClearAllMedicalForms) return;
+    if (clearAllConfirmText.trim().toUpperCase() !== CLEAR_ALL_CONFIRM_PHRASE) return;
+    if (!clearAllReason.trim()) return;
     setIsDeleting(true);
     try {
-      await onClearAllMedicalForms();
+      await onClearAllMedicalForms(clearAllReason.trim());
       setIsClearAllModalOpen(false);
+      setClearAllConfirmText('');
+      setClearAllReason('');
     } catch (e) {
       console.error('Error clearing medical forms history:', e);
     } finally {
@@ -382,6 +451,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       return f;
     });
   }, [medicalForms]);
+
+  // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) — dossiers
+  // ayant dépassé la durée de rétention indicative (voir src/config/dataRetention.ts), calculé
+  // sur l'ensemble de l'historique (indépendamment des filtres actifs) pour un signalement fiable.
+  const pastRetentionForms = useMemo(
+    () => normalizedForms.filter((f) => isPastRetention(f.retentionUntil)),
+    [normalizedForms]
+  );
 
   // Filtered forms for history
   const filteredForms = useMemo(() => {
@@ -422,31 +499,37 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             <FileText className="w-5 h-5 text-[var(--brand-900)]" />
           </div>
           <div>
-            <h2 className="font-bold text-sm sm:text-base text-slate-900">Medical Form Generation (Coverage Authorization)</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Smart search for member, practitioner and coverage limits</p>
+            <h2 className="font-bold text-sm sm:text-base text-slate-900">{t.agentMedForm.pageTitle}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{t.agentMedForm.pageSubtitle}</p>
           </div>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
           <button
-            onClick={() => setActiveTab('create')}
+            onClick={() => {
+              setActiveTab('create');
+              // === AMÉLIORATION AJOUTÉE : seul ce clic explicite (ou l'arrivée depuis un
+              // autre écran avec un assuré présélectionné, voir plus haut) active le
+              // formulaire de création. ===
+              setFormActivated(true);
+            }}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'create'
-                ? (isSupervisorView ? 'bg-[#0F766E] text-white shadow-xs' : 'bg-[#0A347B] text-white shadow-xs')
+                ? `${roleTheme.palette.primaryColor} text-white shadow-xs`
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <PlusCircle className="w-3.5 h-3.5" />
-            <span>New Medical Form</span>
+            <span>{t.agentMedForm.newFormTab}</span>
           </button>
           <button
             onClick={() => setActiveTab('history')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'history'
-                ? (isSupervisorView ? 'bg-[#0F766E] text-white shadow-xs' : 'bg-[#0A347B] text-white shadow-xs')
+                ? `${roleTheme.palette.primaryColor} text-white shadow-xs`
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>History ({normalizedForms.length})</span>
+            <span>{t.agentMedForm.historyTabPrefix} ({normalizedForms.length})</span>
           </button>
         </div>
       </div>
@@ -458,9 +541,19 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
         </div>
       )}
 
+      {/* === AMÉLIORATION AJOUTÉE : formulaire grisé/inactif tant que "New Medical Form" n'a
+          pas été cliqué (retour utilisateur explicite, 2026-09-11 — "le medical form doit être
+          grisé... un peu comme avec New Claim"), même pattern que AgentClaimsView.tsx
+          (formActivated) — remplace l'état neutre précédent (case vide "No Active Medical
+          Form") par le formulaire complet affiché mais désactivé (opacité réduite,
+          désaturation, non cliquable), exactement comme l'écran Claims Processing. === */}
       {/* TAB 1: CREATION AND CONFIGURATION WITH SMART AUTOCOMPLETE */}
       {activeTab === 'create' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div
+          className={`grid grid-cols-1 lg:grid-cols-12 gap-6 transition ${
+            !formActivated ? 'opacity-50 grayscale-[60%] pointer-events-none select-none' : ''
+          }`}
+        >
           {/* Left Form Column: Configuration */}
           <div className="lg:col-span-6 space-y-6">
             {/* === AMÉLIORATION AJOUTÉE : bande bleue d'en-tête retirée, sur demande explicite
@@ -487,19 +580,24 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 {/* 1. SMART AUTOCOMPLETE FOR INSURED BENEFICIARY */}
                 <div className="space-y-1.5" ref={memberSearchRef}>
                   <label className="block text-xs font-bold text-slate-700">
-                    1. Smart Search for Insured Beneficiary <span className="text-rose-500">*</span>
+                    {t.agentMedForm.section1Title} <span className="text-rose-500">*</span>
                   </label>
                   
+                  {/* === AMÉLIORATION AJOUTÉE : cohérence des couleurs (audit design, 2026-09-11)
+                      — l'accent Agent de cet écran utilisait #0A347B/#08285e, distinct du token
+                      officiel `brand-900` (#0a2e6b, roleTheme.ts) utilisé pour ce même rôle
+                      sémantique ailleurs dans l'app. Unifié sur #0a2e6b/#07214f dans tout le
+                      fichier — aucun changement visuel perceptible. === */}
                   {selectedMember ? (
-                    <div className={`p-3.5 ${isSupervisorView ? 'bg-teal-50/80' : 'bg-blue-50/80'} border-2 ${isSupervisorView ? 'border-[#0F766E]/40' : 'border-[#0A347B]/40'} rounded-xl space-y-2 animate-in fade-in`}>
+                    <div className={`p-3.5 ${'bg-blue-50/80'} border-2 ${'border-[var(--brand-900)]/40'} rounded-xl space-y-2 animate-in fade-in`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-lg ${isSupervisorView ? 'bg-[#0F766E]' : 'bg-[#0A347B]'} text-white flex items-center justify-center font-bold text-xs`}>
+                          <div className={`w-8 h-8 rounded-lg ${'bg-[var(--brand-900)]'} text-white flex items-center justify-center font-bold text-xs`}>
                             {selectedMember.principalName.charAt(0)}
                           </div>
                           <div>
                             <div className="font-extrabold text-xs text-slate-900">{selectedMember.principalName}</div>
-                            <div className={`text-[10.5px] font-mono font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>
+                            <div className={`text-[11px] font-mono font-bold ${'text-[var(--brand-900)]'}`}>
                               N° {selectedMember.cardNo} • {selectedMember.organization}
                             </div>
                           </div>
@@ -512,22 +610,22 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           }}
                           className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-600 text-[11px] font-bold transition cursor-pointer"
                         >
-                          Change
+                          {t.agentMedForm.changeBtn}
                         </button>
                       </div>
 
                       {/* === AMÉLIORATION AJOUTÉE : remplace le solde disponible (déjà affiché plus bas
                           dans la section "Care Modality & Coverage") par la date de naissance et le
                           sexe de l'assuré sélectionné === */}
-                      <div className={`pt-2 border-t ${isSupervisorView ? 'border-teal-200/60' : 'border-blue-200/60'} grid grid-cols-2 gap-2 text-xs`}>
+                      <div className={`pt-2 border-t ${'border-blue-200/60'} grid grid-cols-2 gap-2 text-xs`}>
                         <div>
-                          <span className="text-slate-500 text-[11px] block">Date of Birth:</span>
-                          <span className="font-bold text-slate-800">{selectedMember.birthDate || 'N/A'}</span>
+                          <span className="text-slate-500 text-[11px] block">{t.agentMedForm.dateOfBirthLabel}</span>
+                          <span className="font-bold text-slate-800">{selectedMember.birthDate || t.agentMedForm.naLabel}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-slate-500 text-[11px] block">Gender:</span>
+                          <span className="text-slate-500 text-[11px] block">{t.agentMedForm.genderLabel}</span>
                           <span className="font-bold text-slate-800">
-                            {selectedMember.gender === 'F' ? 'Female' : selectedMember.gender === 'M' ? 'Male' : 'N/A'}
+                            {selectedMember.gender === 'F' ? t.agentMedForm.genderFemale : selectedMember.gender === 'M' ? t.agentMedForm.genderMale : t.agentMedForm.naLabel}
                           </span>
                         </div>
                       </div>
@@ -544,8 +642,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                             setMemberSearchQuery(e.target.value);
                             setIsMemberDropdownOpen(true);
                           }}
-                          placeholder="Type the name, card number or company to search..."
-                          className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 ${isSupervisorView ? 'focus:ring-[#0F766E]' : 'focus:ring-[#0A347B]'} focus:outline-none transition`}
+                          placeholder={t.agentMedForm.memberSearchPlaceholder}
+                          className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 ${'focus:ring-[var(--brand-900)]'} focus:outline-none transition`}
                         />
                       </div>
 
@@ -554,7 +652,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-slate-100">
                           {suggestedMembers.length === 0 ? (
                             <div className="p-4 text-center text-xs text-slate-400 italic">
-                              No member found matching "{memberSearchQuery}".
+                              {t.agentMedForm.noMemberFoundPrefix} "{memberSearchQuery}".
                             </div>
                           ) : (
                             suggestedMembers.map((m) => (
@@ -565,11 +663,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                                   setIsMemberDropdownOpen(false);
                                   setMemberSearchQuery('');
                                 }}
-                                className={`p-3 ${isSupervisorView ? 'hover:bg-teal-50/70' : 'hover:bg-blue-50/70'} transition cursor-pointer flex items-center justify-between text-xs`}
+                                className={`p-3 ${'hover:bg-blue-50/70'} transition cursor-pointer flex items-center justify-between text-xs`}
                               >
                                 <div>
                                   <div className="font-bold text-slate-800">{m.principalName}</div>
-                                  <div className={`text-[10.5px] font-mono ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>
+                                  <div className={`text-[11px] font-mono ${'text-[var(--brand-900)]'}`}>
                                     {m.cardNo} • {m.organization}
                                   </div>
                                 </div>
@@ -590,7 +688,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 {/* 2. SMART AUTOCOMPLETE FOR HEALTHCARE PROVIDER */}
                 <div className="space-y-1.5" ref={providerSearchRef}>
                   <label className="block text-xs font-bold text-slate-700">
-                    2. Smart Search for Healthcare Provider <span className="text-rose-500">*</span>
+                    {t.agentMedForm.section2Title} <span className="text-rose-500">*</span>
                   </label>
 
                   {selectedProvider ? (
@@ -602,7 +700,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           </div>
                           <div>
                             <div className="font-extrabold text-xs text-slate-900">{selectedProvider.name}</div>
-                            <div className="text-[10.5px] text-slate-500">
+                            <div className="text-[11px] text-slate-500">
                               {selectedProvider.type} • {selectedProvider.location}
                             </div>
                           </div>
@@ -615,7 +713,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           }}
                           className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-600 text-[11px] font-bold transition cursor-pointer"
                         >
-                          Change
+                          {t.agentMedForm.changeBtn}
                         </button>
                       </div>
                     </div>
@@ -631,8 +729,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                             setProviderSearchQuery(e.target.value);
                             setIsProviderDropdownOpen(true);
                           }}
-                          placeholder="Type the hospital, clinic or medical center name..."
-                          className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 ${isSupervisorView ? 'focus:ring-[#0F766E]' : 'focus:ring-[#0A347B]'} focus:outline-none transition`}
+                          placeholder={t.agentMedForm.providerSearchPlaceholder}
+                          className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 ${'focus:ring-[var(--brand-900)]'} focus:outline-none transition`}
                         />
                       </div>
 
@@ -641,7 +739,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-slate-100">
                           {suggestedProviders.length === 0 ? (
                             <div className="p-4 text-center text-xs text-slate-400 italic">
-                              No provider found matching "{providerSearchQuery}".
+                              {t.agentMedForm.noProviderFoundPrefix} "{providerSearchQuery}".
                             </div>
                           ) : (
                             suggestedProviders.map((p) => (
@@ -656,12 +754,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                               >
                                 <div>
                                   <div className="font-bold text-slate-800">{p.name}</div>
-                                  <div className="text-[10.5px] text-slate-500">
+                                  <div className="text-[11px] text-slate-500">
                                     {p.type} • {p.location}
                                   </div>
                                 </div>
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-[#00A859] border border-emerald-200">
-                                  ACTIVA Approved
+                                  {t.agentMedForm.activaApproved}
                                 </span>
                               </div>
                             ))
@@ -676,12 +774,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <Stethoscope className={`w-4 h-4 ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`} />
-                      <span>3. Type of Medical Consultation</span>
+                      <Stethoscope className={`w-4 h-4 ${'text-[var(--brand-900)]'}`} />
+                      <span>{t.agentMedForm.section3Title}</span>
                       <span className="text-rose-500">*</span>
                     </label>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isSupervisorView ? 'bg-teal-100' : 'bg-blue-100'} ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>
-                      ACTIVA Agreement
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${'bg-blue-100'} ${'text-[var(--brand-900)]'}`}>
+                      {t.agentMedForm.activaAgreement}
                     </span>
                   </div>
 
@@ -691,18 +789,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       onClick={() => setPractitionerType('Generalist')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         practitionerType === 'Generalist'
-                          ? (isSupervisorView ? 'bg-teal-50/90 border-[#0F766E] ring-2 ring-[#0F766E]/20 shadow-xs' : 'bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs')
+                          ? ('bg-blue-50/90 border-[var(--brand-900)] ring-2 ring-[var(--brand-900)]/20 shadow-xs')
                           : 'bg-white border-slate-200 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-black ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>🩺 Generalist</span>
+                        <span className={`text-xs font-black ${'text-[var(--brand-900)]'}`}>{t.agentMedForm.generalistLabel}</span>
                         {practitionerType === 'Generalist' && (
-                          <CheckCircle2 className={`w-4 h-4 ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`} />
+                          <CheckCircle2 className={`w-4 h-4 ${'text-[var(--brand-900)]'}`} />
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        General medicine, standard examination & referral
+                        {t.agentMedForm.generalistDesc}
                       </p>
                     </button>
 
@@ -711,18 +809,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       onClick={() => setPractitionerType('Specialist')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         practitionerType === 'Specialist'
-                          ? (isSupervisorView ? 'bg-teal-50/90 border-[#0F766E] ring-2 ring-[#0F766E]/20 shadow-xs' : 'bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs')
+                          ? ('bg-blue-50/90 border-[var(--brand-900)] ring-2 ring-[var(--brand-900)]/20 shadow-xs')
                           : 'bg-white border-slate-200 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-black ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>👨‍⚕️ Specialist</span>
+                        <span className={`text-xs font-black ${'text-[var(--brand-900)]'}`}>{t.agentMedForm.specialistLabel}</span>
                         {practitionerType === 'Specialist' && (
-                          <CheckCircle2 className={`w-4 h-4 ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`} />
+                          <CheckCircle2 className={`w-4 h-4 ${'text-[var(--brand-900)]'}`} />
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Specialist physician (Cardiology, Pediatrics, Gynecology...)
+                        {t.agentMedForm.specialistDesc}
                       </p>
                     </button>
                   </div>
@@ -730,13 +828,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* Specialty dropdown if Specialist is selected */}
                   {practitionerType === 'Specialist' && (
                     <div className="pt-2 border-t border-slate-200/80 space-y-2 animate-in fade-in">
-                      <label className={`block text-[11px] font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>
-                        Medical Specialty:
+                      <label className={`block text-[11px] font-bold ${'text-[var(--brand-900)]'}`}>
+                        {t.agentMedForm.medicalSpecialtyLabel}
                       </label>
                       <select
                         value={doctorSpecialty}
                         onChange={(e) => setDoctorSpecialty(e.target.value)}
-                        className={`w-full px-3 py-2 bg-white border ${isSupervisorView ? 'border-teal-200' : 'border-blue-200'} rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 ${isSupervisorView ? 'focus:ring-[#0F766E]' : 'focus:ring-[#0A347B]'}`}
+                        className={`w-full px-3 py-2 bg-white border ${'border-blue-200'} rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 ${'focus:ring-[var(--brand-900)]'}`}
                       >
                         {COMMON_SPECIALTIES.map((spec) => (
                           <option key={spec} value={spec}>
@@ -750,8 +848,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                           type="text"
                           value={customSpecialty}
                           onChange={(e) => setCustomSpecialty(e.target.value)}
-                          placeholder="Enter the exact specialty..."
-                          className={`w-full px-3 py-1.5 bg-white border ${isSupervisorView ? 'border-teal-300' : 'border-blue-300'} rounded-lg text-xs`}
+                          placeholder={t.agentMedForm.otherSpecialtyPlaceholder}
+                          className={`w-full px-3 py-1.5 bg-white border ${'border-blue-300'} rounded-lg text-xs`}
                           required
                         />
                       )}
@@ -764,11 +862,11 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <Activity className="w-4 h-4 text-[#00A859]" />
-                      <span>4. Care Modality & Coverage</span>
+                      <span>{t.agentMedForm.section4Title}</span>
                       <span className="text-rose-500">*</span>
                     </label>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                      Balance Check
+                      {t.agentMedForm.balanceCheck}
                     </span>
                   </div>
 
@@ -778,19 +876,19 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       onClick={() => setCoverageType('Outpatient')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         coverageType === 'Outpatient'
-                          ? (isSupervisorView ? 'bg-teal-50/90 border-[#0F766E] ring-2 ring-[#0F766E]/20 shadow-xs' : 'bg-blue-50/90 border-[#0A347B] ring-2 ring-[#0A347B]/20 shadow-xs')
+                          ? ('bg-blue-50/90 border-[var(--brand-900)] ring-2 ring-[var(--brand-900)]/20 shadow-xs')
                           : 'bg-white border-slate-200 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-black ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>🏥 Outpatient</span>
+                        <span className={`text-xs font-black ${'text-[var(--brand-900)]'}`}>{t.agentMedForm.outpatientLabel}</span>
                         {coverageType === 'Outpatient' && (
-                          <CheckCircle2 className={`w-4 h-4 ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`} />
+                          <CheckCircle2 className={`w-4 h-4 ${'text-[var(--brand-900)]'}`} />
                         )}
                       </div>
                       <div className="mt-2 text-xs">
-                        <span className="text-[10px] text-slate-400 block">Available Balance:</span>
-                        <span className={`text-sm font-black ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>
+                        <span className="text-[10px] text-slate-400 block">{t.agentMedForm.availableBalanceLabel}</span>
+                        <span className={`text-sm font-black ${'text-[var(--brand-900)]'}`}>
                           ${selectedMember?.outpatientBalanceUSD ?? 600} USD
                         </span>
                       </div>
@@ -806,13 +904,13 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-[#00A859]">🛏️ Inpatient</span>
+                        <span className="text-xs font-black text-[#00A859]">{t.agentMedForm.inpatientLabel}</span>
                         {coverageType === 'Inpatient' && (
                           <CheckCircle2 className="w-4 h-4 text-[#00A859]" />
                         )}
                       </div>
                       <div className="mt-2 text-xs">
-                        <span className="text-[10px] text-slate-400 block">Available Balance:</span>
+                        <span className="text-[10px] text-slate-400 block">{t.agentMedForm.availableBalanceLabel}</span>
                         <span className="text-sm font-black text-[#00A859]">
                           ${selectedMember?.inpatientBalanceUSD ?? 8500} USD
                         </span>
@@ -822,56 +920,56 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 </div>
 
                 {/* 5. DIAGNOSTIC & PRESCRIPTIONS FRAMEWORK */}
-                <div className={`p-4 ${isSupervisorView ? 'bg-teal-50/40' : 'bg-blue-50/40'} rounded-xl border ${isSupervisorView ? 'border-teal-200' : 'border-blue-200'} space-y-3`}>
+                <div className={`p-4 ${'bg-blue-50/40'} rounded-xl border ${'border-blue-200'} space-y-3`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <FileText className={`w-4 h-4 ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`} />
-                      <span className={`text-xs font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>5. Physician Diagnosis & Prescriptions Panel</span>
+                      <FileText className={`w-4 h-4 ${'text-[var(--brand-900)]'}`} />
+                      <span className={`text-xs font-bold ${'text-[var(--brand-900)]'}`}>{t.agentMedForm.section5Title}</span>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Attending Physician Name</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">{t.agentMedForm.attendingPhysicianNameLabel}</label>
                     <input
                       type="text"
                       value={doctorName}
                       onChange={(e) => setDoctorName(e.target.value)}
-                      placeholder={practitionerType === 'Generalist' ? 'e.g. Dr. Arthur Miller, General Medicine' : `e.g. Dr. Arthur Miller, ${effectiveSpecialty}`}
+                      placeholder={practitionerType === 'Generalist' ? t.agentMedForm.physicianPlaceholderGeneralist : `${t.agentMedForm.physicianPlaceholderSpecialist} ${effectiveSpecialty}`}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
-                      Presumed Diagnosis / Reason for Consultation
+                      {t.agentMedForm.presumedDiagnosisLabel}
                     </label>
                     <input
                       type="text"
                       value={presumedDiagnosis}
                       onChange={(e) => setPresumedDiagnosis(e.target.value)}
-                      placeholder="e.g. Health checkup, feverish syndrome, cardiology consultation..."
+                      placeholder={t.agentMedForm.presumedDiagnosisPlaceholder}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Prescribed Tests & Exams</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">{t.agentMedForm.prescribedTestsLabel}</label>
                     <input
                       type="text"
                       value={requestedExams}
                       onChange={(e) => setRequestedExams(e.target.value)}
-                      placeholder="e.g. CBC, Lipid panel, Chest X-ray, Ultrasound..."
+                      placeholder={t.agentMedForm.prescribedTestsPlaceholder}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Medication Orders & Prescriptions</label>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">{t.agentMedForm.medicationOrdersLabel}</label>
                     <textarea
                       rows={2}
                       value={treatmentOrder}
                       onChange={(e) => setTreatmentOrder(e.target.value)}
-                      placeholder="e.g. 1. Dosage, daily regimen and treatment duration..."
+                      placeholder={t.agentMedForm.medicationOrdersPlaceholder}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 resize-none"
                     />
                   </div>
@@ -887,7 +985,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   }`}
                 >
                   <FileCheck className="w-4 h-4" />
-                  <span>Generate Coverage Authorization Voucher</span>
+                  <span>{t.agentMedForm.generateVoucherBtn}</span>
                 </button>
               </form>
             </div>
@@ -901,7 +999,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-100">
                   <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Medical Form Ready</span>
+                    <span>{t.agentMedForm.formReady}</span>
                   </span>
                   
                   <div className="flex items-center gap-2">
@@ -910,21 +1008,21 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      <span>Print</span>
+                      <span>{t.agentMedForm.printBtn}</span>
                     </button>
                     <button
                       onClick={() => handleShare(generatedForm)}
-                      className={`px-3 py-1.5 ${isSupervisorView ? 'bg-teal-50' : 'bg-blue-50'} border ${isSupervisorView ? 'border-teal-200' : 'border-blue-200'} ${isSupervisorView ? 'hover:bg-teal-100' : 'hover:bg-blue-100'} ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'} rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer`}
+                      className={`px-3 py-1.5 ${'bg-blue-50'} border ${'border-blue-200'} ${'hover:bg-blue-100'} ${'text-[var(--brand-900)]'} rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer`}
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Share</span>
+                      <span>{t.agentMedForm.shareBtn}</span>
                     </button>
                     <button
                       onClick={() => handleDownloadPDF(generatedForm)}
-                      className={`px-3.5 py-1.5 ${isSupervisorView ? 'bg-[#0F766E]' : 'bg-[#0A347B]'} ${isSupervisorView ? 'hover:bg-[#115E59]' : 'hover:bg-[#08285e]'} text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer`}
+                      className={`px-3.5 py-1.5 ${'bg-[var(--brand-900)]'} ${'hover:bg-[#07214f]'} text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer`}
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>PDF</span>
+                      <span>{t.agentMedForm.pdfBtn}</span>
                     </button>
                   </div>
                 </div>
@@ -932,7 +1030,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 {/* Simulated Paper */}
                 <div className="bg-white p-5 rounded-xl border-2 border-slate-200 shadow-lg font-sans text-xs space-y-3.5 relative">
                   {/* Header Bar */}
-                  <div className={`${isSupervisorView ? 'bg-[#0F766E]' : 'bg-[#0A347B]'} text-white p-3.5 rounded-lg flex items-center justify-between border-b-4 border-[#00A859]`}>
+                  <div className={`${'bg-[var(--brand-900)]'} text-white p-3.5 rounded-lg flex items-center justify-between border-b-4 border-[#00A859]`}>
                     <div className="flex items-center gap-2.5">
                       {/* === AMÉLIORATION AJOUTÉE : logo Activa en BLANC (silhouette), posé directement
                           sur le bandeau coloré à la place de la mention texte "ACTIVA HealthPass" —
@@ -941,37 +1039,37 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <img src={ACTIVA_LOGO_WHITE_BASE64} alt="Activa" className="w-full h-full object-contain" />
                       </div>
                       <div>
-                        <div className={`text-[9.5px] ${isSupervisorView ? 'text-teal-100' : 'text-blue-100'} uppercase`}>Medical Coverage Authorization Form</div>
+                        <div className={`text-[10px] ${'text-blue-100'} uppercase`}>{t.agentMedForm.voucherHeaderSubtitle}</div>
                       </div>
                     </div>
-                    <div className="text-right font-mono text-[9.5px]">
+                    <div className="text-right font-mono text-[10px]">
                       <div className="font-bold">{generatedForm.securityNumber}</div>
-                      <div className={`${isSupervisorView ? 'text-teal-200' : 'text-blue-200'}`}>{generatedForm.issueDate}</div>
+                      <div className={`${'text-blue-200'}`}>{generatedForm.issueDate}</div>
                     </div>
                   </div>
 
                   {/* 1. Insured Details & Treatment Modality */}
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
-                    <div className={`text-[10px] font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'} uppercase tracking-wide`}>
-                      1. Insured Beneficiary & Care Modality
+                    <div className={`text-[10px] font-bold ${'text-[var(--brand-900)]'} uppercase tracking-wide`}>
+                      {t.agentMedForm.voucherSection1Title}
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Primary Insured</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.primaryInsured}</span>
                         <strong className="text-slate-800">{generatedForm.memberName}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Health Card No.</span>
-                        <strong className={`${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'} font-mono`}>{generatedForm.memberCardNo}</strong>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.healthCardNo}</span>
+                        <strong className={`${'text-[var(--brand-900)]'} font-mono`}>{generatedForm.memberCardNo}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Employer / Sponsor</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.employerSponsor}</span>
                         <strong>{generatedForm.organization}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Care Modality</span>
-                        <strong className={generatedForm.coverageType === 'Outpatient' ? (isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]') : 'text-[#00A859]'}>
-                          {generatedForm.coverageType === 'Outpatient' ? '🏥 Outpatient' : '🛏️ Inpatient'}
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.careModality}</span>
+                        <strong className={generatedForm.coverageType === 'Outpatient' ? ('text-[var(--brand-900)]') : 'text-[#00A859]'}>
+                          {generatedForm.coverageType === 'Outpatient' ? t.agentMedForm.outpatientLabel : t.agentMedForm.inpatientLabel}
                         </strong>
                       </div>
                     </div>
@@ -979,41 +1077,41 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
                   {/* 2. Provider Details & Practitioner Type */}
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
-                    <div className={`text-[10px] font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'} uppercase tracking-wide`}>
-                      2. Healthcare Provider & Practitioner
+                    <div className={`text-[10px] font-bold ${'text-[var(--brand-900)]'} uppercase tracking-wide`}>
+                      {t.agentMedForm.voucherSection2Title}
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Facility / Hospital</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.facilityHospital}</span>
                         <strong className="text-slate-800">{generatedForm.providerName}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-[10px] block">Practitioner Type</span>
-                        <strong className={generatedForm.practitionerType === 'Specialist' ? 'text-purple-700' : (isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]')}>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.practitionerTypeLabel}</span>
+                        <strong className={generatedForm.practitionerType === 'Specialist' ? 'text-purple-700' : ('text-[var(--brand-900)]')}>
                           {generatedForm.practitionerType === 'Specialist'
-                            ? `👨‍⚕️ Specialist (${generatedForm.doctorSpecialty || 'Medical'})`
-                            : '🩺 General Practitioner'}
+                            ? `👨‍⚕️ ${t.agentMedForm.specialistWithSpecialty} (${generatedForm.doctorSpecialty || t.agentMedForm.medicalFallback})`
+                            : t.agentMedForm.generalPractitionerLabel}
                         </strong>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-slate-400 text-[10px] block">Attending Physician</span>
+                        <span className="text-slate-400 text-[10px] block">{t.agentMedForm.attendingPhysicianLabel}</span>
                         <strong>{generatedForm.doctorName || 'Dr. _______________________'}</strong>
                       </div>
                     </div>
                   </div>
 
                   {/* 3. DIAGNOSTIC & PRESCRIPTIONS FRAMEWORK */}
-                  <div className={`bg-white p-3.5 rounded-lg border-2 ${isSupervisorView ? 'border-[#0F766E]/20' : 'border-[#0A347B]/20'} space-y-2`}>
+                  <div className={`bg-white p-3.5 rounded-lg border-2 ${'border-[var(--brand-900)]/20'} space-y-2`}>
                     <div className="flex items-center justify-between border-b border-slate-100 pb-1">
-                      <div className={`text-[10px] font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'} uppercase tracking-wide flex items-center gap-1.5`}>
-                        <PenTool className={`w-3 h-3 ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`} />
-                        <span>3. Physician Reserved Section</span>
+                      <div className={`text-[10px] font-bold ${'text-[var(--brand-900)]'} uppercase tracking-wide flex items-center gap-1.5`}>
+                        <PenTool className={`w-3 h-3 ${'text-[var(--brand-900)]'}`} />
+                        <span>{t.agentMedForm.voucherSection3Title}</span>
                       </div>
                     </div>
 
                     <div className="text-[10px] space-y-2">
                       <div className="p-2 bg-slate-50 rounded border border-slate-200">
-                        <span className="font-bold text-slate-700 block mb-0.5">Diagnosis / Reason:</span>
+                        <span className="font-bold text-slate-700 block mb-0.5">{t.agentMedForm.diagnosisReasonLabel}</span>
                         <div className="text-slate-800 font-medium">
                           {generatedForm.doctorPrescription?.presumedDiagnosis || (
                             <span className="text-slate-400 italic">____________________________________________________________________</span>
@@ -1022,7 +1120,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       </div>
 
                       <div className="p-2 bg-slate-50 rounded border border-slate-200">
-                        <span className="font-bold text-slate-700 block mb-0.5">Lab Tests / Imaging:</span>
+                        <span className="font-bold text-slate-700 block mb-0.5">{t.agentMedForm.labTestsImagingLabel}</span>
                         <div className="text-slate-800 font-medium">
                           {generatedForm.doctorPrescription?.requestedExams || (
                             <span className="text-slate-400 italic">____________________________________________________________________</span>
@@ -1031,7 +1129,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       </div>
 
                       <div className="p-2 bg-slate-50 rounded border border-slate-200">
-                        <span className="font-bold text-slate-700 block mb-0.5">Treatments & Prescriptions:</span>
+                        <span className="font-bold text-slate-700 block mb-0.5">{t.agentMedForm.treatmentsPrescriptionsLabel}</span>
                         <div className="text-slate-800 font-medium">
                           {generatedForm.doctorPrescription?.treatmentOrder || (
                             <span className="text-slate-400 italic">1. _________________________________________________________________</span>
@@ -1044,39 +1142,39 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {/* 4. SIGNATURES */}
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="p-3 bg-slate-50 border border-slate-300 rounded-lg text-center h-24 flex flex-col justify-between">
-                      <span className="text-[9.5px] font-bold text-slate-700">Patient / Insured Signature</span>
-                      <div className="text-[8px] text-slate-400 italic">Read and approved</div>
-                      <div className="text-[8px] text-slate-500 font-mono">Date: ____/____/2026</div>
+                      <span className="text-[10px] font-bold text-slate-700">{t.agentMedForm.patientSignatureLabel}</span>
+                      <div className="text-[10px] text-slate-400 italic">{t.agentMedForm.readApproved}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">{t.agentMedForm.dateLabel} ____/____/2026</div>
                     </div>
 
-                    <div className={`p-3 ${isSupervisorView ? 'bg-teal-50/50' : 'bg-blue-50/50'} border-2 border-dashed ${isSupervisorView ? 'border-[#0F766E]/40' : 'border-[#0A347B]/40'} rounded-lg text-center h-24 flex flex-col justify-between`}>
-                      <div className={`flex items-center justify-center gap-1 text-[9.5px] font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>
-                        <PenTool className={`w-3 h-3 ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`} />
-                        <span>Physician Stamp & Signature</span>
+                    <div className={`p-3 ${'bg-blue-50/50'} border-2 border-dashed ${'border-[var(--brand-900)]/40'} rounded-lg text-center h-24 flex flex-col justify-between`}>
+                      <div className={`flex items-center justify-center gap-1 text-[10px] font-bold ${'text-[var(--brand-900)]'}`}>
+                        <PenTool className={`w-3 h-3 ${'text-[var(--brand-900)]'}`} />
+                        <span>{t.agentMedForm.physicianStampLabel}</span>
                       </div>
-                      <div className="text-[8px] text-slate-400 italic">Facility stamp required</div>
-                      <div className="text-[8px] text-slate-500 font-mono">Date: ____/____/2026</div>
+                      <div className="text-[10px] text-slate-400 italic">{t.agentMedForm.facilityStampRequired}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">{t.agentMedForm.dateLabel} ____/____/2026</div>
                     </div>
                   </div>
 
                   {/* Barcode & Security */}
                   <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <QrCode className={`w-7 h-7 ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`} />
+                      <QrCode className={`w-7 h-7 ${'text-[var(--brand-900)]'}`} />
                       <div>
-                        <div className="text-[9.5px] font-mono font-bold text-slate-800">{generatedForm.securityNumber}</div>
-                        <div className="text-[8px] text-slate-400">ACTIVA Security Identifier</div>
+                        <div className="text-[10px] font-mono font-bold text-slate-800">{generatedForm.securityNumber}</div>
+                        <div className="text-[10px] text-slate-400">{t.agentMedForm.activaSecurityId}</div>
                       </div>
                     </div>
-                    <div className="text-[8.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      VALID 48H
+                    <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      {t.agentMedForm.valid48h}
                     </div>
                   </div>
 
                   {/* Mandatory Instruction */}
                   <div className="p-2 bg-rose-50 border border-rose-300 rounded-lg text-center">
-                    <p className="text-[9px] font-extrabold text-rose-700 leading-tight">
-                      "This document must be returned to the medical agent after physician sign-off."
+                    <p className="text-[10px] font-extrabold text-rose-700 leading-tight">
+                      "{t.agentMedForm.mandatoryReturnNotice}"
                     </p>
                   </div>
                 </div>
@@ -1086,9 +1184,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <div className="w-14 h-14 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-center mb-3">
                   <FileText className="w-7 h-7 text-slate-400" />
                 </div>
-                <h4 className="font-bold text-sm text-slate-700 mb-1">Live Preview</h4>
+                <h4 className="font-bold text-sm text-slate-700 mb-1">{t.agentMedForm.livePreviewTitle}</h4>
                 <p className="text-xs text-slate-400 max-w-xs">
-                  Search for the member and healthcare facility using smart search to instantly generate the coverage authorization voucher.
+                  {t.agentMedForm.livePreviewDesc}
                 </p>
               </div>
             )}
@@ -1101,8 +1199,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-4 p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
             <div>
-              <h3 className="font-bold text-sm text-slate-900">Issued Coverage Vouchers ({filteredForms.length})</h3>
-              <p className="text-xs text-slate-500">Full traceability by practitioner and care modality</p>
+              <h3 className="font-bold text-sm text-slate-900">{t.agentMedForm.issuedVouchersTitle} ({filteredForms.length})</h3>
+              <p className="text-xs text-slate-500">{t.agentMedForm.fullTraceability}</p>
             </div>
 
             {/* Filters and Actions */}
@@ -1112,10 +1210,10 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   type="button"
                   onClick={() => setIsClearAllModalOpen(true)}
                   className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Delete all medical forms history"
+                  title={t.agentMedForm.deleteAllHistoryTitle}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear History</span>
+                  <span>{t.agentMedForm.clearHistoryBtn}</span>
                 </button>
               )}
 
@@ -1124,9 +1222,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 onChange={(e) => setFilterCoverage(e.target.value as any)}
                 className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
               >
-                <option value="all">All Modalities (Outpatient / Inpatient)</option>
-                <option value="Outpatient">Outpatient</option>
-                <option value="Inpatient">Inpatient</option>
+                <option value="all">{t.agentMedForm.allModalitiesOption}</option>
+                <option value="Outpatient">{t.agentMedForm.outpatientOption}</option>
+                <option value="Inpatient">{t.agentMedForm.inpatientOption}</option>
               </select>
 
               <select
@@ -1134,9 +1232,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 onChange={(e) => setFilterPractitioner(e.target.value as any)}
                 className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700"
               >
-                <option value="all">All Practitioners</option>
-                <option value="Generalist">Generalist</option>
-                <option value="Specialist">Specialist</option>
+                <option value="all">{t.agentMedForm.allPractitionersOption}</option>
+                <option value="Generalist">{t.agentMedForm.generalistOption}</option>
+                <option value="Specialist">{t.agentMedForm.specialistOption}</option>
               </select>
 
               <div className="relative w-full sm:w-60">
@@ -1145,25 +1243,43 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   type="text"
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  placeholder="Search member, card, ref..."
-                  className={`w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 ${isSupervisorView ? 'focus:ring-[#0F766E]' : 'focus:ring-[#0A347B]'}`}
+                  placeholder={t.agentMedForm.searchHistoryPlaceholder}
+                  className={`w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 ${'focus:ring-[var(--brand-900)]'}`}
                 />
               </div>
             </div>
           </div>
 
+          {/* === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) —
+              Signalement purement informatif des dossiers ayant dépassé la durée de rétention
+              indicative (voir src/config/dataRetention.ts). Aucune action de suppression n'est
+              proposée ici : la revue et la décision restent manuelles, cohérent avec la décision
+              explicite de ne construire aucun mécanisme de purge automatisée tant que les durées
+              réglementaires par pays ne sont pas confirmées. */}
+          {pastRetentionForms.length > 0 && (
+            <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <Clock className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-800">
+                <span className="font-bold">
+                  {pastRetentionForms.length} {pastRetentionForms.length > 1 ? t.agentMedForm.retentionWarningPlural : t.agentMedForm.retentionWarningSingular}
+                </span>{' '}
+                ({DEFAULT_MEDICAL_FORM_RETENTION_YEARS} {t.agentMedForm.retentionWarningSuffix}
+              </p>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">SECURITY NO.</th>
-                  <th className="py-3 px-4">DATE</th>
-                  <th className="py-3 px-4">MEMBER & CARD</th>
-                  <th className="py-3 px-4">FACILITY</th>
-                  <th className="py-3 px-4">CONSULTATION</th>
-                  <th className="py-3 px-4">MODALITY</th>
-                  <th className="py-3 px-4 text-center">STATUS</th>
-                  <th className="py-3 px-4 text-right">ACTIONS</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colSecurityNo}</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colDate}</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colMemberCard}</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colFacility}</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colConsultation}</th>
+                  <th className="py-3 px-4">{t.agentMedForm.colModality}</th>
+                  <th className="py-3 px-4 text-center">{t.agentMedForm.colStatus}</th>
+                  <th className="py-3 px-4 text-right">{t.agentMedForm.colActions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1174,8 +1290,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                           <FileText className="w-5 h-5" />
                         </div>
-                        <p className="font-semibold text-slate-600">No medical forms in history</p>
-                        <p className="text-slate-400 text-[11px]">The history of medical coverage authorization forms is empty.</p>
+                        <p className="font-semibold text-slate-600">{t.agentMedForm.noFormsInHistory}</p>
+                        <p className="text-slate-400 text-[11px]">{t.agentMedForm.historyEmptyDesc}</p>
                       </div>
                     </td>
                   </tr>
@@ -1184,8 +1300,16 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     const isSpec = form.practitionerType === 'Specialist' || form.practitionerType === 'Spécialiste';
                     return (
                       <tr key={form.id} className="hover:bg-slate-50 transition">
-                        <td className={`py-3.5 px-4 font-mono font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'} whitespace-nowrap`}>
+                        <td className={`py-3.5 px-4 font-mono font-bold ${'text-[var(--brand-900)]'} whitespace-nowrap`}>
                           {form.securityNumber}
+                          {/* === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour
+                              utilisateur, 2026-09-12) — affiché uniquement quand cette fiche a
+                              été rattachée à une réclamation (voir AgentClaimsView.tsx). */}
+                          {form.claimReference && (
+                            <span className="block text-[10px] font-normal text-slate-400 font-sans">
+                              {t.agentMedForm.linkedClaimPrefix} {form.claimReference}
+                            </span>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
                           {form.issueDate}
@@ -1202,21 +1326,21 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                             className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                               isSpec
                                 ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                : (isSupervisorView ? 'bg-teal-50 text-[#0F766E] border border-teal-200' : 'bg-blue-50 text-[#0A347B] border border-blue-200')
+                                : ('bg-blue-50 text-[var(--brand-900)] border border-blue-200')
                             }`}
                           >
-                            {isSpec ? `Specialist (${form.doctorSpecialty || 'Medical'})` : 'Generalist'}
+                            {isSpec ? `${t.agentMedForm.specialistWithSpecialty} (${form.doctorSpecialty || t.agentMedForm.medicalFallback})` : t.agentMedForm.generalistOption}
                           </span>
                         </td>
                         <td className="py-3.5 px-4">
                           <span
                             className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                               form.coverageType === 'Outpatient'
-                                ? (isSupervisorView ? 'bg-teal-50 text-[#0F766E]' : 'bg-blue-50 text-[#0A347B]')
+                                ? ('bg-blue-50 text-[var(--brand-900)]')
                                 : 'bg-emerald-50 text-[#00A859]'
                             }`}
                           >
-                            {form.coverageType === 'Outpatient' ? 'Outpatient' : 'Inpatient'}
+                            {form.coverageType === 'Outpatient' ? t.agentMedForm.outpatientOption : t.agentMedForm.inpatientOption}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">
@@ -1226,43 +1350,48 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : form.status === 'pending_return'
                                 ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : (isSupervisorView ? 'bg-teal-50 text-[#0F766E] border border-teal-200' : 'bg-blue-50 text-[#0A347B] border border-blue-200')
+                                : ('bg-blue-50 text-[var(--brand-900)] border border-blue-200')
                             }`}
                           >
                             {form.status === 'completed'
-                              ? 'Closed'
+                              ? t.agentMedForm.statusClosed
                               : form.status === 'pending_return'
-                              ? 'Awaiting Signed Return'
-                              : 'Issued / Active'}
+                              ? t.agentMedForm.statusAwaitingReturn
+                              : t.agentMedForm.statusIssuedActive}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={() => setPreviewModalForm(form)}
-                              className={`p-1.5 text-slate-500 ${isSupervisorView ? 'hover:text-[#0F766E]' : 'hover:text-[#0A347B]'} ${isSupervisorView ? 'hover:bg-teal-50' : 'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
-                              title="Preview"
+                              onClick={async () => {
+                                // === AMÉLIORATION AJOUTÉE : protection des données (revue
+                                // 2026-09-05, section 3.1) — déchiffre le contenu clinique
+                                // avant affichage à l'écran (pas seulement pour le PDF).
+                                setPreviewModalForm(await decryptMedicalFormPrescription(form));
+                              }}
+                              className={`p-1.5 text-slate-500 ${'hover:text-[var(--brand-900)]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
+                              title={t.agentMedForm.previewTitle}
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDownloadPDF(form)}
-                              className={`p-1.5 text-slate-500 ${isSupervisorView ? 'hover:text-[#0F766E]' : 'hover:text-[#0A347B]'} ${isSupervisorView ? 'hover:bg-teal-50' : 'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
-                              title="Download PDF"
+                              className={`p-1.5 text-slate-500 ${'hover:text-[var(--brand-900)]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
+                              title={t.agentMedForm.downloadPdfTitle}
                             >
                               <Download className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handlePrint(form)}
-                              className={`p-1.5 text-slate-500 ${isSupervisorView ? 'hover:text-[#0F766E]' : 'hover:text-[#0A347B]'} ${isSupervisorView ? 'hover:bg-teal-50' : 'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
-                              title="Print"
+                              className={`p-1.5 text-slate-500 ${'hover:text-[var(--brand-900)]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
+                              title={t.agentMedForm.printBtn}
                             >
                               <Printer className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleShare(form)}
-                              className={`p-1.5 text-slate-500 ${isSupervisorView ? 'hover:text-[#0F766E]' : 'hover:text-[#0A347B]'} ${isSupervisorView ? 'hover:bg-teal-50' : 'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
-                              title="Share"
+                              className={`p-1.5 text-slate-500 ${'hover:text-[var(--brand-900)]'} ${'hover:bg-blue-50'} rounded-lg transition cursor-pointer`}
+                              title={t.agentMedForm.shareBtn}
                             >
                               <Share2 className="w-4 h-4" />
                             </button>
@@ -1270,7 +1399,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                               <button
                                 onClick={() => setFormToDelete(form)}
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                                title="Delete from history"
+                                title={t.agentMedForm.deleteFromHistoryTitle}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -1298,12 +1427,18 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 sont adaptées à un fond blanc. */}
             <div className="bg-white border-b border-slate-200 p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg ${isSupervisorView ? 'bg-teal-50 text-[#0F766E]' : 'bg-[var(--brand-50)] text-[var(--brand-900)]'} flex items-center justify-center`}>
+                <div className={`w-8 h-8 rounded-lg ${'bg-[var(--brand-50)] text-[var(--brand-900)]'} flex items-center justify-center`}>
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-900">Medical Form — {previewModalForm.securityNumber}</h3>
-                  <p className="text-[10px] text-slate-500">Beneficiary: {previewModalForm.memberName}</p>
+                  <h3 className="font-bold text-sm text-slate-900">{t.agentMedForm.medicalFormPrefix} {previewModalForm.securityNumber}</h3>
+                  <p className="text-[10px] text-slate-500">{t.agentMedForm.beneficiaryPrefix} {previewModalForm.memberName}</p>
+                  {/* === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur,
+                      2026-09-12) — affiché uniquement quand cette fiche a été rattachée à une
+                      réclamation (voir AgentClaimsView.tsx). */}
+                  {previewModalForm.claimReference && (
+                    <p className="text-[10px] text-slate-500">{t.agentMedForm.linkedClaimPrefix} {previewModalForm.claimReference}</p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1312,14 +1447,14 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Print</span>
+                  <span>{t.agentMedForm.printBtn}</span>
                 </button>
                 <button
                   onClick={() => handleDownloadPDF(previewModalForm)}
                   className="px-2.5 py-1 bg-[#00A859] hover:bg-[#008f4c] text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>PDF</span>
+                  <span>{t.agentMedForm.pdfBtn}</span>
                 </button>
                 <button
                   onClick={() => setPreviewModalForm(null)}
@@ -1333,36 +1468,36 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             <div className="p-6 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Insured Beneficiary</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.insuredBeneficiary}</span>
                   <span className="font-bold text-slate-800 text-sm">{previewModalForm.memberName}</span>
-                  <span className={`font-mono text-xs ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'} block`}>{previewModalForm.memberCardNo}</span>
+                  <span className={`font-mono text-xs ${'text-[var(--brand-900)]'} block`}>{previewModalForm.memberCardNo}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Company / Sponsor</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.companySponsor}</span>
                   <span className="font-bold text-slate-800">{previewModalForm.organization}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Provider / Facility</span>
-                  <span className={`font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>{previewModalForm.providerName}</span>
+                  <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.providerFacility}</span>
+                  <span className={`font-bold ${'text-[var(--brand-900)]'}`}>{previewModalForm.providerName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block font-semibold">Consultation Type</span>
-                  <span className={`font-bold ${previewModalForm.practitionerType === 'Specialist' ? 'text-purple-700' : (isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]')}`}>
+                  <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.consultationType}</span>
+                  <span className={`font-bold ${previewModalForm.practitionerType === 'Specialist' ? 'text-purple-700' : ('text-[var(--brand-900)]')}`}>
                     {previewModalForm.practitionerType === 'Specialist'
-                      ? `👨‍⚕️ Specialist (${previewModalForm.doctorSpecialty || 'Medical'})`
-                      : '🩺 General Practitioner'}
+                      ? `👨‍⚕️ ${t.agentMedForm.specialistWithSpecialty} (${previewModalForm.doctorSpecialty || t.agentMedForm.medicalFallback})`
+                      : t.agentMedForm.generalPractitionerLabel}
                   </span>
                 </div>
                 <div className="col-span-2 pt-2 border-t border-slate-200 flex items-center justify-between">
                   <div>
-                    <span className="text-slate-400 text-[10px] block font-semibold">Care Modality</span>
+                    <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.careModality}</span>
                     <span className="font-bold text-[#00A859]">
-                      {previewModalForm.coverageType === 'Outpatient' ? '🏥 Outpatient' : '🛏️ Inpatient'}
+                      {previewModalForm.coverageType === 'Outpatient' ? t.agentMedForm.outpatientLabel : t.agentMedForm.inpatientLabel}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-slate-400 text-[10px] block font-semibold">Available Balance</span>
-                    <span className={`font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`}>
+                    <span className="text-slate-400 text-[10px] block font-semibold">{t.agentMedForm.availableBalanceLabel}</span>
+                    <span className={`font-bold ${'text-[var(--brand-900)]'}`}>
                       ${previewModalForm.coverageType === 'Outpatient' ? previewModalForm.outpatientBalanceUSD : previewModalForm.inpatientBalanceUSD} USD
                     </span>
                   </div>
@@ -1371,36 +1506,36 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
               {/* Diagnostic & Prescriptions Section Preview */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className={`font-bold text-xs ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'} flex items-center gap-1.5`}>
-                  <PenTool className={`w-3.5 h-3.5 ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'}`} />
-                  <span>Physician Diagnosis & Prescriptions Panel</span>
+                <div className={`font-bold text-xs ${'text-[var(--brand-900)]'} flex items-center gap-1.5`}>
+                  <PenTool className={`w-3.5 h-3.5 ${'text-[var(--brand-900)]'}`} />
+                  <span>{t.agentMedForm.section5Title}</span>
                 </div>
                 <div className="text-slate-700 space-y-1.5">
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Presumed Diagnosis:</span>
-                    <span className="font-semibold">{previewModalForm.doctorPrescription?.presumedDiagnosis || 'To be completed by the physician'}</span>
+                    <span className="text-slate-400 text-[10px] block">{t.agentMedForm.presumedDiagnosisColon}</span>
+                    <span className="font-semibold">{previewModalForm.doctorPrescription?.presumedDiagnosis || t.agentMedForm.toBeCompletedByPhysician}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Tests & Exams:</span>
-                    <span className="font-semibold">{previewModalForm.doctorPrescription?.requestedExams || 'To be completed by the physician'}</span>
+                    <span className="text-slate-400 text-[10px] block">{t.agentMedForm.testsExamsColon}</span>
+                    <span className="font-semibold">{previewModalForm.doctorPrescription?.requestedExams || t.agentMedForm.toBeCompletedByPhysician}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Treatments & Medications:</span>
-                    <span className="font-semibold">{previewModalForm.doctorPrescription?.treatmentOrder || 'To be completed by the physician'}</span>
+                    <span className="text-slate-400 text-[10px] block">{t.agentMedForm.treatmentsMedicationsColon}</span>
+                    <span className="font-semibold">{previewModalForm.doctorPrescription?.treatmentOrder || t.agentMedForm.toBeCompletedByPhysician}</span>
                   </div>
                 </div>
               </div>
 
               {/* Status Update Control */}
-              <div className={`p-3 ${isSupervisorView ? 'bg-teal-50/70' : 'bg-blue-50/70'} border ${isSupervisorView ? 'border-teal-200' : 'border-blue-200'} rounded-xl flex items-center justify-between`}>
+              <div className={`p-3 ${'bg-blue-50/70'} border ${'border-blue-200'} rounded-xl flex items-center justify-between`}>
                 <div>
-                  <span className={`font-bold ${isSupervisorView ? 'text-[#0F766E]' : 'text-[#0A347B]'} block`}>Document Status:</span>
+                  <span className={`font-bold ${'text-[var(--brand-900)]'} block`}>{t.agentMedForm.documentStatusLabel}</span>
                   <span className="text-[11px] text-slate-600">
                     {previewModalForm.status === 'completed'
-                      ? 'Closed and signed off by the physician'
+                      ? t.agentMedForm.statusClosedSignedOff
                       : previewModalForm.status === 'pending_return'
-                      ? 'Awaiting signed physical return'
-                      : 'Issued - Consultation in progress'}
+                      ? t.agentMedForm.statusAwaitingPhysicalReturn
+                      : t.agentMedForm.statusIssuedInProgress}
                   </span>
                 </div>
                 <div className="flex gap-1.5">
@@ -1411,7 +1546,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     }}
                     className="px-2.5 py-1 bg-white border border-amber-200 text-amber-700 rounded-lg text-xs font-bold hover:bg-amber-50 cursor-pointer"
                   >
-                    Awaiting Return
+                    {t.agentMedForm.awaitingReturnBtn}
                   </button>
                   <button
                     onClick={() => {
@@ -1420,7 +1555,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     }}
                     className="px-2.5 py-1 bg-[#00A859] text-white rounded-lg text-xs font-bold hover:bg-[#008f4c] cursor-pointer"
                   >
-                    Close Form
+                    {t.agentMedForm.closeFormBtn}
                   </button>
                 </div>
               </div>
@@ -1428,7 +1563,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
               {/* Obligatory Notice */}
               <div className="p-3 bg-rose-50 border-2 border-rose-400 rounded-xl text-center">
                 <p className="text-xs font-extrabold text-rose-700">
-                  "This document must be returned to the medical agent after physician sign-off."
+                  "{t.agentMedForm.mandatoryReturnNotice}"
                 </p>
               </div>
             </div>
@@ -1445,22 +1580,22 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <Trash2 className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 text-sm">Delete Medical Form</h4>
-                <p className="text-xs text-slate-500">This action will remove the voucher from history.</p>
+                <h4 className="font-bold text-slate-900 text-sm">{t.agentMedForm.deleteFormTitle}</h4>
+                <p className="text-xs text-slate-500">{t.agentMedForm.deleteFormDesc}</p>
               </div>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
               <div className="flex justify-between">
-                <span className="text-slate-500">Security No:</span>
+                <span className="text-slate-500">{t.agentMedForm.securityNoLabel}</span>
                 <span className="font-mono font-bold text-slate-800">{formToDelete.securityNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Beneficiary:</span>
+                <span className="text-slate-500">{t.agentMedForm.beneficiaryLabel}</span>
                 <span className="font-semibold text-slate-800">{formToDelete.memberName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Facility:</span>
+                <span className="text-slate-500">{t.agentMedForm.facilityLabel}</span>
                 <span className="text-slate-700">{formToDelete.providerName}</span>
               </div>
             </div>
@@ -1472,7 +1607,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 disabled={isDeleting}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
-                Cancel
+                {t.agentMedForm.cancelBtn}
               </button>
               <button
                 type="button"
@@ -1483,12 +1618,12 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 {isDeleting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Deleting...</span>
+                    <span>{t.agentMedForm.deletingBtn}</span>
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete</span>
+                    <span>{t.agentMedForm.deleteBtn}</span>
                   </>
                 )}
               </button>
@@ -1506,44 +1641,81 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 <AlertTriangle className="w-5 h-5 text-rose-600" />
               </div>
               <div>
-                <h4 className="font-bold text-slate-900 text-sm">Clear Medical Form History</h4>
-                <p className="text-xs text-slate-500">Permanent deletion of all records</p>
+                <h4 className="font-bold text-slate-900 text-sm">{t.agentMedForm.clearHistoryTitle}</h4>
+                <p className="text-xs text-slate-500">{t.agentMedForm.permanentDeletionDesc}</p>
               </div>
             </div>
 
             <div className="p-3.5 bg-rose-50/70 rounded-xl border border-rose-200 text-xs text-rose-800 space-y-1">
               <p className="font-semibold">
-                Are you sure you want to delete all {normalizedForms.length} medical forms from history?
+                {t.agentMedForm.confirmDeleteAllPrefix} {normalizedForms.length} {t.agentMedForm.confirmDeleteAllSuffix}
               </p>
               <p className="text-[11px] text-rose-600 leading-relaxed">
-                This will purge all issued coverage vouchers from the database. This action is irreversible.
+                {t.agentMedForm.archivedNotice}
               </p>
+            </div>
+
+            {/* === AMÉLIORATION AJOUTÉE : sécurité/protection des données (revue 2026-09-05,
+                section 2.5) — motif obligatoire et phrase de confirmation exacte avant toute
+                suppression en masse. === */}
+            <div className="space-y-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  {t.agentMedForm.reasonForDeletionLabel}
+                </label>
+                <textarea
+                  value={clearAllReason}
+                  onChange={(e) => setClearAllReason(e.target.value)}
+                  disabled={isDeleting}
+                  rows={2}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  placeholder={t.agentMedForm.reasonPlaceholder}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  {t.agentMedForm.typeToConfirmPrefix} <span className="font-mono text-rose-700">{CLEAR_ALL_CONFIRM_PHRASE}</span> {t.agentMedForm.typeToConfirmSuffix}
+                </label>
+                <input
+                  type="text"
+                  value={clearAllConfirmText}
+                  onChange={(e) => setClearAllConfirmText(e.target.value)}
+                  disabled={isDeleting}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                  placeholder={CLEAR_ALL_CONFIRM_PHRASE}
+                  autoComplete="off"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setIsClearAllModalOpen(false)}
+                onClick={() => {
+                  setIsClearAllModalOpen(false);
+                  setClearAllConfirmText('');
+                  setClearAllReason('');
+                }}
                 disabled={isDeleting}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
-                Cancel
+                {t.agentMedForm.cancelBtn}
               </button>
               <button
                 type="button"
                 onClick={handleConfirmClearAll}
-                disabled={isDeleting}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                disabled={isDeleting || clearAllConfirmText.trim().toUpperCase() !== CLEAR_ALL_CONFIRM_PHRASE || !clearAllReason.trim()}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 {isDeleting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Clearing...</span>
+                    <span>{t.agentMedForm.clearingBtn}</span>
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear All History</span>
+                    <span>{t.agentMedForm.clearAllHistoryBtn}</span>
                   </>
                 )}
               </button>

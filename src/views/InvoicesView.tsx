@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search,
-  Receipt,
   User,
   Users,
   Building,
@@ -15,17 +14,41 @@ import {
   FileSpreadsheet,
   Trash2,
   AlertTriangle,
+  ScanSearch,
+  Undo2,
 } from 'lucide-react';
 import { InvoiceItem, Language } from '../types';
 import { useTranslation } from '../i18n/translations';
 import { useCurrency } from '../services/currency';
 import { printBordereauSlip, downloadBordereauPDF } from '../utils/printUtils';
+// === AMÉLIORATION AJOUTÉE : nouveau modèle de bordereau de règlement (Settlement Slip &
+// Direct Billing Voucher) — voir la modale "INVOICE SLIP MODAL" plus bas.
+import { LogoIcon } from '../components/Logo';
+import { ExportDropdown } from '../components/ExportDropdown';
+import { getRoleTheme } from '../theme/roleTheme';
+// === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation, derrière
+// le flag `hp2_reimbursement_tracking` (désactivé par défaut, voir src/config/featureFlags.ts).
+// Panneau, badge et bouton ni affichés ni montés tant que le flag reste désactivé —
+// comportement de cet écran strictement inchangé pour tout utilisateur en production aujourd'hui.
+import { isFeatureEnabled } from '../config/featureFlags';
+import { computeReconciliationSummary } from '../modules/reimbursement/reconciliation';
+import { ReconciliationSummary } from '../modules/reimbursement/ReconciliationSummary';
+import { MarkAsPaidModal } from '../modules/reimbursement/MarkAsPaidModal';
+// === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical, avant paiement (2026-09-10, sur
+// demande explicite) — voir ApplyRefactionModal.tsx / RecordRecoveryModal.tsx pour le détail.
+import { ApplyRefactionModal } from '../modules/reimbursement/ApplyRefactionModal';
+import { RecordRecoveryModal } from '../modules/reimbursement/RecordRecoveryModal';
+import { Wallet } from 'lucide-react';
 
 interface InvoicesViewProps {
   lang: Language;
   invoices: InvoiceItem[];
   userRole?: string;
   onDeleteInvoice?: (id: string) => Promise<void> | void;
+  // === AMÉLIORATION AJOUTÉE : identifie qui applique une réfaction / enregistre un
+  // recouvrement (InvoiceItem.refactionAppliedBy / InvoiceRecovery.recordedBy) — même
+  // convention que le reste de l'app (currentUser?.fullName || displayName || email).
+  currentUser?: any;
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({
@@ -33,6 +56,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   invoices,
   userRole = 'Admin',
   onDeleteInvoice,
+  currentUser,
 }) => {
   const t = useTranslation(lang);
   const { formatAmount } = useCurrency();
@@ -44,26 +68,75 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const [viewSlipInvoice, setViewSlipInvoice] = useState<InvoiceItem | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<InvoiceItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation ===
+  const [markingPaidInvoice, setMarkingPaidInvoice] = useState<InvoiceItem | null>(null);
+  // === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical / recouvrement (2026-09-10) ===
+  const [refactingInvoice, setRefactingInvoice] = useState<InvoiceItem | null>(null);
+  const [recordingRecoveryInvoice, setRecordingRecoveryInvoice] = useState<InvoiceItem | null>(null);
+  const reimbursementTrackingEnabled = isFeatureEnabled('hp2_reimbursement_tracking');
 
   const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrateur';
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
   const canDeleteInvoice = isAdmin || isSupervisor;
+  const canMarkPaid = isAdmin || isSupervisor;
+  // === AMÉLIORATION AJOUTÉE : même règle d'accès que "Mark as Paid" (canMarkPaid) pour les
+  // actions de réfaction/recouvrement — Admin et Superviseur, sur demande explicite.
+  const canApplyRefaction = canMarkPaid;
+  const currentUserName: string = currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Unknown';
+  const currentUserRole: 'Admin' | 'Supervisor' = isAdmin ? 'Admin' : 'Supervisor';
 
-  // === AMÉLIORATION AJOUTÉE : gris de la barre latérale Admin (auparavant bg-slate-900,
-  // un noir quasi-pur perçu comme "noir" plutôt que gris par l'utilisateur) ===
-  const primaryBtnClass = isAdmin
-    ? 'bg-slate-700 hover:bg-slate-800 text-white'
-    : isSupervisor
-    ? 'bg-[#0F766E] hover:bg-[#115E59] text-white'
-    : 'bg-[#0A347B] hover:bg-[#072659] text-white';
+  // === AMÉLIORATION AJOUTÉE : lignes du détail "Medical Benefits Coverage Breakdown" du
+  // nouveau bordereau de règlement — une ligne par acte médical (Claim.medicalActs, reporté sur
+  // la facture par workflowService.ts). Les factures antérieures à ce correctif n'ont pas ce
+  // détail : repli sur une ligne unique dérivée de careType/amount/coveredAmount, identique au
+  // montant déjà affiché partout ailleurs dans cet écran.
+  const slipBreakdownRows = useMemo(() => {
+    if (!viewSlipInvoice) return [];
+    if (viewSlipInvoice.medicalActs && viewSlipInvoice.medicalActs.length > 0) {
+      return viewSlipInvoice.medicalActs.map((act) => ({
+        description: act.name,
+        category: act.category || viewSlipInvoice.careType,
+        billed: act.amount,
+        covered: (act.amount * (viewSlipInvoice.coveragePercentage || 80)) / 100,
+      }));
+    }
+    return [
+      {
+        description: viewSlipInvoice.careType,
+        category: viewSlipInvoice.careType,
+        billed: viewSlipInvoice.amount,
+        covered:
+          viewSlipInvoice.coveredAmount !== undefined
+            ? viewSlipInvoice.coveredAmount
+            : (viewSlipInvoice.amount * (viewSlipInvoice.coveragePercentage || 80)) / 100,
+      },
+    ];
+  }, [viewSlipInvoice]);
 
-  const activeTabClass = isAdmin
-    ? 'bg-slate-700 text-white shadow-xs'
-    : isSupervisor
-    ? 'bg-[#0F766E] text-white shadow-xs'
-    : 'bg-[#0A347B] text-white shadow-xs';
+  const slipIsApproved = viewSlipInvoice ? viewSlipInvoice.status === 'valid' || (viewSlipInvoice.status as string) === 'approved' : false;
+  // === AMÉLIORATION AJOUTÉE : préfixe CLM (retour utilisateur, 2026-09-12 — les références de
+  // réclamation commencent désormais par CLM, plus par SIN), pour cette référence de repli
+  // affichée quand la facture ne porte pas encore de claimId.
+  const slipClaimRef = viewSlipInvoice ? viewSlipInvoice.claimId || `CLM-${viewSlipInvoice.id.substring(0, 8)}` : '';
 
-  const primaryTextClass = isAdmin ? 'text-slate-700' : isSupervisor ? 'text-[#0F766E]' : 'text-[#0A347B]';
+  // === AMÉLIORATION AJOUTÉE : harmonisation des couleurs de boutons — ce bouton utilisait un
+  // gris générique (bg-slate-700) identique pour Admin ET Superviseur, au lieu de suivre la
+  // couleur propre de la barre latérale de chaque rôle (rouge sombre pour Admin, gris pour
+  // Superviseur, comme partout ailleurs dans l'interface via roleTheme.palette.primaryColor).
+  // === AMÉLIORATION AJOUTÉE : cohérence des couleurs (audit design, 2026-09-11) — l'accent
+  // Agent de cet écran utilisait #0A347B/#0D2B63, distinct du token officiel `brand-900`
+  // (#0a2e6b, roleTheme.ts) utilisé pour ce même rôle sémantique ailleurs. Unifié sur #0a2e6b
+  // dans tout le fichier — aucun changement visuel perceptible.
+  const roleTheme = getRoleTheme(userRole);
+  const primaryBtnClass = isAdmin || isSupervisor
+    ? `${roleTheme.palette.primaryColor} text-white`
+    : 'bg-[#0a2e6b] hover:bg-[#072659] text-white';
+
+  const activeTabClass = isAdmin || isSupervisor
+    ? `${roleTheme.palette.primaryColor} text-white shadow-xs`
+    : 'bg-[#0a2e6b] text-white shadow-xs';
+
+  const primaryTextClass = isAdmin || isSupervisor ? roleTheme.palette.primaryText : 'text-[#0a2e6b]';
 
   const handleDeleteConfirm = async () => {
     if (!invoiceToDelete || !onDeleteInvoice) return;
@@ -128,6 +201,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   const coverageRate = totalInvoiced > 0 ? ((totalCovered / totalInvoiced) * 100).toFixed(1) : '0.0';
 
+  // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation, sur le
+  // même périmètre filtré que les cartes KPI ci-dessus.
+  const reconciliationSummary = useMemo(() => computeReconciliationSummary(filteredInvoices), [filteredInvoices]);
+
   // Grouping by Patient
   const patientGroups = useMemo(() => {
     const map = new Map<string, { key: string; name: string; org: string; items: InvoiceItem[] }>();
@@ -174,56 +251,59 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         {/* TOTAL INVOICED VOLUME */}
         <div className="bg-white rounded-2xl p-5 border border-[#E8EDF2] shadow-xs">
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-            TOTAL INVOICED VOLUME
+            {t.invoices.kpiTotalInvoiced}
           </p>
           <p className="text-2xl sm:text-3xl font-extrabold text-[var(--brand-900)] mt-2 tracking-tight">
             {formatAmount(totalInvoiced)}
           </p>
           <p className="text-xs text-[#778FAF] mt-1.5 font-medium">
-            Across {filteredInvoices.length} direct billing invoices
+            {t.invoices.kpiAcrossInvoicesPrefix} {filteredInvoices.length} {t.invoices.kpiAcrossInvoicesSuffix}
           </p>
         </div>
 
         {/* COVERED BY ACTIVA */}
         <div className="bg-white rounded-2xl p-5 border border-[#E8EDF2] shadow-xs">
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-            COVERED BY ACTIVA
+            {t.invoices.kpiCoveredByActiva}
           </p>
           <p className="text-2xl sm:text-3xl font-extrabold text-[#00A859] mt-2 tracking-tight">
             {formatAmount(totalCovered)}
           </p>
           <p className="text-xs text-[#778FAF] mt-1.5 font-medium">
-            {coverageRate}% coverage rate
+            {coverageRate}% {t.invoices.kpiCoverageRateSuffix}
           </p>
         </div>
 
         {/* PATIENT DIRECT CO-PAY */}
         <div className="bg-white rounded-2xl p-5 border border-[#E8EDF2] shadow-xs">
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-            PATIENT DIRECT CO-PAY
+            {t.invoices.kpiPatientCopay}
           </p>
           <p className="text-2xl sm:text-3xl font-extrabold text-[var(--brand-900)] mt-2 tracking-tight">
             {formatAmount(totalCopay)}
           </p>
           <p className="text-xs text-[#778FAF] mt-1.5 font-medium">
-            Patient out-of-pocket settlement
+            {t.invoices.kpiCopaySubtitle}
           </p>
         </div>
 
         {/* PROCESSED INVOICES */}
         <div className="bg-white rounded-2xl p-5 border border-[#E8EDF2] shadow-xs">
           <p className="text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-            PROCESSED INVOICES
+            {t.invoices.kpiProcessedInvoices}
           </p>
           <p className="text-2xl sm:text-3xl font-extrabold text-[var(--brand-900)] mt-2 tracking-tight">
             {filteredInvoices.length}
           </p>
           <div className="flex items-center gap-1.5 text-xs text-[#00A859] font-bold mt-1.5">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>100% verified disbursements</span>
+            <span>{t.invoices.kpiVerifiedDisbursements}</span>
           </div>
         </div>
       </div>
+
+      {/* === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation === */}
+      {reimbursementTrackingEnabled && <ReconciliationSummary summary={reconciliationSummary} lang={lang} />}
 
       {/* 3. TABS & FILTER TOOLBAR */}
       {/* === AMÉLIORATION AJOUTÉE : sur mobile, la barre passait en dépassement horizontal
@@ -239,33 +319,33 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'full'
                 ? activeTabClass
-                : 'text-[#778FAF] hover:text-[#0D2B63]'
+                : 'text-[#778FAF] hover:text-[#0a2e6b]'
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Full Invoices List</span>
+            <span>{t.invoices.tabFullList}</span>
           </button>
           <button
             onClick={() => setViewMode('patient')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'patient'
                 ? activeTabClass
-                : 'text-[#778FAF] hover:text-[#0D2B63]'
+                : 'text-[#778FAF] hover:text-[#0a2e6b]'
             }`}
           >
             <User className="w-3.5 h-3.5" />
-            <span>Grouped by Patient</span>
+            <span>{t.invoices.tabByPatient}</span>
           </button>
           <button
             onClick={() => setViewMode('family')}
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
               viewMode === 'family'
                 ? activeTabClass
-                : 'text-[#778FAF] hover:text-[#0D2B63]'
+                : 'text-[#778FAF] hover:text-[#0a2e6b]'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Grouped by Family</span>
+            <span>{t.invoices.tabByFamily}</span>
           </button>
         </div>
 
@@ -277,8 +357,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search invoice"
-              className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs text-[#0D2B63] placeholder:text-[#778FAF] focus:outline-none focus:border-slate-800 focus:ring-1 focus:ring-slate-800 focus:bg-white transition"
+              placeholder={t.invoices.searchInvoicePlaceholder}
+              className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs text-[#0a2e6b] placeholder:text-[#778FAF] focus:outline-none focus:border-slate-800 focus:ring-1 focus:ring-slate-800 focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-[#778FAF] absolute left-3 top-2.5" />
             {searchTerm && (
@@ -292,9 +372,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           <select
             value={orgFilter}
             onChange={(e) => setOrgFilter(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[#0D2B63] focus:outline-none focus:border-slate-800 cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-auto px-3 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-xl text-xs font-semibold text-[#0a2e6b] focus:outline-none focus:border-slate-800 cursor-pointer whitespace-nowrap"
           >
-            <option value="ALL">All Organizations</option>
+            <option value="ALL">{t.claims.orgFilterAll}</option>
             {uniqueOrgs.map((org) => (
               <option key={org} value={org}>
                 {org}
@@ -315,66 +395,88 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         <div className="sm:hidden space-y-3">
           {filteredInvoices.length === 0 ? (
             <div className="bg-white rounded-2xl border border-[#E8EDF2] p-8 text-center text-[#778FAF] font-medium text-xs">
-              No invoices found matching your criteria.
+              {t.invoices.noInvoicesFound}
             </div>
           ) : (
             filteredInvoices.map((inv) => {
               const covered = inv.coveredAmount !== undefined ? inv.coveredAmount : (inv.amount * (inv.coveragePercentage || 80)) / 100;
               const copay = Math.max(0, inv.amount - covered);
-              const claimRef = inv.claimId || `SIN-${inv.id.substring(0, 8)}`;
+              const claimRef = inv.claimId || `CLM-${inv.id.substring(0, 8)}`;
 
               return (
                 <div key={inv.id} className="bg-white rounded-2xl border border-[#E8EDF2] shadow-xs p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="font-bold text-slate-900 font-mono text-xs truncate">{inv.reference}</div>
-                      <div className="text-[10.5px] text-[#778FAF] truncate">{claimRef} · {inv.serviceDate || '2025-08-18'}</div>
+                      <div className="text-[11px] text-[#778FAF] truncate">{claimRef} · {inv.serviceDate || '2025-08-18'}</div>
                     </div>
                     {inv.status === 'valid' || inv.status === 'approved' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A878] text-[10.5px] font-bold shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#DEFEEB] text-[#00A878] text-[11px] font-bold shrink-0">
                         <CheckCircle2 className="w-3 h-3" />
-                        <span>Validated</span>
+                        <span>{t.validated}</span>
                       </span>
                     ) : inv.status === 'pending' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF6D9] text-[#F5B942] text-[10.5px] font-bold shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF6D9] text-[#F5B942] text-[11px] font-bold shrink-0">
                         <Clock className="w-3 h-3" />
-                        <span>Pending</span>
+                        <span>{t.pending}</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#DC4C4C] text-[10.5px] font-bold shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#DC4C4C] text-[11px] font-bold shrink-0">
                         <X className="w-3 h-3" />
-                        <span>Rejected</span>
+                        <span>{t.rejectedStatus}</span>
                       </span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-1.5 text-xs">
                     <User className="w-3.5 h-3.5 text-[#778FAF] shrink-0" />
-                    <span className="font-bold text-[#0D2B63] truncate">{inv.patientName}</span>
-                    <span className="text-[10.5px] font-mono text-slate-500 shrink-0">{inv.patientPolicyNumber || 'ACT-2025-0089'}</span>
+                    <span className="font-bold text-[#0a2e6b] truncate">{inv.patientName}</span>
+                    <span className="text-[11px] font-mono text-slate-500 shrink-0">{inv.patientPolicyNumber || 'ACT-2025-0089'}</span>
                   </div>
 
                   <div className="text-xs truncate">
-                    <span className="font-bold text-[#0D2B63]">{inv.provider}</span>
-                    <span className="text-[10.5px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
+                    <span className="font-bold text-[#0a2e6b]">{inv.provider}</span>
+                    <span className="text-[11px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
                   </div>
 
-                  <span className="inline-block px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10.5px] font-semibold text-[#0D2B63]" title={inv.description || inv.careType}>
+                  <span className="inline-block px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[11px] font-semibold text-[#0a2e6b]" title={inv.description || inv.careType}>
                     {inv.careType}
                   </span>
 
+                  {reimbursementTrackingEnabled && inv.paymentStatus === 'paid' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-700">
+                      <Wallet className="w-3 h-3" />
+                      {t.invoices.paidToPrefix} {inv.payee === 'member' ? t.invoices.paidToInsured : t.invoices.paidToProvider} · {inv.paymentReference}
+                    </span>
+                  )}
+
+                  {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical (2026-09-10) === */}
+                  {reimbursementTrackingEnabled && inv.refactionApplied && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-50 border border-orange-200 text-[11px] font-bold text-orange-700">
+                      <ScanSearch className="w-3 h-3" />
+                      {t.invoices.refactedBadgePrefix} {(inv.refactions || []).length} {t.invoices.refactedBadgeSuffix}
+                    </span>
+                  )}
+
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#E8EDF2] text-center">
                     <div>
-                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Invoiced</div>
-                      <div className="font-bold text-[#0D2B63] text-xs">{formatAmount(inv.amount)}</div>
+                      <div className="text-[10px] text-[#778FAF] uppercase font-bold">{t.invoices.colInvoiced}</div>
+                      {reimbursementTrackingEnabled && inv.refactionApplied ? (
+                        <>
+                          <div className="text-[10px] text-slate-400 line-through">{formatAmount(inv.amount)}</div>
+                          <div className="font-bold text-orange-700 text-xs">{formatAmount(inv.payableAmountUSD ?? inv.amount)}</div>
+                        </>
+                      ) : (
+                        <div className="font-bold text-[#0a2e6b] text-xs">{formatAmount(inv.amount)}</div>
+                      )}
                     </div>
                     <div>
-                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Covered</div>
+                      <div className="text-[10px] text-[#778FAF] uppercase font-bold">{t.invoices.colCovered}</div>
                       <div className="font-bold text-[#00A878] text-xs">{formatAmount(covered)}</div>
                     </div>
                     <div>
-                      <div className="text-[9.5px] text-[#778FAF] uppercase font-bold">Copay</div>
-                      <div className="font-bold text-[#0D2B63] text-xs">{formatAmount(copay)}</div>
+                      <div className="text-[10px] text-[#778FAF] uppercase font-bold">{t.invoices.colCopay}</div>
+                      <div className="font-bold text-[#0a2e6b] text-xs">{formatAmount(copay)}</div>
                     </div>
                   </div>
 
@@ -384,13 +486,27 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5 text-slate-700" />
-                      <span>View Slip</span>
+                      <span>{t.invoices.btnViewSlip}</span>
                     </button>
+                    {reimbursementTrackingEnabled && canMarkPaid && (inv.status === 'valid' || inv.status === 'approved') && inv.paymentStatus !== 'paid' && (
+                      <button
+                        onClick={() => setMarkingPaidInvoice(inv)}
+                        className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                      >
+                        <Wallet className="w-3.5 h-3.5" />
+                        <span>{t.invoices.btnMarkPaid}</span>
+                      </button>
+                    )}
+                    {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical / recouvrement —
+                        volontairement PAS disponible sur mobile (précision explicite de
+                        l'utilisateur, 2026-09-10) : ces actions restent réservées au tableau
+                        desktop/tablet ci-dessous, jamais à la carte mobile. La facture refactée
+                        reste visible ici (badge + montant réduit ci-dessus), en lecture seule. === */}
                     {canDeleteInvoice && (
                       <button
                         onClick={() => setInvoiceToDelete(inv)}
                         className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer"
-                        title="Delete invoice (Admin)"
+                        title={t.invoices.titleDeleteInvoiceAdmin}
                       >
                         <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                       </button>
@@ -416,29 +532,30 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             <table className="w-full text-left border-collapse min-w-[880px]">
               <thead>
                 <tr className="border-b border-[#E8EDF2] bg-[#F8FAFC] text-[11px] font-bold text-[#778FAF] uppercase tracking-wider">
-                  <th className="py-3 px-4 whitespace-nowrap">Invoice Ref</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Patient</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Facility</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Category</th>
-                  <th className="py-3 px-4 text-right whitespace-nowrap">Invoiced ($)</th>
-                  <th className="py-3 px-4 text-right text-[#00A878] whitespace-nowrap">Covered ($)</th>
-                  <th className="py-3 px-4 text-right whitespace-nowrap">Copay ($)</th>
-                  <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
-                  <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t.invoices.colInvoiceRef}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t.invoices.colPatient}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t.invoices.colFacility}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t.invoices.colCategory}</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">{t.invoices.colInvoicedAmount}</th>
+                  <th className="py-3 px-4 text-right text-[#00A878] whitespace-nowrap">{t.invoices.colCoveredAmount}</th>
+                  <th className="py-3 px-4 text-right whitespace-nowrap">{t.invoices.colCopayAmount}</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap">{t.status}</th>
+                  {reimbursementTrackingEnabled && <th className="py-3 px-4 text-center whitespace-nowrap">{t.invoices.colPayment}</th>}
+                  <th className="py-3 px-4 text-center whitespace-nowrap">{t.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8EDF2] text-xs">
                 {filteredInvoices.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-[#778FAF] font-medium">
-                      No invoices found matching your criteria.
+                    <td colSpan={reimbursementTrackingEnabled ? 10 : 9} className="py-12 text-center text-[#778FAF] font-medium">
+                      {t.invoices.noInvoicesFound}
                     </td>
                   </tr>
                 ) : (
                   filteredInvoices.map((inv) => {
                     const covered = inv.coveredAmount !== undefined ? inv.coveredAmount : (inv.amount * (inv.coveragePercentage || 80)) / 100;
                     const copay = Math.max(0, inv.amount - covered);
-                    const claimRef = inv.claimId || `SIN-${inv.id.substring(0, 8)}`;
+                    const claimRef = inv.claimId || `CLM-${inv.id.substring(0, 8)}`;
 
                     return (
                       <tr key={inv.id} className="hover:bg-[#F8FAFC]/80 transition">
@@ -446,7 +563,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         <td className="py-3 px-4 align-middle max-w-[190px]" title={`Claim: ${claimRef} • ${inv.serviceDate || '2025-08-18'}`}>
                           <div className="flex items-baseline gap-1.5 truncate">
                             <span className="font-bold text-slate-900 font-mono text-xs">{inv.reference}</span>
-                            <span className="text-[10.5px] text-[#778FAF] truncate">
+                            <span className="text-[11px] text-[#778FAF] truncate">
                               {claimRef} · {inv.serviceDate || '2025-08-18'}
                             </span>
                           </div>
@@ -456,8 +573,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         <td className="py-3 px-4 align-middle max-w-[200px]" title={inv.organization}>
                           <div className="flex items-center gap-1.5 truncate">
                             <User className="w-3.5 h-3.5 text-[#778FAF] shrink-0" />
-                            <span className="font-bold text-[#0D2B63] truncate">{inv.patientName}</span>
-                            <span className="text-[10.5px] font-mono text-slate-500 shrink-0">
+                            <span className="font-bold text-[#0a2e6b] truncate">{inv.patientName}</span>
+                            <span className="text-[11px] font-mono text-slate-500 shrink-0">
                               {inv.patientPolicyNumber || 'ACT-2025-0089'}
                             </span>
                           </div>
@@ -466,24 +583,32 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         {/* FACILITY — provider + doctor on one line */}
                         <td className="py-3 px-4 align-middle max-w-[190px]">
                           <div className="truncate">
-                            <span className="font-bold text-[#0D2B63]">{inv.provider}</span>
-                            <span className="text-[10.5px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
+                            <span className="font-bold text-[#0a2e6b]">{inv.provider}</span>
+                            <span className="text-[11px] text-[#778FAF]"> — {inv.prescribingDoctor || 'Dr. Medical Staff'}</span>
                           </div>
                         </td>
 
                         {/* CATEGORY — single badge, full description as tooltip */}
                         <td className="py-3 px-4 align-middle max-w-[160px]">
                           <span
-                            className="inline-block max-w-full truncate align-bottom px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[10.5px] font-semibold text-[#0D2B63]"
+                            className="inline-block max-w-full truncate align-bottom px-2 py-0.5 rounded-md bg-[#F8FAFC] border border-[#E8EDF2] text-[11px] font-semibold text-[#0a2e6b]"
                             title={inv.description || inv.careType}
                           >
                             {inv.careType}
                           </span>
                         </td>
 
-                        {/* INVOICED */}
-                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-bold text-[#0D2B63] text-[13px]">
-                          {formatAmount(inv.amount)}
+                        {/* INVOICED — === AMÉLIORATION AJOUTÉE : montant original barré + montant
+                            payable après réfaction quand elle existe (2026-09-10) === */}
+                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap text-[13px]">
+                          {reimbursementTrackingEnabled && inv.refactionApplied ? (
+                            <>
+                              <div className="text-[10px] text-slate-400 line-through leading-tight">{formatAmount(inv.amount)}</div>
+                              <div className="font-bold text-orange-700">{formatAmount(inv.payableAmountUSD ?? inv.amount)}</div>
+                            </>
+                          ) : (
+                            <span className="font-bold text-[#0a2e6b]">{formatAmount(inv.amount)}</span>
+                          )}
                         </td>
 
                         {/* COVERED */}
@@ -492,7 +617,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         </td>
 
                         {/* COPAY */}
-                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-bold text-[#0D2B63] text-[13px]">
+                        <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-bold text-[#0a2e6b] text-[13px]">
                           {formatAmount(copay)}
                         </td>
 
@@ -501,20 +626,42 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                           {inv.status === 'valid' || inv.status === 'approved' ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#DEFEEB] text-[#00A859] text-[11px] font-bold">
                               <CheckCircle2 className="w-3 h-3" />
-                              <span>Validated</span>
+                              <span>{t.validated}</span>
                             </span>
                           ) : inv.status === 'pending' ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FFF6D9] text-[#F5B942] text-[11px] font-bold">
                               <Clock className="w-3 h-3" />
-                              <span>Pending</span>
+                              <span>{t.pending}</span>
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FEF2F2] text-[#DC4C4C] text-[11px] font-bold">
                               <X className="w-3 h-3" />
-                              <span>Rejected</span>
+                              <span>{t.rejectedStatus}</span>
                             </span>
                           )}
                         </td>
+
+                        {/* === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation === */}
+                        {reimbursementTrackingEnabled && (
+                          <td className="py-3 px-4 text-center align-middle whitespace-nowrap">
+                            {inv.paymentStatus === 'paid' ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold"
+                                title={`${t.invoices.paidToPrefix} ${inv.payee === 'member' ? t.invoices.paidToInsured : t.invoices.paidToProvider} — ref ${inv.paymentReference}`}
+                              >
+                                <Wallet className="w-3 h-3" />
+                                <span>{t.invoices.paidBadge}</span>
+                              </span>
+                            ) : inv.status === 'valid' || inv.status === 'approved' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold">
+                                <Clock className="w-3 h-3" />
+                                <span>{t.invoices.outstandingBadge}</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-300 text-[11px]">—</span>
+                            )}
+                          </td>
+                        )}
 
                         {/* ACTIONS */}
                         <td className="py-3 px-4 text-center align-middle whitespace-nowrap">
@@ -522,17 +669,53 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                             <button
                               onClick={() => setViewSlipInvoice(inv)}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer"
-                              title="View invoice slip"
+                              title={t.invoices.titleViewSlip}
                             >
                               <Eye className="w-3.5 h-3.5 text-slate-700" />
-                              <span>Slip</span>
+                              <span>{t.invoices.btnSlip}</span>
                             </button>
+
+                            {reimbursementTrackingEnabled && canMarkPaid && (inv.status === 'valid' || inv.status === 'approved') && inv.paymentStatus !== 'paid' && (
+                              <button
+                                onClick={() => setMarkingPaidInvoice(inv)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                title={t.invoices.titleMarkPaid}
+                              >
+                                <Wallet className="w-3.5 h-3.5" />
+                                <span>{t.invoices.btnMarkPaid}</span>
+                              </button>
+                            )}
+
+                            {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical /
+                                recouvrement (2026-09-10) — mêmes conditions que sur la carte
+                                mobile ci-dessus. === */}
+                            {reimbursementTrackingEnabled && canApplyRefaction && (inv.status === 'valid' || inv.status === 'approved') && inv.paymentStatus !== 'paid' && !inv.refactionApplied && (
+                              <button
+                                onClick={() => setRefactingInvoice(inv)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                title={t.invoices.titleApplyRefaction}
+                              >
+                                <ScanSearch className="w-3.5 h-3.5" />
+                                <span>{t.invoices.btnRefaction}</span>
+                              </button>
+                            )}
+
+                            {reimbursementTrackingEnabled && canApplyRefaction && inv.refactionApplied && (inv.refactionTotalUSD || 0) - (inv.recoveredTotalUSD || 0) > 0 && (
+                              <button
+                                onClick={() => setRecordingRecoveryInvoice(inv)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                title={t.invoices.titleRecordRecovery}
+                              >
+                                <Undo2 className="w-3.5 h-3.5" />
+                                <span>{t.invoices.btnRecovery}</span>
+                              </button>
+                            )}
 
                             {canDeleteInvoice && (
                               <button
                                 onClick={() => setInvoiceToDelete(inv)}
                                 className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer"
-                                title="Delete invoice (Admin)"
+                                title={t.invoices.titleDeleteInvoiceAdmin}
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                               </button>
@@ -567,7 +750,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     <h3 className="font-bold text-sm text-[var(--brand-900)]">{g.name}</h3>
                   </div>
                   <span className="px-2 py-0.5 bg-slate-100 text-slate-800 rounded-full text-[10px] font-bold">
-                    {g.count} Invoices
+                    {g.count} {t.invoices.groupInvoicesCount}
                   </span>
                 </div>
                 <p className="text-xs text-[#778FAF] mt-1 truncate">🏢 {g.org}</p>
@@ -580,18 +763,18 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       className="flex items-center justify-between text-xs py-1 border-b border-slate-50 last:border-0"
                     >
                       <span className="font-mono text-slate-800 font-semibold">{item.reference}</span>
-                      <span className="font-bold text-[#0D2B63]">{formatAmount(item.amount)}</span>
+                      <span className="font-bold text-[#0a2e6b]">{formatAmount(item.amount)}</span>
                     </div>
                   ))}
                   {g.items.length > 3 && (
-                    <p className="text-[11px] text-[#778FAF] italic">+ {g.items.length - 3} more records</p>
+                    <p className="text-[11px] text-[#778FAF] italic">+ {g.items.length - 3} {t.invoices.moreRecordsSuffix}</p>
                   )}
                 </div>
               </div>
 
               <div className="pt-3 border-t border-[#E8EDF2] flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-[#778FAF] uppercase font-bold block">Total Amount</span>
+                  <span className="text-[10px] text-[#778FAF] uppercase font-bold block">{t.invoices.totalAmount}</span>
                   <span className="text-base font-extrabold text-[var(--brand-900)]">{formatAmount(g.totalAmount)}</span>
                 </div>
                 <button
@@ -600,7 +783,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   }}
                   className="px-3 py-1.5 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-slate-800 text-xs font-bold rounded-lg transition cursor-pointer"
                 >
-                  View Details
+                  {t.invoices.viewDetailsBtn}
                 </button>
               </div>
             </div>
@@ -609,130 +792,188 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       )}
 
       {/* 5. INVOICE SLIP MODAL */}
+      {/* === AMÉLIORATION AJOUTÉE : nouveau modèle "Settlement Slip & Direct Billing Voucher"
+          (maquette fournie par l'utilisateur, sur demande explicite) — remplace l'ancien reçu
+          "Certified Medical Slip". Le contenu (patient, prestataire, montants, actions
+          suppression/impression/téléchargement) reste fonctionnellement identique ; seule la
+          présentation change, en écran comme à l'impression/PDF (voir printUtils.ts). */}
       {viewSlipInvoice && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-[#E8EDF2] max-h-[90vh] overflow-y-auto space-y-6">
-            <div className="flex items-center justify-between border-b border-[#E8EDF2] pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-slate-100 rounded-xl text-slate-800">
-                  <Receipt className="w-5 h-5" />
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-[#E8EDF2] max-h-[90vh] overflow-y-auto">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between gap-3 border-b border-[#E8EDF2] p-4 sticky top-0 bg-white z-10">
+              <div className="flex items-center gap-2 min-w-0">
+                <LogoIcon className="w-6 h-6 shrink-0" />
+                <div className="min-w-0 leading-tight">
+                  <span className="font-bold text-[var(--brand-900)] text-sm">{t.appName}</span>
+                  <span className="text-slate-300 mx-1.5 hidden sm:inline">|</span>
+                  <span className="font-extrabold text-slate-800 uppercase tracking-wide text-[11px] block sm:inline">
+                    {t.invoices.slipHeaderTitle}
+                  </span>
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-[var(--brand-900)]">
-                    Certified Medical Slip #{viewSlipInvoice.reference}
-                  </h3>
-                  <p className="text-xs text-[#778FAF]">Official ACTIVA HealthPass Disbursement Voucher</p>
-                </div>
               </div>
-              <button
-                onClick={() => setViewSlipInvoice(null)}
-                className="p-1.5 text-[#778FAF] hover:text-[#0D2B63] hover:bg-[#F8FAFC] rounded-lg transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Slip Details Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-xl border border-[#E8EDF2] text-xs">
-              <div>
-                <p className="text-[#778FAF] font-medium">Patient</p>
-                <p className="font-bold text-[#0D2B63] mt-0.5">{viewSlipInvoice.patientName}</p>
-                <p className="font-mono text-[10px] text-slate-700">
-                  {viewSlipInvoice.patientPolicyNumber || 'ACT-2025-0089'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[#778FAF] font-medium">Healthcare Provider</p>
-                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.provider}</p>
-              </div>
-              <div>
-                <p className="text-[#778FAF] font-medium">Organization</p>
-                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.organization}</p>
-              </div>
-              <div>
-                <p className="text-[#778FAF] font-medium">Care Category</p>
-                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.careType}</p>
-              </div>
-              <div>
-                <p className="text-[#778FAF] font-medium">Service Date</p>
-                <p className="font-bold text-[var(--brand-900)] mt-0.5">{viewSlipInvoice.serviceDate || '2025-08-18'}</p>
-              </div>
-              <div>
-                <p className="text-[#778FAF] font-medium">Validation Status</p>
-                <span className="inline-block mt-0.5 px-2 py-0.5 bg-[#DEFEEB] text-[#00A859] rounded-md font-bold text-[10px]">
-                  {viewSlipInvoice.status?.toUpperCase() || 'VALIDATED'}
-                </span>
-              </div>
-            </div>
-
-            {/* Financial Breakdown Box */}
-            <div className="border border-[#E8EDF2] rounded-xl p-4 space-y-2">
-              <div className="flex justify-between text-xs text-[#778FAF]">
-                <span>Total Invoiced Amount</span>
-                <span className="font-bold text-[var(--brand-900)]">{formatAmount(viewSlipInvoice.amount)}</span>
-              </div>
-              <div className="flex justify-between text-xs text-[#00A859] font-semibold">
-                <span>Covered by ACTIVA ({viewSlipInvoice.coveragePercentage || 80}%)</span>
-                <span>
-                  {formatAmount(
-                    viewSlipInvoice.coveredAmount !== undefined
-                      ? viewSlipInvoice.coveredAmount
-                      : (viewSlipInvoice.amount * (viewSlipInvoice.coveragePercentage || 80)) / 100
-                  )}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs text-[var(--brand-900)] pt-2 border-t border-[#E8EDF2] font-bold">
-                <span>Patient Direct Co-Pay</span>
-                <span>
-                  {formatAmount(
-                    Math.max(
-                      0,
-                      viewSlipInvoice.amount -
-                        (viewSlipInvoice.coveredAmount !== undefined
-                          ? viewSlipInvoice.coveredAmount
-                          : (viewSlipInvoice.amount * (viewSlipInvoice.coveragePercentage || 80)) / 100)
-                    )
-                  )}
-                </span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
-              <div>
-                {canDeleteInvoice && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInvoiceToDelete(viewSlipInvoice);
-                    }}
-                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                    <span>Delete Invoice</span>
-                  </button>
-                )}
-              </div>
-
-              <div className="flex gap-2.5">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <ExportDropdown onExportPDF={() => downloadBordereauPDF(viewSlipInvoice, lang)} />
                 <button
                   onClick={() => printBordereauSlip(viewSlipInvoice, lang)}
-                  className="px-4 py-2 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-[#0D2B63] rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer"
+                  className="p-2 text-[#778FAF] hover:text-[#0a2e6b] hover:bg-[#F8FAFC] rounded-lg transition cursor-pointer"
+                  title={t.invoices.printTitle}
                 >
-                  <Printer className="w-4 h-4 text-slate-700" />
-                  <span>Print Slip</span>
+                  <Printer className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => downloadBordereauPDF(viewSlipInvoice, lang)}
-                  className={`px-4 py-2 ${primaryBtnClass} rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer`}
+                  onClick={() => setViewSlipInvoice(null)}
+                  className="p-2 text-[#778FAF] hover:text-[#0a2e6b] hover:bg-[#F8FAFC] rounded-lg transition cursor-pointer"
+                  title={t.close}
                 >
-                  <Download className="w-4 h-4" />
-                  <span>Download PDF Voucher</span>
+                  <X className="w-5 h-5" />
                 </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Voucher card */}
+              <div className="relative overflow-hidden rounded-2xl border border-[#E8EDF2] p-6">
+                {slipIsApproved && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                    <span className="border-4 border-emerald-600/25 text-emerald-600/25 font-black text-2xl sm:text-3xl tracking-widest uppercase px-6 py-2 rounded-xl -rotate-[18deg] select-none">
+                      {t.invoices.approvedCoveredStamp}
+                    </span>
+                  </div>
+                )}
+
+                <div className="relative z-[1] flex items-start justify-between gap-4 pb-4 border-b-2 border-slate-900">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <LogoIcon className="w-7 h-7" />
+                      <span className="font-extrabold text-[var(--brand-900)]">{t.appName}</span>
+                    </div>
+                    <p className="text-[10px] text-[#778FAF] mt-0.5">{t.tagline}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-[#778FAF] font-bold uppercase tracking-wide">{t.invoices.voucherReference}</p>
+                    <p className="font-mono font-bold text-[var(--brand-900)]">{viewSlipInvoice.reference}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">{t.invoices.claimRefPrefix} {slipClaimRef}</p>
+                  </div>
+                </div>
+
+                <div className="relative z-[1] grid grid-cols-2 gap-x-6 gap-y-4 py-5 text-xs">
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.beneficiaryName}</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.patientName}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.healthcareFacility}</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.provider}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.cardNoLabel}</p>
+                    <p className="font-mono font-bold text-[var(--brand-900)] mt-0.5">
+                      {viewSlipInvoice.cardNo || viewSlipInvoice.patientPolicyNumber || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.dateOfService}</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.serviceDate || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.organizationLabel}</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.organization}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px]">{t.invoices.prescriberLabel}</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{viewSlipInvoice.prescribingDoctor || 'Medical Staff'}</p>
+                  </div>
+                </div>
+
+                <div className="relative z-[1] pt-4 border-t border-slate-100">
+                  <p className="text-[#778FAF] font-bold uppercase tracking-wide text-[10px] mb-2">
+                    {t.invoices.coverageBreakdownTitle}
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-[10px] text-[#778FAF] font-bold uppercase tracking-wide border-b border-slate-200">
+                          <th className="text-left py-2 pr-2">{t.invoices.colActDescription}</th>
+                          <th className="text-left py-2 pr-2">{t.invoices.colCategory}</th>
+                          <th className="text-right py-2 pr-2">{t.invoices.colBilledAmount}</th>
+                          <th className="text-right py-2">{t.invoices.colCoveredAmountFull}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {slipBreakdownRows.map((row, idx) => (
+                          <tr key={idx} className="border-b border-slate-50 last:border-0">
+                            <td className="py-2 pr-2 font-semibold text-slate-800">{row.description}</td>
+                            <td className="py-2 pr-2 text-slate-500">{row.category}</td>
+                            <td className="py-2 pr-2 text-right text-slate-700">{formatAmount(row.billed)}</td>
+                            <td className="py-2 text-right font-bold text-[#00A859]">{formatAmount(row.covered)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <div>
+                  {canDeleteInvoice && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvoiceToDelete(viewSlipInvoice);
+                      }}
+                      className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>{t.invoices.btnDeleteInvoice}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-2.5">
+                  <button
+                    onClick={() => downloadBordereauPDF(viewSlipInvoice, lang)}
+                    className={`px-4 py-2 ${primaryBtnClass} rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-xs cursor-pointer`}
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{t.invoices.btnDownloadVoucher}</span>
+                  </button>
+                  <button
+                    onClick={() => setViewSlipInvoice(null)}
+                    className="px-4 py-2 bg-[#F8FAFC] hover:bg-slate-100 border border-[#E8EDF2] text-[#0a2e6b] rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    {t.close}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 4 — Reimbursement & Reconciliation === */}
+      {reimbursementTrackingEnabled && markingPaidInvoice && (
+        <MarkAsPaidModal invoice={markingPaidInvoice} onClose={() => setMarkingPaidInvoice(null)} />
+      )}
+
+      {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical / recouvrement (2026-09-10) === */}
+      {reimbursementTrackingEnabled && refactingInvoice && (
+        <ApplyRefactionModal
+          invoice={refactingInvoice}
+          currentUserName={currentUserName}
+          currentUserRole={currentUserRole}
+          onClose={() => setRefactingInvoice(null)}
+        />
+      )}
+      {reimbursementTrackingEnabled && recordingRecoveryInvoice && (
+        <RecordRecoveryModal
+          invoice={recordingRecoveryInvoice}
+          currentUserName={currentUserName}
+          currentUserRole={currentUserRole}
+          onClose={() => setRecordingRecoveryInvoice(null)}
+        />
       )}
 
       {/* 6. DELETE CONFIRMATION MODAL */}
@@ -745,15 +986,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
             <div className="text-center space-y-1">
               <h3 className="text-base font-bold text-slate-900">
-                Delete Invoice #{invoiceToDelete.reference}?
+                {t.invoices.deleteInvoiceTitlePrefix}{invoiceToDelete.reference}?
               </h3>
               <p className="text-xs text-slate-500">
-                Are you sure you want to permanently delete this invoice of {formatAmount(invoiceToDelete.amount)} issued for {invoiceToDelete.patientName} ({invoiceToDelete.provider})?
+                {t.invoices.deleteInvoiceConfirmPrefix} {formatAmount(invoiceToDelete.amount)} {t.invoices.deleteInvoiceConfirmMiddle} {invoiceToDelete.patientName} ({invoiceToDelete.provider})?
               </p>
             </div>
 
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-800">
-              ⚠️ This action is irreversible and will remove the amount from the accounting ledger.
+              {t.invoices.irreversibleWarning}
             </div>
 
             <div className="flex justify-end gap-2.5 pt-2">
@@ -763,7 +1004,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 onClick={() => setInvoiceToDelete(null)}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
               >
-                Cancel
+                {t.cancel}
               </button>
               <button
                 type="button"
@@ -772,11 +1013,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 {isDeleting ? (
-                  <span>Deleting...</span>
+                  <span>{t.invoices.deletingLabel}</span>
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Confirm Deletion</span>
+                    <span>{t.invoices.confirmDeletionBtn}</span>
                   </>
                 )}
               </button>

@@ -34,125 +34,21 @@ import { Member, Language, Organization, RelationshipType, MemberStatus, Depende
 import { useTranslation } from '../../i18n/translations';
 import { ExcelImportModal } from '../../components/ExcelImportModal';
 import { exportMembersToCSV, exportMembersToExcel, parseMemberExcel, parseActivaMultiOrgExcel, generateMultiOrgTemplateExcel } from '../../utils/excelUtils';
+import { FirestoreService } from '../../services/firestore';
 import { uploadPhotoOrFallback } from '../../utils/storageUtils';
-import { dedupeMembersByCardNo } from '../../utils/memberUtils';
+import { dedupeMembersByCardNo, getMemberDependents } from '../../utils/memberUtils';
+// === AMÉLIORATION AJOUTÉE : formatRelationship/deriveDependentCardNo/calculateAge/
+// getMemberDependents/FormattedDependent déplacés vers src/utils/memberUtils.ts (auto-revue,
+// 2026-09-12) — voir le commentaire là-bas. Réexportés ici pour ne rien casser côté appelants
+// qui importaient depuis ce fichier (comportement strictement identique).
+export { formatRelationship, deriveDependentCardNo, calculateAge, getMemberDependents } from '../../utils/memberUtils';
+export type { FormattedDependent } from '../../utils/memberUtils';
 import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
 import { WebcamCaptureModal } from '../../components/WebcamCaptureModal';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import { checkMemberEligibility } from '../../services/eligibilityService';
-import { generateNextCardNumber, reserveExistingCardNumber } from '../../services/cardNumberService';
-
-export interface FormattedDependent {
-  id: string;
-  cardNo: string;
-  fullName: string;
-  birthDate: string;
-  age?: number | string;
-  relationship: string;
-  gender?: 'M' | 'F';
-  hasBiometrics?: boolean;
-}
-
-export function formatRelationship(rel: string): string {
-  if (!rel) return 'Spouse';
-  const lower = rel.toLowerCase().trim();
-  if (lower === 'husband') return 'Husband';
-  if (lower === 'wife') return 'Wife';
-  if (lower === 'spouse') return 'Spouse';
-  if (lower === 'child') return 'Child';
-  if (lower === 'parent') return 'Parent';
-  if (lower === 'other') return 'Other';
-  return rel.charAt(0).toUpperCase() + rel.slice(1);
-}
-
-export function deriveDependentCardNo(primaryCardNo: string, offset: number): string {
-  if (!primaryCardNo) return `ACT-DEP-${offset}`;
-  const match = primaryCardNo.match(/^(.*?)-(\d+)$/);
-  if (match) {
-    const prefix = match[1];
-    const num = parseInt(match[2], 10);
-    return `${prefix}-${num + offset}`;
-  }
-  return `${primaryCardNo}-${offset}`;
-}
-
-export function calculateAge(birthDate: string): number | undefined {
-  try {
-    const b = new Date(birthDate);
-    if (isNaN(b.getTime())) return undefined;
-    const today = new Date(2026, 7, 31);
-    let age = today.getFullYear() - b.getFullYear();
-    const m = today.getMonth() - b.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < b.getDate())) {
-      age--;
-    }
-    return age >= 0 ? age : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export const getMemberDependents = (m: Member): FormattedDependent[] => {
-  if (!m) return [];
-
-  if (m.dependents && m.dependents.length > 0) {
-    return m.dependents.map((d, index) => {
-      const cardSeq = d.cardNo || deriveDependentCardNo(m.cardNo, index + 1);
-      const relFormatted = formatRelationship(d.relationship);
-      return {
-        id: d.id || `dep-${m.id}-${index}`,
-        cardNo: cardSeq,
-        fullName: d.fullName,
-        birthDate: d.birthDate || '1995-01-01',
-        age: d.age || (d.birthDate ? calculateAge(d.birthDate) : undefined),
-        relationship: relFormatted,
-        gender: d.gender,
-        hasBiometrics: d.hasBiometrics ?? true,
-      };
-    });
-  }
-
-  const result: FormattedDependent[] = [];
-  let seq = 1;
-
-  if (m.spouseName && m.spouseName.trim()) {
-    const rel = m.dependentRelationship ? formatRelationship(m.dependentRelationship) : 'Spouse';
-    result.push({
-      id: `dep-spouse-${m.id}`,
-      cardNo: deriveDependentCardNo(m.cardNo, seq++),
-      fullName: m.spouseName.trim(),
-      birthDate: '1986-05-14',
-      age: 39,
-      relationship: rel,
-      gender: rel.toLowerCase() === 'husband' ? 'M' : 'F',
-      hasBiometrics: true,
-    });
-  }
-
-  if (m.children && m.children.length > 0) {
-    m.children.forEach((childStr, i) => {
-      const match = childStr.match(/^(.*?)(?:\s*\((.*?)\))?$/);
-      const name = match && match[1] ? match[1].trim() : childStr;
-      const ageStr = match && match[2] ? match[2].trim() : undefined;
-      const parsedAge = ageStr ? parseInt(ageStr, 10) : undefined;
-      const birthYear = parsedAge ? 2026 - parsedAge : 2018 + i;
-      const birthDate = `${birthYear}-08-15`;
-
-      result.push({
-        id: `dep-child-${m.id}-${i}`,
-        cardNo: deriveDependentCardNo(m.cardNo, seq++),
-        fullName: name,
-        birthDate: birthDate,
-        age: parsedAge || (2026 - birthYear),
-        relationship: 'Child',
-        gender: i % 2 === 0 ? 'M' : 'F',
-        hasBiometrics: (parsedAge || 10) >= 6,
-      });
-    });
-  }
-
-  return result;
-};
+import { reserveExistingCardNumber, isValidCardNumberFormat, normalizeCardNumber } from '../../services/cardNumberService';
+import { ADMIN_THEME } from '../../theme/roleTheme';
 
 export const getRelationshipBadgeClass = (rel: string): string => {
   const lower = rel.toLowerCase();
@@ -232,6 +128,10 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   // Form State
   const [formError, setFormError] = useState<string | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : UI — un seul bouton "Import" regroupant les deux flux d'import
+  // existants (Excel mono-organisation / classeur multi-organisations Staff+Deps), sur le même
+  // modèle que le bouton "Export" ci-dessus (menu déroulant, deux options).
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
   const [formCardNo, setFormCardNo] = useState('');
   const [formPrincipalName, setFormPrincipalName] = useState('');
   const [formBirthDate, setFormBirthDate] = useState('');
@@ -323,7 +223,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       <div className="space-y-1.5 max-w-[200px]">
         {items.map((item, idx) => (
           <div key={idx} className="text-xs leading-tight">
-            <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700 uppercase mr-1.5">
+            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase mr-1.5">
               {item.label}
             </span>
             <span className="font-semibold text-slate-800">{item.name}</span>
@@ -381,12 +281,9 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
 
   const openCreateModal = () => {
     setEditingMember(null);
-    // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — le champ était
-    // auparavant pré-rempli avec une valeur aléatoire au format obsolète "ACT-2026-XXXX",
-    // masquant le fait que le champ pouvait rester vide pour déclencher la génération
-    // automatique (AMID-YYMMDD-NNNNN) et risquant, si laissé tel quel, d'enregistrer un
-    // numéro de carte invalide. Laissé vide par défaut, comme l'indique désormais le
-    // libellé "leave blank to auto-generate".
+    // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — le champ
+    // est laissé vide par défaut ; il doit désormais être saisi manuellement (11 caractères
+    // alphanumériques), la génération automatique ayant été retirée.
     setFormCardNo('');
     setFormPrincipalName('');
     setFormBirthDate('');
@@ -467,11 +364,13 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     setFormChildren(formChildren.filter((_, i) => i !== index));
   };
 
-  // === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — handleSubmit est
-  // désormais asynchrone. En édition, le numéro de carte n'est jamais touché (le champ est
-  // d'ailleurs désactivé dans le formulaire). En création : vide -> génération automatique et
-  // transactionnelle ; saisi -> validation du format puis réservation transactionnelle
-  // (rejeté si déjà attribué à un autre assuré) — jamais fait confiance sans vérification.
+  // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — sur demande
+  // explicite ("dorénavant les numéros de carte seront intégrés manuellement ..."), la
+  // génération automatique (numéro laissé vide) est retirée : en création, le numéro est
+  // désormais TOUJOURS requis, saisi manuellement, validé (11 caractères alphanumériques)
+  // puis réservé de façon transactionnelle (rejeté si déjà attribué à un autre assuré). En
+  // édition, le numéro de carte n'est jamais touché (le champ est d'ailleurs désactivé dans
+  // le formulaire).
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -480,29 +379,23 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       return;
     }
 
-    let finalCardNo = formCardNo.trim();
+    const finalCardNo = normalizeCardNumber(formCardNo);
     if (!editingMember) {
+      if (!isValidCardNumberFormat(finalCardNo)) {
+        setFormError('Health Card No must be 11 alphanumeric characters (A-Z, 0-9).');
+        return;
+      }
       setIsSavingCard(true);
       try {
-        if (finalCardNo) {
-          await reserveExistingCardNumber(finalCardNo, {
-            organization: formOrg,
-            insuredName: formPrincipalName.trim(),
-            assignedBy: currentUser?.uid,
-            assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
-            method: 'MANUAL',
-          });
-        } else {
-          finalCardNo = await generateNextCardNumber({
-            organization: formOrg,
-            insuredName: formPrincipalName.trim(),
-            assignedBy: currentUser?.uid,
-            assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
-            method: 'MANUAL',
-          });
-        }
+        await reserveExistingCardNumber(finalCardNo, {
+          organization: formOrg,
+          insuredName: formPrincipalName.trim(),
+          assignedBy: currentUser?.uid,
+          assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+          method: 'MANUAL',
+        });
       } catch (err: any) {
-        setFormError(err?.message || 'Could not assign a card number. Please try again.');
+        setFormError(err?.message || 'Could not assign this card number. Please try again.');
         setIsSavingCard(false);
         return;
       }
@@ -528,11 +421,19 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
 
     // === ADDED IMPROVEMENT: upload the captured/uploaded photo to Firebase Storage
     // (instead of saving it as base64 in the Firestore document) once, at save time.
-    // Automatic, transparent fallback to the existing behavior (inline base64) if the
-    // upload fails — see storageUtils.ts.
-    const resolvedPhotoUrl = photoData
-      ? await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim())
-      : editingMember?.photoUrl;
+    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #7) — l'upload
+    // échoue désormais explicitement (fail-closed, voir storageUtils.ts) au lieu de dégrader
+    // silencieusement vers un stockage base64 ; la sauvegarde du membre est bloquée avec un
+    // message clair plutôt que de continuer avec une photo mal stockée.
+    let resolvedPhotoUrl = editingMember?.photoUrl;
+    if (photoData) {
+      try {
+        resolvedPhotoUrl = await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim(), formOrg);
+      } catch (err: any) {
+        setFormError(err?.message || 'Could not save the photo. Please try again.');
+        return;
+      }
+    }
 
     if (editingMember) {
       onUpdateMember({
@@ -651,6 +552,17 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                   onClick={() => {
                     setExportMenuOpen(false);
                     exportMembersToExcel(filteredMembers, lang);
+                    // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05,
+                    // section 2.6) — voir ReportsView.tsx pour le même mécanisme.
+                    FirestoreService.addLog({
+                      userId: currentUser?.uid || 'unknown',
+                      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Unknown',
+                      userRole: userRole || 'Unknown',
+                      action: 'DATA_EXPORTED',
+                      category: 'Members',
+                      entityType: 'members',
+                      details: `Exported ${filteredMembers.length} member(s) as Excel.`,
+                    }).catch(() => {});
                   }}
                   className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 transition cursor-pointer"
                 >
@@ -662,6 +574,15 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                   onClick={() => {
                     setExportMenuOpen(false);
                     exportMembersToCSV(filteredMembers, lang);
+                    FirestoreService.addLog({
+                      userId: currentUser?.uid || 'unknown',
+                      userName: currentUser?.fullName || currentUser?.displayName || currentUser?.email || 'Unknown',
+                      userRole: userRole || 'Unknown',
+                      action: 'DATA_EXPORTED',
+                      category: 'Members',
+                      entityType: 'members',
+                      details: `Exported ${filteredMembers.length} member(s) as CSV.`,
+                    }).catch(() => {});
                   }}
                   className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 flex items-center gap-2 transition cursor-pointer"
                 >
@@ -673,37 +594,60 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
           </div>
           )}
 
+          {/* === AMÉLIORATION AJOUTÉE : UI — un seul bouton "Import" (menu déroulant) au lieu de
+              deux boutons séparés, regroupant le flux Excel mono-organisation (existant) et le
+              flux classeur multi-organisations Staff/Deps (existant) — même modèle que le bouton
+              "Export" ci-dessus. Les deux modales/flux sous-jacents sont inchangés. === */}
           {userRole === 'Admin' && (
+          <div className="relative">
             <button
-              id="import-members-excel-btn"
-              onClick={() => setImportModalOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#047857] border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-          >
-            <UploadCloud className="w-4 h-4 text-[#10B981]" />
-            <span>Import Excel</span>
-          </button>
-          )}
-
-          {/* === ADDED IMPROVEMENT: dedicated import for multi-organization workbooks
-              (sheet pairs "<Organization> - Staff" / "<Organization> - Deps"), distinct
-              from the "Import Excel" button above, which only reads a single sheet/organization === */}
-          {userRole === 'Admin' && (
-            <button
-              id="import-members-multi-org-btn"
-              onClick={() => setImportMultiOrgModalOpen(true)}
-              title="Import a multi-organization workbook (sheets &quot;Organization - Staff&quot; / &quot;Organization - Deps&quot;)"
-              className="px-3.5 py-2 rounded-xl bg-[var(--brand-50)] hover:bg-[var(--brand-100)] text-[var(--brand-900)] border border-[var(--brand-200)] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              id="import-members-dropdown-btn"
+              type="button"
+              onClick={() => setImportMenuOpen(!importMenuOpen)}
+              className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#047857] border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
             >
-              <UploadCloud className="w-4 h-4 text-[var(--brand-900)]" />
-              <span>Import Multi-Org (Staff/Deps)</span>
+              <UploadCloud className="w-4 h-4 text-[#10B981]" />
+              <span>Import</span>
+              <ChevronDown className="w-3 h-3 text-[#047857]" />
             </button>
+
+            {importMenuOpen && (
+              <div className="absolute left-0 sm:left-auto sm:right-0 mt-1.5 w-64 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-30 animate-in fade-in zoom-in-95">
+                <button
+                  id="import-members-excel-btn"
+                  type="button"
+                  onClick={() => {
+                    setImportMenuOpen(false);
+                    setImportModalOpen(true);
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 transition cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>Excel (single organization)</span>
+                </button>
+                <button
+                  id="import-members-multi-org-btn"
+                  type="button"
+                  onClick={() => {
+                    setImportMenuOpen(false);
+                    setImportMultiOrgModalOpen(true);
+                  }}
+                  title="Import a multi-organization workbook (sheets &quot;Organization - Staff&quot; / &quot;Organization - Deps&quot;)"
+                  className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Building2 className="w-4 h-4 text-emerald-600" />
+                  <span>Multi-Org (Staff/Deps)</span>
+                </button>
+              </div>
+            )}
+          </div>
           )}
 
           {userRole === 'Admin' && (
             <button
               id="create-member-btn"
               onClick={openCreateModal}
-            className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className={`px-4 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer`}
           >
             <PlusCircle className="w-4 h-4" />
             <span>New Member</span>
@@ -1096,7 +1040,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                           <div className="flex flex-wrap items-center gap-2.5">
                             {selectedMemberForView.birthDate && (
                               <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs text-left">
-                                <div className="text-[9px] uppercase font-bold text-slate-400">Date of Birth</div>
+                                <div className="text-[10px] uppercase font-bold text-slate-400">Date of Birth</div>
                                 <div className="text-xs font-bold text-slate-800">
                                   {selectedMemberForView.birthDate} {pElig.age !== undefined ? `(${pElig.age} yrs)` : ''}
                                 </div>
@@ -1410,23 +1354,27 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* === AMÉLIORATION AJOUTÉE : Centralized Card Number Management System — sur
-                      demande explicite. À la création, laisser vide génère automatiquement un
-                      numéro unique (AMID-XXXXX-XXXX) ; un numéro saisi manuellement est validé
-                      (format) et réservé (rejeté s'il est déjà attribué à quelqu'un d'autre).
-                      En modification, le numéro existant n'est jamais modifiable ici — un
-                      numéro déjà attribué est définitif (section 15 de la demande). === */}
+                  {/* === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System
+                      — sur demande explicite ("dorénavant les numéros de carte seront intégrés
+                      manuellement ..."). La génération automatique est retirée : à la création,
+                      le numéro est désormais TOUJOURS requis, saisi manuellement (11 caractères
+                      alphanumériques), validé (format) puis réservé (rejeté s'il est déjà
+                      attribué à quelqu'un d'autre). En modification, le numéro existant n'est
+                      jamais modifiable ici — un numéro déjà attribué est définitif (section 15
+                      de la demande). === */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Health Card No {editingMember ? '(cannot be changed)' : '(leave blank to auto-generate)'}
+                      Health Card No {editingMember ? '(cannot be changed)' : ''}
                     </label>
                     <input
                       type="text"
                       value={formCardNo}
-                      onChange={(e) => setFormCardNo(e.target.value)}
-                      placeholder={editingMember ? undefined : 'e.g. AMID-260903-00497 — leave blank to auto-assign'}
+                      onChange={(e) => setFormCardNo(e.target.value.toUpperCase().slice(0, 11))}
+                      placeholder={editingMember ? undefined : 'e.g. A1B2C3D4E5F (11 alphanumeric characters)'}
+                      maxLength={11}
                       disabled={!!editingMember}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-70 disabled:cursor-not-allowed"
+                      required={!editingMember}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 uppercase tracking-wide focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-70 disabled:cursor-not-allowed"
                     />
                   </div>
                   <div>
@@ -1554,7 +1502,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                         type="text"
                         value={mainInsuredCardNo}
                         onChange={(e) => setMainInsuredCardNo(e.target.value)}
-                        placeholder="e.g. AMID-260903-00001"
+                        placeholder="e.g. A1B2C3D4E5F"
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         required
                       />
@@ -1633,7 +1581,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       <button
                         type="button"
                         onClick={() => setIsWebcamModalOpen(true)}
-                        className="flex-1 py-2 px-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                        className={`flex-1 py-2 px-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs`}
                       >
                         <Camera className="w-3.5 h-3.5" />
                         <span>Webcam</span>
@@ -1703,7 +1651,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                 <button
                   type="submit"
                   disabled={isSavingCard}
-                  className="px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-extrabold shadow-md shadow-slate-900/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  className={`px-6 py-2.5 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-extrabold shadow-md shadow-slate-900/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
                   <UserCheck className="w-4 h-4" />
                   <span>{isSavingCard ? 'Assigning card number…' : editingMember ? 'Update Member' : 'Submit Enrollment'}</span>

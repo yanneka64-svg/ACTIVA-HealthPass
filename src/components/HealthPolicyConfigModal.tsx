@@ -20,6 +20,11 @@ import {
 import { HealthPolicy, HealthPolicyStatus, Organization, PolicyPayment, SuspensionReason } from '../types';
 import { getPolicyCoverageStatus } from '../services/policyEngine';
 import { useCurrency } from '../services/currency';
+// === AMÉLIORATION AJOUTÉE : harmonisation des couleurs de boutons — ce bouton "Save" utilisait
+// le bleu marine Agent (#0A347B) codé en dur, alors que cette fenêtre n'est ouverte que depuis
+// OrganizationsView (section "Management", réservée à Admin — voir Sidebar.tsx). Il suit
+// maintenant ADMIN_THEME.palette.primaryColor, comme le reste de l'interface Admin.
+import { ADMIN_THEME } from '../theme/roleTheme';
 
 interface HealthPolicyConfigModalProps {
   organization: Organization;
@@ -436,7 +441,7 @@ export const HealthPolicyConfigModal: React.FC<HealthPolicyConfigModalProps> = (
 
         <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2.5 shrink-0">
           <button onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white cursor-pointer">Cancel</button>
-          <button onClick={handleSave} className="px-5 py-2 rounded-xl bg-[#0A347B] hover:bg-[#08285e] text-white text-xs font-bold shadow-sm cursor-pointer">Save Policy Configuration</button>
+          <button onClick={handleSave} className={`px-5 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold shadow-sm cursor-pointer`}>Save Policy Configuration</button>
         </div>
       </div>
     </div>

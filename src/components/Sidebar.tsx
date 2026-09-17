@@ -19,6 +19,14 @@ import { useTranslation } from '../i18n/translations';
 import { Logo } from './Logo';
 import { normalizeRole } from '../utils/authUtils';
 import { getRoleTheme } from '../theme/roleTheme';
+// === AMÉLIORATION AJOUTÉE : photos fournies par l'utilisateur, fond des sidebars Agent,
+// Superviseur et Admin (retour utilisateur explicite, 2026-09-11 — "ajoute cette photo comme
+// fond d'écran pour le sidebar interface agent", puis "utilise ceci pour le sidebar côté
+// superviseur", puis "utilise cette photo pour le sidebar côté admin") — voir plus bas
+// (sidebarPhoto).
+import agentSidebarPhoto from '../assets/sidebar-agent-photo.webp';
+import supervisorSidebarPhoto from '../assets/sidebar-supervisor-photo.webp';
+import adminSidebarPhoto from '../assets/sidebar-admin-photo.webp';
 
 interface SidebarProps {
   currentUser?: any;
@@ -54,7 +62,7 @@ const CollapsibleNavSection: React.FC<CollapsibleNavSectionProps> = ({
         type="button"
         id={`nav-toggle-${id}`}
         onClick={onToggle}
-        className={`w-full px-3 py-2 flex items-center justify-between text-[10.5px] font-extrabold tracking-wider ${titleColor} hover:text-white uppercase transition-colors duration-150 cursor-pointer group select-none`}
+        className={`w-full px-3 py-2 flex items-center justify-between text-[11px] font-extrabold tracking-wider ${titleColor} hover:text-white uppercase transition-colors duration-150 cursor-pointer group select-none`}
         aria-expanded={isOpen}
       >
         <span className="truncate group-hover:text-white transition-colors">{title}</span>
@@ -99,12 +107,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isAgent = role === 'Agent';
   const isSupervisor = role === 'Supervisor';
   const isAdmin = role === 'Admin';
+  // === AMÉLIORATION AJOUTÉE : photo de fond par rôle (Agent/Superviseur/Admin, retour
+  // utilisateur explicite, 2026-09-11) — voir l'import en haut du fichier et l'utilisation
+  // sur <aside> plus bas.
+  const sidebarPhoto = isAgent
+    ? agentSidebarPhoto
+    : isSupervisor
+    ? supervisorSidebarPhoto
+    : isAdmin
+    ? adminSidebarPhoto
+    : null;
 
   const overviewItems = [
     { id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard },
     { id: 'identification', label: t.nav.identification, icon: Users },
     { id: 'medical_form', label: t.nav.medical_form, icon: FileCheck },
-    { id: 'claims', label: isAgent ? t.nav.claims : 'Claims Processing', icon: Receipt, badge: pendingClaimsCount },
+    // === AMÉLIORATION AJOUTÉE : traduction (retour utilisateur, 2026-09-11 — "tout n'est pas
+    // traduit") — ce libellé retombait sur le littéral anglais "Claims Processing" pour tout
+    // rôle non-Agent (Admin), au lieu de suivre la langue active comme partout ailleurs.
+    // t.nav.claims vaut déjà exactement "Claims Processing" en anglais — la valeur affichée ne
+    // change donc pas en anglais, seul le français (et toute langue future) est désormais suivi.
+    { id: 'claims', label: t.nav.claims, icon: Receipt, badge: pendingClaimsCount },
     { id: 'claims_validation', label: t.nav.claims_validation, icon: FileCheck, badge: pendingClaimsCount },
     { id: 'enrollments_validation', label: t.nav.enrollments_validation, icon: UserCheck, badge: pendingEnrollmentsCount },
     { id: 'receipts', label: t.nav.receipts, icon: Receipt },
@@ -121,21 +144,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return ['identification', 'medical_form', 'claims', 'enrollments'].includes(item.id);
     }
     if (isSupervisor) {
-      return ['dashboard', 'medical_form', 'claims_validation', 'enrollments_validation', 'receipts', 'reports'].includes(item.id);
+      // === AMÉLIORATION AJOUTÉE : "Identification" ajouté côté Superviseur (retour
+      // utilisateur explicite, 2026-09-11 — "ajouter également l'identification comme sur
+      // le profil agent"), même écran (AgentIdentificationView) que pour l'Agent — voir
+      // App.tsx, effectiveSection === 'identification' (déjà indépendant du rôle).
+      return ['dashboard', 'identification', 'medical_form', 'claims_validation', 'enrollments_validation', 'receipts', 'reports'].includes(item.id);
     }
     return false;
   });
 
+  // === AMÉLIORATION AJOUTÉE : traduction (retour utilisateur, 2026-09-11 — "tout n'est pas
+  // traduit") — ces 6 libellés étaient codés en dur en anglais au lieu d'utiliser les clés
+  // t.nav.* correspondantes, déjà traduites (voir src/i18n/translations.ts) et déjà utilisées
+  // pour tous les autres éléments de la sidebar. Aucun changement en anglais (mêmes valeurs).
   const managementItems = [
-    { id: 'members', label: 'Insured Members', icon: Users },
-    { id: 'organizations', label: 'Organizations', icon: Building2 },
-    { id: 'providers', label: 'Healthcare Providers', icon: Stethoscope },
-    { id: 'ceilings', label: 'Coverage Ceilings', icon: Sliders },
+    { id: 'members', label: t.nav.members, icon: Users },
+    { id: 'organizations', label: t.nav.organizations, icon: Building2 },
+    { id: 'providers', label: t.nav.providers, icon: Stethoscope },
+    { id: 'ceilings', label: t.nav.ceilings, icon: Sliders },
   ] as any;
 
   const systemItems = [
-    { id: 'accounts', label: 'User Accounts', icon: ShieldCheck },
-    { id: 'logs', label: 'Audit & Access Logs', icon: History },
+    { id: 'accounts', label: t.nav.accounts, icon: ShieldCheck },
+    { id: 'logs', label: t.nav.logs, icon: History },
   ] as any;
 
   const renderNavItem = (item: { id: NavSection; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }) => {
@@ -184,23 +215,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className={`w-[248px] ${theme.palette.sidebarGradient} text-white flex flex-col h-full shadow-2xl select-none border-r ${theme.palette.sidebarBorder} relative overflow-hidden`}>
+    <aside
+      className={`w-[248px] ${sidebarPhoto ? 'bg-cover bg-center' : theme.palette.sidebarGradient} text-white flex flex-col h-full shadow-2xl select-none border-r ${theme.palette.sidebarBorder} relative overflow-hidden`}
+      style={sidebarPhoto ? { backgroundImage: `url(${sidebarPhoto})` } : undefined}
+    >
+      {/* === AMÉLIORATION AJOUTÉE : photo en fond pour les 3 rôles (Agent, Superviseur, Admin),
+          avec le dégradé d'origine de chaque rôle (theme.palette.sidebarGradient — bleu marine
+          pour Agent/Superviseur, gris ardoise pour Admin) posé en surcouche semi-transparente
+          par-dessus — identique au traitement déjà appliqué au panneau gauche de la page de
+          connexion (LoginView.tsx) — afin que le logo, le motif et les libellés blancs restent
+          parfaitement lisibles. Les 3 photos sont pré-recadrées (voir src/assets/sidebar-*-
+          photo.webp) au même ratio étroit que le sidebar, pour que le cadrage automatique en
+          fond ("cover") ne coupe pas les repères visuels du genre — cravate/barbe naissante
+          côté Agent et Admin, cheveux bouclés/visage côté Superviseur. Surcouche allégée pour
+          les 3 rôles (0.60/0.55/0.65 au lieu des 0.90/0.85/0.92 d'origine, repris de LoginView)
+          — retour utilisateur explicite : "rassure toi qu'on voit bien qu'il s'agit d'une
+          femme" puis "... qu'il s'agit d'un homme un peu comme sur l'interface superviseur" —
+          la surcouche standard rendait ces repères trop peu distincts. === */}
+      {sidebarPhoto && (
+        <div
+          className={`absolute inset-0 bg-gradient-to-b pointer-events-none ${
+            isAdmin
+              ? 'from-[#334155]/60 via-[#3B485C]/55 to-[#1E293B]/65'
+              : 'from-[#072659]/60 via-[#0A347B]/55 to-[#0D2B63]/65'
+          }`}
+        />
+      )}
+
       {/* Background ambient light glow */}
       <div className={`absolute -bottom-16 -left-16 w-56 h-56 ${theme.palette.accentGlow} rounded-full blur-3xl pointer-events-none`} />
 
-      {/* Clean subtle ACTIVA vector background curves without dots */}
-      {/* === AMÉLIORATION AJOUTÉE : couleur du motif désormais tirée de theme.palette.motifStroke
-          (or/ambre pour Admin, turquoise pour Superviseur, blanc inchangé pour Agent) au lieu
-          d'un blanc fixe pour les 3 rôles — le tracé SVG et les niveaux d'opacité restent
-          strictement identiques, seule la teinte varie selon l'interface active. === */}
-      <div className="absolute inset-0 pointer-events-none opacity-50 overflow-hidden z-0">
-        <svg className="absolute bottom-0 left-0 w-full h-84" viewBox="0 0 250 320" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M-40 320 C 30 240, 110 220, 270 250" stroke={`rgba(${theme.palette.motifStroke}, 0.55)`} strokeWidth="1.8" />
-          <path d="M-40 280 C 50 210, 130 190, 270 220" stroke={`rgba(${theme.palette.motifStroke}, 0.45)`} strokeWidth="1.5" />
-          <path d="M-40 240 C 70 180, 150 160, 270 190" stroke={`rgba(${theme.palette.motifStroke}, 0.38)`} strokeWidth="1.3" />
-          <path d="M-40 200 C 90 150, 170 130, 270 160" stroke={`rgba(${theme.palette.motifStroke}, 0.30)`} strokeWidth="1.2" />
-        </svg>
-      </div>
+      {/* === AMÉLIORATION AJOUTÉE : motif décoratif de courbes SVG retiré des 3 sidebars
+          (retour utilisateur explicite, 2026-09-11 — "supprimer les motifs qui se trouvent sur
+          tous les sidebar des interfaces (agent, superviseur, et admin)"), maintenant que les
+          photos de fond en tiennent lieu visuellement. Reste inchangé : le halo lumineux
+          ci-dessus et le dégradé de couleur (uni ou en surcouche sur la photo) selon le rôle. === */}
 
       {/* Brand Header with White Background Logo & Mobile Close Button */}
       <div className="p-3 relative z-10">
@@ -228,7 +277,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title="OVERVIEW"
           isOpen={isOverviewOpen}
           onToggle={() => setIsOverviewOpen((prev) => !prev)}
-          titleColor={isAdmin ? 'text-slate-300/90' : isSupervisor ? 'text-teal-200/80' : 'text-blue-200/80'}
+          titleColor={isAdmin || isSupervisor ? 'text-slate-300/90' : 'text-blue-200/80'}
         >
           {filteredOverviewItems.map(renderNavItem)}
         </CollapsibleNavSection>
@@ -268,11 +317,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1 min-w-0">
             <div className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse flex-shrink-0" />
-            <span className="text-[9.5px] font-semibold text-white/90 tracking-wide truncate">
+            <span className="text-[10px] font-semibold text-white/90 tracking-wide truncate">
               {currentUser?.entity || 'ACTIVA Liberia'}
             </span>
           </div>
-          <span className="text-white/60 text-[9.5px] font-mono font-bold shrink-0">
+          <span className="text-white/60 text-[10px] font-mono font-bold shrink-0">
             v2.4.0
           </span>
         </div>

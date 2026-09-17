@@ -31,6 +31,7 @@ import {
 import { Ceiling, Language, Organization, PeriodicityType } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
+import { ADMIN_THEME } from '../../theme/roleTheme';
 
 interface CeilingsViewProps {
   lang?: Language;
@@ -54,14 +55,14 @@ export const ALL_BENEFITS = [
 ] as const;
 
 export const CeilingsView: React.FC<CeilingsViewProps> = ({
-  lang = 'en',
+  lang = 'en' as Language,
   ceilings,
   organizations = [],
   onAddCeiling,
   onUpdateCeiling,
   onDeleteCeiling,
 }) => {
-  const t = useTranslation('en');
+  const t = useTranslation(lang);
   const { formatAmount } = useCurrency();
 
   // Filters & Search
@@ -494,66 +495,68 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. TOP POLICY AGE LIMITS & REAL-TIME ELIGIBILITY CONTROLS BANNER */}
-      {/* === AMÉLIORATION AJOUTÉE : bannière alignée sur le gris déjà utilisé par la barre
-          latérale Admin (auparavant un dégradé quasi-noir #111827/#0F172A, incohérent avec
-          le reste de l'interface Admin) === */}
-      <div className="bg-gradient-to-r from-[#334155] via-[#3B485C] to-[#1E293B] rounded-3xl p-6 text-white shadow-xl border border-slate-600/70 relative overflow-hidden">
+      {/* === AMÉLIORATION AJOUTÉE : retour au gris (retour utilisateur, 2026-09-07) — le fond
+          rouge introduit puis affiné à plusieurs reprises est abandonné ("revient au gris comme
+          c'était avant"). Ce bandeau suit désormais ADMIN_THEME.palette.bannerGradient, la même
+          teinte grise (plus claire qu'avant le rouge) que le reste de l'interface Admin, au lieu
+          d'une couleur propre à cette bannière. Le texte/les badges/bulles restent dans les
+          mêmes teintes claires translucides (blanc/10, blanc/20) qu'avant, qui fonctionnent sur
+          n'importe quel fond sombre — seule la couleur de fond change réellement. */}
+      <div className={`${ADMIN_THEME.palette.bannerGradient} rounded-3xl p-6 text-white shadow-xl border ${ADMIN_THEME.palette.bannerBorder} relative overflow-hidden`}>
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
         
-        {/* === AMÉLIORATION AJOUTÉE : le badge "Policy Age Limits & Real-Time Eligibility
-            Verification" (et le paragraphe descriptif sous lui) sont désormais alignés en HAUT
-            (items-start, au lieu de items-center) — au même niveau vertical que le libellé
-            "PRIMARY INSURED" en haut de sa bulle — et restent justifiés à l'extrême gauche de la
-            bannière ; les bulles + le bouton "Configure Benefit Limit" gardent leur position
-            initiale à droite, inchangée. === */}
-        <div className="relative z-10 space-y-3">
-          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-            {/* === AMÉLIORATION AJOUTÉE : le paragraphe descriptif est remonté juste sous le
-                badge "Policy Age Limits & Real-Time Eligibility Verification" (au lieu de se
-                trouver plus bas, après les bulles d'âge et le bouton), avec un retour à la
-                ligne normal et un alignement explicite à gauche. === */}
-            <div className="space-y-2 max-w-md lg:max-w-lg shrink-0">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold tracking-wide uppercase text-gray-300">
-                <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
-                <span>Policy Age Limits & Real-Time Eligibility Verification</span>
-              </div>
-              {/* === AMÉLIORATION AJOUTÉE : texte justifié (text-justify) sur demande explicite,
-                  au lieu d'un simple alignement à gauche — les bords gauche ET droit du
-                  paragraphe sont désormais alignés. === */}
-              <p className="text-xs text-gray-300 leading-relaxed font-medium text-justify whitespace-normal break-words">
-                Real-time age validation automatically blocks claims and invalidates coverage if an insured person exceeds the configured policy age limit on the date of care.
-              </p>
+        {/* === AMÉLIORATION AJOUTÉE : refonte du bandeau (retour utilisateur, 2026-09-11 —
+            "repenser ce tableau", piste C retenue parmi 3 propositions) ===
+            Depuis le retrait de la phrase explicative sous le badge "Real-Time Eligibility
+            Verification" (correctif précédent), ce badge flottait seul en haut à gauche avec un
+            grand vide avant les bulles d'âge — les deux zones (badge d'un côté, bulles+bouton de
+            l'autre) lisaient comme deux blocs déconnectés. Le badge adopte désormais le même
+            style que les bulles d'âge (fond/bordure/coins identiques) et devient la première
+            puce d'une seule rangée continue, séparée des bulles par un simple trait vertical —
+            toute la bannière se lit comme un ensemble cohérent. Contenu inchangé : même icône,
+            même texte de badge (t.ceilings.eligibilityBadge), mêmes bulles, même bouton.
+            flex-wrap (au lieu de l'ancien flex-nowrap strict) laisse la rangée revenir à la
+            ligne sur petit écran plutôt que de forcer un défilement horizontal ou un
+            débordement — chaque puce garde sa taille naturelle et wrap proprement. */}
+        <div className="relative z-10">
+          <div className="flex flex-wrap lg:flex-nowrap items-center gap-3">
+            <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5 shrink-0">
+              <ShieldAlert className="w-4.5 h-4.5 text-amber-300 shrink-0" />
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-200 leading-tight">
+                {t.ceilings.eligibilityBadge}
+              </span>
             </div>
 
+            <div className="hidden lg:block w-px self-stretch bg-white/15 shrink-0" />
+
             {/* Dynamic Age Limits Display Pills */}
-            <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
-                Primary Insured
+            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px] shrink-0">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-200 block">
+                {t.ceilings.primaryInsuredLabel}
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgePrinc}</span>
-                <span className="text-[10px] font-bold text-gray-300">years</span>
+                <span className="text-[10px] font-bold text-slate-200">{t.ceilings.yearsUnit}</span>
               </div>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
-                Spouse
+            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px] shrink-0">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-200 block">
+                {t.ceilings.spouseLabel}
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgeSpouse}</span>
-                <span className="text-[10px] font-bold text-gray-300">years</span>
+                <span className="text-[10px] font-bold text-slate-200">{t.ceilings.yearsUnit}</span>
               </div>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[140px]">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300 block">
-                Child / Dependant
+            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[140px] shrink-0">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-200 block">
+                {t.ceilings.childDependantLabel}
               </span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="text-xl font-black text-white">≤ {activeAgeChild}</span>
-                <span className="text-[10px] font-bold text-emerald-400">({activeAgeStudent}y student)</span>
+                <span className="text-[10px] font-bold text-emerald-400">({t.ceilings.studentSuffixTemplate.replace('{age}', String(activeAgeStudent))})</span>
               </div>
             </div>
 
@@ -564,12 +567,11 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             <button
               id="configure-benefit-limit-btn"
               onClick={openNewBenefitLimitWizard}
-              className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-slate-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0"
+              className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-slate-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0 lg:ml-auto"
             >
               <PlusCircle className="w-4 h-4 text-slate-800" />
-              <span>Configure Benefit Limit</span>
+              <span>{t.ceilings.configureBenefitLimitBtn}</span>
             </button>
-            </div>
           </div>
         </div>
       </div>
@@ -586,7 +588,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Search benefit name or organization..."
+              placeholder={t.ceilings.searchPlaceholder}
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:bg-white transition"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -601,7 +603,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             }}
             className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
-            <option value="ALL">All Benefit Types</option>
+            <option value="ALL">{t.ceilings.allBenefitTypesOption}</option>
             {availableBenefits.map((b) => (
               <option key={b} value={b}>
                 {b}
@@ -611,7 +613,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
 
           {/* Items per page selector */}
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-slate-400 font-bold whitespace-nowrap">Show:</span>
+            <span className="text-xs text-slate-400 font-bold whitespace-nowrap">{t.ceilings.showLabel}</span>
             <select
               value={itemsPerPage}
               onChange={(e) => {
@@ -623,7 +625,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
-              <option value={999}>All</option>
+              <option value={999}>{t.ceilings.allOption}</option>
             </select>
           </div>
         </div>
@@ -637,14 +639,14 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             <div className="flex items-center gap-2.5">
               <Sliders className="w-4 h-4 text-slate-700" />
               <h2 className="font-extrabold text-sm text-slate-900">
-                Coverage Ceilings & Limits Matrix
+                {t.ceilings.tableTitle}
               </h2>
               <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-xs font-black">
-                {filteredCeilings.length} benefits
+                {filteredCeilings.length} {t.ceilings.benefitsCountSuffix}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5 font-normal">
-              Monthly and annual coverage rules, member allowances, and policy age restrictions.
+              {t.ceilings.tableSubtitle}
             </p>
           </div>
         </div>
@@ -659,7 +661,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               className="text-slate-700 font-bold hover:underline cursor-pointer inline-flex items-center gap-1.5"
             >
               <PlusCircle className="w-3.5 h-3.5" />
-              <span>Create a new benefit limit</span>
+              <span>{t.ceilings.createNewBenefitLimit}</span>
             </button>
           </div>
         ) : (
@@ -670,25 +672,25 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
                   <th className="py-3.5 px-4 whitespace-nowrap">
-                    Organization
+                    {t.members.organization}
                   </th>
                   <th className="py-3.5 px-4 whitespace-nowrap">
-                    Benefit
+                    {t.ceilings.colBenefit}
                   </th>
                   <th className="py-3.5 px-4 whitespace-nowrap">
-                    Monthly Limit
+                    {t.ceilings.colMonthlyLimit}
                   </th>
                   <th className="py-3.5 px-4 whitespace-nowrap">
-                    Annual Limit
+                    {t.ceilings.colAnnualLimit}
                   </th>
                   <th className="py-3.5 px-4 whitespace-nowrap">
-                    Age Limits (Policy)
+                    {t.ceilings.colAgeLimitsPolicy}
                   </th>
                   <th className="py-3.5 px-4 text-center whitespace-nowrap">
-                    Consumption
+                    {t.ceilings.colConsumption}
                   </th>
                   <th className="py-3.5 px-4 text-right whitespace-nowrap">
-                    Actions
+                    {t.actions}
                   </th>
                 </tr>
               </thead>
@@ -760,12 +762,12 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div
                           className="flex flex-col"
-                          title={`Principal: $${monthlyPrinc.toLocaleString()} | Dependent: $${monthlyDep.toLocaleString()}`}
+                          title={t.ceilings.principalDependentTooltip.replace('{principal}', `$${monthlyPrinc.toLocaleString()}`).replace('{dependent}', `$${monthlyDep.toLocaleString()}`)}
                         >
                           <span className="font-mono font-bold text-slate-900 text-xs tracking-tight">
                             ${monthlyPrinc.toLocaleString()} <span className="text-slate-300 font-normal">/</span> <span className="text-slate-600">${monthlyDep.toLocaleString()}</span>
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium">Principal / Dependent</span>
+                          <span className="text-[10px] text-slate-400 font-medium">{t.ceilings.principalDependentLabel}</span>
                         </div>
                       </td>
 
@@ -773,25 +775,25 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div
                           className="flex flex-col"
-                          title={`Principal: $${annPrinc.toLocaleString()} | Dependent: $${annDep.toLocaleString()}`}
+                          title={t.ceilings.principalDependentTooltip.replace('{principal}', `$${annPrinc.toLocaleString()}`).replace('{dependent}', `$${annDep.toLocaleString()}`)}
                         >
                           <span className="font-mono font-bold text-slate-900 text-xs tracking-tight">
                             ${annPrinc.toLocaleString()} <span className="text-slate-300 font-normal">/</span> <span className="text-slate-600">${annDep.toLocaleString()}</span>
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium">Principal / Dependent</span>
+                          <span className="text-[10px] text-slate-400 font-medium">{t.ceilings.principalDependentLabel}</span>
                         </div>
                       </td>
 
                       {/* Age Limits Column */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-100 text-[10px] font-bold" title={`Principal ≤ ${maxP} yrs`}>
+                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-100 text-[10px] font-bold" title={t.ceilings.principalAgeTooltip.replace('{age}', String(maxP))}>
                             P: ≤{maxP}y
                           </span>
-                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold" title={`Spouse ≤ ${maxS} yrs`}>
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold" title={t.ceilings.spouseAgeTooltip.replace('{age}', String(maxS))}>
                             S: ≤{maxS}y
                           </span>
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold" title={`Child ≤ ${maxC} yrs (${maxSt}y student)`}>
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold" title={t.ceilings.childAgeTooltip.replace('{age}', String(maxC)).replace('{student}', String(maxSt))}>
                             C: ≤{maxC}y
                           </span>
                         </div>
@@ -827,14 +829,14 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                           <button
                             onClick={() => openEditCeilingModal(c)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                            title="Edit benefit limits"
+                            title={t.ceilings.editBenefitLimitsTitle}
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => onDeleteCeiling(c.id)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                            title="Delete rule"
+                            title={t.ceilings.deleteRuleTitle}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -887,14 +889,14 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       <button
                         onClick={() => openEditCeilingModal(c)}
                         className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                        title="Edit benefit limits"
+                        title={t.ceilings.editBenefitLimitsTitle}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => onDeleteCeiling(c.id)}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                        title="Delete rule"
+                        title={t.ceilings.deleteRuleTitle}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -911,13 +913,13 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
 
                   <div className="grid grid-cols-2 gap-2.5 text-[11px]">
                     <div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Monthly (P/D)</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{t.ceilings.monthlyPDLabel}</div>
                       <div className="font-mono font-bold text-slate-900">
                         ${monthlyPrinc.toLocaleString()} / ${monthlyDep.toLocaleString()}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Annual (P/D)</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{t.ceilings.annualPDLabel}</div>
                       <div className="font-mono font-bold text-slate-900">
                         ${annPrinc.toLocaleString()} / ${annDep.toLocaleString()}
                       </div>
@@ -938,7 +940,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-[11px] font-bold">
-                      <span className="text-slate-400 font-medium">Consumption</span>
+                      <span className="text-slate-400 font-medium">{t.ceilings.colConsumption}</span>
                       <span className={isHigh ? 'text-rose-600' : 'text-slate-700'}>{consumed}%</span>
                     </div>
                     <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -962,15 +964,17 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
         {filteredCeilings.length > 0 && (
           <div className="px-6 py-3.5 bg-slate-50/70 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600">
             <span>
-              Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredCeilings.length)} to{' '}
-              {Math.min(currentPage * itemsPerPage, filteredCeilings.length)} of {filteredCeilings.length} benefits
+              {t.ceilings.showingTemplate
+                .replace('{from}', String(Math.min((currentPage - 1) * itemsPerPage + 1, filteredCeilings.length)))
+                .replace('{to}', String(Math.min(currentPage * itemsPerPage, filteredCeilings.length)))
+                .replace('{total}', String(filteredCeilings.length))}
             </span>
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
                 className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition"
-                title="Previous page"
+                title={t.ceilings.previousPageTitle}
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -991,7 +995,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
                 className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition"
-                title="Next page"
+                title={t.ceilings.nextPageTitle}
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -1007,7 +1011,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             <div className="px-6 py-4.5 bg-white border-b border-slate-200 text-slate-900 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <ShieldAlert className="w-5 h-5 text-amber-500" />
-                <h3 className="text-base font-black text-slate-900">Configure Policy Age Limits</h3>
+                <h3 className="text-base font-black text-slate-900">{t.ceilings.ageLimitsModalTitle}</h3>
               </div>
               <button
                 onClick={() => setAgeLimitsModalOpen(false)}
@@ -1020,7 +1024,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Target Organization / Policy
+                  {t.ceilings.targetOrgLabel}
                 </label>
                 <select
                   value={ageLimitsOrg}
@@ -1046,7 +1050,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
                 <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                   <label className="block text-xs font-extrabold text-blue-900 mb-1">
-                    Principal Insured (Max Age)
+                    {t.ceilings.principalInsuredMaxAgeLabel}
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -1057,14 +1061,14 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       onChange={(e) => setAgeLimitPrincipal(parseInt(e.target.value, 10) || 65)}
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
-                    <span className="text-xs font-bold text-slate-400">years</span>
+                    <span className="text-xs font-bold text-slate-400">{t.ceilings.yearsUnit}</span>
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-1 block">Default: 65 years</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">{t.ceilings.defaultAge65}</span>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                   <label className="block text-xs font-extrabold text-indigo-900 mb-1">
-                    Spouse / Husband / Wife
+                    {t.ceilings.spouseHusbandWifeLabel}
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -1075,14 +1079,14 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       onChange={(e) => setAgeLimitSpouse(parseInt(e.target.value, 10) || 65)}
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
-                    <span className="text-xs font-bold text-slate-400">years</span>
+                    <span className="text-xs font-bold text-slate-400">{t.ceilings.yearsUnit}</span>
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-1 block">Default: 65 years</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">{t.ceilings.defaultAge65}</span>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                   <label className="block text-xs font-extrabold text-emerald-900 mb-1">
-                    Children / Dependants
+                    {t.ceilings.childrenDependantsLabel}
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -1093,14 +1097,14 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       onChange={(e) => setAgeLimitChild(parseInt(e.target.value, 10) || 21)}
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
-                    <span className="text-xs font-bold text-slate-400">years</span>
+                    <span className="text-xs font-bold text-slate-400">{t.ceilings.yearsUnit}</span>
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-1 block">Standard cutoff: 21 years</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">{t.ceilings.standardCutoff21}</span>
                 </div>
 
                 <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                   <label className="block text-xs font-extrabold text-purple-900 mb-1">
-                    Students (Higher Ed)
+                    {t.ceilings.studentsHigherEdLabel}
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -1111,16 +1115,16 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       onChange={(e) => setAgeLimitStudent(parseInt(e.target.value, 10) || 25)}
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
-                    <span className="text-xs font-bold text-slate-400">years</span>
+                    <span className="text-xs font-bold text-slate-400">{t.ceilings.yearsUnit}</span>
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-1 block">With school enrollment: 25 years</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">{t.ceilings.schoolEnrollment25}</span>
                 </div>
               </div>
 
               {ageSavedSuccess && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Age limits saved successfully for {ageLimitsOrg}!</span>
+                  <span>{t.ceilings.ageLimitsSavedSuccess.replace('{org}', ageLimitsOrg)}</span>
                 </div>
               )}
             </div>
@@ -1131,7 +1135,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 onClick={() => setAgeLimitsModalOpen(false)}
                 className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white transition cursor-pointer"
               >
-                Cancel
+                {t.cancel}
               </button>
               <button
                 type="button"
@@ -1139,7 +1143,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 className="px-5 py-2 rounded-xl bg-[#00A859] hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Check className="w-4 h-4" />
-                <span>Save Age Limits</span>
+                <span>{t.ceilings.saveAgeLimitsBtn}</span>
               </button>
             </div>
           </div>
@@ -1154,10 +1158,10 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
               <div>
                 <h3 className="text-base font-bold text-slate-900 tracking-tight">
-                  {editingCeilingId ? 'Edit Benefit Limit' : 'New Benefit Limit'}
+                  {editingCeilingId ? t.ceilings.editBenefitLimitTitle : t.ceilings.newBenefitLimitTitle}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Configure benefit limits and policy age restrictions for an organization
+                  {t.ceilings.wizardSubtitle}
                 </p>
               </div>
               <button
@@ -1192,7 +1196,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   >
                     {wizardStep > 1 ? '✓' : '1'}
                   </span>
-                  <span>Organization & Age</span>
+                  <span>{t.ceilings.stepOrgAge}</span>
                 </div>
                 <div className="w-8 h-0.5 bg-slate-200"></div>
 
@@ -1217,7 +1221,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   >
                     {wizardStep > 2 ? '✓' : '2'}
                   </span>
-                  <span>Benefits & Limits</span>
+                  <span>{t.ceilings.stepBenefitsLimits}</span>
                 </div>
                 <div className="w-8 h-0.5 bg-slate-200"></div>
 
@@ -1236,7 +1240,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   >
                     3
                   </span>
-                  <span>Review & Save</span>
+                  <span>{t.ceilings.stepReviewSave}</span>
                 </div>
               </div>
             </div>
@@ -1248,7 +1252,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Selected Organization
+                      {t.ceilings.selectedOrgLabel}
                     </label>
                     <div className="relative">
                       <select
@@ -1282,14 +1286,14 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                     <div className="flex items-center gap-2">
                       <ShieldAlert className="w-4 h-4 text-slate-700" />
                       <span className="text-xs font-extrabold text-slate-900">
-                        Configurable Policy Age Thresholds
+                        {t.ceilings.configurableAgeThresholds}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 pt-1">
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Principal Max Age
+                          {t.ceilings.principalMaxAgeLabel}
                         </label>
                         <input
                           type="number"
@@ -1300,7 +1304,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Spouse Max Age
+                          {t.ceilings.spouseMaxAgeLabel}
                         </label>
                         <input
                           type="number"
@@ -1311,7 +1315,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Child / Dependent Max Age
+                          {t.ceilings.childDependentMaxAgeLabel}
                         </label>
                         <input
                           type="number"
@@ -1322,7 +1326,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Student Max Age (Higher Ed)
+                          {t.ceilings.studentMaxAgeLabel}
                         </label>
                         <input
                           type="number"
@@ -1342,7 +1346,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   {/* Selected Organization */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Selected Organization
+                      {t.ceilings.selectedOrgLabel}
                     </label>
                     <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center gap-2">
                       <Building2 className="w-4 h-4 text-slate-700" />
@@ -1353,7 +1357,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   {/* Select Benefits (Multi-select) */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Select Benefits
+                      {t.ceilings.selectBenefitsLabel}
                     </label>
                     <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
                       {ALL_BENEFITS.map((benefit) => {
@@ -1386,7 +1390,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5">
                         <label className="text-xs font-bold text-slate-800">
-                          Configure Limits
+                          {t.ceilings.configureLimitsLabel}
                         </label>
                         <Info className="w-3.5 h-3.5 text-slate-400" />
                       </div>
@@ -1402,7 +1406,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
-                          Monthly Limits (USD)
+                          {t.ceilings.monthlyLimitsUsdTab}
                         </button>
                         <button
                           type="button"
@@ -1413,7 +1417,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
-                          Annual Limits (USD)
+                          {t.ceilings.annualLimitsUsdTab}
                         </button>
                       </div>
                     </div>
@@ -1423,12 +1427,12 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       <table className="w-full text-left text-xs border-collapse">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-600 uppercase">
-                            <th className="py-2.5 px-3">Benefit</th>
+                            <th className="py-2.5 px-3">{t.ceilings.colBenefit}</th>
                             <th className="py-2.5 px-2 text-center bg-blue-50/50 text-blue-900">
-                              Outpatient
+                              {t.ceilings.outpatientLabel}
                             </th>
                             <th className="py-2.5 px-2 text-center bg-indigo-50/50 text-indigo-900">
-                              Inpatient
+                              {t.ceilings.inpatientLabel}
                             </th>
                           </tr>
                         </thead>
@@ -1445,7 +1449,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                 <td className="py-3 px-2 bg-[var(--brand-50)]/20">
                                   <div className="flex items-center gap-1.5">
                                     <div className="flex-1">
-                                      <span className="block text-[9px] text-slate-400 font-bold">Principal</span>
+                                      <span className="block text-[10px] text-slate-400 font-bold">{t.ceilings.principalLabel}</span>
                                       <div className="relative">
                                         <span className="absolute left-2 top-1.5 text-slate-400 text-xs">$</span>
                                         <input
@@ -1470,7 +1474,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                       </div>
                                     </div>
                                     <div className="flex-1">
-                                      <span className="block text-[9px] text-slate-400 font-bold">Dependent</span>
+                                      <span className="block text-[10px] text-slate-400 font-bold">{t.ceilings.dependentLabel}</span>
                                       <div className="relative">
                                         <span className="absolute left-2 top-1.5 text-slate-400 text-xs">$</span>
                                         <input
@@ -1501,7 +1505,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                 <td className="py-3 px-2 bg-indigo-50/20">
                                   <div className="flex items-center gap-1.5">
                                     <div className="flex-1">
-                                      <span className="block text-[9px] text-slate-400 font-bold">Principal</span>
+                                      <span className="block text-[10px] text-slate-400 font-bold">{t.ceilings.principalLabel}</span>
                                       <div className="relative">
                                         <span className="absolute left-2 top-1.5 text-slate-400 text-xs">$</span>
                                         <input
@@ -1526,7 +1530,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                                       </div>
                                     </div>
                                     <div className="flex-1">
-                                      <span className="block text-[9px] text-slate-400 font-bold">Dependent</span>
+                                      <span className="block text-[10px] text-slate-400 font-bold">{t.ceilings.dependentLabel}</span>
                                       <div className="relative">
                                         <span className="absolute left-2 top-1.5 text-slate-400 text-xs">$</span>
                                         <input
@@ -1567,19 +1571,22 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 <div className="space-y-4">
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Organization</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{t.members.organization}</span>
                       <h4 className="text-sm font-bold text-slate-900">{wizardOrg}</h4>
                     </div>
 
                     <div className="pt-2 border-t border-slate-200">
                       <span className="text-[10px] font-bold text-slate-400 uppercase">
-                        Age Limits ({wizardAgePrincipal}y Principal, {wizardAgeSpouse}y Spouse, {wizardAgeChild}y Child)
+                        {t.ceilings.reviewAgeLimitsTemplate
+                          .replace('{p}', String(wizardAgePrincipal))
+                          .replace('{s}', String(wizardAgeSpouse))
+                          .replace('{c}', String(wizardAgeChild))}
                       </span>
                     </div>
 
                     <div className="pt-2 border-t border-slate-200">
                       <span className="text-[10px] font-bold text-slate-400 uppercase">
-                        Benefits to Configure ({wizardSelectedBenefits.length})
+                        {t.ceilings.reviewBenefitsToConfigureTemplate.replace('{n}', String(wizardSelectedBenefits.length))}
                       </span>
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {wizardSelectedBenefits.map((b) => (
@@ -1596,7 +1603,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
 
                   {/* Limits summary list */}
                   <div className="space-y-2">
-                    <span className="text-xs font-bold text-slate-800">Limits Breakdown</span>
+                    <span className="text-xs font-bold text-slate-800">{t.ceilings.limitsBreakdownLabel}</span>
                     <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                       {wizardSelectedBenefits.map((benefit) => {
                         const cfg = benefitLimits[benefit] || getDefaultLimitsForBenefit(benefit);
@@ -1608,14 +1615,14 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                             <div className="font-bold text-slate-900">{benefit}</div>
                             <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
                               <div className="p-2 bg-blue-50/50 rounded-lg">
-                                <span className="font-bold text-blue-800 block">Outpatient</span>
-                                <div>Monthly: Princ ${cfg.outpatientMonthlyPrincipal} | Dep ${cfg.outpatientMonthlyDependent}</div>
-                                <div>Annual: Princ ${cfg.outpatientAnnualPrincipal} | Dep ${cfg.outpatientAnnualDependent}</div>
+                                <span className="font-bold text-blue-800 block">{t.ceilings.outpatientLabel}</span>
+                                <div>{t.ceilings.monthlyBreakdownTemplate.replace('{princ}', `$${cfg.outpatientMonthlyPrincipal}`).replace('{dep}', `$${cfg.outpatientMonthlyDependent}`)}</div>
+                                <div>{t.ceilings.annualBreakdownTemplate.replace('{princ}', `$${cfg.outpatientAnnualPrincipal}`).replace('{dep}', `$${cfg.outpatientAnnualDependent}`)}</div>
                               </div>
                               <div className="p-2 bg-indigo-50/50 rounded-lg">
-                                <span className="font-bold text-indigo-900 block">Inpatient</span>
-                                <div>Monthly: Princ ${cfg.inpatientMonthlyPrincipal} | Dep ${cfg.inpatientMonthlyDependent}</div>
-                                <div>Annual: Princ ${cfg.inpatientAnnualPrincipal} | Dep ${cfg.inpatientAnnualDependent}</div>
+                                <span className="font-bold text-indigo-900 block">{t.ceilings.inpatientLabel}</span>
+                                <div>{t.ceilings.monthlyBreakdownTemplate.replace('{princ}', `$${cfg.inpatientMonthlyPrincipal}`).replace('{dep}', `$${cfg.inpatientMonthlyDependent}`)}</div>
+                                <div>{t.ceilings.annualBreakdownTemplate.replace('{princ}', `$${cfg.inpatientAnnualPrincipal}`).replace('{dep}', `$${cfg.inpatientAnnualDependent}`)}</div>
                               </div>
                             </div>
                           </div>
@@ -1637,7 +1644,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 }}
                 className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-white transition cursor-pointer"
               >
-                {wizardStep === 1 ? 'Cancel' : 'Back'}
+                {wizardStep === 1 ? t.cancel : t.ceilings.backBtn}
               </button>
 
               <div className="flex items-center gap-2">
@@ -1645,9 +1652,9 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setWizardStep((s) => (s + 1) as 1 | 2 | 3)}
-                    className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className={`px-4 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs`}
                   >
-                    <span>{wizardStep === 1 ? 'Next: Benefits & Limits' : 'Next: Review & Save'}</span>
+                    <span>{wizardStep === 1 ? t.ceilings.nextBenefitsLimitsBtn : t.ceilings.nextReviewSaveBtn}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 ) : (
@@ -1657,7 +1664,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                     className="px-5 py-2 rounded-xl bg-[#00A859] hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <Check className="w-4 h-4" />
-                    <span>Save Benefit Limits</span>
+                    <span>{t.ceilings.saveBenefitLimitsBtn}</span>
                   </button>
                 )}
               </div>

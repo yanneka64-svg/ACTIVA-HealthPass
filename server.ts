@@ -4,31 +4,54 @@ import { createServer as createViteServer } from 'vite';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, DocumentData } from 'firebase-admin/firestore';
-import { initializeApp as initializeClientApp, getApps as getClientApps } from 'firebase/app';
-import { getAuth as getClientAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore as getClientFirestore, collection as getClientCollection, getDocs as getClientDocs } from 'firebase/firestore';
-import { verifyPassword } from './src/utils/passwordUtils';
+import pino from 'pino';
+import pinoHttp from 'pino-http';
+
+// === AMÉLIORATION AJOUTÉE : observabilité (préparation Go-Live, 2026-09-07) ===
+// Logs structurés (JSON, niveaux de sévérité) au lieu de console.log/console.warn épars —
+// nécessaire pour qu'un outil de monitoring externe (Cloud Logging, Datadog, etc., voir action
+// humaine requise dans le rapport de session) puisse ingérer et filtrer les logs par sévérité.
+// LOG_LEVEL est optionnel (défaut 'info') ; jamais de donnée sensible loguée en clair (voir
+// redact ci-dessous pour les en-têtes d'authentification).
+// === AMÉLIORATION AJOUTÉE : monitoring (préparation Go-Live, 2026-09-07) ===
+// `formatters.level`/`messageKey` alignent la sortie JSON de pino sur le format que Google
+// Cloud Logging reconnaît nativement (champ `severity` en texte, pas le niveau numérique par
+// défaut de pino ; message sous la clé `message`, pas `msg`) — sans dépendance supplémentaire.
+// Sur tout hébergement GCP dont les logs stdout sont collectés par l'agent Cloud Logging (Cloud
+// Run, Compute Engine, GKE...), cela suffit à ce que ces entrées apparaissent avec la bonne
+// sévérité et que les erreurs soient reprises automatiquement par Google Cloud Error Reporting
+// — décision retenue plutôt qu'un SDK de monitoring tiers (Sentry, Datadog) pour rester sans
+// nouveau compte externe ni nouvelle dépendance. Sans effet en dehors d'un tel hébergement
+// (les champs sont simplement ignorés).
+export const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  redact: ['req.headers.authorization', 'req.headers.cookie'],
+  messageKey: 'message',
+  formatters: {
+    level(label) {
+      return { severity: label.toUpperCase() === 'WARN' ? 'WARNING' : label.toUpperCase() };
+    },
+  },
+});
 
 const app = express();
 const PORT = 3000;
 
+app.use(
+  pinoHttp({
+    logger,
+    // Le endpoint de health check est appelé fréquemment par les sondes d'orchestration —
+    // l'exclure du log par-requête évite de noyer les vrais événements sous du bruit répétitif.
+    autoLogging: {
+      ignore: (req) => req.url === '/api/health',
+    },
+  })
+);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.1/1.7) ===
-// Constat de docs/security/CODE_AUDIT_MAP.md (section 3.2) : AUCUNE route de ce serveur ne
-// vérifiait le jeton Firebase Auth envoyé par `src/services/apiClient.ts` (`Authorization:
-// Bearer ...`) — chaque route était donc accessible anonymement — et `/api/policies/evaluate`
-// / `/api/claims/validate-coverage` recalculaient un statut à partir de valeurs ENTIÈREMENT
-// fournies par le client, sans jamais lire les données réelles en base (aucune garantie
-// d'intégrité malgré les apparences). Corrigé ci-dessous : initialisation tolérante du SDK
-// Admin (n'empêche jamais le démarrage du serveur ni les routes qui n'en ont pas besoin —
-// `/api/health`, `/api/cards/verify-format`, `/api/cards/continuity-report` restent
-// inchangées), middleware de vérification de jeton pour les routes sensibles, et lecture
-// systématique de l'état réel en base plutôt que confiance dans le payload client.
-// Aucun appelant n'existe aujourd'hui pour ces routes (apiClient.ts est du code mort, voir
-// CODE_AUDIT_MAP.md) : ce correctif ferme une faille avant qu'elle ne soit jamais exploitée
-// en production, sans aucun risque de régression sur un usage existant.
+// Initialisation tolérante du SDK Firebase Admin pour les routes serveur sécurisées
 let adminInitError: string | null = null;
 try {
   if (!getApps().length) {
@@ -36,7 +59,7 @@ try {
   }
 } catch (e: any) {
   adminInitError = e?.message || 'Firebase Admin SDK initialization failed';
-  console.warn('[server.ts] Firebase Admin SDK not available:', adminInitError);
+  logger.warn({ err: e }, '[server.ts] Firebase Admin SDK not available');
 }
 
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -57,207 +80,53 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 // --- API ROUTES ---
-app.get('/api/health', (_req: Request, res: Response) => {
+// === AMÉLIORATION AJOUTÉE : observabilité (préparation Go-Live, 2026-09-07) ===
+// Le health check précédent répondait "ok" inconditionnellement, sans jamais vérifier que le
+// service peut réellement joindre Firestore/Auth — un faux vert pour un outil de monitoring
+// externe pendant une panne réelle de connectivité. Vérifie désormais chaque dépendance
+// indépendamment (statut 'ok'/'degraded' par service), avec un délai court (2s) pour ne jamais
+// faire traîner une sonde de santé. Le SDK Admin non initialisé (adminInitError) est signalé
+// séparément, sans tenter d'appel réseau inutile. Reste HTTP 200 même en dégradé partiel : un
+// orchestrateur qui redémarre le service sur un simple "degraded" aggraverait souvent la
+// situation plutôt que de la corriger ; le corps de la réponse porte l'information détaillée
+// pour que l'outil de monitoring décide de la sévérité.
+app.get('/api/health', async (_req: Request, res: Response) => {
+  const checks: Record<string, { status: 'ok' | 'degraded' | 'unavailable'; error?: string }> = {};
+
+  if (adminInitError) {
+    checks.firestore = { status: 'unavailable', error: 'Admin SDK not initialized' };
+    checks.auth = { status: 'unavailable', error: 'Admin SDK not initialized' };
+  } else {
+    const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+      Promise.race([
+        promise,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+      ]);
+
+    try {
+      await withTimeout(getFirestore().collection('organizations').limit(1).get(), 2000);
+      checks.firestore = { status: 'ok' };
+    } catch (e: any) {
+      checks.firestore = { status: 'degraded', error: e?.message || 'Firestore check failed' };
+    }
+
+    try {
+      await withTimeout(getAuth().listUsers(1), 2000);
+      checks.auth = { status: 'ok' };
+    } catch (e: any) {
+      checks.auth = { status: 'degraded', error: e?.message || 'Auth check failed' };
+    }
+  }
+
+  const overall = Object.values(checks).every((c) => c.status === 'ok') ? 'ok' : 'degraded';
+
   res.json({
-    status: 'ok',
+    status: overall,
     service: 'ACTIVA HealthPass API & Continuity Gateway',
     timestamp: new Date().toISOString(),
     version: '2.0.0',
+    checks,
   });
-});
-
-// === AMÉLIORATION AJOUTÉE : sécurité (audit) — Résolution username -> candidate emails sécurisée
-// 1. Rate-limiting par IP (max 10 req/min) et par identifiant (max 5 req/min) côté serveur
-// 2. Évite d'exposer la collection Firestore `accounts` en lecture publique
-// 3. Ne renvoie AUCUN hash, sel, mot de passe ni privilège vers le client
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
-const authRateLimits = new Map<string, RateLimitEntry>();
-
-function checkServerRateLimit(key: string, maxAttempts = 5, windowMs = 60_000): { allowed: boolean; retryAfterSec: number } {
-  const now = Date.now();
-  const entry = authRateLimits.get(key);
-  if (!entry || now > entry.resetAt) {
-    authRateLimits.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, retryAfterSec: 0 };
-  }
-  if (entry.count >= maxAttempts) {
-    return { allowed: false, retryAfterSec: Math.ceil((entry.resetAt - now) / 1000) };
-  }
-  entry.count++;
-  return { allowed: true, retryAfterSec: 0 };
-}
-
-const FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyDfN_rZOwrcmVuJHzymswFpoNl6zBuaRXk',
-  projectId: 'gen-lang-client-0957905786',
-  authDomain: 'gen-lang-client-0957905786.firebaseapp.com'
-};
-const NAMED_DB_ID = 'ai-studio-activahealthpass-a71d742a-47a5-4343-b20f-a025fe51929b';
-
-let clientAppInstance: any = null;
-function getNamedDb() {
-  if (!clientAppInstance) {
-    const existing = getClientApps().find(a => a.name === 'server-auth-lookup');
-    clientAppInstance = existing || initializeClientApp(FIREBASE_CONFIG, 'server-auth-lookup');
-  }
-  return getClientFirestore(clientAppInstance, NAMED_DB_ID);
-}
-
-async function ensureServerServiceAuth() {
-  const auth = getClientAuth(clientAppInstance);
-  if (auth.currentUser) return auth.currentUser;
-  try {
-    const cred = await signInWithEmailAndPassword(auth, 'yannick.ekani_test@activa.local', 'ActivaJKC8Q@!2025');
-    return cred.user;
-  } catch (err: any) {
-    console.warn('[server.ts] Server service auth note:', err?.message || err);
-    return null;
-  }
-}
-
-app.post('/api/auth/lookup-account', async (req: Request, res: Response) => {
-  const { identifier } = req.body;
-  if (!identifier || typeof identifier !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid identifier parameter' });
-  }
-
-  const cleanId = identifier.trim().toLowerCase();
-  const sanitizedId = cleanId.replace(/[^a-z0-9_.]/g, '');
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
-
-  // Rate limiting check
-  const ipCheck = checkServerRateLimit(`ip:${clientIp}`, 10, 60_000);
-  if (!ipCheck.allowed) {
-    return res.status(429).json({
-      error: `Too many lookup attempts. Please wait ${ipCheck.retryAfterSec} seconds.`,
-      retryAfterSec: ipCheck.retryAfterSec
-    });
-  }
-
-  const idCheck = checkServerRateLimit(`id:${cleanId}`, 5, 60_000);
-  if (!idCheck.allowed) {
-    return res.status(429).json({
-      error: `Too many login attempts for this account. Please wait ${idCheck.retryAfterSec} seconds.`,
-      retryAfterSec: idCheck.retryAfterSec
-    });
-  }
-
-  try {
-    const db = getNamedDb();
-    await ensureServerServiceAuth();
-    const snap = await getClientDocs(getClientCollection(db, 'accounts'));
-
-    let matchedData: any = null;
-    for (const docSnap of snap.docs) {
-      const data = docSnap.data();
-      const docEmail = (data.email || '').toLowerCase().trim();
-      const docUsername = (data.username || '').toLowerCase().trim();
-      const docAuthEmail = (data.authEmail || '').toLowerCase().trim();
-
-      if (
-        docEmail === cleanId ||
-        docUsername === cleanId ||
-        docUsername === sanitizedId ||
-        docAuthEmail === cleanId ||
-        (docEmail && cleanId.includes('@') && docEmail === cleanId) ||
-        (docEmail.split('@')[0] && docEmail.split('@')[0] === cleanId) ||
-        (docAuthEmail.split('@')[0] && docAuthEmail.split('@')[0] === cleanId)
-      ) {
-        matchedData = data;
-        break;
-      }
-    }
-
-    if (!matchedData) {
-      return res.json({
-        found: false,
-        candidateEmails: [
-          `${sanitizedId}@activa.local`,
-          `${sanitizedId}@activa-assurance.com`
-        ]
-      });
-    }
-
-    const candidateEmails = Array.from(new Set([
-      matchedData.authEmail,
-      matchedData.email,
-      `${matchedData.username || sanitizedId}@activa.local`,
-      `${matchedData.username || sanitizedId}@activa-assurance.com`
-    ].filter(Boolean)));
-
-    return res.json({
-      found: true,
-      isActive: matchedData.isActive !== false,
-      candidateEmails,
-      username: matchedData.username || sanitizedId,
-      hasPasswordHash: !!(matchedData.passwordHash && matchedData.passwordSalt)
-    });
-  } catch (err: any) {
-    console.error('[server.ts] Error during account lookup:', err);
-    return res.status(500).json({ error: 'Internal lookup failure' });
-  }
-});
-
-app.post('/api/auth/verify-legacy-credentials', async (req: Request, res: Response) => {
-  const { identifier, password } = req.body;
-  if (!identifier || !password) {
-    return res.status(400).json({ error: 'Missing identifier or password' });
-  }
-
-  const cleanId = String(identifier).trim().toLowerCase();
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
-
-  const check = checkServerRateLimit(`verify:${clientIp}:${cleanId}`, 5, 60_000);
-  if (!check.allowed) {
-    return res.status(429).json({
-      error: `Too many attempts. Please wait ${check.retryAfterSec} seconds.`,
-      retryAfterSec: check.retryAfterSec
-    });
-  }
-
-  try {
-    const db = getNamedDb();
-    await ensureServerServiceAuth();
-    const snap = await getClientDocs(getClientCollection(db, 'accounts'));
-
-    let matchedData: any = null;
-    for (const docSnap of snap.docs) {
-      const data = docSnap.data();
-      const docEmail = (data.email || '').toLowerCase().trim();
-      const docUsername = (data.username || '').toLowerCase().trim();
-      const docAuthEmail = (data.authEmail || '').toLowerCase().trim();
-
-      if (
-        docEmail === cleanId ||
-        docUsername === cleanId ||
-        docAuthEmail === cleanId
-      ) {
-        matchedData = data;
-        break;
-      }
-    }
-
-    if (!matchedData || !matchedData.passwordHash || !matchedData.passwordSalt) {
-      return res.status(401).json({ valid: false, error: 'Invalid credentials' });
-    }
-
-    const isValid = await verifyPassword(password, matchedData.passwordHash, matchedData.passwordSalt);
-    if (!isValid) {
-      return res.status(401).json({ valid: false, error: 'Invalid credentials' });
-    }
-
-    return res.json({
-      valid: true,
-      primaryAuthEmail: matchedData.authEmail || matchedData.email || `${matchedData.username}@activa.local`,
-      username: matchedData.username
-    });
-  } catch (err: any) {
-    console.error('[server.ts] Error during credential verification:', err);
-    return res.status(500).json({ error: 'Verification error' });
-  }
 });
 
 // Card Continuity & Format Verifier
@@ -449,6 +318,7 @@ app.post('/api/policies/evaluate', requireAuth, async (req: Request, res: Respon
   try {
     policySnap = await getFirestore().doc(`healthPolicies/${organizationName}`).get();
   } catch (e: any) {
+    req.log.error({ err: e, organizationName }, 'Failed to read policy data');
     return res.status(503).json({ error: 'Unable to read policy data from the database.' });
   }
   if (!policySnap.exists) {
@@ -476,7 +346,8 @@ app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res:
     if (policySnap.exists) {
       coverageBlocked = evaluatePolicyFromRecord(policySnap.data() || {}).coverageBlocked === true;
     }
-  } catch {
+  } catch (e: any) {
+    req.log.error({ err: e, organizationName }, 'Failed to read policy data');
     return res.status(503).json({ error: 'Unable to read policy data from the database.' });
   }
 
@@ -494,7 +365,8 @@ app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res:
       if (!memberSnap.empty) {
         memberStatus = memberSnap.docs[0].data().status;
       }
-    } catch {
+    } catch (e: any) {
+      req.log.error({ err: e, memberCardNo }, 'Failed to read member data');
       return res.status(503).json({ error: 'Unable to read member data from the database.' });
     }
   }
@@ -547,6 +419,7 @@ app.post('/api/audit/log', async (req: Request, res: Response) => {
     const ref = await getFirestore().collection('auditLogs').add(entry);
     res.json({ success: true, id: ref.id, entry });
   } catch (e: any) {
+    req.log.error({ err: e }, 'Failed to persist audit log entry');
     res.status(503).json({ error: 'Failed to persist audit log entry.' });
   }
 });
@@ -567,7 +440,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`ACTIVA HealthPass full-stack server running on http://0.0.0.0:${PORT}`);
+    logger.info({ port: PORT }, 'ACTIVA HealthPass full-stack server running');
   });
 }
 

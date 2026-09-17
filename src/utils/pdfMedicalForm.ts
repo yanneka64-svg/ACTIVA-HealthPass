@@ -155,10 +155,9 @@ export const generateMedicalFormPDF = (form: MedicalForm) => {
   doc.setTextColor(15, 23, 42);
   doc.text(form.providerName || 'N/A', 55, currentY + 14);
 
-  // === AMÉLIORATION AJOUTÉE : sur demande explicite, la mention "Dr. General Practitioner"
-  // (ou tout autre repli fictif) n'est plus imprimée quand aucun nom n'a été saisi — l'espace
-  // reste entièrement vierge, réservé à l'identification manuscrite du médecin traitant. Le
-  // nom reste imprimé normalement si l'agent (ou le praticien spécialiste) en a renseigné un.
+  // Le nom imprimé ici vient directement de form.doctorName, déjà résolu à la génération du
+  // formulaire (voir AgentMedicalFormView.tsx handleGenerateForm — "Dr. General Practitioner"
+  // par défaut pour un Généraliste sans nom saisi) ; aucun repli distinct n'est nécessaire ici.
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
   doc.text('Attending Physician :', 18, currentY + 21);
