@@ -7,7 +7,14 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['tests/**/*.test.ts'],
+    // === AMÉLIORATION AJOUTÉE : tests de composants React (voir
+    // FRONTEND_CRITICAL_ANALYSIS.md §8) — `src/**/*.test.tsx` s'ajoute à la découverte
+    // existante, additif. L'environnement par défaut reste 'node' (comportement inchangé pour
+    // les 111 tests existants sous tests/) ; chaque nouveau test de composant déclare
+    // `// @vitest-environment jsdom` en tête de fichier pour obtenir un DOM, plutôt que de
+    // changer l'environnement global.
+    include: ['tests/**/*.test.ts', 'src/**/*.test.tsx'],
     exclude: ['node_modules', 'functions', 'dist'],
+    setupFiles: ['tests/setup/testing-library.ts'],
   },
 });
