@@ -1,14 +1,16 @@
 # Stratégie de test — ACTIVA HealthPass
 
-Statut : à jour au 2026-09-07 (226 tests automatisés, tous verts : 171 racine + 52
-`functions/` + 3 E2E).
+Statut : mis à jour au 2026-09-17 (241 tests racine — 134 unitaires + 89 règles Firestore
+[émulateur] + 18 règles Storage [émulateur, nouveau] — + 52 `functions/`, tous verts. 3 tests
+E2E existent mais échouent actuellement dès le premier — voir section 5 — non comptés comme
+"verts").
 
 ## 1. Pyramide de tests
 
 ```
-        3   e2e/*.spec.ts        (Playwright, navigateur réel + émulateurs)
+        3   e2e/*.spec.ts        (Playwright, navigateur réel + émulateurs — actuellement rouge, voir section 5)
        52   functions/src/*.test.ts   (Vitest, Cloud Functions)
-      171   tests/*.test.ts           (Vitest, front + règles Firestore/Storage)
+      241   tests/*.test.ts           (Vitest, front + règles Firestore/Storage)
 ```
 
 Trois niveaux, du plus rapide/isolé au plus lent/réaliste :
@@ -40,7 +42,8 @@ Trois niveaux, du plus rapide/isolé au plus lent/réaliste :
 | `systemStatus.test.ts` | Bannières de repli visibles (sync issues, fallback events) : déduplication, expiration, abonnement. |
 | `workflowServiceFallbackGuard.test.ts` | Le repli client (Cloud Function indisponible) relit le statut du dossier avant d'agir — jamais d'approbation en double sur un dossier déjà traité. |
 | `firestore.rules.test.ts` | Règles Firestore : isolation par organisation, restriction de `accounts.create` à Admin, notifications scopées au destinataire, whitelist des champs modifiables sur `healthPolicies`, intégrité de la piste d'audit. **Nécessite l'émulateur Firestore** (`npm run test:rules`, ou `firebase emulators:exec --only firestore -- npm run test:rules`) — exécuté ainsi en CI (`deploy-staging.yml`/`deploy-production.yml`) avant tout déploiement de règles. |
-| `storage.rules.test.ts` | Vérifie par analyse statique (lecture de `storage.rules` + assertions sur les motifs attendus) que les règles contiennent bien les garde-fous voulus (rejet non-authentifié, types/tailles autorisés, cloisonnement par organisation, blocage de suppression). **Ne s'exécute pas contre l'émulateur Storage** — ne prouve donc pas le comportement réel à l'exécution, seulement la présence du bon texte de règle. Un vrai test comportemental contre l'émulateur Storage est un gap connu, non comblé dans cette session (voir section 5). |
+| `storage.rules.test.ts` | Vérifie par analyse statique (lecture de `storage.rules` + assertions sur les motifs attendus) que les règles contiennent bien les garde-fous voulus (rejet non-authentifié, types/tailles autorisés, cloisonnement par organisation, blocage de suppression). **Ne s'exécute pas contre l'émulateur Storage** — ne prouve donc pas le comportement réel à l'exécution, seulement la présence du bon texte de règle. |
+| `storage.rules.emulator.test.ts` | **Nouveau (Phase 2 du plan de durcissement, 2026-09-17)** — comble le gap ci-dessus : test COMPORTEMENTAL réel contre l'émulateur Storage (18 tests, `@firebase/rules-unit-testing`), même approche que `firestore.rules.test.ts` : isolation par organisation, validation MIME/taille, blocage de suppression hors Admin, fermeture des anciens chemins plats, deny-by-default. Exécuté via `npm run test:storage-rules` (nécessite l'émulateur Storage, voir `firebase.json`), intégré à `ci.yml`. |
 
 ## 3. Tests unitaires — `functions/src/` (52 tests)
 
@@ -115,18 +118,27 @@ Aucune configuration manuelle nécessaire : `playwright.config.ts` orchestre tou
 Cloud Function de ~13-15s chacun dans cet environnement — vérifié par reproduction
 manuelle, ce n'est pas un défaut applicatif, juste un budget de test généreux).
 
-**Non intégré à `ci.yml` pour l'instant** : cette suite nécessite Chromium (préinstallé
-dans cet environnement d'exécution via `PLAYWRIGHT_BROWSERS_PATH`, mais pas garanti sur
-tout runner CI) et prend ~3 minutes. L'intégrer au pipeline CI standard (avec
-`npx playwright install --with-deps chromium` en amont) est une amélioration de suivi
-naturelle, hors périmètre immédiat de cette session.
+**Non intégré à `ci.yml`** : voir le finding de la section 5 — la suite échoue actuellement dès
+son premier test, l'intégrer telle quelle rendrait ce check perpétuellement rouge. L'intégration
+CI (avec `npx playwright install --with-deps chromium` en amont) reste par ailleurs
+techniquement simple une fois la suite elle-même à nouveau verte.
 
 ## 5. Ce qui n'est délibérément PAS couvert
 
-- **Comportement réel des règles Storage** (voir section 4 ci-dessus) : `storage.rules.test.ts`
-  vérifie le texte des règles, pas leur application par l'émulateur — un vrai test
-  `@firebase/rules-unit-testing` côté Storage (comme celui déjà en place pour Firestore)
-  reste à écrire.
+- **⚠️ Finding (Phase 2 du plan de durcissement, 2026-09-17) : la suite E2E ci-dessus échoue
+  actuellement en local**, dès le test #1 (`Création de carte`) — le clic sur le bouton
+  "Submit Enrollment Application for Approval" échoue systématiquement (bloqué par un élément
+  qui intercepte le clic, sur toute la fenêtre de retry de 120s, jamais résolu). Cause probable :
+  `e2e/helpers.ts::submitEnrollment` (écrit le 2026-09-07) ne clique jamais sur l'onglet "New
+  Beneficiary Enrollment", qui est pourtant ce qui active le formulaire
+  (`setFormActivated(true)`, voir `src/views/agent/AgentEnrollmentsView.tsx`) depuis un
+  changement du 2026-09-10 — postérieur à l'écriture de la suite E2E, qui n'a apparemment jamais
+  été rejouée depuis. **Non corrigé dans cette passe** (nécessiterait de modifier soit le
+  helper de test soit le flux applicatif — hors périmètre d'une tâche de câblage CI, à valider
+  avec l'utilisateur avant modification). En conséquence, **la suite E2E n'a PAS été intégrée à
+  `ci.yml`** dans cette passe : l'y intégrer telle quelle créerait un check obligatoire
+  perpétuellement rouge. Le reste de cette section 4 (architecture, parcours couverts) documente
+  l'INTENTION de la suite, pas son état d'exécution actuel — voir ce paragraphe pour l'état réel.
 - Les écrans purement visuels sans logique métier (marque, mise en page).
 - Les intégrations tierces réelles (Cloud Functions déployées, Storage réel, APIs de
   taux de change) — testées séparément en `staging` avant `production` (voir
