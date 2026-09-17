@@ -286,7 +286,10 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
           moyen de basculer entre les deux. */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs px-6 py-5 flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-lg font-extrabold text-slate-900">{t.agentEnroll.pageTitle}</h2>
+          {/* === AMÉLIORATION AJOUTÉE : taille harmonisée avec les titres de page utilisés
+              ailleurs dans l'app (ReportsView, AccountsView, OrganizationsView…) —
+              text-base font-extrabold tracking-tight, au lieu de text-lg ici seulement. === */}
+          <h2 className="text-base font-extrabold text-slate-900 tracking-tight">{t.agentEnroll.pageTitle}</h2>
           <p className="text-xs text-slate-500 mt-0.5">
             {t.agentEnroll.pageSubtitle}
           </p>
@@ -691,11 +694,12 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
               </div>
             </div>
           </form>
-          {/* === AMÉLIORATION AJOUTÉE : fenêtre flottante "Start a new enrollment" retirée (retour
-              utilisateur, 2026-09-10 — "je ne veux pas la fenêtre") — seul le bouton "New
-              Beneficiary Enrollment" du bandeau supérieur active désormais le formulaire ;
-              celui-ci reste simplement grisé/inactif (mêmes classes ci-dessus) tant qu'il n'a
-              pas été cliqué, sans boîte de dialogue superposée redondante. === */}
+          {/* === AMÉLIORATION AJOUTÉE : fenêtre/popup "Start a new enrollment" retirée
+              (2026-09-10, demande explicite de l'utilisateur — "je ne veux pas la fenêtre").
+              L'activation du formulaire reste pilotée par formActivated (voir plus haut) et ne
+              se déclenche plus que via le bouton "New Beneficiary Enrollment" en haut de page —
+              le formulaire grisé/inactif (opacity-50, ci-dessus) suffit désormais seul à
+              indiquer qu'il faut cliquer ce bouton, sans superposer de fenêtre par-dessus. === */}
           </div>
         </div>
       ) : (

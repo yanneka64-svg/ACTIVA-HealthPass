@@ -164,10 +164,10 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          {/* === AMÉLIORATION AJOUTÉE : paragraphe d'instructions retiré (retour utilisateur,
-              2026-09-10 — "retirer tous les commentaires au-dessus"). Le fonctionnement reste
-              inchangé (montant retenu modifiable, motif requis si un acte est réduit, etc.) ;
-              seul ce texte explicatif au-dessus des lignes d'actes a été supprimé. */}
+          {/* === AMÉLIORATION AJOUTÉE : paragraphe d'instructions retiré au-dessus des champs
+              (2026-09-10, demande explicite de l'utilisateur) — le comportement (retenu jamais
+              au-delà de l'original, motif obligatoire dès qu'un acte est réduit, etc.) est
+              inchangé, seul ce texte d'introduction disparaît de l'affichage. === */}
           <div className="p-6 space-y-4 overflow-y-auto">
             {error && (
               <div className="px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
@@ -179,20 +179,20 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
               {acts.map((act, i) => {
                 const rejected = Math.max(0, act.amount - retained[i]);
                 return (
-                  // === AMÉLIORATION AJOUTÉE : alignement des champs revu (retour utilisateur,
-                  // 2026-09-10 — "bien ranger/aligner les données verticalement et
-                  // horizontalement"). Le nom de l'acte occupe désormais sa propre ligne pleine
-                  // largeur (plus de risque de compression face au montant "Original"), et
-                  // Original / Retained / Rejected forment une seule grille à 3 colonnes de
-                  // même largeur, chaque étiquette alignée au-dessus de son champ. Le motif a
-                  // désormais lui aussi une étiquette, cohérente avec les autres champs. Aucune
-                  // donnée, valeur ou logique n'est modifiée — seule la disposition change.
+                  // === AMÉLIORATION AJOUTÉE : réalignement horizontal ET vertical des champs
+                  // (2026-09-10, demande explicite) — chaque colonne (Medical Act / Original /
+                  // bouton Supprimer) porte désormais un libellé de même hauteur au-dessus
+                  // (invisible pour le bouton Supprimer, qui n'en a pas besoin) afin que leurs
+                  // champs démarrent tous à la même ligne, au lieu du décalage précédent
+                  // (`mt-4` approximatif sur le bouton, absence de libellé au-dessus du nom).
+                  // Aucune donnée ni logique n'a changé, uniquement la mise en page.
                   <div key={i} className={`p-3.5 rounded-xl border space-y-2.5 ${rejected > 0 ? 'border-orange-200 bg-orange-50/30' : 'border-slate-200'}`}>
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2.5">
                       <div className="min-w-0 flex-1">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Medical Act</label>
                         {hasOriginalBreakdown ? (
                           <>
-                            <div className="font-bold text-xs text-slate-900 truncate leading-snug">{act.name}</div>
+                            <div className="font-bold text-xs text-slate-900 truncate py-1.5">{act.name}</div>
                             {act.category && <div className="text-[10px] text-slate-400">{act.category}</div>}
                           </>
                         ) : (
@@ -205,15 +205,33 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                           />
                         )}
                       </div>
+                      <div className="shrink-0 w-24">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wide mb-1 text-right">Original</div>
+                        {hasOriginalBreakdown ? (
+                          <div className="font-bold text-xs text-slate-700 text-right py-1.5">{formatAmount(act.amount)}</div>
+                        ) : (
+                          <input
+                            type="number"
+                            value={act.amount}
+                            min={0}
+                            step="0.01"
+                            onChange={(e) => handleActAmountChange(i, e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-right"
+                          />
+                        )}
+                      </div>
                       {!hasOriginalBreakdown && acts.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeActLine(i)}
-                          className="p-1 shrink-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                          title="Remove this line"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="shrink-0">
+                          <div className="mb-1 h-[14px]" aria-hidden="true" />
+                          <button
+                            type="button"
+                            onClick={() => removeActLine(i)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Remove this line"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -261,10 +279,8 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex flex-col">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 h-3.5 leading-[14px]">
-                        Reason{rejected > 0 ? ' (required)' : ''}
-                      </label>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Reason</label>
                       <input
                         type="text"
                         value={reasons[i]}
