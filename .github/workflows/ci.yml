@@ -71,3 +71,11 @@ jobs:
         run: |
           npm install -g firebase-tools
           firebase emulators:exec --only firestore --project demo-activa-ci "npm run test:rules"
+
+      # === AMÉLIORATION AJOUTÉE : Phase 2 du plan de durcissement (2026-09-17) ===
+      # Complète le test de règles Firestore ci-dessus par un test comportemental équivalent
+      # pour storage.rules (voir tests/storage.rules.emulator.test.ts) — jusqu'ici seul le TEXTE
+      # des règles était vérifié (tests/storage.rules.test.ts), jamais leur application réelle.
+      - name: Storage rules security tests (emulator)
+        run: |
+          firebase emulators:exec --only storage --project demo-activa-ci "npm run test:storage-rules"
