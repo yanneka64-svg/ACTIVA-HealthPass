@@ -23,6 +23,10 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, updatePassword, signOut } from 'firebase/auth';
 import { randomBytes } from 'crypto';
+// === AMÉLIORATION AJOUTÉE : sécurité (durcissement Phase 1, 2026-09-17) — voir scripts/lib/opsSafety.ts
+import { confirmLiveWrite, startOpsLog } from './lib/opsSafety';
+
+const ops = startOpsLog('resetCompromisedPassword');
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -33,7 +37,8 @@ function requireEnv(name: string): string {
 }
 
 async function run() {
-  console.log('--- EMERGENCY PASSWORD ROTATION ---');
+  ops.log('--- EMERGENCY PASSWORD ROTATION ---');
+  ops.log(`(Journal d'exécution : ${ops.logFilePath})`);
   const app = initializeApp({
     apiKey: requireEnv('FIREBASE_API_KEY'),
     projectId: requireEnv('FIREBASE_PROJECT_ID'),
@@ -48,56 +53,60 @@ async function run() {
   const randomSuffix = randomBytes(18).toString('base64url');
   const newPassword = process.env.NEW_ADMIN_PASSWORD || `Activa#${randomSuffix}!`;
 
-  console.log(`Step 1: Authenticating as ${targetEmail} with current credentials...`);
+  ops.log(`Step 1: Authenticating as ${targetEmail} with current credentials...`);
   let userCred;
   try {
     userCred = await signInWithEmailAndPassword(auth, targetEmail, compromisedPassword);
-    console.log(`✓ Authentication succeeded for UID: ${userCred.user.uid}`);
+    ops.log(`✓ Authentication succeeded for UID: ${userCred.user.uid}`);
   } catch (err: any) {
-    console.error(`✗ Authentication failed with current password: ${err.message}`);
+    ops.error(`✗ Authentication failed with current password: ${err.message}`);
     // Check if it was already rotated
     try {
-      console.log('Checking if password was already rotated...');
+      ops.log('Checking if password was already rotated...');
       await signInWithEmailAndPassword(auth, targetEmail, newPassword);
-      console.log('✓ Account is already secured with new credentials.');
+      ops.log('✓ Account is already secured with new credentials.');
       process.exit(0);
     } catch {
-      console.error('Could not authenticate with either old or new password.');
+      ops.error('Could not authenticate with either old or new password.');
       process.exit(1);
     }
   }
 
-  console.log(`Step 2: Updating password in Firebase Authentication...`);
+  ops.log(`Step 2: Updating password in Firebase Authentication...`);
+  await confirmLiveWrite(`rotation du mot de passe Firebase Auth pour ${targetEmail}`);
   await updatePassword(userCred.user, newPassword);
-  console.log(`✓ Password updated successfully in Firebase Authentication.`);
+  ops.log(`✓ Password updated successfully in Firebase Authentication.`);
 
   await signOut(auth);
 
-  console.log(`Step 3: Verification gate - verifying compromised password is REVOKED...`);
+  ops.log(`Step 3: Verification gate - verifying compromised password is REVOKED...`);
   try {
     await signInWithEmailAndPassword(auth, targetEmail, compromisedPassword);
-    console.error(`✗ CRITICAL FAILURE: Compromised password is still accepted!`);
+    ops.error(`✗ CRITICAL FAILURE: Compromised password is still accepted!`);
     process.exit(1);
   } catch (err: any) {
-    console.log(`✓ CONFIRMED: Compromised password is rejected (${err.code || err.message}).`);
+    ops.log(`✓ CONFIRMED: Compromised password is rejected (${err.code || err.message}).`);
   }
 
-  console.log(`Step 4: Verification gate - verifying new password is ACTIVE...`);
+  ops.log(`Step 4: Verification gate - verifying new password is ACTIVE...`);
   const verifyCred = await signInWithEmailAndPassword(auth, targetEmail, newPassword);
-  console.log(`✓ CONFIRMED: New credentials successfully authenticated for UID: ${verifyCred.user.uid}`);
+  ops.log(`✓ CONFIRMED: New credentials successfully authenticated for UID: ${verifyCred.user.uid}`);
 
   await signOut(auth);
 
-  console.log('\n======================================================');
-  console.log('ROTATION COMPLETED SUCCESSFULLY');
-  console.log(`User       : ${targetEmail}`);
-  console.log(`UID        : ${verifyCred.user.uid}`);
+  ops.log('\n======================================================');
+  ops.log('ROTATION COMPLETED SUCCESSFULLY');
+  ops.log(`User       : ${targetEmail}`);
+  ops.log(`UID        : ${verifyCred.user.uid}`);
+  // Le nouveau mot de passe ne doit JAMAIS être persisté sur disque (voir l'en-tête de ce
+  // fichier) : console.log direct ici, volontairement PAS ops.log (qui écrirait dans le journal).
   console.log(`New Pass   : ${newPassword}`);
-  console.log('======================================================\n');
+  ops.log('(mot de passe volontairement omis du journal persisté — voir sortie console ci-dessus)');
+  ops.log('======================================================\n');
   process.exit(0);
 }
 
 run().catch((err) => {
-  console.error('Rotation script failed:', err);
+  ops.error('Rotation script failed:', err);
   process.exit(1);
 });

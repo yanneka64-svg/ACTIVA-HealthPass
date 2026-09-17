@@ -24,6 +24,10 @@ import { getAuth, signInWithEmailAndPassword, updatePassword, signOut } from 'fi
 import { randomBytes, createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+// === AMÉLIORATION AJOUTÉE : sécurité (durcissement Phase 1, 2026-09-17) — voir scripts/lib/opsSafety.ts
+import { confirmLiveWrite, startOpsLog } from './lib/opsSafety';
+
+const ops = startOpsLog('rotatePasswordNoHardcode');
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -34,7 +38,8 @@ function requireEnv(name: string): string {
 }
 
 async function rotatePassword() {
-  console.log('--- SECURE IN-MEMORY PASSWORD ROTATION ---');
+  ops.log('--- SECURE IN-MEMORY PASSWORD ROTATION ---');
+  ops.log(`(Journal d'exécution : ${ops.logFilePath})`);
 
   const targetEmail = requireEnv('MIGRATION_ADMIN_EMAIL');
   const currentPassword = requireEnv('CURRENT_PASSWORD');
@@ -51,34 +56,35 @@ async function rotatePassword() {
   });
   const auth = getAuth(app);
 
-  console.log(`[1/4] Authenticating as ${targetEmail}...`);
+  ops.log(`[1/4] Authenticating as ${targetEmail}...`);
   let userCred;
   try {
     userCred = await signInWithEmailAndPassword(auth, targetEmail, currentPassword);
-    console.log(`✓ Authentication succeeded for UID: ${userCred.user.uid}`);
+    ops.log(`✓ Authentication succeeded for UID: ${userCred.user.uid}`);
   } catch (err: any) {
-    console.error(`✗ Authentication failed with provided current password: ${err.message}`);
+    ops.error(`✗ Authentication failed with provided current password: ${err.message}`);
     process.exit(1);
   }
 
-  console.log(`[2/4] Updating password in Firebase Authentication...`);
+  ops.log(`[2/4] Updating password in Firebase Authentication...`);
+  await confirmLiveWrite(`rotation du mot de passe Firebase Auth pour ${targetEmail}`);
   await updatePassword(userCred.user, newPassword);
-  console.log(`✓ Password updated in Firebase Authentication.`);
+  ops.log(`✓ Password updated in Firebase Authentication.`);
 
   await signOut(auth);
 
-  console.log(`[3/4] Testing revocation of old password...`);
+  ops.log(`[3/4] Testing revocation of old password...`);
   try {
     await signInWithEmailAndPassword(auth, targetEmail, currentPassword);
-    console.error(`✗ CRITICAL: Previous password is still accepted!`);
+    ops.error(`✗ CRITICAL: Previous password is still accepted!`);
     process.exit(1);
   } catch (err: any) {
-    console.log(`✓ CONFIRMED: Previous password is permanently revoked (${err.code || err.message}).`);
+    ops.log(`✓ CONFIRMED: Previous password is permanently revoked (${err.code || err.message}).`);
   }
 
-  console.log(`[4/4] Verifying new credentials...`);
+  ops.log(`[4/4] Verifying new credentials...`);
   const verifyCred = await signInWithEmailAndPassword(auth, targetEmail, newPassword);
-  console.log(`✓ CONFIRMED: New credentials successfully verified for UID: ${verifyCred.user.uid}`);
+  ops.log(`✓ CONFIRMED: New credentials successfully verified for UID: ${verifyCred.user.uid}`);
   await signOut(auth);
 
   // Write exclusively to gitignored .env.local
@@ -95,22 +101,22 @@ async function rotatePassword() {
   lines.push(`MIGRATION_ADMIN_PASSWORD=${newPassword}`);
   fs.writeFileSync(envLocalPath, lines.join('\n').trim() + '\n', { mode: 0o600 });
 
-  console.log('\n======================================================');
-  console.log('✓ PASSWORD ROTATED SUCCESSFULLY');
-  console.log(`User                 : ${targetEmail}`);
-  console.log(`UID                  : ${verifyCred.user.uid}`);
-  console.log(`Password Fingerprint : sha256:${sha256Fingerprint}...`);
-  console.log(`Saved To             : .env.local (strictly gitignored, permissions 0600)`);
+  ops.log('\n======================================================');
+  ops.log('✓ PASSWORD ROTATED SUCCESSFULLY');
+  ops.log(`User                 : ${targetEmail}`);
+  ops.log(`UID                  : ${verifyCred.user.uid}`);
+  ops.log(`Password Fingerprint : sha256:${sha256Fingerprint}...`);
+  ops.log(`Saved To             : .env.local (strictly gitignored, permissions 0600)`);
   // === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07) — l'ancienne ligne
   // affirmait "Hardcoded in code: NO (zero occurrences in git)", une garantie que ce script ne
   // peut pas vérifier lui-même (et qui s'est révélée fausse : voir le commentaire d'en-tête).
   // Reformulé pour ne plus affirmer un fait non vérifié par le script lui-même.
-  console.log(`Note                 : this password was never written to any file tracked by git.`);
-  console.log('======================================================\n');
+  ops.log(`Note                 : this password was never written to any file tracked by git.`);
+  ops.log('======================================================\n');
   process.exit(0);
 }
 
 rotatePassword().catch((err) => {
-  console.error('Password rotation failed:', err);
+  ops.error('Password rotation failed:', err);
   process.exit(1);
 });

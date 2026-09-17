@@ -22,6 +22,12 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
+// === AMÉLIORATION AJOUTÉE : sécurité (durcissement Phase 1, 2026-09-17) — voir scripts/lib/opsSafety.ts
+// Ce script est en lecture seule (aucune écriture) : seul le journal horodaté est ajouté,
+// aucune confirmation interactive n'est nécessaire ici.
+import { startOpsLog } from './lib/opsSafety';
+
+const ops = startOpsLog('auditOrgScopeCoverage');
 
 // === AMÉLIORATION AJOUTÉE : sécurité (Réconciliation 2026-09-07) ===
 // Un push direct sur `main` avait réintroduit, en clair, la clé API Firebase, le projectId,
@@ -49,10 +55,11 @@ interface CollectionAuditResult {
 }
 
 async function auditOrgScopeCoverage() {
-  console.log('================================================================');
-  console.log('AUDIT REPORT: SEC-FS-002 — Multi-Tenant Organization Scope Coverage');
-  console.log('Timestamp: ' + new Date().toISOString());
-  console.log('================================================================\n');
+  ops.log('================================================================');
+  ops.log('AUDIT REPORT: SEC-FS-002 — Multi-Tenant Organization Scope Coverage');
+  ops.log('Timestamp: ' + new Date().toISOString());
+  ops.log(`(Journal d'exécution : ${ops.logFilePath})`);
+  ops.log('================================================================\n');
 
   const app = initializeApp({
     apiKey: requireEnv('FIREBASE_API_KEY'),
@@ -65,17 +72,17 @@ async function auditOrgScopeCoverage() {
   const adminEmail = requireEnv('MIGRATION_ADMIN_EMAIL');
   const adminPass = requireEnv('MIGRATION_ADMIN_PASSWORD');
 
-  console.log(`Authenticating auditor with: ${adminEmail}...`);
+  ops.log(`Authenticating auditor with: ${adminEmail}...`);
   try {
     await signInWithEmailAndPassword(auth, adminEmail, adminPass);
-    console.log(`✓ Auditor authenticated successfully.\n`);
+    ops.log(`✓ Auditor authenticated successfully.\n`);
   } catch (err: any) {
-    console.error(`✗ Auditor authentication failed: ${err.message}`);
+    ops.error(`✗ Auditor authentication failed: ${err.message}`);
     process.exit(1);
   }
 
   // 1. Audit Master Organizations
-  console.log('--- 1. MASTER ORGANIZATIONS REGISTRY ---');
+  ops.log('--- 1. MASTER ORGANIZATIONS REGISTRY ---');
   const orgsSnap = await getDocs(collection(db, 'organizations'));
   const knownOrgs = new Set<string>();
   orgsSnap.docs.forEach((d) => {
@@ -83,11 +90,11 @@ async function auditOrgScopeCoverage() {
     const name = data.name || d.id;
     knownOrgs.add(name);
   });
-  console.log(`Total Master Organizations defined: ${orgsSnap.size}`);
-  console.log(`Known Organizations: [${Array.from(knownOrgs).join(', ')}]\n`);
+  ops.log(`Total Master Organizations defined: ${orgsSnap.size}`);
+  ops.log(`Known Organizations: [${Array.from(knownOrgs).join(', ')}]\n`);
 
   // 2. Audit Accounts & assignedOrganizations
-  console.log('--- 2. ACCOUNTS & TENANT SCOPING AUDIT ---');
+  ops.log('--- 2. ACCOUNTS & TENANT SCOPING AUDIT ---');
   const accountsSnap = await getDocs(collection(db, 'accounts'));
   let accountsWithScope = 0;
   let adminAccounts = 0;
@@ -101,17 +108,17 @@ async function auditOrgScopeCoverage() {
       adminAccounts++;
     } else if (Array.isArray(assigned) && assigned.length > 0) {
       accountsWithScope++;
-      console.log(`  - Account ${d.id} (${data.username || data.email}): Scoped to [${assigned.join(', ')}]`);
+      ops.log(`  - Account ${d.id} (${data.username || data.email}): Scoped to [${assigned.join(', ')}]`);
     } else {
       globalAccessAccounts++;
-      console.log(`  - Account ${d.id} (${data.username || data.email}): Global access (role: ${role}, assignedOrganizations: not set)`);
+      ops.log(`  - Account ${d.id} (${data.username || data.email}): Global access (role: ${role}, assignedOrganizations: not set)`);
     }
   });
 
-  console.log(`Summary Accounts: Total=${accountsSnap.size} | Admin=${adminAccounts} | Explicitly Scoped=${accountsWithScope} | Global/Default=${globalAccessAccounts}\n`);
+  ops.log(`Summary Accounts: Total=${accountsSnap.size} | Admin=${adminAccounts} | Explicitly Scoped=${accountsWithScope} | Global/Default=${globalAccessAccounts}\n`);
 
   // 3. Audit Scoped Business Collections
-  console.log('--- 3. BUSINESS COLLECTIONS ORGANIZATION FIELD COVERAGE ---');
+  ops.log('--- 3. BUSINESS COLLECTIONS ORGANIZATION FIELD COVERAGE ---');
   const targetCollections: { name: string; field: string }[] = [
     { name: 'members', field: 'organization' },
     { name: 'claims', field: 'organization' },
@@ -155,7 +162,7 @@ async function auditOrgScopeCoverage() {
   }
 
   // Print results table
-  console.log(
+  ops.log(
     'Collection'.padEnd(16) +
     'Total Docs'.padEnd(12) +
     'Scoped Field'.padEnd(16) +
@@ -163,7 +170,7 @@ async function auditOrgScopeCoverage() {
     'Missing Org'.padEnd(14) +
     'Status'
   );
-  console.log('-'.repeat(76));
+  ops.log('-'.repeat(76));
 
   let totalDocsAudited = 0;
   let totalMissingOrg = 0;
@@ -172,7 +179,7 @@ async function auditOrgScopeCoverage() {
     totalDocsAudited += res.totalDocs;
     totalMissingOrg += res.missingOrgField;
     const status = res.missingOrgField === 0 ? '✓ PASS' : res.totalDocs === 0 ? '- EMPTY' : '⚠ WARN';
-    console.log(
+    ops.log(
       res.collectionName.padEnd(16) +
       String(res.totalDocs).padEnd(12) +
       res.scopedField.padEnd(16) +
@@ -181,35 +188,35 @@ async function auditOrgScopeCoverage() {
       status
     );
     if (res.orphanedDocIds.length > 0) {
-      console.log(`    ↳ Un-scoped document IDs: ${res.orphanedDocIds.slice(0, 5).join(', ')}${res.orphanedDocIds.length > 5 ? '...' : ''}`);
+      ops.log(`    ↳ Un-scoped document IDs: ${res.orphanedDocIds.slice(0, 5).join(', ')}${res.orphanedDocIds.length > 5 ? '...' : ''}`);
     }
   }
 
-  console.log('\n--- 4. SEC-FS-002 COMPLIANCE SYNTHESIS ---');
-  console.log(`Total business documents inspected : ${totalDocsAudited}`);
-  console.log(`Total documents properly scoped     : ${totalDocsAudited - totalMissingOrg}`);
-  console.log(`Total documents un-scoped / missing : ${totalMissingOrg}`);
+  ops.log('\n--- 4. SEC-FS-002 COMPLIANCE SYNTHESIS ---');
+  ops.log(`Total business documents inspected : ${totalDocsAudited}`);
+  ops.log(`Total documents properly scoped     : ${totalDocsAudited - totalMissingOrg}`);
+  ops.log(`Total documents un-scoped / missing : ${totalMissingOrg}`);
 
   const rulesCompliance = '✓ COMPLIANT: firestore.rules enforces `hasOrgAccess(orgName)` checking `assignedOrganizations`';
   const queryCompliance = '✓ COMPLIANT: src/services/firestore.ts wraps read subscriptions with `scopedQuery()`';
 
-  console.log(`\nSecurity Layer Verification:`);
-  console.log(`- Firestore Security Rules Gate : ${rulesCompliance}`);
-  console.log(`- Client SDK Query Isolation    : ${queryCompliance}`);
+  ops.log(`\nSecurity Layer Verification:`);
+  ops.log(`- Firestore Security Rules Gate : ${rulesCompliance}`);
+  ops.log(`- Client SDK Query Isolation    : ${queryCompliance}`);
 
   if (totalMissingOrg === 0) {
-    console.log('\n[PASS] Point SEC-FS-002 is 100% compliant. No orphaned or un-scoped documents found.');
+    ops.log('\n[PASS] Point SEC-FS-002 is 100% compliant. No orphaned or un-scoped documents found.');
   } else {
-    console.log(`\n[NOTE] Point SEC-FS-002: ${totalMissingOrg} legacy document(s) have no explicit organization field.`);
+    ops.log(`\n[NOTE] Point SEC-FS-002: ${totalMissingOrg} legacy document(s) have no explicit organization field.`);
   }
 
-  console.log('\n================================================================');
-  console.log('AUDIT COMPLETE');
-  console.log('================================================================');
+  ops.log('\n================================================================');
+  ops.log('AUDIT COMPLETE');
+  ops.log('================================================================');
   process.exit(0);
 }
 
 auditOrgScopeCoverage().catch((err) => {
-  console.error('Audit failed:', err);
+  ops.error('Audit failed:', err);
   process.exit(1);
 });

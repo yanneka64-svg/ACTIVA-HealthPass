@@ -65,15 +65,35 @@ lacunes réelles, identiques sur les 7 scripts :
 2. **Aucun log d'exécution horodaté persisté sur disque** — toute la sortie va uniquement sur la
    console (perdue si l'opérateur ne la redirige pas lui-même vers un fichier).
 
-**Recommandation (proposée, non appliquée) :** ajouter un petit helper partagé optionnel
-(ex. `scripts/lib/opsSafety.ts`) fournissant (a) une invite de confirmation interactive
-(contournable par une variable `CONFIRM=yes` pour un usage non interactif/CI si nécessaire un
-jour), et (b) l'écriture en parallèle de la sortie console vers un fichier
-`scripts/logs/<nom-script>-<horodatage>.log` (dossier à ajouter au `.gitignore`). Cela n'altère
-aucun comportement métier (scripts opérationnels hors application), reste strictement additif, et
-peut être fait script par script sans risque de régression sur l'app elle-même. **En attente de
-votre validation avant implémentation**, conformément à la prudence demandée sur toute
-modification touchant à la sécurité opérationnelle.
+**Hardening implémenté (validé par vous le 2026-09-17) :** ajout de `scripts/lib/opsSafety.ts`,
+un helper partagé strictement additif fournissant :
+
+- `confirmLiveWrite(description)` : invite interactive ("Tapez OUI en majuscules pour confirmer")
+  posée juste avant chaque écriture réelle (Firestore ou Firebase Auth) des 5 scripts qui
+  écrivent — `resetCompromisedPassword.ts`, `migratePlaintextPasswords.ts`,
+  `revokeCompromisedAccountAccess.ts`, `rotatePasswordNoHardcode.ts`,
+  `deactivateCompromisedAccount.ts`. Contournable explicitement par `CONFIRM=yes` (usage non
+  interactif assumé) ; sans TTY et sans `CONFIRM=yes`, l'opération est refusée avec une erreur
+  claire plutôt que de rester bloquée silencieusement.
+- `startOpsLog(nomScript)` : journal d'exécution horodaté persisté dans
+  `scripts/logs/<nom-script>-<horodatage>.log` (déjà couvert par la règle `*.log` existante du
+  `.gitignore` — vérifié avec `git check-ignore`), en complément de la sortie console existante
+  (jamais à sa place). Appliqué aux 6 scripts TypeScript, y compris `auditOrgScopeCoverage.ts`
+  (lecture seule — journal ajouté pour traçabilité, sans invite de confirmation puisqu'aucune
+  écriture n'y est faite).
+- **Vigilance appliquée** : dans `resetCompromisedPassword.ts`, le nouveau mot de passe en clair
+  reste affiché uniquement sur `console.log` (jamais routé vers `ops.log`/le fichier persisté),
+  conformément à l'intention de sécurité déjà documentée dans l'en-tête de ce script. Vérifié
+  fichier par fichier qu'aucun des 5 scripts d'écriture ne fait désormais transiter un secret en
+  clair vers le journal disque (`rotatePasswordNoHardcode.ts` ne logue qu'une empreinte SHA-256
+  tronquée, jamais le mot de passe lui-même).
+- **`loadtest.mjs` volontairement non modifié** : aucune écriture, JavaScript pur exécuté via
+  `node` (pas `tsx`) — ajouter une dépendance croisée vers un helper TypeScript aurait été
+  disproportionné pour un outil de diagnostic ponctuel jamais exécuté en production.
+- Testé fonctionnellement (script jetable, non committé) : confirmation refusée sans TTY ni
+  `CONFIRM=yes`, acceptée avec `CONFIRM=yes`, log correctement écrit sur disque avec horodatage.
+- Validation de non-régression : `tsc --noEmit` propre, `npm test` 120/120 passing (aucun test
+  n'exerce ces scripts, cohérent avec leur nature d'outils opérationnels hors application).
 
 ## 2. Déplacement vers `scripts/migrations/` + confirmation interactive + logs
 
@@ -163,7 +183,7 @@ confirmant la prise en compte).
 | Élément | Statut réel constaté | Action recommandée |
 |---|---|---|
 | 24 scripts `fix_*`/`patch_*`/`update_*` | Déjà archivés + documentés (`scripts/archive/README.md`) | Aucune — déjà fait |
-| 7 scripts d'administration actifs (`scripts/*.ts`, `scripts/loadtest.mjs`) | Audités en détail (voir §1.bis) : aucun secret en dur, mais aucune confirmation interactive ni log horodaté persisté | Hardening proposé (helper partagé opt-in) — en attente de validation |
+| 7 scripts d'administration actifs (`scripts/*.ts`, `scripts/loadtest.mjs`) | Audités en détail (voir §1.bis) : aucun secret en dur | **Fait : hardening implémenté (`scripts/lib/opsSafety.ts`) sur les 6 scripts TypeScript** ; `loadtest.mjs` inchangé (sans écriture) |
 | `@google/genai` côté client | N'existe pas dans ce dépôt | Aucune |
 | `server.ts` (Express) | Rôle clair, `requireAuth` correctement implémenté, fail-closed | Aucune |
 | `.env.example` | Propre (aucune valeur) | Aucune |
@@ -182,10 +202,10 @@ git.
 
 ## Risques résiduels identifiés
 
-1. Les 7 scripts d'administration actifs n'ont ni confirmation interactive avant écriture réelle,
-   ni log d'exécution horodaté persisté (voir §1.bis) — proposition de hardening additive en
-   attente de validation, aucun script n'a été modifié dans cette passe.
+Aucun risque résiduel ouvert sur le périmètre de la Phase 1 : les deux points en attente
+(suppression de `firebase-blueprint.json`, audit + hardening des 7 scripts actifs) sont traités.
 
 **Phase 1 terminée (mise à jour du 2026-09-17) : suppression de `firebase-blueprint.json`
-effectuée et audit détaillé des 7 scripts actifs livré. En attente de votre validation explicite
-avant de passer à la Phase 2**, conformément à votre instruction.
+effectuée, audit détaillé des 7 scripts actifs livré, et hardening (confirmation interactive +
+journal horodaté) implémenté sur les 6 scripts TypeScript. En attente de votre validation
+explicite avant de passer à la Phase 2**, conformément à votre instruction.

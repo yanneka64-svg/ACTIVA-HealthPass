@@ -37,6 +37,10 @@
  */
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+// === AMÉLIORATION AJOUTÉE : sécurité (durcissement Phase 1, 2026-09-17) — voir scripts/lib/opsSafety.ts
+import { confirmLiveWrite, startOpsLog } from './lib/opsSafety';
+
+const ops = startOpsLog('revokeCompromisedAccountAccess');
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -48,7 +52,8 @@ function requireEnv(name: string): string {
 
 async function run() {
   const isDryRun = process.argv.includes('--dry-run');
-  console.log(`--- Emergency Auth-Level Access Revocation ${isDryRun ? '[DRY-RUN — no write will be made]' : '[LIVE EXECUTION]'} ---`);
+  ops.log(`--- Emergency Auth-Level Access Revocation ${isDryRun ? '[DRY-RUN — no write will be made]' : '[LIVE EXECUTION]'} ---`);
+  ops.log(`(Journal d'exécution : ${ops.logFilePath})`);
 
   const projectId = requireEnv('FIREBASE_PROJECT_ID');
   const targetUid = process.env.TARGET_ACCOUNT_UID;
@@ -63,26 +68,27 @@ async function run() {
 
   const user = targetUid ? await auth.getUser(targetUid) : await auth.getUserByEmail(targetEmail as string);
 
-  console.log('\nTarget Firebase Auth user:');
-  console.log(`  uid          : ${user.uid}`);
-  console.log(`  email        : ${user.email}`);
-  console.log(`  disabled     : ${user.disabled}`);
-  console.log(`  tokensValidAfterTime : ${user.tokensValidAfterTime || '(never revoked)'}`);
+  ops.log('\nTarget Firebase Auth user:');
+  ops.log(`  uid          : ${user.uid}`);
+  ops.log(`  email        : ${user.email}`);
+  ops.log(`  disabled     : ${user.disabled}`);
+  ops.log(`  tokensValidAfterTime : ${user.tokensValidAfterTime || '(never revoked)'}`);
 
   if (isDryRun) {
-    console.log('\n[DRY-RUN] Would set disabled=true and revoke all refresh tokens issued before now. No write performed.');
+    ops.log('\n[DRY-RUN] Would set disabled=true and revoke all refresh tokens issued before now. No write performed.');
     process.exit(0);
   }
 
+  await confirmLiveWrite(`désactivation Auth + révocation de tous les tokens pour ${user.email || user.uid}`);
   await auth.updateUser(user.uid, { disabled: true });
   await auth.revokeRefreshTokens(user.uid);
-  console.log(`\n✓ Firebase Auth user ${user.uid} disabled and all existing refresh tokens revoked.`);
-  console.log('Any ID token issued before this moment is now rejected by Firebase on next verification;');
-  console.log('sign-in with this account will fail outright until re-enabled (auth.updateUser(uid, {disabled: false})).');
+  ops.log(`\n✓ Firebase Auth user ${user.uid} disabled and all existing refresh tokens revoked.`);
+  ops.log('Any ID token issued before this moment is now rejected by Firebase on next verification;');
+  ops.log('sign-in with this account will fail outright until re-enabled (auth.updateUser(uid, {disabled: false})).');
   process.exit(0);
 }
 
 run().catch((err) => {
-  console.error('Revocation script failed:', err);
+  ops.error('Revocation script failed:', err);
   process.exit(1);
 });
