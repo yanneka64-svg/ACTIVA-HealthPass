@@ -26,6 +26,9 @@ import { Topbar } from './components/Topbar';
 import { SyncIssueBanner } from './components/SyncIssueBanner';
 import { FallbackAlertBanner } from './components/FallbackAlertBanner';
 import { LoginView } from './components/auth/LoginView';
+// === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande explicite),
+// affiché avant LoginView — voir usage plus bas (bloc `authStatus === 'unauthenticated'`).
+import { WorkspaceSelectionView } from './components/auth/WorkspaceSelectionView';
 import { AuthLoadingScreen } from './components/auth/AuthLoadingScreen';
 import { AuthBlockedScreen } from './components/auth/AuthBlockedScreen';
 import { ChangePasswordModal } from './components/auth/ChangePasswordModal';
@@ -123,6 +126,40 @@ export default function App() {
   const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [forcedFirstLogin, setForcedFirstLogin] = useState(false);
   const [forcedPasswordExpiry, setForcedPasswordExpiry] = useState(false);
+
+  // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande
+  // explicite), affiché avant la page de connexion tant qu'aucun espace n'a été choisi.
+  // Persisté en sessionStorage (comme `activa_current_section` déjà utilisé ailleurs dans ce
+  // fichier) pour survivre à un rechargement de page ; nettoyé automatiquement à la
+  // déconnexion (voir `handleLogout`, qui appelle déjà `sessionStorage.clear()`), pour que
+  // l'utilisateur retrouve bien l'écran de sélection après s'être déconnecté. Purement une
+  // question de navigation/affichage avant connexion — aucun impact sur l'authentification
+  // Firebase, la résolution du rôle ou les sections accessibles une fois connecté.
+  const WORKSPACE_SELECTION_STORAGE_KEY = 'activa_selected_workspace';
+  const [selectedWorkspace, setSelectedWorkspace] = useState<AppRole | null>(() => {
+    try {
+      return (sessionStorage.getItem(WORKSPACE_SELECTION_STORAGE_KEY) as AppRole | null) || null;
+    } catch {
+      return null;
+    }
+  });
+  const handleSelectWorkspace = (role: AppRole) => {
+    setSelectedWorkspace(role);
+    try {
+      sessionStorage.setItem(WORKSPACE_SELECTION_STORAGE_KEY, role);
+    } catch {
+      // sessionStorage indisponible -> l'écran de sélection réapparaîtra simplement au
+      // prochain rechargement, sans bloquer la navigation en cours.
+    }
+  };
+  const handleBackToWorkspaceSelection = () => {
+    setSelectedWorkspace(null);
+    try {
+      sessionStorage.removeItem(WORKSPACE_SELECTION_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
 
   // Inactivity Auto-Logout
   // === AMÉLIORATION AJOUTÉE : délai réduit à 5 minutes (300s) d'inactivité, avertissement
@@ -1118,11 +1155,26 @@ export default function App() {
 
   // 2. Unauthenticated screen: render clean, secured Login view
   if (authStatus === 'unauthenticated') {
+    // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande
+    // explicite), affiché en premier tant qu'aucun espace n'a été choisi — voir
+    // `selectedWorkspace` ci-dessus. Une fois un espace choisi, la page de connexion existante
+    // (LoginView) s'affiche exactement comme avant, avec juste un rappel de l'espace choisi.
+    if (!selectedWorkspace) {
+      return (
+        <WorkspaceSelectionView
+          lang={lang}
+          onLanguageChange={handleLanguageChange}
+          onSelectWorkspace={handleSelectWorkspace}
+        />
+      );
+    }
     return (
       <LoginView
         onLoginSuccess={handleLoginSuccess}
         lang={lang}
         onLanguageChange={handleLanguageChange}
+        selectedWorkspace={selectedWorkspace}
+        onBackToWorkspaceSelection={handleBackToWorkspaceSelection}
       />
     );
   }

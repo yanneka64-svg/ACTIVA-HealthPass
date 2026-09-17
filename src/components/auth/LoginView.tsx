@@ -13,11 +13,19 @@ import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { getClientLocationInfo, parseUserAgent } from '../../utils/geoUtils';
 import { FirestoreService } from '../../services/firestore';
+import { AppRole } from '../../utils/authUtils';
 
 interface LoginViewProps {
   onLoginSuccess: (user: any, accountData?: any) => void;
   lang: Language;
   onLanguageChange?: (lang: Language) => void;
+  // === AMÉLIORATION AJOUTÉE : props optionnelles (demande explicite) reliant ce formulaire au
+  // nouvel écran de sélection d'espace de travail (WorkspaceSelectionView, affiché avant cette
+  // page). Purement informatif/navigation : aucun impact sur la validation, l'authentification
+  // Firebase ou les messages d'erreur ci-dessous, strictement inchangés. Optionnelles pour ne
+  // rien casser si ce composant est utilisé ailleurs sans cet écran en amont.
+  selectedWorkspace?: AppRole | null;
+  onBackToWorkspaceSelection?: () => void;
 }
 
 // === ADDED IMPROVEMENT (security): temporary client-side lockout after repeated failed
@@ -97,6 +105,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
   onLoginSuccess,
   lang,
   onLanguageChange,
+  selectedWorkspace,
+  onBackToWorkspaceSelection,
 }) => {
   // === AMÉLIORATION AJOUTÉE : cet écran ignorait totalement `lang`/`onLanguageChange`
   // jusqu'ici (props déclarées mais jamais utilisées) — voir aussi les deux pastilles de
@@ -553,6 +563,33 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <p className="mt-1.5 text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
               {t.auth.signInSubtitle}
             </p>
+
+            {/* === AMÉLIORATION AJOUTÉE : rappel de l'espace de travail choisi sur l'écran
+                précédent (WorkspaceSelectionView) + lien pour en changer sans devoir utiliser le
+                bouton "retour" du navigateur. N'apparaît que si ces props optionnelles sont
+                fournies — comportement du formulaire ci-dessous strictement inchangé. === */}
+            {selectedWorkspace && (
+              <div className="mt-3 flex items-center justify-center gap-2 text-[11px] sm:text-xs">
+                <span className="text-[#5B7091] font-medium">
+                  {t.auth.workspaceSelectedPrefix}
+                  <span className="font-bold text-[#0D2B63]">
+                    {selectedWorkspace === 'Agent' && t.auth.workspaceAgentTitle}
+                    {selectedWorkspace === 'Supervisor' && t.auth.workspaceSupervisorTitle}
+                    {selectedWorkspace === 'Admin' && t.auth.workspaceAdminTitle}
+                  </span>
+                </span>
+                {onBackToWorkspaceSelection && (
+                  <button
+                    type="button"
+                    id="login-change-workspace"
+                    onClick={onBackToWorkspaceSelection}
+                    className="text-[#0A34A3] font-semibold hover:underline cursor-pointer"
+                  >
+                    {t.auth.workspaceChangeLink}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* === AMÉLIORATION AJOUTÉE : espace réduit davantage (retour utilisateur, 2026-09-07
                 — un premier resserrement mt-7/space-y-4/py-3 -> mt-5/space-y-3/py-2.5 était trop
