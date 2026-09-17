@@ -7,7 +7,6 @@
 // réinventer une seconde logique métier divergente.
 import React, { useMemo, useState } from 'react';
 import {
-  Search,
   ShieldAlert,
   ShieldCheck,
   FileText,
@@ -21,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Member, Organization, Provider, Ceiling, HealthPolicy, Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
+import { SearchableList } from '../../components/ui/SearchableList';
 import { checkCareEligibility } from '../../services/eligibilityService';
 import { getPolicyCoverageStatus } from '../../services/policyEngine';
 import { uploadDocumentToStorage } from '../../utils/storageUtils';
@@ -116,22 +116,8 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // --- Step 1: Identification ---------------------------------------------------------------
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [policyWarningAcknowledged, setPolicyWarningAcknowledged] = useState(false);
-
-  const filteredMembers = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return members.slice(0, 8);
-    return members
-      .filter(
-        (m) =>
-          m.cardNo?.toLowerCase().includes(q) ||
-          m.principalName?.toLowerCase().includes(q) ||
-          m.spouseName?.toLowerCase().includes(q)
-      )
-      .slice(0, 8);
-  }, [members, searchQuery]);
 
   const selectedOrganization = useMemo(
     () =>
@@ -330,41 +316,30 @@ export const ClaimCaseWizard: React.FC<ClaimCaseWizardProps> = ({
       {/* STEP 1 */}
       {step === 1 && (
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="relative mb-4">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t.searchPlaceholder}
-              className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0A347B]/30"
-            />
-          </div>
-
-          <div className="space-y-1.5 max-h-64 overflow-y-auto">
-            {filteredMembers.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-6">{t.noMatchingMembers}</p>
-            )}
-            {filteredMembers.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => {
-                  setSelectedMember(m);
-                  setPolicyWarningAcknowledged(false);
-                }}
-                className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
-                  selectedMember?.id === m.id
-                    ? 'border-[#0A347B] bg-[#0A347B]/5'
-                    : 'border-slate-100 hover:border-slate-300'
+          <SearchableList<Member>
+            items={members}
+            getKey={(m) => m.id}
+            getSearchableText={(m) => `${m.cardNo || ''} ${m.principalName || ''} ${m.spouseName || ''}`}
+            selectedKey={selectedMember?.id ?? null}
+            placeholder={t.searchPlaceholder}
+            emptyMessage={t.noMatchingMembers}
+            onSelect={(m) => {
+              setSelectedMember(m);
+              setPolicyWarningAcknowledged(false);
+            }}
+            renderItem={(m, isSelected) => (
+              <div
+                className={`px-3 py-2.5 rounded-lg border transition-colors ${
+                  isSelected ? 'border-[#0A347B] bg-[#0A347B]/5' : 'border-slate-100 hover:border-slate-300'
                 }`}
               >
                 <div className="text-sm font-semibold text-slate-800">{m.principalName}</div>
                 <div className="text-xs text-slate-500">
                   {m.cardNo} &middot; {m.organization} &middot; {m.status}
                 </div>
-              </button>
-            ))}
-          </div>
+              </div>
+            )}
+          />
 
           {selectedMember && (
             <div className="mt-5 border-t border-slate-100 pt-4 space-y-3">
