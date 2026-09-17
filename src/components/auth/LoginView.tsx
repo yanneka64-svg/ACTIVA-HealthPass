@@ -3,10 +3,6 @@ import { Lock, User, ArrowRight, AlertCircle, Globe, Shield, Eye, EyeOff } from 
 import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { Logo } from '../Logo';
-import activaLogoOriginal from '../../assets/logos/logo-activa.png';
-// === AMÉLIORATION AJOUTÉE : photo fournie par l'utilisateur pour remplacer le fond bleu uni
-// du panneau gauche de la page de connexion (retour utilisateur explicite, 2026-09-11).
-import loginDoctorPhoto from '../../assets/login-doctor.webp';
 import { auth, functions, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -118,20 +114,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [lockoutRemainingSec, setLockoutRemainingSec] = useState(0);
-  // === AMÉLIORATION AJOUTÉE : correctif logo (retour utilisateur, 2026-09-11 — "le logo sur
-  // la bande bleue" affiche parfois une icône d'image cassée à la déconnexion) — un échec de
-  // chargement réseau ponctuel (asset local pourtant déjà mis en cache par le navigateur, mais
-  // parfois manqué juste après le remontage de cet écran à la déconnexion) ne se corrigeait
-  // jamais tout seul : une <img> standard n'a aucune logique de nouvelle tentative après une
-  // erreur. Jusqu'à 3 nouvelles tentatives, avec un court délai croissant ; `key` forcé à
-  // changer pour que React recrée bien un nouveau nœud <img> (remettre `src` à l'identique ne
-  // relance pas toujours une requête réseau dans tous les navigateurs).
-  const [logoRetryCount, setLogoRetryCount] = useState(0);
-  const handleLogoLoadError = () => {
-    if (logoRetryCount < 3) {
-      setTimeout(() => setLogoRetryCount((c) => c + 1), 350 * (logoRetryCount + 1));
-    }
-  };
+  // === AMÉLIORATION AJOUTÉE : état/gestion de nouvelle tentative de l'ancien logo du panneau
+  // bleu retirés (demande explicite, 2026-09-17) — ils ne servaient qu'à cette <img>, désormais
+  // supprimée avec le panneau lui-même.
 
   // Live countdown while locked out, so the user sees when they can retry.
   useEffect(() => {
@@ -455,66 +440,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
       </div>
 
-      {/* LEFT PANEL — dégradé bleu + motif de courbes, identiques à la sidebar Agent.
-          === AMÉLIORATION AJOUTÉE : élargi (46%/44% -> 56%/54%) pour réduire d'autant la
-          largeur du panneau blanc du formulaire (retour utilisateur explicite). ===
-          === AMÉLIORATION AJOUTÉE : photo (docteur avec tablette) posée en fond du panneau,
-          à la place du bleu uni (retour utilisateur explicite, 2026-09-11 — "remplace le bleu
-          par la photo"). Le dégradé bleu d'origine est conservé en surcouche semi-transparente
-          au-dessus de la photo afin que le logo et les textes blancs restent parfaitement
-          lisibles, comme avant. === */}
-      <div
-        className="hidden lg:flex lg:w-[56%] xl:w-[54%] relative overflow-hidden flex-col justify-between p-10 xl:p-14 bg-cover bg-center"
-        style={{ backgroundImage: `url(${loginDoctorPhoto})` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-[#072659]/90 via-[#0A347B]/85 to-[#0D2B63]/92 pointer-events-none" />
-        {/* Halo lumineux — identique à Sidebar.tsx (accentGlow Agent: bg-blue-400/20) */}
-        <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
-
-        {/* === AMÉLIORATION AJOUTÉE : entrée en fondu/glissement, en cascade, du badge, du
-            titre, du texte et du copyright — sur demande explicite ("je veux que ces données
-            soient animées"). Contenu, couleurs et mise en page strictement inchangés.
-            === AMÉLIORATION AJOUTÉE : animation changée pour un glissement LATÉRAL plus lent
-            (2026-09-10, retour utilisateur — proposition "B" choisie parmi 5 alternatives
-            présentées via un aperçu, avec la consigne explicite "plus lent") — voir
-            src/index.css (.login-anim-slide-left, .login-anim-delay-1..4).
-            === AMÉLIORATION AJOUTÉE : le badge "ACTIVA Cloud Secure Portal" est remplacé par
-            le logo Activa exact (asset src/assets/logos/logo-activa.png), uniquement sur
-            cette page. Après plusieurs essais de recolorisation en blanc (retouches
-            successives pour la taille et la netteté), retour à la version la plus simple sur
-            demande explicite ("faisons simple, adopte plutôt le logo activa original sous
-            fond blanc, conserve la taille du logo telle qu'il existe actuellement") :
-            couleurs d'origine du logo (jamais retouchées, donc jamais floues), posées sur une
-            plaque blanche pour rester lisibles sur le fond bleu marine du panneau. Taille de
-            l'image inchangée (h-12).
-            === AMÉLIORATION AJOUTÉE : logo figé, non animé (retour utilisateur, 2026-09-11 —
-            "je ne veux pas que le logo de ACTIVA soit animé, il doit être figé") — classes
-            login-anim-slide-left/login-anim-delay-1 retirées de ce seul badge (visible
-            immédiatement, sans glissement ni délai). Le titre, le texte et le copyright
-            juste en dessous restent animés comme avant — seul le logo est concerné. === */}
-        <div className="relative z-10 self-start bg-white rounded-lg px-3 py-2 shadow-sm">
-          <img
-            key={logoRetryCount}
-            src={activaLogoOriginal}
-            alt="Activa"
-            className="h-12 w-auto"
-            onError={handleLogoLoadError}
-          />
-        </div>
-
-        <div className="relative z-10">
-          <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight login-anim-slide-left login-anim-delay-2">
-            {t.auth.heroGreetingLine1}<br />ACTIVA HealthPass!
-          </h1>
-          <p className="mt-5 text-sm xl:text-[15px] text-[#EAF2FF]/90 font-medium leading-relaxed max-w-sm login-anim-slide-left login-anim-delay-3">
-            {t.auth.heroDescription}
-          </p>
-        </div>
-
-        <div className="relative z-10 text-xs text-white/60 font-medium login-anim-slide-left login-anim-delay-4">
-          {t.auth.copyright}
-        </div>
-      </div>
+      {/* === AMÉLIORATION AJOUTÉE : panneau gauche (photo + dégradé bleu) retiré de cet écran
+          (demande explicite, 2026-09-17) — le formulaire de connexion occupe désormais toute
+          la largeur, centré. Rien d'autre n'a changé : validation, authentification Firebase,
+          messages d'erreur et sélecteur de langue restent strictement identiques. === */}
 
       {/* RIGHT PANEL — blanc, logo + formulaire */}
       <div className="flex-1 bg-white relative flex flex-col">
