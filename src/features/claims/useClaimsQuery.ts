@@ -3,12 +3,11 @@
 // Firestore temps réel existant (FirestoreService.subscribeToClaims, voir App.tsx) reste
 // l'UNIQUE source de vérité : il continue d'alimenter `queryClient` via `setQueryData` à chaque
 // mise à jour, exactement comme avant vers son `useState` local. Ce hook ne fait qu'exposer ce
-// même cache en lecture via `useQuery` — `enabled: false` et un `queryFn` qui ne devrait jamais
-// s'exécuter, puisque aucune donnée n'est censée être absente du cache une fois l'abonnement
-// actif (voir src/lib/queryClient.ts pour les options qui désactivent tout refetch automatique).
-// Aucun consommateur ne lit encore depuis ce hook à ce stade — introduction volontairement
-// isolée, un composant sera migré séparément une fois ce socle validé.
-import { useQuery } from '@tanstack/react-query';
+// même cache en lecture via `useQuery` (voir src/lib/queryClient.ts pour les options qui
+// désactivent tout refetch automatique). Aucun consommateur ne lit encore depuis ce hook à ce
+// stade — introduction volontairement isolée, un composant sera migré séparément une fois ce
+// socle validé.
+import { useQuery, skipToken } from '@tanstack/react-query';
 import { Claim } from '../../types';
 
 // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour de revue qodo sur la PR #62,
@@ -22,11 +21,14 @@ export function claimsQueryKey(assignedOrgs: string[] | null): readonly [string,
 export function useClaimsQuery(assignedOrgs: string[] | null) {
   return useQuery<Claim[]>({
     queryKey: claimsQueryKey(assignedOrgs),
-    // Ne doit normalement jamais s'exécuter : le cache est alimenté exclusivement par
-    // l'abonnement onSnapshot existant (App.tsx). Un tableau vide en repli documente ce
-    // qu'affiche l'UI si jamais interrogé avant la première mise à jour du listener.
-    queryFn: () => [] as Claim[],
-    enabled: false,
+    // === AMÉLIORATION AJOUTÉE : correctif (retour de revue qodo sur la PR #62, 2026-09-17) ===
+    // `skipToken` (pas un `queryFn` qui retourne `[]` avec `enabled: false`) : ce dernier
+    // laissait le `refetch()` exposé par `useQuery` réellement exécutable manuellement, ce qui
+    // aurait écrasé les vraies données mises en cache par l'abonnement Firestore avec un tableau
+    // vide. `skipToken` désactive la requête au niveau du type même : aucune fonction à invoquer,
+    // ni automatiquement ni via un `refetch()` manuel — le cache reste in fine uniquement piloté
+    // par `queryClient.setQueryData` (App.tsx).
+    queryFn: skipToken,
     initialData: [] as Claim[],
   });
 }
