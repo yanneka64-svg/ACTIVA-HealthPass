@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, User, LogIn, AlertCircle, Globe, Eye, EyeOff } from 'lucide-react';
+import { Lock, User, LogIn, AlertCircle, Globe, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { Logo } from '../Logo';
@@ -414,6 +414,24 @@ export const LoginView: React.FC<LoginViewProps> = ({
   // inchangé — seule la mise en page/l'habillage visuel a été retravaillé.
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#EEF2F7] font-sans antialiased select-none px-4 py-10 relative">
+      {/* === AMÉLIORATION AJOUTÉE : flèche de retour vers l'écran de sélection d'espace de
+          travail (demande explicite) — même action que le lien texte "Change workspace"
+          plus bas, ajoutée ici comme raccourci visuel immédiat en haut à gauche, symétrique
+          du sélecteur de langue en haut à droite. N'apparaît que si cette prop optionnelle est
+          fournie (cohérent avec le lien texte existant), sans impact sur le reste de l'écran. === */}
+      {onBackToWorkspaceSelection && (
+        <button
+          type="button"
+          id="login-back-to-workspace-selection"
+          onClick={onBackToWorkspaceSelection}
+          aria-label={t.auth.workspaceChangeLink}
+          title={t.auth.workspaceChangeLink}
+          className="absolute top-4 left-4 sm:top-6 sm:left-6 z-10 flex items-center justify-center w-9 h-9 bg-white border border-[#E8EDF2] rounded-lg text-[#0A347B] shadow-2xs hover:bg-slate-50 cursor-pointer transition"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+      )}
+
       {/* Sélecteur de langue — même comportement qu'avant (liste déroulante EN/FR), désormais
           toujours visible en haut à droite (un seul sélecteur, quelle que soit la largeur
           d'écran, puisqu'il n'y a plus de mise en page distincte mobile/desktop). */}
