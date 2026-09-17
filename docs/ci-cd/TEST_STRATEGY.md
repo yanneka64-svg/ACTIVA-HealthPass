@@ -94,9 +94,10 @@ ici.
 Les 3 tests sont chaînés car ils forment un seul parcours métier continu (comme le ferait
 un Agent puis un Superviseur en production) :
 
-1. **Création de carte** — un Agent enrôle un bénéficiaire ; un numéro de carte
-   (`AMID-YYMMDD-NNNNN`) est généré via le repli client et le dossier apparaît en attente
-   de validation.
+1. **Création de carte** — un Agent enrôle un bénéficiaire en saisissant manuellement un
+   numéro de carte (11 caractères alphanumériques, `ENROLLED_CARD_NO` dans le test — voir
+   section 5, saisie manuelle depuis le 2026-09-09) ; le dossier apparaît en attente de
+   validation, avec ce numéro visible dans la ligne correspondante.
 2. **Approbation de dossier** — un Superviseur valide l'enrôlement (repli client) ; le
    dossier passe à `Validated` et la carte est activée.
 3. **Génération de facture** — l'Agent soumet un sinistre référençant la carte désormais
