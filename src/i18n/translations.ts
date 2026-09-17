@@ -157,6 +157,10 @@ export const translations = {
       workspaceAdminDesc: 'Full management: members, organizations, ceilings, accounts',
       workspaceSelectedPrefix: 'Workspace: ',
       workspaceChangeLink: 'Change workspace',
+      // === AMÉLIORATION AJOUTÉE : nouvelle accroche de la carte de connexion (redesign
+      // explicite, 2026-09-17) — remplace visuellement `signInSubtitle` (conservée, toujours
+      // utilisée telle quelle ailleurs) sur cet écran précis.
+      loginHeading: 'Access your secure workspace',
     },
 
     // Dashboard
@@ -1638,6 +1642,7 @@ export const translations = {
       workspaceAdminDesc: 'Gestion complète : membres, organisations, plafonds, comptes',
       workspaceSelectedPrefix: 'Espace : ',
       workspaceChangeLink: "Changer d'espace",
+      loginHeading: 'Accédez à votre espace de travail sécurisé',
     },
 
     dashboard: {
