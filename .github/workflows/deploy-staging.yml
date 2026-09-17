@@ -46,7 +46,7 @@ jobs:
       # "Emulator Security Rules Tests" ci-dessous échoue avec "firebase-tools no longer
       # supports Java version before 21" — le même correctif que ci.yml/deploy-production.yml,
       # manquant ici lors de l'ajout de cette étape plus tôt dans cette session.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '21'
