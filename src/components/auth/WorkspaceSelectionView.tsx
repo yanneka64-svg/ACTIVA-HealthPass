@@ -96,7 +96,11 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
       {/* LEFT PANEL — identique à LoginView (photo + dégradé bleu + logo + accroche) */}
       <div
         className="hidden lg:flex lg:w-[56%] xl:w-[54%] relative overflow-hidden flex-col justify-between p-10 xl:p-14 bg-cover bg-center"
-        style={{ backgroundImage: `url(${loginDoctorPhoto})` }}
+        // === AMÉLIORATION AJOUTÉE : couleur de fond unie posée derrière la photo (retour
+        // utilisateur explicite — "les images ont du mal à charger") — c'est la toute première
+        // image vue à l'arrivée sur l'application ; sans `backgroundColor`, tout délai réseau
+        // se traduisait par un flash de fond blanc/transparent avant que la photo n'apparaisse.
+        style={{ backgroundColor: '#0A347B', backgroundImage: `url(${loginDoctorPhoto})` }}
       >
         <div className="absolute inset-0 bg-gradient-to-b from-[#072659]/90 via-[#0A347B]/85 to-[#0D2B63]/92 pointer-events-none" />
         <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
