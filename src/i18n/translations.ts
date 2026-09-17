@@ -161,6 +161,10 @@ export const translations = {
       // explicite, 2026-09-17) — remplace visuellement `signInSubtitle` (conservée, toujours
       // utilisée telle quelle ailleurs) sur cet écran précis.
       loginHeading: 'Access your secure workspace',
+      // === AMÉLIORATION AJOUTÉE : libellé visible de la flèche de retour vers l'écran de
+      // sélection d'espace de travail (demande explicite, 2026-09-17) — indique clairement sa
+      // destination plutôt qu'une simple icône seule.
+      backToHome: 'Back to home',
     },
 
     // Dashboard
@@ -1643,6 +1647,7 @@ export const translations = {
       workspaceSelectedPrefix: 'Espace : ',
       workspaceChangeLink: "Changer d'espace",
       loginHeading: 'Accédez à votre espace de travail sécurisé',
+      backToHome: "Retour à l'accueil",
     },
 
     dashboard: {

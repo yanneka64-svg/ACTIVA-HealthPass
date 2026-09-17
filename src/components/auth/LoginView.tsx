@@ -418,17 +418,20 @@ export const LoginView: React.FC<LoginViewProps> = ({
           travail (demande explicite) — même action que le lien texte "Change workspace"
           plus bas, ajoutée ici comme raccourci visuel immédiat en haut à gauche, symétrique
           du sélecteur de langue en haut à droite. N'apparaît que si cette prop optionnelle est
-          fournie (cohérent avec le lien texte existant), sans impact sur le reste de l'écran. === */}
+          fournie (cohérent avec le lien texte existant), sans impact sur le reste de l'écran.
+          === AMÉLIORATION AJOUTÉE : libellé "Back to home" ajouté à côté de la flèche (demande
+          explicite) pour indiquer clairement sa destination plutôt qu'une icône seule. === */}
       {onBackToWorkspaceSelection && (
         <button
           type="button"
           id="login-back-to-workspace-selection"
           onClick={onBackToWorkspaceSelection}
-          aria-label={t.auth.workspaceChangeLink}
-          title={t.auth.workspaceChangeLink}
-          className="absolute top-4 left-4 sm:top-6 sm:left-6 z-10 flex items-center justify-center w-9 h-9 bg-white border border-[#E8EDF2] rounded-lg text-[#0A347B] shadow-2xs hover:bg-slate-50 cursor-pointer transition"
+          aria-label={t.auth.backToHome}
+          title={t.auth.backToHome}
+          className="absolute top-4 left-4 sm:top-6 sm:left-6 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0A347B] shadow-2xs hover:bg-slate-50 cursor-pointer transition"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>{t.auth.backToHome}</span>
         </button>
       )}
 
