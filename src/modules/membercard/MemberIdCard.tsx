@@ -29,6 +29,7 @@ import QRCode from 'qrcode';
 import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { ACTIVA_LOGO_BASE64 } from '../../assets/logos';
+import { PhotoThumbnail } from '../../components/PhotoThumbnail';
 
 interface MemberIdCardProps {
   fullName: string;
@@ -153,15 +154,18 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
           {/* Photo + bloc Bénéficiaire */}
           <div className="flex items-start gap-2.5">
             <div className="w-[16.67cqw] h-[18.67cqw] shrink-0 rounded-md border border-slate-300 bg-slate-100 overflow-hidden flex items-center justify-center">
-              {photoUrl ? (
-                <img src={photoUrl} alt={t.memberCard.photoAlt} className="w-full h-full object-cover" />
-              ) : (
-                <svg viewBox="0 0 50 56" className="w-full h-full">
-                  <rect width="50" height="56" fill="#eef1f5" />
-                  <circle cx="25" cy="21" r="10" fill="#c3cbd6" />
-                  <path d="M7,54 C7,40 14,34 25,34 C36,34 43,40 43,54 Z" fill="#c3cbd6" />
-                </svg>
-              )}
+              <PhotoThumbnail
+                src={photoUrl}
+                alt={t.memberCard.photoAlt}
+                className="w-full h-full object-cover"
+                fallback={
+                  <svg viewBox="0 0 50 56" className="w-full h-full">
+                    <rect width="50" height="56" fill="#eef1f5" />
+                    <circle cx="25" cy="21" r="10" fill="#c3cbd6" />
+                    <path d="M7,54 C7,40 14,34 25,34 C36,34 43,40 43,54 Z" fill="#c3cbd6" />
+                  </svg>
+                }
+              />
             </div>
 
             <div className="min-w-0 flex-1">

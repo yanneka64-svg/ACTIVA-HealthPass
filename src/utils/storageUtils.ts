@@ -28,9 +28,24 @@
 // réussisse. Sans ce déploiement, la capture de photo échoue désormais explicitement (voir
 // storageFallback.ts) au lieu de dégrader silencieusement le stockage.
 
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { ref, uploadString, getDownloadURL, UploadMetadata } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 import { isBase64PhotoFallbackAllowed } from '../config/storageFallback';
+
+// === AMÉLIORATION AJOUTÉE : performance/robustesse de chargement des photos (retour
+// utilisateur explicite — "les images ont du mal à charger" à la connexion / en changeant de
+// page) — les photos étaient jusqu'ici envoyées à Firebase Storage sans métadonnées de cache
+// explicites : sans en-tête Cache-Control, le navigateur revalide (voire retélécharge)
+// l'image sur le réseau à chaque nouvel affichage, y compris pour la MÊME photo déjà vue lors
+// d'un précédent changement de page. Chaque chemin d'upload inclut déjà un timestamp
+// (`{identifier}-{Date.now()}.jpg` — voir `uploadPhotoOrFallback`), ce qui rend chaque fichier
+// réellement immuable : une fois écrit, ce chemin exact ne change plus jamais de contenu, donc
+// un cache long et "immutable" est sûr et permet au navigateur de réafficher la photo à partir
+// du cache local dès le deuxième affichage, sans nouvelle requête réseau.
+const PHOTO_CACHE_METADATA: UploadMetadata = {
+  contentType: 'image/jpeg',
+  cacheControl: 'public, max-age=31536000, immutable',
+};
 
 /**
  * Uploads a base64 "data:...;base64,..." image URL to Firebase Storage under `path` and
@@ -40,7 +55,7 @@ import { isBase64PhotoFallbackAllowed } from '../config/storageFallback';
  */
 export async function uploadDataUrlToStorage(dataUrl: string, path: string): Promise<string> {
   const storageRef = ref(storage, path);
-  await uploadString(storageRef, dataUrl, 'data_url');
+  await uploadString(storageRef, dataUrl, 'data_url', PHOTO_CACHE_METADATA);
   return await getDownloadURL(storageRef);
 }
 

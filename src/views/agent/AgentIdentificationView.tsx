@@ -29,6 +29,7 @@ import { Member, Claim, Language, Organization, HealthPolicy } from '../../types
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
+import { PhotoThumbnail } from '../../components/PhotoThumbnail';
 // === AMÉLIORATION AJOUTÉE : import direct depuis le module utilitaire léger (auto-revue,
 // 2026-09-12) — mêmes fonctions, déplacées depuis MembersView.tsx vers memberUtils.ts (aucun
 // changement de comportement). Voir le commentaire dans src/utils/memberUtils.ts.
@@ -495,11 +496,12 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                     }`}
                   >
                     <div className="relative w-11 h-11 rounded-xl bg-blue-100/60 border border-blue-200 flex items-center justify-center overflow-hidden shrink-0">
-                      {b.photoUrl ? (
-                        <img src={b.photoUrl} alt={b.fullName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <User className="w-5 h-5 text-[var(--brand-900)]" />
-                      )}
+                      <PhotoThumbnail
+                        src={b.photoUrl}
+                        alt={b.fullName}
+                        className="w-full h-full object-cover"
+                        fallback={<User className="w-5 h-5 text-[var(--brand-900)]" />}
+                      />
                       {(b.hasBiometrics || b.fingerprintScore) && (
                         <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
                           <Fingerprint className="w-2.5 h-2.5 text-white" />
@@ -858,11 +860,12 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
                               </span>
                             )}
                             <div className="w-8 h-8 rounded-lg bg-blue-100/60 border border-blue-200 flex items-center justify-center overflow-hidden mb-1.5">
-                              {principalSelf.photoUrl ? (
-                                <img src={principalSelf.photoUrl} alt={principalSelf.fullName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              ) : (
-                                <User className="w-4 h-4 text-[var(--brand-900)]" />
-                              )}
+                              <PhotoThumbnail
+                                src={principalSelf.photoUrl}
+                                alt={principalSelf.fullName}
+                                className="w-full h-full object-cover"
+                                fallback={<User className="w-4 h-4 text-[var(--brand-900)]" />}
+                              />
                             </div>
                             <div className="font-bold text-[11px] text-slate-900 truncate">{principalSelf.fullName}</div>
                             <div className="text-[10px] font-bold text-[var(--brand-900)]">{t.agentId.principalSelf}</div>
