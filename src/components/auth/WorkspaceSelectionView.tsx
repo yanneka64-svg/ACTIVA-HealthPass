@@ -44,7 +44,7 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
   const workspaces: WorkspaceOption[] = [
     {
       role: 'Agent',
-      icon: <Stethoscope className="w-5 h-5" />,
+      icon: <Stethoscope className="w-4 h-4" />,
       title: t.auth.workspaceAgentTitle,
       description: t.auth.workspaceAgentDesc,
       hoverBorderClass: 'hover:border-[#0A347B]',
@@ -53,7 +53,7 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
     },
     {
       role: 'Supervisor',
-      icon: <ClipboardCheck className="w-5 h-5" />,
+      icon: <ClipboardCheck className="w-4 h-4" />,
       title: t.auth.workspaceSupervisorTitle,
       description: t.auth.workspaceSupervisorDesc,
       hoverBorderClass: 'hover:border-[#C24F47]',
@@ -62,7 +62,7 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
     },
     {
       role: 'Admin',
-      icon: <Settings2 className="w-5 h-5" />,
+      icon: <Settings2 className="w-4 h-4" />,
       title: t.auth.workspaceAdminTitle,
       description: t.auth.workspaceAdminDesc,
       hoverBorderClass: 'hover:border-[#404E62]',
@@ -137,39 +137,40 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
         </div>
 
         <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-10 xl:p-16 pt-16 lg:pt-6">
-          <div className="w-full max-w-[420px]">
+          {/* === AMÉLIORATION AJOUTÉE : écran légèrement dézoomé (demande explicite) — carte,
+              titre et cartes d'espace réduits d'un cran pour ne plus paraître "en gros plan" ;
+              aucun changement de comportement, uniquement des tailles/espacements resserrés. === */}
+          <div className="w-full max-w-[380px]">
             {/* === AMÉLIORATION AJOUTÉE : logo retiré de cet écran (demande explicite) — reste
                 affiché normalement sur la page de connexion (LoginView), inchangée.
                 === AMÉLIORATION AJOUTÉE : mention "Sign in to access your account." retirée de
                 cet écran (demande explicite) — ce texte n'a de sens que sur la page de
                 connexion elle-même (LoginView, où il reste affiché), pas sur cet écran de
                 sélection d'espace de travail qui la précède. === */}
-            {/* === AMÉLIORATION AJOUTÉE : taille du titre "Welcome" augmentée (demande
-                explicite). === */}
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D2B63] text-center">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-[#0D2B63] text-center">
               {t.auth.workspaceSelectTitle}
             </h2>
-            <p className="mt-1 text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
+            <p className="mt-1 text-xs text-[#5B7091] font-medium text-center">
               {t.auth.workspaceSelectSubtitle}
             </p>
 
-            <div className="mt-7 space-y-3">
+            <div className="mt-6 space-y-2.5">
               {workspaces.map((ws) => (
                 <button
                   key={ws.role}
                   type="button"
                   id={`workspace-select-${ws.role.toLowerCase()}`}
                   onClick={() => onSelectWorkspace(ws.role)}
-                  className={`w-full flex items-center gap-3.5 p-4 rounded-xl border border-[#E8EDF2] bg-white hover:shadow-md transition-all duration-200 text-left cursor-pointer group ${ws.hoverBorderClass}`}
+                  className={`w-full flex items-center gap-3 p-3.5 rounded-xl border border-[#E8EDF2] bg-white hover:shadow-md transition-all duration-200 text-left cursor-pointer group ${ws.hoverBorderClass}`}
                 >
-                  <div className={`shrink-0 w-11 h-11 rounded-lg flex items-center justify-center ${ws.accentText} ${ws.accentBg}`}>
+                  <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${ws.accentText} ${ws.accentBg}`}>
                     {ws.icon}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-[#0D2B63]">{ws.title}</div>
-                    <div className="text-xs text-[#5B7091] font-medium leading-snug truncate">{ws.description}</div>
+                    <div className="text-[13px] font-bold text-[#0D2B63]">{ws.title}</div>
+                    <div className="text-xs text-[#5B7091] font-medium leading-snug">{ws.description}</div>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-[#778FAF] group-hover:text-[#0A347B] shrink-0 transition-colors" />
+                  <ArrowRight className="w-3.5 h-3.5 text-[#778FAF] group-hover:text-[#0A347B] shrink-0 transition-colors" />
                 </button>
               ))}
             </div>

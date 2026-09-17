@@ -453,21 +453,24 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
       </div>
 
-      <div className="w-full max-w-[420px]">
-        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-[#E8EDF2] p-8 sm:p-10">
+      {/* === AMÉLIORATION AJOUTÉE : page légèrement dézoomée (demande explicite) — carte,
+          logo, textes et champs réduits d'un cran pour ne plus paraître "en gros plan" ;
+          aucun changement de comportement, uniquement des tailles/espacements resserrés. === */}
+      <div className="w-full max-w-[380px]">
+        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-[#E8EDF2] p-6 sm:p-7">
           {/* === AMÉLIORATION AJOUTÉE : logo complet ACTIVA HealthPass (emblème + wordmark),
               demande explicite, à la place du seul emblème dans un badge circulaire. === */}
           <div className="flex justify-center">
-            <Logo size="lg" showTagline={true} transparent={true} />
+            <Logo size="md" showTagline={true} transparent={true} />
           </div>
 
           {/* === AMÉLIORATION AJOUTÉE : accroche réduite en écriture normale (demande
               explicite) — n'est plus mise en avant comme un titre (gras, plus grand) mais
               reste lisible comme un sous-texte discret sous le logo. === */}
-          <p className="mt-4 text-xs sm:text-sm font-normal text-[#5B7091] text-center">
+          <p className="mt-3 text-xs font-normal text-[#5B7091] text-center">
             {t.auth.loginHeading}
           </p>
-          <div className="mt-3 mx-auto w-10 h-1 rounded-full bg-[#0A34A3]" />
+          <div className="mt-2.5 mx-auto w-8 h-1 rounded-full bg-[#0A34A3]" />
 
           {/* Rappel de l'espace de travail choisi sur l'écran précédent
               (WorkspaceSelectionView) + lien pour en changer sans passer par le bouton
@@ -496,28 +499,28 @@ export const LoginView: React.FC<LoginViewProps> = ({
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
             {/* Error Alert Box */}
             {error && (
-              <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3.5 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 text-[#DC4C4C] shrink-0 mt-0.5" />
+              <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#DC4C4C] text-xs p-3 rounded-xl font-medium flex items-start gap-2.5 animate-in fade-in">
+                <AlertCircle className="w-3.5 h-3.5 text-[#DC4C4C] shrink-0 mt-0.5" />
                 <div className="flex-1 leading-relaxed">{error}</div>
               </div>
             )}
 
             <div>
-              <label className="block text-[11px] font-bold text-[#0D2B63] uppercase tracking-wide mb-1.5">
+              <label className="block text-[10px] font-bold text-[#0D2B63] uppercase tracking-wide mb-1">
                 {t.auth.usernameLabel}
               </label>
               <div className="relative">
-                <User className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <User className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="login-username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder=""
-                  className="w-full pl-10 pr-3 py-2.5 bg-white border border-[#E2E8F0] rounded-xl text-sm text-[#0D2B63] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/10 transition duration-150"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-[#E2E8F0] rounded-xl text-[13px] text-[#0D2B63] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/10 transition duration-150"
                   autoComplete="username"
                   required
                 />
@@ -526,18 +529,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
             {/* Password */}
             <div>
-              <label className="block text-[11px] font-bold text-[#0D2B63] uppercase tracking-wide mb-1.5">
+              <label className="block text-[10px] font-bold text-[#0D2B63] uppercase tracking-wide mb-1">
                 {t.auth.passwordLabel}
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Lock className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder=""
-                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-[#E2E8F0] rounded-xl text-sm text-[#0D2B63] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/10 transition duration-150"
+                  className="w-full pl-9 pr-9 py-2 bg-white border border-[#E2E8F0] rounded-xl text-[13px] text-[#0D2B63] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#0A34A3] focus:ring-2 focus:ring-[#0A34A3]/10 transition duration-150"
                   autoComplete="current-password"
                   required
                 />
@@ -549,14 +552,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     e.preventDefault();
                     setShowPassword((prev) => !prev);
                   }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#94A3B8] hover:text-[#0D2B63] focus:outline-none transition rounded-lg hover:bg-slate-100 cursor-pointer select-none"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#94A3B8] hover:text-[#0D2B63] focus:outline-none transition rounded-lg hover:bg-slate-100 cursor-pointer select-none"
                   aria-label={showPassword ? t.auth.hidePassword : t.auth.showPassword}
                   title={showPassword ? t.auth.hidePassword : t.auth.showPassword}
                 >
                   {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
+                    <EyeOff className="w-3.5 h-3.5" />
                   ) : (
-                    <Eye className="w-4 h-4" />
+                    <Eye className="w-3.5 h-3.5" />
                   )}
                 </button>
               </div>
@@ -567,15 +570,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
               id="login-submit-button"
               type="submit"
               disabled={isLoggingIn || lockoutRemainingSec > 0}
-              className="w-full py-2.5 px-4 rounded-xl bg-[#404E62] hover:bg-[#2C394C] active:bg-[#1E293B] text-white text-sm font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-2 px-4 rounded-xl bg-[#404E62] hover:bg-[#2C394C] active:bg-[#1E293B] text-white text-[13px] font-bold shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <LogIn className="w-4 h-4" />
+              <LogIn className="w-3.5 h-3.5" />
               <span>{lockoutRemainingSec > 0 ? `${t.auth.tryAgainPrefix}${lockoutRemainingSec}${t.auth.tryAgainSuffix}` : isLoggingIn ? t.auth.signingIn : t.auth.signInBtn}</span>
             </button>
           </form>
         </div>
 
-        <p className="mt-6 text-center text-xs text-[#94A3B8] font-medium">
+        <p className="mt-5 text-center text-xs text-[#94A3B8] font-medium">
           {t.auth.copyright}
         </p>
       </div>
