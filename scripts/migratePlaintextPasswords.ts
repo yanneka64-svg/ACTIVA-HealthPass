@@ -21,6 +21,10 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, getDocs, doc, setDoc, deleteField } from 'firebase/firestore';
 import { hashPassword } from '../src/utils/passwordUtils';
+// === AMÉLIORATION AJOUTÉE : sécurité (durcissement Phase 1, 2026-09-17) — voir scripts/lib/opsSafety.ts
+import { confirmLiveWrite, startOpsLog } from './lib/opsSafety';
+
+const ops = startOpsLog('migratePlaintextPasswords');
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -32,7 +36,8 @@ function requireEnv(name: string): string {
 
 async function migrate() {
   const isDryRun = process.argv.includes('--dry-run');
-  console.log(`--- Starting Plaintext Password Migration ${isDryRun ? '[DRY-RUN MODE]' : '[LIVE EXECUTION]'} ---`);
+  ops.log(`--- Starting Plaintext Password Migration ${isDryRun ? '[DRY-RUN MODE]' : '[LIVE EXECUTION]'} ---`);
+  ops.log(`(Journal d'exécution : ${ops.logFilePath})`);
   const app = initializeApp({
     apiKey: requireEnv('FIREBASE_API_KEY'),
     projectId: requireEnv('FIREBASE_PROJECT_ID'),
@@ -46,14 +51,18 @@ async function migrate() {
   const adminPass = requireEnv('MIGRATION_ADMIN_PASSWORD');
   try {
     await signInWithEmailAndPassword(auth, adminEmail, adminPass);
-    console.log(`Authenticated for migration with ${adminEmail}`);
+    ops.log(`Authenticated for migration with ${adminEmail}`);
   } catch (err: any) {
-    console.error(`Authentication error: ${err.message}`);
+    ops.error(`Authentication error: ${err.message}`);
     process.exit(1);
   }
 
   const snap = await getDocs(collection(db, 'accounts'));
-  console.log(`Total accounts found: ${snap.size}`);
+  ops.log(`Total accounts found: ${snap.size}`);
+
+  if (!isDryRun) {
+    await confirmLiveWrite(`migration bulk (purge des mots de passe en clair) sur ${snap.size} document(s) de la collection accounts`);
+  }
 
   let migratedCount = 0;
   let alreadyCleanCount = 0;
@@ -65,12 +74,12 @@ async function migrate() {
 
     if (hasPlaintextPassword || hasTempPassword) {
       const plaintext = data.password || data.tempPassword;
-      console.log(`[Target] Account ${docSnap.id} (username: ${data.username || 'unknown'}, plaintext: ${hasPlaintextPassword ? 'password' : ''} ${hasTempPassword ? 'tempPassword' : ''})`);
+      ops.log(`[Target] Account ${docSnap.id} (username: ${data.username || 'unknown'}, plaintext: ${hasPlaintextPassword ? 'password' : ''} ${hasTempPassword ? 'tempPassword' : ''})`);
 
       const { passwordHash, passwordSalt } = await hashPassword(plaintext);
 
       if (isDryRun) {
-        console.log(`[DRY-RUN] Would compute hash/salt and purge plaintext fields for account ${docSnap.id}`);
+        ops.log(`[DRY-RUN] Would compute hash/salt and purge plaintext fields for account ${docSnap.id}`);
       } else {
         // Perform update: write hash/salt and permanently delete plaintext fields
         await setDoc(
@@ -84,7 +93,7 @@ async function migrate() {
           },
           { merge: true }
         );
-        console.log(`[LIVE] Account ${docSnap.id} migrated successfully (plaintext fields permanently deleted).`);
+        ops.log(`[LIVE] Account ${docSnap.id} migrated successfully (plaintext fields permanently deleted).`);
       }
 
       migratedCount++;
@@ -93,15 +102,15 @@ async function migrate() {
     }
   }
 
-  console.log(`\nMigration Summary (${isDryRun ? 'DRY-RUN' : 'LIVE'}):`);
-  console.log(`- Accounts needing migration : ${migratedCount}`);
-  console.log(`- Accounts already clean     : ${alreadyCleanCount}`);
-  console.log(`- Total accounts inspected   : ${snap.size}`);
-  console.log(`--- Migration Finished Successfully ---`);
+  ops.log(`\nMigration Summary (${isDryRun ? 'DRY-RUN' : 'LIVE'}):`);
+  ops.log(`- Accounts needing migration : ${migratedCount}`);
+  ops.log(`- Accounts already clean     : ${alreadyCleanCount}`);
+  ops.log(`- Total accounts inspected   : ${snap.size}`);
+  ops.log(`--- Migration Finished Successfully ---`);
   process.exit(0);
 }
 
 migrate().catch((err) => {
-  console.error('Migration failed:', err);
+  ops.error('Migration failed:', err);
   process.exit(1);
 });

@@ -42,6 +42,10 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, query, where } from 'firebase/firestore';
+// === AMÉLIORATION AJOUTÉE : sécurité (durcissement Phase 1, 2026-09-17) — voir scripts/lib/opsSafety.ts
+import { confirmLiveWrite, startOpsLog } from './lib/opsSafety';
+
+const ops = startOpsLog('deactivateCompromisedAccount');
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -53,7 +57,8 @@ function requireEnv(name: string): string {
 
 async function run() {
   const isDryRun = process.argv.includes('--dry-run');
-  console.log(`--- Emergency Account Deactivation ${isDryRun ? '[DRY-RUN — no write will be made]' : '[LIVE EXECUTION]'} ---`);
+  ops.log(`--- Emergency Account Deactivation ${isDryRun ? '[DRY-RUN — no write will be made]' : '[LIVE EXECUTION]'} ---`);
+  ops.log(`(Journal d'exécution : ${ops.logFilePath})`);
 
   const app = initializeApp({
     apiKey: requireEnv('FIREBASE_API_KEY'),
@@ -75,15 +80,15 @@ async function run() {
     throw new Error('Refusing to run: ADMIN_EMAIL and TARGET_ACCOUNT_EMAIL must not be the same account (self-update of isActive is blocked by firestore.rules anyway).');
   }
 
-  console.log(`Authenticating as admin ${adminEmail}...`);
+  ops.log(`Authenticating as admin ${adminEmail}...`);
   await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-  console.log('✓ Admin authentication succeeded.');
+  ops.log('✓ Admin authentication succeeded.');
 
   let targetDocId = targetId;
   let targetData: Record<string, any> | undefined;
 
   if (!targetDocId) {
-    console.log(`Looking up account by email/authEmail: ${targetEmail}...`);
+    ops.log(`Looking up account by email/authEmail: ${targetEmail}...`);
     const accountsRef = collection(db, 'accounts');
     const [byEmail, byAuthEmail] = await Promise.all([
       getDocs(query(accountsRef, where('email', '==', targetEmail))),
@@ -94,52 +99,53 @@ async function run() {
     byAuthEmail.docs.forEach((d) => matches.set(d.id, d.data()));
 
     if (matches.size === 0) {
-      console.error(`✗ No account found matching email/authEmail = ${targetEmail}.`);
+      ops.error(`✗ No account found matching email/authEmail = ${targetEmail}.`);
       process.exit(1);
     }
     if (matches.size > 1) {
-      console.error(`✗ Ambiguous match: ${matches.size} accounts share this email. Re-run with TARGET_ACCOUNT_ID instead:`);
-      matches.forEach((data, id) => console.error(`  - ${id} | username=${data.username} | profile=${data.profile}`));
+      ops.error(`✗ Ambiguous match: ${matches.size} accounts share this email. Re-run with TARGET_ACCOUNT_ID instead:`);
+      matches.forEach((data, id) => ops.error(`  - ${id} | username=${data.username} | profile=${data.profile}`));
       process.exit(1);
     }
     [[targetDocId, targetData]] = Array.from(matches.entries());
   } else {
     const snap = await getDoc(doc(db, 'accounts', targetDocId));
     if (!snap.exists()) {
-      console.error(`✗ No account document found with id ${targetDocId}.`);
+      ops.error(`✗ No account document found with id ${targetDocId}.`);
       process.exit(1);
     }
     targetData = snap.data();
   }
 
-  console.log('\nTarget account:');
-  console.log(`  id       : ${targetDocId}`);
-  console.log(`  username : ${targetData?.username || 'unknown'}`);
-  console.log(`  email    : ${targetData?.email || targetData?.authEmail || 'unknown'}`);
-  console.log(`  profile  : ${targetData?.profile || 'unknown'}`);
-  console.log(`  isActive : ${targetData?.isActive}`);
+  ops.log('\nTarget account:');
+  ops.log(`  id       : ${targetDocId}`);
+  ops.log(`  username : ${targetData?.username || 'unknown'}`);
+  ops.log(`  email    : ${targetData?.email || targetData?.authEmail || 'unknown'}`);
+  ops.log(`  profile  : ${targetData?.profile || 'unknown'}`);
+  ops.log(`  isActive : ${targetData?.isActive}`);
 
   if (targetData?.isActive === false) {
-    console.log('\n✓ Account is already deactivated (isActive: false). Nothing to do.');
+    ops.log('\n✓ Account is already deactivated (isActive: false). Nothing to do.');
     process.exit(0);
   }
 
   if (isDryRun) {
-    console.log(`\n[DRY-RUN] Would set isActive: false on accounts/${targetDocId}. No write performed.`);
+    ops.log(`\n[DRY-RUN] Would set isActive: false on accounts/${targetDocId}. No write performed.`);
     process.exit(0);
   }
 
+  await confirmLiveWrite(`désactivation (isActive: false) du compte accounts/${targetDocId}`);
   await updateDoc(doc(db, 'accounts', targetDocId as string), { isActive: false });
-  console.log(`\n✓ Account accounts/${targetDocId} deactivated (isActive: false).`);
-  console.log('Reminder: this does NOT rotate the Firebase Auth password, nor revoke Auth-level access —');
-  console.log('it only blocks Firestore access. For full remediation, also run:');
-  console.log('  1. scripts/resetCompromisedPassword.ts (if the compromised password has not already been changed)');
-  console.log('  2. scripts/revokeCompromisedAccountAccess.ts (disables Auth sign-in outright and revokes any');
-  console.log('     already-issued token — the Admin SDK step neither this script nor resetCompromisedPassword.ts can do)');
+  ops.log(`\n✓ Account accounts/${targetDocId} deactivated (isActive: false).`);
+  ops.log('Reminder: this does NOT rotate the Firebase Auth password, nor revoke Auth-level access —');
+  ops.log('it only blocks Firestore access. For full remediation, also run:');
+  ops.log('  1. scripts/resetCompromisedPassword.ts (if the compromised password has not already been changed)');
+  ops.log('  2. scripts/revokeCompromisedAccountAccess.ts (disables Auth sign-in outright and revokes any');
+  ops.log('     already-issued token — the Admin SDK step neither this script nor resetCompromisedPassword.ts can do)');
   process.exit(0);
 }
 
 run().catch((err) => {
-  console.error('Deactivation script failed:', err);
+  ops.error('Deactivation script failed:', err);
   process.exit(1);
 });
