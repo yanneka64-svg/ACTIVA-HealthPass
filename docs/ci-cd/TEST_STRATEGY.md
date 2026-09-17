@@ -1,14 +1,12 @@
 # Stratégie de test — ACTIVA HealthPass
 
 Statut : mis à jour au 2026-09-17 (241 tests racine — 134 unitaires + 89 règles Firestore
-[émulateur] + 18 règles Storage [émulateur, nouveau] — + 52 `functions/`, tous verts. 3 tests
-E2E existent mais échouent actuellement dès le premier — voir section 5 — non comptés comme
-"verts").
+[émulateur] + 18 règles Storage [émulateur] — + 52 `functions/` + 3 E2E, tous verts).
 
 ## 1. Pyramide de tests
 
 ```
-        3   e2e/*.spec.ts        (Playwright, navigateur réel + émulateurs — actuellement rouge, voir section 5)
+        3   e2e/*.spec.ts        (Playwright, navigateur réel + émulateurs)
        52   functions/src/*.test.ts   (Vitest, Cloud Functions)
       241   tests/*.test.ts           (Vitest, front + règles Firestore/Storage)
 ```
@@ -118,27 +116,33 @@ Aucune configuration manuelle nécessaire : `playwright.config.ts` orchestre tou
 Cloud Function de ~13-15s chacun dans cet environnement — vérifié par reproduction
 manuelle, ce n'est pas un défaut applicatif, juste un budget de test généreux).
 
-**Non intégré à `ci.yml`** : voir le finding de la section 5 — la suite échoue actuellement dès
-son premier test, l'intégrer telle quelle rendrait ce check perpétuellement rouge. L'intégration
-CI (avec `npx playwright install --with-deps chromium` en amont) reste par ailleurs
-techniquement simple une fois la suite elle-même à nouveau verte.
+**Non intégré à `ci.yml` pour l'instant** : la suite est de nouveau verte (voir section 5), mais
+l'intégration au pipeline CI standard (avec `npx playwright install --with-deps chromium` en
+amont, Chromium n'étant pas préinstallé sur les runners `ubuntu-latest`) est une décision
+distincte (nouveau check obligatoire, temps de CI supplémentaire) non encore prise dans cette
+passe — correction du bug de la suite elle-même uniquement.
 
 ## 5. Ce qui n'est délibérément PAS couvert
 
-- **⚠️ Finding (Phase 2 du plan de durcissement, 2026-09-17) : la suite E2E ci-dessus échoue
-  actuellement en local**, dès le test #1 (`Création de carte`) — le clic sur le bouton
-  "Submit Enrollment Application for Approval" échoue systématiquement (bloqué par un élément
-  qui intercepte le clic, sur toute la fenêtre de retry de 120s, jamais résolu). Cause probable :
-  `e2e/helpers.ts::submitEnrollment` (écrit le 2026-09-07) ne clique jamais sur l'onglet "New
-  Beneficiary Enrollment", qui est pourtant ce qui active le formulaire
-  (`setFormActivated(true)`, voir `src/views/agent/AgentEnrollmentsView.tsx`) depuis un
-  changement du 2026-09-10 — postérieur à l'écriture de la suite E2E, qui n'a apparemment jamais
-  été rejouée depuis. **Non corrigé dans cette passe** (nécessiterait de modifier soit le
-  helper de test soit le flux applicatif — hors périmètre d'une tâche de câblage CI, à valider
-  avec l'utilisateur avant modification). En conséquence, **la suite E2E n'a PAS été intégrée à
-  `ci.yml`** dans cette passe : l'y intégrer telle quelle créerait un check obligatoire
-  perpétuellement rouge. Le reste de cette section 4 (architecture, parcours couverts) documente
-  l'INTENTION de la suite, pas son état d'exécution actuel — voir ce paragraphe pour l'état réel.
+- **✓ Résolu (2026-09-17)** : la suite E2E échouait en local (voir historique git de cette
+  section pour le diagnostic complet) à cause de trois désynchronisations entre `e2e/helpers.ts`
+  / `e2e/critical-flows.spec.ts` (écrits le 2026-09-07) et des évolutions applicatives
+  postérieures, jamais répercutées dans les tests :
+  1. Le formulaire d'enrôlement (`AgentEnrollmentsView.tsx`) reste grisé/inactif tant que l'onglet
+     "New Beneficiary Enrollment" n'est pas cliqué (ajouté le 2026-09-10) — `submitEnrollment` ne
+     le cliquait jamais, bloquant tout clic de soumission suivant.
+  2. Le numéro de carte n'est plus généré automatiquement (format `AMID-YYMMDD-NNNNN`) mais saisi
+     manuellement (`cardNumberService.ts`, "Centralized Card Number Management System", changement
+     du 2026-09-09) — `submitEnrollment` ne renseignait jamais ce champ, désormais requis, ce qui
+     faisait échouer silencieusement la validation du formulaire (aucun enrôlement créé).
+  3. Même mécanisme de formulaire grisé sur le formulaire de sinistre (`AgentClaimsView.tsx`,
+     bouton "New Claim", 2026-09-10) — `submitClaim` avait le même défaut que le point 1.
+  4. Le préfixe de référence des sinistres généré par l'application est `CLM-`, jamais `SIN-`
+     (assertion du test jamais mise à jour).
+  Corrigé dans `e2e/helpers.ts` et `e2e/critical-flows.spec.ts` : aucun changement de comportement
+  applicatif, uniquement les tests mis à jour pour refléter les flux actuels. Validé par 2
+  exécutions complètes consécutives de `npx playwright test` (3/3 tests verts à chaque fois,
+  ~23s).
 - Les écrans purement visuels sans logique métier (marque, mise en page).
 - Les intégrations tierces réelles (Cloud Functions déployées, Storage réel, APIs de
   taux de change) — testées séparément en `staging` avant `production` (voir
