@@ -11,13 +11,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { Claim } from '../../types';
 
-export function claimsQueryKey(orgScopeKey: string): readonly [string, string] {
-  return ['claims', orgScopeKey] as const;
+// === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour de revue qodo sur la PR #62,
+// 2026-09-17) === Clé structurée (tableau trié, pas une chaîne pré-concaténée par espace) :
+// évite toute ambiguïté théorique entre, par ex., une organisation nommée "A B" et les
+// organisations "A" et "B" combinées, qui produiraient la même chaîne avec un simple `join(' ')`.
+export function claimsQueryKey(assignedOrgs: string[] | null): readonly [string, string[] | null] {
+  return ['claims', assignedOrgs ? [...assignedOrgs].sort() : null] as const;
 }
 
-export function useClaimsQuery(orgScopeKey: string) {
+export function useClaimsQuery(assignedOrgs: string[] | null) {
   return useQuery<Claim[]>({
-    queryKey: claimsQueryKey(orgScopeKey),
+    queryKey: claimsQueryKey(assignedOrgs),
     // Ne doit normalement jamais s'exécuter : le cache est alimenté exclusivement par
     // l'abonnement onSnapshot existant (App.tsx). Un tableau vide en repli documente ce
     // qu'affiche l'UI si jamais interrogé avant la première mise à jour du listener.

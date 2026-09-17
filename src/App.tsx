@@ -429,7 +429,7 @@ export default function App() {
   // comportement. Voir src/features/claims/useClaimsQuery.ts.
   const setClaimsAndMirror = (data: Claim[]) => {
     setClaims(data);
-    queryClient.setQueryData(claimsQueryKey(orgScopeKey), data);
+    queryClient.setQueryData(claimsQueryKey(assignedOrgs), data);
   };
 
   // === AMÉLIORATION AJOUTÉE : hooks de données par domaine — voir
@@ -545,6 +545,15 @@ export default function App() {
     } finally {
       localStorage.removeItem('activa_auth_session');
       sessionStorage.clear();
+      // === AMÉLIORATION AJOUTÉE : sécurité (retour de revue qodo sur la PR #62, 2026-09-17) ===
+      // Le cache react-query (src/lib/queryClient.ts) a un gcTime infini et survit à la
+      // déconnexion (pas de rechargement complet de page ici) : sans ce vidage explicite, les
+      // données mises en cache d'un premier utilisateur (ex. claims) resteraient lisibles par
+      // un second utilisateur se connectant ensuite dans le même onglet, jusqu'à ce que son
+      // propre abonnement Firestore écrase la clé de cache concernée — une fenêtre de fuite
+      // inter-utilisateur évitable. Aucun composant ne lit encore depuis ce cache à ce stade,
+      // mais ce garde-fou doit être en place AVANT qu'un premier consommateur ne soit migré.
+      queryClient.clear();
       setCurrentUser(null);
       setUserRole(null);
       setForcedFirstLogin(false);
