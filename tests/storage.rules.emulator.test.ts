@@ -17,7 +17,13 @@ import {
 import fs from 'fs';
 import path from 'path';
 
-const PROJECT_ID = 'demo-activa-healthpass-storage-rules-test';
+// === AMÉLIORATION AJOUTÉE : robustesse CI (retour de revue coderabbitai sur la PR #59,
+// 2026-09-17) === Aligné sur le project ID passé par `--project` à `firebase emulators:exec`
+// dans ci.yml (`demo-activa-ci`), pour éviter tout risque de conflit sous `singleProjectMode`
+// (voir firebase.json) si un futur changement de CI venait à démarrer plusieurs émulateurs en
+// une seule invocation partageant le hub. Sans effet observé en pratique avec `--only storage`
+// seul (validé deux fois localement avant ce correctif), mais coûte zéro pour l'éliminer.
+const PROJECT_ID = 'demo-activa-ci';
 
 type StorageInstance = ReturnType<RulesTestContext['storage']>;
 type StorageRef = ReturnType<StorageInstance['ref']>;

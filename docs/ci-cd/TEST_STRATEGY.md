@@ -18,7 +18,7 @@ Trois niveaux, du plus rapide/isolé au plus lent/réaliste :
 1. **Unitaire (Vitest, racine et `functions/`)** — logique pure (hash de mot de passe,
    calcul d'âge, formatage de numéro de carte, évaluation de police) et services testés
    contre un faux Firestore en mémoire. Rapide (`npm run test:all` : ~1-2s ; les émulateurs
-   ne sont nécessaires que pour `tests/firestore.rules.test.ts` et `tests/storage.rules.test.ts`).
+   ne sont nécessaires que pour `tests/firestore.rules.test.ts` et `tests/storage.rules.emulator.test.ts`).
 2. **Règles de sécurité (Vitest + émulateur Firestore/Storage)** — vérifie que les
    `firestore.rules`/`storage.rules` autorisent/refusent exactement ce qui est attendu,
    indépendamment du code client (un bug côté UI ne doit jamais suffire à contourner une
@@ -152,11 +152,14 @@ techniquement simple une fois la suite elle-même à nouveau verte.
 ## 6. Lancer l'ensemble
 
 ```bash
-# Unitaire (racine) — émulateurs optionnels sauf pour firestore.rules.test.ts / storage.rules.test.ts
+# Unitaire (racine) — émulateurs optionnels sauf pour firestore.rules.test.ts / storage.rules.emulator.test.ts
 npm run test:all
 
 # Unitaire (Cloud Functions)
 cd functions && npm test
+
+# Règles Storage isolément, contre l'émulateur (test:storage-rules = tests/storage.rules.emulator.test.ts)
+firebase emulators:exec --only storage -- npm run test:storage-rules
 
 # Règles Firestore isolément, contre l'émulateur (test:rules = tests/firestore.rules.test.ts)
 firebase emulators:exec --only firestore -- npm run test:rules
