@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lock, User, LogIn, AlertCircle, Globe, Eye, EyeOff } from 'lucide-react';
 import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
-import { LogoIcon } from '../Logo';
+import { Logo } from '../Logo';
 import { auth, functions, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -434,13 +434,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
       <div className="w-full max-w-[420px]">
         <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-[#E8EDF2] p-8 sm:p-10">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-[#EAF2FF] flex items-center justify-center">
-            <LogoIcon className="w-9 h-9" />
+          {/* === AMÉLIORATION AJOUTÉE : logo complet ACTIVA HealthPass (emblème + wordmark),
+              demande explicite, à la place du seul emblème dans un badge circulaire. === */}
+          <div className="flex justify-center">
+            <Logo size="lg" showTagline={true} transparent={true} />
           </div>
 
-          <h2 className="mt-5 text-base sm:text-lg font-extrabold text-[#0D2B63] text-center">
+          {/* === AMÉLIORATION AJOUTÉE : accroche réduite en écriture normale (demande
+              explicite) — n'est plus mise en avant comme un titre (gras, plus grand) mais
+              reste lisible comme un sous-texte discret sous le logo. === */}
+          <p className="mt-4 text-xs sm:text-sm font-normal text-[#5B7091] text-center">
             {t.auth.loginHeading}
-          </h2>
+          </p>
           <div className="mt-3 mx-auto w-10 h-1 rounded-full bg-[#0A34A3]" />
 
           {/* Rappel de l'espace de travail choisi sur l'écran précédent
