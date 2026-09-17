@@ -118,3 +118,22 @@ export async function uploadPhotoOrFallback(
     );
   }
 }
+
+// === AMÉLIORATION AJOUTÉE : ACTIVA Health Claims — Phase 2 (pièces justificatives, additif) ===
+// `uploadDataUrlToStorage` ci-dessus force `PHOTO_CACHE_METADATA` (contentType 'image/jpeg'
+// codé en dur) — correct pour son usage actuel (photos uniquement), mais faux pour un document
+// PDF (spec §3 : formats acceptés PDF/JPG/JPEG/PNG). Cette fonction sœur envoie le même long
+// cache immuable (chaque chemin inclut déjà un timestamp, donc jamais réécrit) SANS forcer de
+// contentType : `uploadString(..., 'data_url', ...)` déduit alors le type MIME réel directement
+// depuis le préfixe `data:<mime>;base64,...` fourni par le sélecteur de fichier. N'affecte en
+// rien `uploadPhotoOrFallback`/`uploadDataUrlToStorage` ci-dessus, utilisés tels quels partout
+// où ils l'étaient déjà (photos membres/enrôlements).
+const DOCUMENT_CACHE_METADATA: UploadMetadata = {
+  cacheControl: 'public, max-age=31536000, immutable',
+};
+
+export async function uploadDocumentToStorage(dataUrl: string, path: string): Promise<string> {
+  const storageRef = ref(storage, path);
+  await uploadString(storageRef, dataUrl, 'data_url', DOCUMENT_CACHE_METADATA);
+  return await getDownloadURL(storageRef);
+}

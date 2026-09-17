@@ -28,7 +28,14 @@ export type FeatureFlagKey =
   // collection Firestore, aucun nouveau calcul métier. Vérifié en navigateur réel (Playwright,
   // flag activé localement) sur ClaimsView.tsx et AgentClaimsView.tsx avant promotion — voir
   // commit d'introduction. Promu en production le 2026-09-12 (demande directe de l'utilisateur).
-  | 'hp3_claim_360';
+  | 'hp3_claim_360'
+  // === AMÉLIORATION AJOUTÉE : ACTIVA Health Claims — Phase 2 (voir
+  // ACTIVA_HEALTH_CLAIMS_DISCOVERY.md) — assistant de création de dossier (ClaimCaseWizard,
+  // src/modules/healthclaims/), écrit dans les nouvelles collections `claimCases`/
+  // `claimWorkflowConfigs` posées en Phase 1. Démarre désactivé (mode shadow) : construit et
+  // vérifié visuellement (Playwright, données de démo), pas encore promu en production. Aucun
+  // écran existant ne dépend de ce flag.
+  | 'ahc_claim_wizard';
 
 // Actifs pour tout le monde (voir HEALTHPASS_2_0_DISCOVERY.md, section 6) : Fraud Detection,
 // Preauthorization, BillAudit, SLA Tracking et Reimbursement & Reconciliation sont purement
@@ -42,6 +49,7 @@ const DEFAULT_FLAGS: Record<FeatureFlagKey, boolean> = {
   hp2_sla_tracking: true,
   hp2_reimbursement_tracking: true,
   hp3_claim_360: true,
+  ahc_claim_wizard: false,
 };
 
 const STORAGE_KEY_PREFIX = 'activa_ff_';

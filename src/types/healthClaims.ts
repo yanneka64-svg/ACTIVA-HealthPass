@@ -118,6 +118,29 @@ export interface ClaimLine {
 /** Le dossier de sinistre "riche" de ACTIVA Health Claims — distinct de `Claim` (voir en-tête de
  * fichier). Référence l'assuré/organisation/prestataire existants (`Member.id`,
  * `Organization.name`, `Provider.id`) sans dupliquer leurs modèles. */
+// === AMÉLIORATION AJOUTÉE : ACTIVA Health Claims — Phase 2 (assistant de création de dossier)
+// === Ajout additif à `ClaimCase` (Phase 1) : aucun champ existant n'est modifié. Voir spec
+// §3 étape 3 (pièces justificatives : nom, type, date d'ajout, utilisateur, statut de
+// vérification).
+export type ClaimDocumentType =
+  | 'invoice'
+  | 'prescription'
+  | 'lab_result'
+  | 'medical_report'
+  | 'hospitalization_form'
+  | 'receipt'
+  | 'other';
+
+export interface ClaimDocumentRef {
+  id: string;
+  name: string;
+  type: ClaimDocumentType;
+  url: string;
+  addedAt: string;
+  addedBy?: string;
+  verificationStatus?: 'pending' | 'verified' | 'rejected';
+}
+
 export interface ClaimCase {
   id: string;
   reference: string;
@@ -142,6 +165,7 @@ export interface ClaimCase {
   approvedAmount?: number;
 
   lines?: ClaimLine[];
+  documents?: ClaimDocumentRef[];
 
   status: ClaimCaseStatus | string;
   priority?: ClaimCasePriority;
