@@ -139,12 +139,12 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
         <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-10 xl:p-16 pt-16 lg:pt-6">
           <div className="w-full max-w-[420px]">
             {/* === AMÉLIORATION AJOUTÉE : logo retiré de cet écran (demande explicite) — reste
-                affiché normalement sur la page de connexion (LoginView), inchangée. === */}
-            <p className="text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
-              {t.auth.signInSubtitle}
-            </p>
-
-            <h2 className="mt-6 text-lg sm:text-xl font-extrabold text-[#0D2B63] text-center">
+                affiché normalement sur la page de connexion (LoginView), inchangée.
+                === AMÉLIORATION AJOUTÉE : mention "Sign in to access your account." retirée de
+                cet écran (demande explicite) — ce texte n'a de sens que sur la page de
+                connexion elle-même (LoginView, où il reste affiché), pas sur cet écran de
+                sélection d'espace de travail qui la précède. === */}
+            <h2 className="text-lg sm:text-xl font-extrabold text-[#0D2B63] text-center">
               {t.auth.workspaceSelectTitle}
             </h2>
             <p className="mt-1 text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
