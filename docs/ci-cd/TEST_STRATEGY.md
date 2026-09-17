@@ -18,7 +18,7 @@ Trois niveaux, du plus rapide/isolé au plus lent/réaliste :
 1. **Unitaire (Vitest, racine et `functions/`)** — logique pure (hash de mot de passe,
    calcul d'âge, formatage de numéro de carte, évaluation de police) et services testés
    contre un faux Firestore en mémoire. Rapide (`npm run test:all` : ~1-2s ; les émulateurs
-   ne sont nécessaires que pour `tests/firestore.rules.test.ts` et `tests/storage.rules.test.ts`).
+   ne sont nécessaires que pour `tests/firestore.rules.test.ts` et `tests/storage.rules.emulator.test.ts`).
 2. **Règles de sécurité (Vitest + émulateur Firestore/Storage)** — vérifie que les
    `firestore.rules`/`storage.rules` autorisent/refusent exactement ce qui est attendu,
    indépendamment du code client (un bug côté UI ne doit jamais suffire à contourner une
@@ -41,7 +41,7 @@ Trois niveaux, du plus rapide/isolé au plus lent/réaliste :
 | `storageUtils.test.ts` | `uploadPhotoOrFallback` échoue explicitement (fail-closed) plutôt que de dégrader silencieusement vers du base64 en base de données. |
 | `systemStatus.test.ts` | Bannières de repli visibles (sync issues, fallback events) : déduplication, expiration, abonnement. |
 | `workflowServiceFallbackGuard.test.ts` | Le repli client (Cloud Function indisponible) relit le statut du dossier avant d'agir — jamais d'approbation en double sur un dossier déjà traité. |
-| `firestore.rules.test.ts` | Règles Firestore : isolation par organisation, restriction de `accounts.create` à Admin, notifications scopées au destinataire, whitelist des champs modifiables sur `healthPolicies`, intégrité de la piste d'audit. **Nécessite l'émulateur Firestore** (`npm run test:rules`, ou `firebase emulators:exec --only firestore -- npm run test:rules`) — exécuté ainsi en CI (`deploy-staging.yml`/`deploy-production.yml`) avant tout déploiement de règles. |
+| `firestore.rules.test.ts` | Règles Firestore : isolation par organisation, restriction de `accounts.create` à Admin, notifications scopées au destinataire, whitelist des champs modifiables sur `healthPolicies`, intégrité de la piste d'audit. **Nécessite l'émulateur Firestore** (`npm run test:rules`, ou `firebase emulators:exec --only firestore --project demo-activa-ci "npm run test:rules"`) — exécuté ainsi en CI (`deploy-staging.yml`/`deploy-production.yml`) avant tout déploiement de règles. |
 | `storage.rules.test.ts` | Vérifie par analyse statique (lecture de `storage.rules` + assertions sur les motifs attendus) que les règles contiennent bien les garde-fous voulus (rejet non-authentifié, types/tailles autorisés, cloisonnement par organisation, blocage de suppression). **Ne s'exécute pas contre l'émulateur Storage** — ne prouve donc pas le comportement réel à l'exécution, seulement la présence du bon texte de règle. |
 | `storage.rules.emulator.test.ts` | **Nouveau (Phase 2 du plan de durcissement, 2026-09-17)** — comble le gap ci-dessus : test COMPORTEMENTAL réel contre l'émulateur Storage (18 tests, `@firebase/rules-unit-testing`), même approche que `firestore.rules.test.ts` : isolation par organisation, validation MIME/taille, blocage de suppression hors Admin, fermeture des anciens chemins plats, deny-by-default. Exécuté via `npm run test:storage-rules` (nécessite l'émulateur Storage, voir `firebase.json`), intégré à `ci.yml`. |
 
@@ -152,14 +152,17 @@ techniquement simple une fois la suite elle-même à nouveau verte.
 ## 6. Lancer l'ensemble
 
 ```bash
-# Unitaire (racine) — émulateurs optionnels sauf pour firestore.rules.test.ts / storage.rules.test.ts
+# Unitaire (racine) — émulateurs optionnels sauf pour firestore.rules.test.ts / storage.rules.emulator.test.ts
 npm run test:all
 
 # Unitaire (Cloud Functions)
 cd functions && npm test
 
+# Règles Storage isolément, contre l'émulateur (test:storage-rules = tests/storage.rules.emulator.test.ts)
+firebase emulators:exec --only storage --project demo-activa-ci "npm run test:storage-rules"
+
 # Règles Firestore isolément, contre l'émulateur (test:rules = tests/firestore.rules.test.ts)
-firebase emulators:exec --only firestore -- npm run test:rules
+firebase emulators:exec --only firestore --project demo-activa-ci "npm run test:rules"
 
 # End-to-end
 npx playwright test
