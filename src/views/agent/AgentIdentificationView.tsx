@@ -40,7 +40,7 @@ import { formatRelationship, getMemberDependents } from '../../utils/memberUtils
 // Organizations, règles Firestore).
 import { getPolicyCoverageStatus } from '../../services/policyEngine';
 // === AMÉLIORATION AJOUTÉE : visuel de carte membre — voir MemberIdCard.tsx pour le détail.
-import { MemberIdCard } from '../../modules/membercard/MemberIdCard';
+import { MemberIdCard } from '../../features/membercard/MemberIdCard';
 
 interface AgentIdentificationViewProps {
   members: Member[];

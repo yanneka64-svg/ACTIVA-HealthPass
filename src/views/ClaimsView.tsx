@@ -42,17 +42,17 @@ import { getRoleTheme } from '../theme/roleTheme';
 // `hp2_fraud_detection` (désactivé par défaut, voir src/config/featureFlags.ts). Badge purement
 // informatif, mode silencieux : n'intercepte jamais handleApproveAttempt/onReject ci-dessous.
 import { isFeatureEnabled } from '../config/featureFlags';
-import { computeFraudScore } from '../modules/fraud/fraudScore';
-import { FraudScoreBadge } from '../modules/fraud/FraudScoreBadge';
-import { checkPreauthorizationNeeded } from '../modules/preauthorization/preauthCheck';
-import { PreauthorizationBadge } from '../modules/preauthorization/PreauthorizationBadge';
-import { computeBillAudit } from '../modules/billaudit/billAuditCheck';
-import { BillAuditBadge } from '../modules/billaudit/BillAuditBadge';
-import { checkSlaBreach } from '../modules/sla/slaCheck';
-import { SlaBadge } from '../modules/sla/SlaBadge';
+import { computeFraudScore } from '../features/fraud/fraudScore';
+import { FraudScoreBadge } from '../features/fraud/FraudScoreBadge';
+import { checkPreauthorizationNeeded } from '../features/preauthorization/preauthCheck';
+import { PreauthorizationBadge } from '../features/preauthorization/PreauthorizationBadge';
+import { computeBillAudit } from '../features/billaudit/billAuditCheck';
+import { BillAuditBadge } from '../features/billaudit/BillAuditBadge';
+import { checkSlaBreach } from '../features/sla/slaCheck';
+import { SlaBadge } from '../features/sla/SlaBadge';
 // === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12), derrière le
 // flag hp3_claim_360 — voir src/modules/claim360/Claim360Panel.tsx.
-import { Claim360Panel } from '../modules/claim360/Claim360Panel';
+import { Claim360Panel } from '../features/claim360/Claim360Panel';
 
 interface ClaimsViewProps {
   currentSection?: string;

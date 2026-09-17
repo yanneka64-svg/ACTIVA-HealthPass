@@ -31,13 +31,13 @@ import { getRoleTheme } from '../theme/roleTheme';
 // Panneau, badge et bouton ni affichés ni montés tant que le flag reste désactivé —
 // comportement de cet écran strictement inchangé pour tout utilisateur en production aujourd'hui.
 import { isFeatureEnabled } from '../config/featureFlags';
-import { computeReconciliationSummary } from '../modules/reimbursement/reconciliation';
-import { ReconciliationSummary } from '../modules/reimbursement/ReconciliationSummary';
-import { MarkAsPaidModal } from '../modules/reimbursement/MarkAsPaidModal';
+import { computeReconciliationSummary } from '../features/reimbursement/reconciliation';
+import { ReconciliationSummary } from '../features/reimbursement/ReconciliationSummary';
+import { MarkAsPaidModal } from '../features/reimbursement/MarkAsPaidModal';
 // === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical, avant paiement (2026-09-10, sur
 // demande explicite) — voir ApplyRefactionModal.tsx / RecordRecoveryModal.tsx pour le détail.
-import { ApplyRefactionModal } from '../modules/reimbursement/ApplyRefactionModal';
-import { RecordRecoveryModal } from '../modules/reimbursement/RecordRecoveryModal';
+import { ApplyRefactionModal } from '../features/reimbursement/ApplyRefactionModal';
+import { RecordRecoveryModal } from '../features/reimbursement/RecordRecoveryModal';
 import { Wallet } from 'lucide-react';
 
 interface InvoicesViewProps {

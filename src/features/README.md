@@ -1,4 +1,11 @@
-# `src/modules/` — HealthPass 2.0 / 3.0 modules
+# `src/features/` — feature/domain modules
+
+> **Renamed from `src/modules/` (2026-09-17)** — pure rename, no code or behavior changed. See
+> `FRONTEND_STRUCTURE_ANALYSIS.md` at the repository root: this directory was already, in
+> effect, a "one folder per business domain" structure — the rename makes that explicit and is
+> step 1 of generalizing this same convention to the rest of `src/` (`views/`, `services/`,
+> `utils/`), one domain at a time. Everything below this line describes history and stays
+> accurate under the old name `src/modules/` where it appears in prose.
 
 This directory is the home for HealthPass engines and related visual additions
 (Preauthorization, BillAudit, FraudDetection, SLA tracking, Reimbursement, the member ID card
@@ -36,7 +43,7 @@ the user's request rather than kept behind a flag.
   `src/config/featureFlags.ts` and starts in shadow mode (visible/informational, never blocking
   an existing flow) until explicitly promoted. A purely visual module with no backend
   dependency (e.g. `membercard/`) doesn't need a flag.
-- Nothing in `src/modules/` replaces or renames existing code — it only adds to it, per the
+- Nothing in `src/features/` replaces or renames existing code — it only adds to it, per the
   "no destroying existing behavior" rule in the discovery report.
 - Before a module's screen work is implemented for real, a visual preview of that interface is
   presented and confirmed first.

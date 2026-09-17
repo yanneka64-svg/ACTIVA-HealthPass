@@ -1,9 +1,9 @@
 // === AMÉLIORATION AJOUTÉE : test (HealthPass 3.0, revue 2026-09-12 — module Claim 360) ===
-// Preuve reproductible que filterAndSortEntityLogs (src/modules/timeline/EntityTimeline.tsx)
+// Preuve reproductible que filterAndSortEntityLogs (src/features/timeline/EntityTimeline.tsx)
 // isole correctement les événements d'une seule entité, dans le bon ordre chronologique, sans
 // dépendre d'un rendu DOM (ce projet n'a pas de dépendance jsdom).
 import { describe, expect, it } from 'vitest';
-import { filterAndSortEntityLogs } from '../src/modules/timeline/EntityTimeline';
+import { filterAndSortEntityLogs } from '../src/features/timeline/EntityTimeline';
 
 describe('filterAndSortEntityLogs', () => {
   const logs = [
