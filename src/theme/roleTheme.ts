@@ -1,7 +1,9 @@
 import type { CSSProperties } from 'react';
 import { normalizeRole } from '../utils/authUtils';
 
-export type UserRole = 'Admin' | 'Supervisor' | 'Agent';
+// === AMÉLIORATION AJOUTÉE : ACTIVA Health Claims — Phase 1 (fondation, additif) — 4 nouveaux
+// rôles (voir src/utils/authUtils.ts AppRole). Aucune valeur/écran existant n'est modifié.
+export type UserRole = 'Admin' | 'Supervisor' | 'Agent' | 'ClaimsAgent' | 'MedicalReviewer' | 'Finance' | 'Management';
 
 // === AMÉLIORATION AJOUTÉE : rampe de nuances (50 -> 900) par rôle ===
 // Toutes les vues de l'application utilisaient auparavant la couleur "Activa Navy"
@@ -198,6 +200,123 @@ export const SUPERVISOR_THEME: RoleThemeConfig = {
   },
 };
 
+// === AMÉLIORATION AJOUTÉE : ACTIVA Health Claims — Phase 1 (fondation, additif) — 4 palettes
+// distinctes pour les nouveaux rôles, suivant exactement le même motif que SUPERVISOR_THEME
+// ci-dessus (spread d'une palette existante + surcharges), pour rester cohérent visuellement
+// avec l'app sans introduire un second système de design. Non utilisées par aucun écran tant
+// que la Phase 2/3 (écrans du module) n'est pas construite.
+export const CLAIMS_AGENT_THEME: RoleThemeConfig = {
+  role: 'ClaimsAgent',
+  displayName: 'Claims Agent',
+  palette: {
+    ...AGENT_THEME.palette,
+    sidebarBg: '#0F766E',
+    sidebarGradient: 'bg-gradient-to-b from-[#134E4A] via-[#0F766E] to-[#115E59]',
+    sidebarBorder: 'border-teal-800/70',
+    badgeBg: 'bg-[#0D9488] text-white',
+    primaryColor: 'bg-[#0F766E] hover:bg-[#134E4A]',
+    primaryHover: 'hover:bg-[#134E4A]',
+    primaryText: 'text-[#0F766E]',
+    pageTitleColor: 'text-[#0F766E]',
+    avatarBg: 'bg-[#0F766E]',
+    bannerGradient: 'bg-gradient-to-r from-[#134E4A] via-[#0F766E] to-[#115E59]',
+    bannerBorder: 'border-teal-800',
+    modalHeaderBg: 'bg-[#0F766E]',
+    accentBadge: 'bg-[#0F766E] text-white',
+    accentRing: 'focus:ring-[#0F766E]',
+    accentGlow: 'bg-teal-400/20',
+    hexRamp: {
+      '50': '#f0fdfa', '100': '#ccfbf1', '200': '#99f6e4', '300': '#5eead4', '400': '#2dd4bf',
+      '500': '#14b8a6', '600': '#0d9488', '700': '#0f766e', '800': '#115e59', '900': '#134e4a',
+    },
+    motifStroke: '20, 184, 166',
+  },
+};
+
+export const MEDICAL_REVIEWER_THEME: RoleThemeConfig = {
+  role: 'MedicalReviewer',
+  displayName: 'Medical Reviewer',
+  palette: {
+    ...AGENT_THEME.palette,
+    sidebarBg: '#4338CA',
+    sidebarGradient: 'bg-gradient-to-b from-[#312E81] via-[#4338CA] to-[#3730A3]',
+    sidebarBorder: 'border-indigo-800/70',
+    badgeBg: 'bg-[#4F46E5] text-white',
+    primaryColor: 'bg-[#4338CA] hover:bg-[#312E81]',
+    primaryHover: 'hover:bg-[#312E81]',
+    primaryText: 'text-[#4338CA]',
+    pageTitleColor: 'text-[#4338CA]',
+    avatarBg: 'bg-[#4338CA]',
+    bannerGradient: 'bg-gradient-to-r from-[#312E81] via-[#4338CA] to-[#3730A3]',
+    bannerBorder: 'border-indigo-800',
+    modalHeaderBg: 'bg-[#4338CA]',
+    accentBadge: 'bg-[#4338CA] text-white',
+    accentRing: 'focus:ring-[#4338CA]',
+    accentGlow: 'bg-indigo-400/20',
+    hexRamp: {
+      '50': '#eef2ff', '100': '#e0e7ff', '200': '#c7d2fe', '300': '#a5b4fc', '400': '#818cf8',
+      '500': '#6366f1', '600': '#4f46e5', '700': '#4338ca', '800': '#3730a3', '900': '#312e81',
+    },
+    motifStroke: '79, 70, 229',
+  },
+};
+
+export const FINANCE_THEME: RoleThemeConfig = {
+  role: 'Finance',
+  displayName: 'Finance',
+  palette: {
+    ...AGENT_THEME.palette,
+    sidebarBg: '#047857',
+    sidebarGradient: 'bg-gradient-to-b from-[#064E3B] via-[#047857] to-[#065F46]',
+    sidebarBorder: 'border-emerald-800/70',
+    badgeBg: 'bg-[#059669] text-white',
+    primaryColor: 'bg-[#047857] hover:bg-[#064E3B]',
+    primaryHover: 'hover:bg-[#064E3B]',
+    primaryText: 'text-[#047857]',
+    pageTitleColor: 'text-[#047857]',
+    avatarBg: 'bg-[#047857]',
+    bannerGradient: 'bg-gradient-to-r from-[#064E3B] via-[#047857] to-[#065F46]',
+    bannerBorder: 'border-emerald-800',
+    modalHeaderBg: 'bg-[#047857]',
+    accentBadge: 'bg-[#047857] text-white',
+    accentRing: 'focus:ring-[#047857]',
+    accentGlow: 'bg-emerald-400/20',
+    hexRamp: {
+      '50': '#ecfdf5', '100': '#d1fae5', '200': '#a7f3d0', '300': '#6ee7b7', '400': '#34d399',
+      '500': '#10b981', '600': '#059669', '700': '#047857', '800': '#065f46', '900': '#064e3b',
+    },
+    motifStroke: '5, 150, 105',
+  },
+};
+
+export const MANAGEMENT_THEME: RoleThemeConfig = {
+  role: 'Management',
+  displayName: 'Management',
+  palette: {
+    ...AGENT_THEME.palette,
+    sidebarBg: '#B45309',
+    sidebarGradient: 'bg-gradient-to-b from-[#78350F] via-[#B45309] to-[#92400E]',
+    sidebarBorder: 'border-amber-800/70',
+    badgeBg: 'bg-[#D97706] text-white',
+    primaryColor: 'bg-[#B45309] hover:bg-[#78350F]',
+    primaryHover: 'hover:bg-[#78350F]',
+    primaryText: 'text-[#B45309]',
+    pageTitleColor: 'text-[#B45309]',
+    avatarBg: 'bg-[#B45309]',
+    bannerGradient: 'bg-gradient-to-r from-[#78350F] via-[#B45309] to-[#92400E]',
+    bannerBorder: 'border-amber-800',
+    modalHeaderBg: 'bg-[#B45309]',
+    accentBadge: 'bg-[#B45309] text-white',
+    accentRing: 'focus:ring-[#B45309]',
+    accentGlow: 'bg-amber-400/20',
+    hexRamp: {
+      '50': '#fffbeb', '100': '#fef3c7', '200': '#fde68a', '300': '#fcd34d', '400': '#fbbf24',
+      '500': '#f59e0b', '600': '#d97706', '700': '#b45309', '800': '#92400e', '900': '#78350f',
+    },
+    motifStroke: '217, 119, 6',
+  },
+};
+
 /**
  * Returns a React inline-style object of CSS custom properties (--brand-50 .. --brand-900)
  * for the given role, meant to be spread on a top-level wrapping element once the user's
@@ -221,6 +340,19 @@ export function getRoleTheme(roleInput?: string | null): RoleThemeConfig {
   }
   if (normalized === 'Agent') {
     return AGENT_THEME;
+  }
+  // === AMÉLIORATION AJOUTÉE : ACTIVA Health Claims — Phase 1 (fondation, additif) ===
+  if (normalized === 'ClaimsAgent') {
+    return CLAIMS_AGENT_THEME;
+  }
+  if (normalized === 'MedicalReviewer') {
+    return MEDICAL_REVIEWER_THEME;
+  }
+  if (normalized === 'Finance') {
+    return FINANCE_THEME;
+  }
+  if (normalized === 'Management') {
+    return MANAGEMENT_THEME;
   }
   return ADMIN_THEME;
 }

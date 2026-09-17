@@ -595,7 +595,16 @@ export type NavSection =
   | 'claims_validation'
   | 'enrollments_validation'
   | 'validated_history'
-  | 'receipts';
+  | 'receipts'
+  // === AMÉLIORATION AJOUTÉE : ACTIVA Health Claims — Phase 1 (fondation) — sections
+  // additives pour les futurs écrans du module (voir ACTIVA_HEALTH_CLAIMS_DISCOVERY.md).
+  // Aucun écran ne les rend encore (voir App.tsx) : ajoutées ici uniquement pour que le
+  // modèle de rôles/permissions (src/utils/authUtils.ts) puisse les référencer par avance.
+  | 'health_claims_dashboard'
+  | 'health_claims_list'
+  | 'health_claims_medical_review'
+  | 'health_claims_fraud_review'
+  | 'health_claims_payments';
 
 export interface AppNotification {
   id: string;

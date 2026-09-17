@@ -36,6 +36,28 @@ service cloud.firestore {
       return isActiveUser() && userProfile() == 'Agent';
     }
 
+    // === AMÉLIORATION AJOUTÉE : ACTIVA Health Claims — Phase 1 (fondation, additif) ===
+    // 4 nouveaux rôles (voir ACTIVA_HEALTH_CLAIMS_DISCOVERY.md §1/§6 et src/utils/authUtils.ts
+    // AppRole) pour les nouvelles collections ci-dessous uniquement — Admin/Supervisor/Agent et
+    // toutes les collections existantes (claims, members, enrollments, invoices...) restent
+    // inchangés. Sans effet tant qu'aucun compte `accounts/{uid}` ne porte réellement l'une de
+    // ces valeurs de `profile` (aucune UI Admin ne permet encore de l'attribuer).
+    function isClaimsAgent() {
+      return isActiveUser() && userProfile() == 'ClaimsAgent';
+    }
+
+    function isMedicalReviewer() {
+      return isActiveUser() && userProfile() == 'MedicalReviewer';
+    }
+
+    function isFinanceRole() {
+      return isActiveUser() && userProfile() == 'Finance';
+    }
+
+    function isManagementRole() {
+      return isActiveUser() && userProfile() == 'Management';
+    }
+
     function canValidate() {
       return isAdmin() || isSupervisor();
     }
@@ -672,6 +694,71 @@ service cloud.firestore {
         ))
       ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['unread']);
       allow delete: if isAdmin();
+    }
+
+    // === AMÉLIORATION AJOUTÉE : ACTIVA Health Claims — Phase 1 (fondation, additif) ===
+    // Nouvelles collections du module (voir ACTIVA_HEALTH_CLAIMS_DISCOVERY.md et
+    // src/types/healthClaims.ts) — entièrement séparées de `claims`/`invoices`/etc. ci-dessus,
+    // aucune règle existante n'est modifiée. Aucun écran ne lit/écrit encore ces collections
+    // (Phase 2/3) ; ces règles posent l'application des permissions côté serveur PAR AVANCE,
+    // conformément à l'exigence spec §18 ("les permissions doivent impérativement être
+    // appliquées aussi côté backend"), plutôt que de les ajouter seulement une fois l'UI prête.
+    function claimCaseStatusLocked(status) {
+      return status == 'PAID' || status == 'CLOSED' || status == 'CANCELLED';
+    }
+
+    function claimCaseStatusChangeAllowed(oldStatus, newStatus) {
+      return !claimCaseStatusLocked(oldStatus) || newStatus == oldStatus;
+    }
+
+    function paymentStatusChangeAllowed(oldStatus, newStatus) {
+      return oldStatus != 'PAID' || newStatus == 'PAID';
+    }
+
+    match /claimCases/{caseId} {
+      allow read: if isSignedIn() && hasOrgAccess(resource.data.get('organization', null)) &&
+        (isAdmin() || isSupervisor() || isClaimsAgent() || isMedicalReviewer() || isFinanceRole() || isManagementRole());
+      allow create: if isActiveUser() && (isAdmin() || isClaimsAgent()) &&
+        hasOrgAccess(request.resource.data.organization) && createdByUidValid();
+      allow update: if isActiveUser() &&
+        hasOrgAccess(resource.data.get('organization', null)) &&
+        (!('organization' in request.resource.data) || hasOrgAccess(request.resource.data.organization)) &&
+        (isAdmin() || isClaimsAgent() || isMedicalReviewer() || isSupervisor()) &&
+        (!('status' in request.resource.data) || claimCaseStatusChangeAllowed(resource.data.status, request.resource.data.status));
+      allow delete: if isAdmin();
+    }
+
+    match /medicalReviews/{reviewId} {
+      allow read: if isSignedIn() && (isAdmin() || isSupervisor() || isMedicalReviewer() || isClaimsAgent() || isManagementRole());
+      allow create: if isActiveUser() && (isAdmin() || isMedicalReviewer()) && isSelfCreated(request.resource.data);
+      allow update: if isActiveUser() && (isAdmin() || (isMedicalReviewer() && isSelfCreated(resource.data)));
+      allow delete: if isAdmin();
+    }
+
+    match /claimPayments/{paymentId} {
+      allow read: if isSignedIn() && (isAdmin() || isFinanceRole() || isSupervisor() || isManagementRole());
+      allow create: if isActiveUser() && (isAdmin() || isFinanceRole());
+      allow update: if isActiveUser() && (isAdmin() || isFinanceRole()) &&
+        (!('status' in request.resource.data) || paymentStatusChangeAllowed(resource.data.status, request.resource.data.status));
+      allow delete: if isAdmin();
+    }
+
+    // Fil de discussion : création uniquement (append-only) — jamais de mise à jour ni
+    // suppression depuis le frontend, pour satisfaire l'exigence spec §15 déjà appliquée à
+    // `auditLogs` ("l'historique ne doit pas être modifiable depuis le frontend").
+    match /claimCommunications/{commId} {
+      allow read: if isSignedIn() && (isAdmin() || isSupervisor() || isClaimsAgent() || isMedicalReviewer() || isFinanceRole() || isManagementRole());
+      allow create: if isActiveUser() && isSelfCreated(request.resource.data);
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // Document unique `claimWorkflowConfigs/default` — lu par tout compte actif (pour afficher
+    // les statuts/libellés), modifiable uniquement par l'Admin (spec §4 : "workflow
+    // configurable by the administrator").
+    match /claimWorkflowConfigs/{configId} {
+      allow read: if isActiveUser();
+      allow write: if isAdmin();
     }
 
     // === AMÉLIORATION AJOUTÉE : documentation (audit 2026-09-05, STRUCT-03) — `accounts` est
