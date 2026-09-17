@@ -19,6 +19,10 @@ import {
   PolicyPayment,
 } from './types';
 import { FirestoreService } from './services/firestore';
+import { useLogsData } from './hooks/useLogsData';
+import { useNotificationsData } from './hooks/useNotificationsData';
+import { useHealthPoliciesData } from './hooks/useHealthPoliciesData';
+import { usePolicyPaymentsData } from './hooks/usePolicyPaymentsData';
 import { WorkflowService } from './services/workflowService';
 import { seedInitialDemoDataIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
 import { Sidebar } from './components/Sidebar';
@@ -404,12 +408,7 @@ export default function App() {
   const [invoices, setInvoices] = useState<InvoiceItem[]>(() => (demoData.sampleInvoices || []) as InvoiceItem[]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [ceilings, setCeilings] = useState<Ceiling[]>(() => (demoData.sampleCeilings || []) as Ceiling[]);
-  const [logs, setLogs] = useState<LoginLog[]>([]);
   const [medicalForms, setMedicalForms] = useState<MedicalForm[]>(() => (demoData.forms || []) as MedicalForm[]);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring ===
-  const [healthPolicies, setHealthPolicies] = useState<HealthPolicy[]>([]);
-  const [policyPayments, setPolicyPayments] = useState<PolicyPayment[]>([]);
 
   // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.3 — isolation par organisation) — périmètre
   // d'organisations assigné au compte courant (accounts.assignedOrganizations, absent par
@@ -420,7 +419,20 @@ export default function App() {
     Array.isArray((currentUser as any)?.assignedOrganizations) && (currentUser as any).assignedOrganizations.length > 0
       ? (currentUser as any).assignedOrganizations
       : null;
-  const orgScopeKey = assignedOrgs ? assignedOrgs.slice().sort().join(' ') : '';
+  const orgScopeKey = assignedOrgs ? assignedOrgs.slice().sort().join(' ') : '';
+
+  // === AMÉLIORATION AJOUTÉE : hooks de données par domaine — voir
+  // FRONTEND_CRITICAL_ANALYSIS.md §2 et src/hooks/useLogsData.ts pour le contexte. Ces 4
+  // collections n'étaient écrites QUE par leur souscription Firestore (jamais par
+  // `handleResetDemoData`), donc entièrement encapsulables sans changer l'interface que le
+  // reste de ce composant leur connaît (un simple tableau, plus de setter à exposer ici).
+  // `providers`/`ceilings`/`members`/... restent en `useState` ci-dessus : `handleResetDemoData`
+  // les réécrit directement et a donc besoin de leur setter.
+  const isAuthenticatedWithRole = authStatus === 'authenticated' && !!userRole;
+  const logs = useLogsData(isAuthenticatedWithRole && userRole === 'Admin');
+  const notifications = useNotificationsData(isAuthenticatedWithRole);
+  const healthPolicies = useHealthPoliciesData(isAuthenticatedWithRole);
+  const policyPayments = usePolicyPaymentsData(isAuthenticatedWithRole, assignedOrgs);
 
   useEffect(() => {
     localStorage.setItem('activa_lang', 'en');
@@ -437,14 +449,8 @@ export default function App() {
       const unsubEnrollments = FirestoreService.subscribeToEnrollments(setEnrollments, assignedOrgs);
       const unsubCeilings = FirestoreService.subscribeToCeilings(setCeilings);
       const unsubMedicalForms = FirestoreService.subscribeToMedicalForms(setMedicalForms, assignedOrgs);
-      const unsubNotifications = FirestoreService.subscribeToNotifications(setNotifications);
-      const unsubHealthPolicies = FirestoreService.subscribeToHealthPolicies(setHealthPolicies);
-      const unsubPolicyPayments = FirestoreService.subscribeToPolicyPayments(setPolicyPayments, assignedOrgs);
-
-      let unsubLogs: (() => void) | undefined;
-      if (userRole === 'Admin') {
-        unsubLogs = FirestoreService.subscribeToLogs(setLogs);
-      }
+      // notifications/healthPolicies/policyPayments/logs : voir useNotificationsData,
+      // useHealthPoliciesData, usePolicyPaymentsData, useLogsData (src/hooks/) ci-dessus.
 
       return () => {
         unsubMembers();
@@ -455,10 +461,6 @@ export default function App() {
         unsubEnrollments();
         unsubCeilings();
         unsubMedicalForms();
-        unsubNotifications();
-        unsubHealthPolicies();
-        unsubPolicyPayments();
-        if (unsubLogs) unsubLogs();
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
