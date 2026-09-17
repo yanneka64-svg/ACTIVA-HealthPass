@@ -6,7 +6,7 @@ import { drawPdfLogoStrip, drawRefinedHeaderTitle, PDF_LOGO_STRIP_HEIGHT } from 
 import { planCardNumbersForImport } from '../services/cardNumberService';
 // === AMÉLIORATION AJOUTÉE : rapport de réconciliation exportable (2026-09-10) — voir
 // exportReconciliationToExcel / exportReconciliationToPDF plus bas.
-import { ReconciliationSummary } from '../modules/reimbursement/reconciliation';
+import { ReconciliationSummary } from '../features/reimbursement/reconciliation';
 
 // Normalization helper: remove accents, lowercase, trim, remove symbols
 export function normalizeHeader(header: string): string {

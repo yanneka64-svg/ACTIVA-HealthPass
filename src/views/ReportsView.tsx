@@ -38,7 +38,7 @@ import { FirestoreService } from '../services/firestore';
 // l'utilisateur) — expose en rapport exportable les mêmes chiffres déjà affichés en direct sur
 // l'écran Factures (ReconciliationSummary.tsx), derrière le même flag `hp2_reimbursement_tracking`.
 import { isFeatureEnabled } from '../config/featureFlags';
-import { computeReconciliationSummary } from '../modules/reimbursement/reconciliation';
+import { computeReconciliationSummary } from '../features/reimbursement/reconciliation';
 
 interface ReportsViewProps {
   lang: Language;
