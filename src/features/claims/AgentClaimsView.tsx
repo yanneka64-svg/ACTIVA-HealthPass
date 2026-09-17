@@ -39,7 +39,7 @@ import { BiometricFingerprintModal } from '../../components/BiometricFingerprint
 // flag hp3_claim_360 — ajoute une section Timeline au modal de détail existant, sans toucher au
 // reste de son contenu (voir plus bas).
 import { isFeatureEnabled } from '../../config/featureFlags';
-import { EntityTimeline } from '../../features/timeline/EntityTimeline';
+import { EntityTimeline } from '../timeline/EntityTimeline';
 
 interface AgentClaimsViewProps {
   claims: Claim[];

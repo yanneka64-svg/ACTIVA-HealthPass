@@ -22,13 +22,13 @@ import {
   Trash2,
   ShieldAlert,
 } from 'lucide-react';
-import { Claim, Language, Organization, Provider, Member, NavSection } from '../types';
-import { useTranslation } from '../i18n/translations';
-import { exportClaimsToCSV, exportClaimsToExcel } from '../utils/excelUtils';
-import { FirestoreService } from '../services/firestore';
-import { useCurrency } from '../services/currency';
-import { AttachmentBiometricViewerModal } from '../components/AttachmentBiometricViewerModal';
-import { ExportDropdown } from '../components/ExportDropdown';
+import { Claim, Language, Organization, Provider, Member, NavSection } from '../../types';
+import { useTranslation } from '../../i18n/translations';
+import { exportClaimsToCSV, exportClaimsToExcel } from '../../utils/excelUtils';
+import { FirestoreService } from '../../services/firestore';
+import { useCurrency } from '../../services/currency';
+import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
+import { ExportDropdown } from '../../components/ExportDropdown';
 import {
   canApproveRecord,
   hasPermission,
@@ -36,23 +36,23 @@ import {
   canExportData,
   canAssignRecord,
   canReturnRecord,
-} from '../services/permissions';
-import { getRoleTheme } from '../theme/roleTheme';
+} from '../../services/permissions';
+import { getRoleTheme } from '../../theme/roleTheme';
 // === AMÉLIORATION AJOUTÉE : HealthPass 2.0, Phase 2 — Fraud Detection, derrière le flag
 // `hp2_fraud_detection` (désactivé par défaut, voir src/config/featureFlags.ts). Badge purement
 // informatif, mode silencieux : n'intercepte jamais handleApproveAttempt/onReject ci-dessous.
-import { isFeatureEnabled } from '../config/featureFlags';
-import { computeFraudScore } from '../features/fraud/fraudScore';
-import { FraudScoreBadge } from '../features/fraud/FraudScoreBadge';
-import { checkPreauthorizationNeeded } from '../features/preauthorization/preauthCheck';
-import { PreauthorizationBadge } from '../features/preauthorization/PreauthorizationBadge';
-import { computeBillAudit } from '../features/billaudit/billAuditCheck';
-import { BillAuditBadge } from '../features/billaudit/BillAuditBadge';
-import { checkSlaBreach } from '../features/sla/slaCheck';
-import { SlaBadge } from '../features/sla/SlaBadge';
+import { isFeatureEnabled } from '../../config/featureFlags';
+import { computeFraudScore } from '../fraud/fraudScore';
+import { FraudScoreBadge } from '../fraud/FraudScoreBadge';
+import { checkPreauthorizationNeeded } from '../preauthorization/preauthCheck';
+import { PreauthorizationBadge } from '../preauthorization/PreauthorizationBadge';
+import { computeBillAudit } from '../billaudit/billAuditCheck';
+import { BillAuditBadge } from '../billaudit/BillAuditBadge';
+import { checkSlaBreach } from '../sla/slaCheck';
+import { SlaBadge } from '../sla/SlaBadge';
 // === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12), derrière le
 // flag hp3_claim_360 — voir src/modules/claim360/Claim360Panel.tsx.
-import { Claim360Panel } from '../features/claim360/Claim360Panel';
+import { Claim360Panel } from './Claim360Panel';
 
 interface ClaimsViewProps {
   currentSection?: string;

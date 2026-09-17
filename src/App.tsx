@@ -55,7 +55,7 @@ import { getClientLocationInfo, parseUserAgent } from './utils/geoUtils';
 // immédiatement, inchangés. Aucune logique métier, aucune prop, aucun comportement de ces écrans
 // n'a changé — seul le moment où leur code est téléchargé change.
 const DashboardView = lazy(() => import('./views/DashboardView').then((m) => ({ default: m.DashboardView })));
-const ClaimsView = lazy(() => import('./views/ClaimsView').then((m) => ({ default: m.ClaimsView })));
+const ClaimsView = lazy(() => import('./features/claims/ClaimsView').then((m) => ({ default: m.ClaimsView })));
 const InvoicesView = lazy(() => import('./views/InvoicesView').then((m) => ({ default: m.InvoicesView })));
 const EnrollmentsView = lazy(() => import('./views/EnrollmentsView').then((m) => ({ default: m.EnrollmentsView })));
 const ReportsView = lazy(() => import('./views/ReportsView').then((m) => ({ default: m.ReportsView })));
@@ -68,7 +68,7 @@ const LogsView = lazy(() => import('./views/settings/LogsView').then((m) => ({ d
 
 const AgentIdentificationView = lazy(() => import('./views/agent/AgentIdentificationView').then((m) => ({ default: m.AgentIdentificationView })));
 const AgentMedicalFormView = lazy(() => import('./views/agent/AgentMedicalFormView').then((m) => ({ default: m.AgentMedicalFormView })));
-const AgentClaimsView = lazy(() => import('./views/agent/AgentClaimsView').then((m) => ({ default: m.AgentClaimsView })));
+const AgentClaimsView = lazy(() => import('./features/claims/AgentClaimsView').then((m) => ({ default: m.AgentClaimsView })));
 const AgentEnrollmentsView = lazy(() => import('./views/agent/AgentEnrollmentsView').then((m) => ({ default: m.AgentEnrollmentsView })));
 import { InactivityWarningModal } from './components/InactivityWarningModal';
 import {
