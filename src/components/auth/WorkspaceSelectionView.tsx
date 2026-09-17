@@ -144,7 +144,9 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
                 cet écran (demande explicite) — ce texte n'a de sens que sur la page de
                 connexion elle-même (LoginView, où il reste affiché), pas sur cet écran de
                 sélection d'espace de travail qui la précède. === */}
-            <h2 className="text-lg sm:text-xl font-extrabold text-[#0D2B63] text-center">
+            {/* === AMÉLIORATION AJOUTÉE : taille du titre "Welcome" augmentée (demande
+                explicite). === */}
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D2B63] text-center">
               {t.auth.workspaceSelectTitle}
             </h2>
             <p className="mt-1 text-xs sm:text-[13px] text-[#5B7091] font-medium text-center">
