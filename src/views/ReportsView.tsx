@@ -392,16 +392,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReportTab === 'overview' && (
       <>
       {/* Top Action Bar with integrated Calendar Date Range and Export Buttons */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
-            {t.reports.title}
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {t.reports.statsSubtitle}
-          </p>
-        </div>
-
+      {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — titre "Reports & Analytics"
+          et son sous-titre retirés : les onglets Overview / Policies & Premiums / Reconciliation
+          juste au-dessus servent déjà de repère de page, ce bandeau ne garde que les contrôles
+          (dates, export). === */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col xl:flex-row items-stretch xl:items-center justify-end gap-4">
         <div className="flex items-center gap-2.5 flex-wrap xl:flex-nowrap justify-start xl:justify-end">
           {/* Integrated Date Pickers (From / To Calendar) */}
           <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition">

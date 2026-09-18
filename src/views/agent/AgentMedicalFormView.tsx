@@ -563,8 +563,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
             <FileText className="w-5 h-5 text-[var(--brand-900)]" />
           </div>
           <div>
+            {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — sous-titre retiré
+                sous ce grand titre. */}
             <h2 className="font-bold text-sm sm:text-base text-slate-900">{t.agentMedForm.pageTitle}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{t.agentMedForm.pageSubtitle}</p>
           </div>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
