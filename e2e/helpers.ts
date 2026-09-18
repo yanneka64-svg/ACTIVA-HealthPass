@@ -104,12 +104,13 @@ export async function submitEnrollment(page: Page, input: EnrollmentFormInput): 
   await page.click('text=Enrollments');
   // === AMÉLIORATION AJOUTÉE : correctif E2E (2026-09-17) === Le formulaire d'enrôlement reste
   // grisé/inactif (opacity-50, pointer-events-none — voir AgentEnrollmentsView.tsx) tant que
-  // l'onglet "New Beneficiary Enrollment" n'a pas été explicitement cliqué (comportement
-  // applicatif introduit le 2026-09-10, après l'écriture initiale de ce helper le 2026-09-07,
-  // jamais mis à jour depuis). Sans ce clic, le clic final sur le bouton de soumission était
-  // bloqué indéfiniment (élément parent interceptant le pointeur), faisant échouer ce test alors
-  // que l'application elle-même fonctionne comme prévu.
-  await page.click('text=New Beneficiary Enrollment');
+  // l'onglet "New Enrollment" (libellé simplifié le 2026-09-18, auparavant "New Beneficiary
+  // Enrollment") n'a pas été explicitement cliqué (comportement applicatif introduit le
+  // 2026-09-10, après l'écriture initiale de ce helper le 2026-09-07, jamais mis à jour depuis).
+  // Sans ce clic, le clic final sur le bouton de soumission était bloqué indéfiniment (élément
+  // parent interceptant le pointeur), faisant échouer ce test alors que l'application elle-même
+  // fonctionne comme prévu.
+  await page.click('text=New Enrollment');
   await page.waitForSelector('label:has-text("Last Name:")', { timeout: 10_000 });
 
   // Le libellé n'est pas un frère direct du champ (un badge "ACTIVA UNIQUE IDENTIFIER" s'intercale
