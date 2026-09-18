@@ -4,11 +4,16 @@
 // (périmètre confirmé avec l'utilisateur, 2026-09-10) : pas d'import de relevé, pas de
 // rapprochement automatique — un Admin/Superviseur enregistre qu'un décaissement a eu lieu.
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { X, Wallet } from 'lucide-react';
 import { InvoiceItem } from '../../types';
 import { FirestoreService } from '../../services/firestore';
 import { useCurrency } from '../../services/currency';
 import { ADMIN_THEME } from '../../theme/roleTheme';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Voir
+// markAsPaidFormSchemas.ts pour le détail de ce qui est/n'est pas couvert par ce schéma.
+import { markAsPaidFormSchema, MarkAsPaidFormValues } from './markAsPaidFormSchemas';
 
 interface MarkAsPaidModalProps {
   invoice: InvoiceItem;
@@ -17,34 +22,43 @@ interface MarkAsPaidModalProps {
 
 export const MarkAsPaidModal: React.FC<MarkAsPaidModalProps> = ({ invoice, onClose }) => {
   const { formatMoney } = useCurrency();
-  const [payee, setPayee] = useState<'provider' | 'member'>(invoice.payee || 'provider');
-  const [paymentReference, setPaymentReference] = useState('');
-  const [paidAt, setPaidAt] = useState(new Date().toISOString().slice(0, 10));
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les
+  // 3 useState de champs (payee/paymentReference/paidAt) par un unique useForm. saving/error
+  // restent en état séparé (état UI/soumission, non géré par le formulaire).
+  const form = useForm<MarkAsPaidFormValues>({
+    resolver: zodResolver(markAsPaidFormSchema),
+    defaultValues: {
+      payee: invoice.payee || 'provider',
+      paymentReference: '',
+      paidAt: new Date().toISOString().slice(0, 10),
+    },
+  });
+  const watchedPayee = form.watch('payee');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!paymentReference.trim()) {
+  const handleSubmit = form.handleSubmit(
+    async (values) => {
+      setError(null);
+      setSaving(true);
+      try {
+        await FirestoreService.updateInvoice({
+          ...invoice,
+          paymentStatus: 'paid',
+          payee: values.payee,
+          paymentReference: values.paymentReference.trim(),
+          paidAt: new Date(values.paidAt).toISOString(),
+        });
+        onClose();
+      } catch {
+        setError('Could not save this payment. Please try again.');
+        setSaving(false);
+      }
+    },
+    () => {
       setError('Payment reference is required.');
-      return;
     }
-    setSaving(true);
-    try {
-      await FirestoreService.updateInvoice({
-        ...invoice,
-        paymentStatus: 'paid',
-        payee,
-        paymentReference: paymentReference.trim(),
-        paidAt: new Date(paidAt).toISOString(),
-      });
-      onClose();
-    } catch {
-      setError('Could not save this payment. Please try again.');
-      setSaving(false);
-    }
-  };
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
@@ -82,18 +96,18 @@ export const MarkAsPaidModal: React.FC<MarkAsPaidModalProps> = ({ invoice, onClo
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setPayee('provider')}
+                onClick={() => form.setValue('payee', 'provider')}
                 className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                  payee === 'provider' ? 'bg-[#0a2e6b] text-white border-[#0a2e6b]' : 'bg-slate-50 text-slate-600 border-slate-200'
+                  watchedPayee === 'provider' ? 'bg-[#0a2e6b] text-white border-[#0a2e6b]' : 'bg-slate-50 text-slate-600 border-slate-200'
                 }`}
               >
                 Provider ({invoice.provider})
               </button>
               <button
                 type="button"
-                onClick={() => setPayee('member')}
+                onClick={() => form.setValue('payee', 'member')}
                 className={`px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                  payee === 'member' ? 'bg-[#0a2e6b] text-white border-[#0a2e6b]' : 'bg-slate-50 text-slate-600 border-slate-200'
+                  watchedPayee === 'member' ? 'bg-[#0a2e6b] text-white border-[#0a2e6b]' : 'bg-slate-50 text-slate-600 border-slate-200'
                 }`}
               >
                 Insured ({invoice.patientName})
@@ -105,8 +119,7 @@ export const MarkAsPaidModal: React.FC<MarkAsPaidModalProps> = ({ invoice, onClo
             <label className="block text-xs font-bold text-slate-700 mb-1.5">Payment Reference</label>
             <input
               type="text"
-              value={paymentReference}
-              onChange={(e) => setPaymentReference(e.target.value)}
+              {...form.register('paymentReference')}
               placeholder="e.g. bank transfer ref, mobile money ref"
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
               required
@@ -117,8 +130,7 @@ export const MarkAsPaidModal: React.FC<MarkAsPaidModalProps> = ({ invoice, onClo
             <label className="block text-xs font-bold text-slate-700 mb-1.5">Payment Date</label>
             <input
               type="date"
-              value={paidAt}
-              onChange={(e) => setPaidAt(e.target.value)}
+              {...form.register('paidAt')}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
               required
             />
