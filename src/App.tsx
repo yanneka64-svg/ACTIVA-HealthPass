@@ -1760,7 +1760,20 @@ export default function App() {
               // without knowing it, locking the legitimate owner out of their own account. Not
               // applicable on a forced first login (currentPwd absent): the sign-in with the
               // temporary password just happened.
-              if (currentPwd && auth.currentUser.email) {
+              // === AMÉLIORATION AJOUTÉE : sécurité (2026-09-18, finding CodeRabbit "Major" sur
+              // PR #76) === La condition reposait sur la simple véracité JS de `currentPwd`, une
+              // valeur transmise par la modale — contournable (DevTools retirant l'attribut HTML
+              // `required`, ou un appel programmatique à onSuccess) pour sauter silencieusement
+              // la ré-authentification. On se base désormais sur `forcedFirstLogin`, un état
+              // détenu par l'application elle-même (non manipulable depuis la modale) : hors
+              // première connexion forcée, la ré-authentification est TOUJOURS exigée, et un
+              // `currentPwd` absent/vide échoue explicitement avec le même message qu'un mot de
+              // passe incorrect (déjà géré ci-dessous) — aucun changement pour l'utilisateur
+              // légitime, qui a toujours saisi son mot de passe actuel dans ce cas.
+              if (!forcedFirstLogin) {
+                if (!currentPwd || !auth.currentUser.email) {
+                  throw { code: 'auth/wrong-password' };
+                }
                 const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPwd);
                 await reauthenticateWithCredential(auth.currentUser, credential);
               }
