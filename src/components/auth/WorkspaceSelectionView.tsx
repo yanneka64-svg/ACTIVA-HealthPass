@@ -105,21 +105,19 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
         <div className="absolute inset-0 bg-gradient-to-b from-[#072659]/90 via-[#0A347B]/85 to-[#0D2B63]/92 pointer-events-none" />
         <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
         {/* === AMÉLIORATION AJOUTÉE : fondu du panneau bleu vers le blanc (demande explicite,
-            ajustée après retour utilisateur du 2026-09-18 — "le trait se voit encore") ===
-            Le panneau parent porte un padding (`p-10 xl:p-14`) : un enfant `absolute right-0`
-            s'arrête à la bordure INTÉRIEURE de ce padding (bordure du "padding box", la zone
-            de positionnement des éléments absolus), et non au bord réel du panneau — ce qui
-            laissait une fine bande de bleu non fondu juste avant la jonction avec le panneau
-            blanc (c'est ce qui créait le "trait" encore visible). `-mr-10 xl:-mr-14` annule
-            exactement ce padding pour que le dégradé atteigne le bord réel du panneau. Zone
-            resserrée à ~20 % de la largeur du panneau (~15-20 % de la largeur totale de
-            l'écran, centrée sur la jonction, comme demandé) : bleu foncé → moyen → pâle →
-            blanc, sans palier ni bord visible. */}
+            ajustée le 2026-09-18 d'après une capture de référence — zone large et très douce,
+            pas de bande resserrée) === Le panneau parent porte un padding (`p-10 xl:p-14`) :
+            un enfant `absolute right-0` s'arrête à la bordure INTÉRIEURE de ce padding (le
+            "padding box", zone de référence des éléments absolus), pas au bord réel du
+            panneau — sans correction cela laisse une fine bande de bleu non fondu juste avant
+            la jonction. `-mr-10 xl:-mr-14` annule ce padding pour que le dégradé atteigne le
+            bord réel du panneau. Courbe étalée sur une large zone (courbe très progressive,
+            aucun stop avant 35 %) pour un rendu diffus, sans bande ni bord perceptible. */}
         <div
-          className="absolute inset-y-0 right-0 w-1/5 -mr-10 xl:-mr-14 pointer-events-none"
+          className="absolute inset-y-0 right-0 w-3/5 -mr-10 xl:-mr-14 pointer-events-none"
           style={{
             background:
-              'linear-gradient(to right, transparent 0%, rgba(255,255,255,0.3) 35%, rgba(255,255,255,0.68) 68%, #ffffff 100%)',
+              'linear-gradient(to right, transparent 0%, rgba(255,255,255,0.06) 35%, rgba(255,255,255,0.22) 55%, rgba(255,255,255,0.5) 72%, rgba(255,255,255,0.8) 88%, #ffffff 100%)',
           }}
         />
 
@@ -152,9 +150,10 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
             atteint directement le bord réel du panneau, sans le bug de padding corrigé côté
             panneau bleu. N'affecte jamais les cartes (centrées, hors de cette bande). === */}
         <div
-          className="hidden lg:block absolute inset-y-0 left-0 w-[10%] pointer-events-none"
+          className="hidden lg:block absolute inset-y-0 left-0 w-1/4 pointer-events-none"
           style={{
-            background: 'linear-gradient(to right, rgba(10,52,123,0.08) 0%, transparent 100%)',
+            background:
+              'linear-gradient(to right, rgba(10,52,123,0.12) 0%, rgba(10,52,123,0.04) 40%, transparent 75%)',
           }}
         />
         <div className="hidden lg:block absolute top-6 right-6 xl:top-10 xl:right-10 z-10">
