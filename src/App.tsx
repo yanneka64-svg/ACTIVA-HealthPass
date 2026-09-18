@@ -1416,7 +1416,7 @@ export default function App() {
               <ClaimsView currentSection={effectiveSection} userRole={activeRole}
                 currentUser={currentUser}
                 lang={lang}
-                claims={claims}
+                assignedOrgs={assignedOrgs}
                 organizations={organizations}
                 providers={providers}
                 members={members}
@@ -1512,7 +1512,7 @@ export default function App() {
             <ClaimsView currentSection={effectiveSection} userRole={activeRole}
               currentUser={currentUser}
               lang={lang}
-              claims={claims}
+              assignedOrgs={assignedOrgs}
               organizations={organizations}
               providers={providers}
               members={members}
