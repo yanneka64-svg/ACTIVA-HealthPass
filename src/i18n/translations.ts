@@ -1154,6 +1154,12 @@ export const translations = {
       searchPlaceholder: 'Search by Card Number (e.g. ACT-2025-0012), Insured Name, Policy or Organization...',
       scanBiometric: 'Scan Biometric Sensor',
       newEnrollment: 'New Enrollment',
+      // === AMÉLIORATION AJOUTÉE : remplace le bouton "New Enrollment" du bandeau de recherche
+      // par un bouton "Search" explicite (demande explicite, 2026-09-18) — sur les écrans
+      // tactiles (terminal HFSecurity FP08), il n'y avait aucun moyen visible de déclencher la
+      // recherche sans clavier physique/touche Entrée, donnant l'impression que les données ne
+      // s'affichaient jamais après une saisie.
+      searchButton: 'Search',
       dismiss: 'Dismiss',
       insuredDirectory: 'Insured Directory',
       noSearchMatch: 'No insured member matches your search.',
@@ -1215,6 +1221,11 @@ export const translations = {
       biometricModalSubtitle: 'AFIS 1:N Biometric Fingerprint Matcher',
       viewPolicy: 'View Policy',
       biometricMatchTemplate: 'Biometric AFIS 1:N Match Verified ({score}% confidence) for {name} (Card #{cardNo}) via {finger}.',
+      // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — voir handleFingerprintCaptured.
+      // Aucune correspondance 1:N réelle entre gabarits n'existe dans ce dépôt ; ce message
+      // remplace l'ancien faux "match" qui sélectionnait un assuré au hasard.
+      biometricMatchUnavailable: 'Biometric 1:N identification is not available yet. Please search by card number or name instead.',
+      ambiguousSearchResults: '{count} insured members match this search — please refine it (full card number or full name) to select the right one.',
     },
 
     // === AMÉLIORATION AJOUTÉE : namespace agentEnroll (2026-09-10) — traduction de l'écran
@@ -2724,6 +2735,7 @@ export const translations = {
       searchPlaceholder: "Rechercher par numéro de carte (ex. ACT-2025-0012), nom de l'assuré, police ou organisation...",
       scanBiometric: 'Scanner le capteur biométrique',
       newEnrollment: 'Nouvelle adhésion',
+      searchButton: 'Rechercher',
       dismiss: 'Fermer',
       insuredDirectory: 'Annuaire des assurés',
       noSearchMatch: 'Aucun assuré ne correspond à votre recherche.',
@@ -2785,6 +2797,8 @@ export const translations = {
       biometricModalSubtitle: "Comparateur d'empreintes biométriques AFIS 1:N",
       viewPolicy: 'Voir la police',
       biometricMatchTemplate: 'Correspondance biométrique AFIS 1:N vérifiée ({score} % de confiance) pour {name} (Carte n° {cardNo}) via {finger}.',
+      biometricMatchUnavailable: "L'identification biométrique 1:N n'est pas encore disponible. Veuillez rechercher par numéro de carte ou par nom.",
+      ambiguousSearchResults: '{count} assurés correspondent à cette recherche — précisez-la (numéro de carte complet ou nom complet) pour sélectionner la bonne personne.',
     },
 
     agentEnroll: {
