@@ -294,9 +294,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <HelpCircle className="w-4 h-4 text-slate-500" />
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-700 leading-tight">Need help?</p>
+            <p className="text-xs font-bold text-slate-700 leading-tight">{t.sidebar.helpTitle}</p>
             <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
-              Check the documentation or contact the support team.
+              {t.sidebar.helpBody}
             </p>
           </div>
         </div>

@@ -48,6 +48,8 @@ export const translations = {
       now: 'Now',
       activeLabel: 'Active',
       userLabel: 'User',
+      searchPlaceholder: 'Search a member, a provider, a claim...',
+      searchLabel: 'Global search',
       positions: {
         supervisor: 'Medical Supervisor',
         agent: 'Front Desk Officer',
@@ -96,6 +98,13 @@ export const translations = {
       enrollments_validation: 'Enrollments to Validate',
       validated_history: 'Decision History',
       receipts: 'Receipts / Vouchers'
+    },
+
+    // === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #80 (2026-09-18) === Carte
+    // d'aide en bas de la sidebar (voir Sidebar.tsx), auparavant en anglais codé en dur.
+    sidebar: {
+      helpTitle: 'Need help?',
+      helpBody: 'Check the documentation or contact the support team.',
     },
 
     // Auth
@@ -1617,6 +1626,8 @@ export const translations = {
       now: 'À l\'instant',
       activeLabel: 'Actif',
       userLabel: 'Utilisateur',
+      searchPlaceholder: 'Rechercher un assuré, un prestataire, une réclamation...',
+      searchLabel: 'Recherche globale',
       positions: {
         supervisor: 'Superviseur médical',
         agent: 'Agent d\'accueil',
@@ -1664,6 +1675,11 @@ export const translations = {
       enrollments_validation: 'Adhésions à valider',
       validated_history: 'Historique des décisions',
       receipts: 'Reçus / Bons'
+    },
+
+    sidebar: {
+      helpTitle: 'Besoin d\'aide ?',
+      helpBody: 'Consultez la documentation ou contactez l\'équipe support.',
     },
 
     auth: {

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Language, NavSection, AppNotification } from '../types';
 import { useTranslation } from '../i18n/translations';
-import { MiniLogo } from './Logo';
+import { MiniLogo, Logo } from './Logo';
 import { normalizeRole } from '../utils/authUtils';
 import { getRoleTheme } from '../theme/roleTheme';
 
@@ -184,15 +184,24 @@ export const Topbar: React.FC<TopbarProps> = ({
             utilisateur — "le logo [doit être] sur le topbar") === Logo desktop, désormais dans
             le Topbar plutôt que dans la Sidebar (qui n'a plus d'en-tête propre). Un séparateur
             neutre (non coloré) le distingue du titre de page qui suit. */}
+        {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+            utilisateur — "augmente la taille du logo Activa HealthPass") === Un premier essai
+            avec `scale-125` sur MiniLogo (transform pur) chevauchait le titre de page, car la
+            mise en page ne réserve pas plus d'espace pour un élément simplement redimensionné
+            visuellement. Remplacé par le composant `Logo` complet (icône + texte vectoriel), qui
+            expose une vraie prop `size` réservant l'espace nécessaire. */}
         <div className="hidden lg:flex items-center gap-3 shrink-0">
-          <MiniLogo transparent showText={true} />
-          <div className="h-8 w-px bg-slate-200" />
+          <Logo variant="responsive" size="md" showTagline={true} transparent />
+          <div className="h-9 w-px bg-slate-200" />
         </div>
 
         {/* Global Page Title and Subtitle */}
         {/* === ADDED IMPROVEMENT: the title now follows the active role's color (theme.palette.pageTitleColor) instead of a fixed blue, to stay consistent with the Sidebar (Admin/Supervisor/Agent) === */}
+        {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+            "réduire légèrement la taille de Executive Overview") === Taille réduite d'un cran à
+            chaque palier (text-xl -> text-lg au plus grand). */}
         <div className="min-w-0">
-          <h1 className={`text-base sm:text-lg lg:text-xl font-bold ${theme.palette.pageTitleColor} tracking-tight truncate leading-tight`}>
+          <h1 className={`text-sm sm:text-base lg:text-lg font-bold ${theme.palette.pageTitleColor} tracking-tight truncate leading-tight`}>
             {title}
           </h1>
           {subtitle && (
@@ -215,8 +224,8 @@ export const Topbar: React.FC<TopbarProps> = ({
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search a member, a provider, a claim..."
-            aria-label="Global search"
+            placeholder={t.topbar.searchPlaceholder}
+            aria-label={t.topbar.searchLabel}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-[#E2E8F0] rounded-full text-xs font-medium text-slate-700 placeholder:text-[#94A3B8] focus:outline-none focus:ring-1 focus:ring-[var(--brand-700)] focus:bg-white transition"
           />
         </div>

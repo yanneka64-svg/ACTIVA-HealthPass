@@ -1412,10 +1412,10 @@ export default function App() {
         )}
 
         {/* Sidebar — superposition pleine hauteur sur mobile ; sur desktop, marge sur les 4 côtés
-            (voir lg:p-3 ci-dessous) pour que la Sidebar (rounded-2xl, voir Sidebar.tsx) se
-            présente comme une carte flottante nettement détachée du Topbar et du pied de page,
-            demande explicite utilisateur (2026-09-18) — "détache complètement le sidebar du top
-            bar et de la bande de bas de page ... mets-le sur une forme arrondie".
+            pour que la Sidebar (rounded-2xl, voir Sidebar.tsx) se présente comme une carte
+            flottante nettement détachée du Topbar et du pied de page, demande explicite
+            utilisateur (2026-09-18) — "détache complètement le sidebar du top bar et de la
+            bande de bas de page ... mets-le sur une forme arrondie".
             === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #80 (2026-09-18) === `lg:h-full`
             réintroduit ICI sur ce conteneur invisible (jamais retiré de la carte visible
             elle-même, qui reste `lg:h-auto` dans Sidebar.tsx) : sans hauteur définie sur un
@@ -1423,8 +1423,13 @@ export default function App() {
             pouvait s'étirer au-delà de la hauteur disponible au lieu de défiler. Comme ce
             conteneur n'a ni fond ni bordure visibles, lui redonner une hauteur pleine ne
             réintroduit PAS le vide sous la carte (retiré précédemment) — seule la carte
-            elle-même (dimensionnée à son contenu) est visible. */}
-        <div className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:h-full lg:p-3 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            elle-même (dimensionnée à son contenu) est visible.
+            === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+            utilisateur — "mettre le sidebar au même niveau que les autres éléments du
+            tableau") === Marge du haut alignée sur celle du contenu principal (`lg:pt-8`, comme
+            le `lg:p-8` du <main> plus bas) au lieu de `lg:p-3` uniforme, qui démarrait la carte
+            plus haut (12px) que la première carte du tableau de bord (32px). */}
+        <div className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:h-full lg:pt-8 lg:px-3 lg:pb-3 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <Sidebar
             currentSection={effectiveSection}
             currentUser={currentUser}
@@ -1770,7 +1775,7 @@ export default function App() {
           d'origine, lui, laissait croire à tort qu'ils étaient interactifs sans être
           atteignables au clavier — retiré pour ne plus suggérer une affordance inexistante. */}
       <footer className="hidden lg:flex items-center justify-between shrink-0 h-11 px-6 bg-[#0F172A] text-slate-300 text-[11px]">
-        <span>© {new Date().getFullYear()} ACTIVA HealthPass. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} ACTIVA. All rights reserved.</span>
         <div className="flex items-center gap-5">
           <span>Legal notice</span>
           <span>Privacy policy</span>
