@@ -53,7 +53,12 @@ const CollapsibleNavSection: React.FC<CollapsibleNavSectionProps> = ({
   title,
   isOpen,
   onToggle,
-  titleColor = 'text-slate-400',
+  // === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #80 (2026-09-18) === `text-slate-400`
+  // sur fond blanc n'offre qu'un contraste ~2.5:1, sous le minimum WCAG 4.5:1 pour du texte
+  // normal (les libellés de section restent en 11px, sous le seuil "texte large" qui
+  // permettrait 3:1). `text-slate-600` reste neutre (aucun contour/texte coloré) tout en
+  // satisfaisant le contraste requis.
+  titleColor = 'text-slate-600',
   children,
 }) => {
   return (
