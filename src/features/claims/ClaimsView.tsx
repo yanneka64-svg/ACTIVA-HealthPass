@@ -53,13 +53,20 @@ import { SlaBadge } from '../sla/SlaBadge';
 // === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12), derrière le
 // flag hp3_claim_360 — voir src/modules/claim360/Claim360Panel.tsx.
 import { Claim360Panel } from './Claim360Panel';
+// === AMÉLIORATION AJOUTÉE : Phase 3 du plan de durcissement (2026-09-18) — deuxième
+// consommateur migré vers le cache react-query partagé (voir useClaimsQuery.ts et la migration
+// déjà validée de AgentClaimsView). Source de vérité inchangée : App.tsx continue d'alimenter ce
+// cache via setClaimsAndMirror à chaque instantané Firestore.
+import { useClaimsQuery } from './useClaimsQuery';
 
 interface ClaimsViewProps {
   currentSection?: string;
   userRole?: string;
   currentUser?: any;
   lang: Language;
-  claims: Claim[];
+  // === AMÉLIORATION AJOUTÉE : Phase 3 (2026-09-18) — remplacé par `assignedOrgs` ci-dessous ;
+  // `claims` est désormais lu depuis useClaimsQuery(assignedOrgs), plus depuis les props.
+  assignedOrgs: string[] | null;
   organizations: Organization[];
   providers: Provider[];
   members: Member[];
@@ -67,7 +74,14 @@ interface ClaimsViewProps {
   // (FirestoreService.subscribeToLogs), réutilisé tel quel par l'onglet Timeline. Optionnel :
   // absent, l'onglet affiche simplement "aucune activité enregistrée".
   logs?: any[];
-  onApprove: (id: string) => void;
+  // === AMÉLIORATION AJOUTÉE : correctif (retour de revue qodo sur la PR #64, 2026-09-18) ===
+  // Reçoit désormais le `Claim` complet (plus un simple id) : App.tsx n'a donc plus besoin de le
+  // retrouver par recherche dans son propre état `claims`, qui peut être transitoirement
+  // désynchronisé du cache scope-par-organisation lu ici via useClaimsQuery (ex. juste après un
+  // changement en direct de assignedOrgs, avant que le nouvel instantané Firestore n'arrive) —
+  // une recherche par id aurait alors pu échouer silencieusement sur un sinistre pourtant bien
+  // affiché et approuvé ici.
+  onApprove: (claim: Claim) => void;
   onReject: (claim: Claim, reason: string, comments: string) => void;
   onReturn?: (claim: Claim, reason: string) => void;
   onAssign?: (claim: Claim, agentName: string) => void;
@@ -80,7 +94,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
   userRole = 'Admin',
   currentUser,
   lang,
-  claims,
+  assignedOrgs,
   organizations,
   providers,
   members,
@@ -93,6 +107,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
   onCreateClaim,
 }) => {
   const t = useTranslation(lang);
+  // === AMÉLIORATION AJOUTÉE : Phase 3 (2026-09-18) — lecture depuis le cache react-query partagé
+  // au lieu d'un prop `claims` prop-drillé ; voir useClaimsQuery.ts. Le nom interne `claims` est
+  // conservé à l'identique pour ne changer aucune logique ci-dessous.
+  const { data: claims } = useClaimsQuery(assignedOrgs);
   // === AMÉLIORATION AJOUTÉE : module Claim 360 (HealthPass 3.0, revue 2026-09-12) — panneau
   // ouvert sur clic de la ligne du sinistre (retour utilisateur, 2026-09-12 : remplace l'ancien
   // bouton dédié "View", retiré), gardé derrière hp3_claim_360.
@@ -272,7 +290,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
       setSodAlertMessage(approvalCheck.reason);
       return;
     }
-    onApprove(claim.id);
+    onApprove(claim);
   };
 
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
