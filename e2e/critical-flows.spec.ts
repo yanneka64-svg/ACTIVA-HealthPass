@@ -97,4 +97,44 @@ test.describe('Parcours critiques ACTIVA HealthPass', () => {
     await expect(invoiceRow).toBeVisible({ timeout: 10_000 });
     await expect(invoiceRow).toContainText(FULL_NAME.split(' ')[0]);
   });
+
+  // === AMÉLIORATION AJOUTÉE : Phase 3 (2026-09-18) — première introduction de react-router-dom
+  // (voir main.tsx/App.tsx) : l'app n'avait jusqu'ici AUCUN routage par URL (juste un état React
+  // en mémoire). Ce test verrouille la promesse centrale du changement — l'URL reflète
+  // désormais réellement la section affichée, et le bouton "précédent" du navigateur fonctionne
+  // — avant qu'une régression future ne le casse silencieusement. Indépendant des 3 tests
+  // ci-dessus (page/connexion propres), ne dépend d'aucune donnée créée par eux.
+  test('4. Navigation par URL : l\'adresse change avec la section et le bouton "précédent" du navigateur fonctionne', async ({
+    page,
+  }) => {
+    await loginAsSupervisor(page);
+    // Section par défaut du Superviseur (voir getDefaultSectionForRole) — atteinte directement
+    // après connexion, sans aucun clic.
+    await expect(page).toHaveURL(/\/claims_validation$/);
+
+    await page.click('#nav-item-dashboard');
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    await page.click('#nav-item-reports');
+    await expect(page).toHaveURL(/\/reports$/);
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    // Le contenu affiché doit lui aussi être revenu en arrière, pas seulement l'URL.
+    await expect(page.locator('#nav-item-dashboard')).toHaveAttribute('id', 'nav-item-dashboard');
+
+    // Un rechargement en pleine page ne doit pas faire perdre la section courante (persistance
+    // par l'URL elle-même, plus par sessionStorage) ni renvoyer une 404 (voir public/_redirects).
+    await page.reload();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.waitForSelector('#nav-item-dashboard', { timeout: 10_000 });
+
+    // Une URL pointant vers une section non autorisée pour le rôle actif (ici "accounts",
+    // réservée à l'Admin — voir ROLE_ALLOWED_SECTIONS dans authUtils.ts) doit être corrigée vers
+    // la section par défaut du rôle, exactement comme le faisait déjà `effectiveSection` avant
+    // ce changement — la seule nouveauté est que l'URL elle-même est désormais corrigée en plus
+    // de l'affichage (voir le useEffect dédié dans App.tsx).
+    await page.goto('/accounts');
+    await expect(page).toHaveURL(/\/claims_validation$/);
+  });
 });

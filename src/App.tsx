@@ -4,6 +4,7 @@ import { doc, getDoc, getDocs, onSnapshot, collection } from 'firebase/firestore
 import { queryClient } from './lib/queryClient';
 import { claimsQueryKey } from './features/claims/useClaimsQuery';
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Language,
   NavSection,
@@ -176,15 +177,39 @@ export default function App() {
   const [showInactivityModal, setShowInactivityModal] = useState(false);
 
   // Navigation Section & Preselected Member
-  const [currentSection, setCurrentSection] = useState<NavSection>('dashboard');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 (2026-09-18) — react-router-dom (voir main.tsx) === La
+  // section active est désormais dérivée de l'URL (`/:section`) plutôt que d'un `useState`
+  // local : même valeur, même sémantique partout ailleurs dans ce fichier (isSectionAllowedForRole/
+  // getDefaultSectionForRole/effectiveSection ci-dessous, inchangés), mais l'adresse du
+  // navigateur reflète désormais réellement l'écran affiché (précédent/suivant, rechargement,
+  // lien partageable). Une valeur d'URL invalide ou absente (`/`) retombe sur 'dashboard',
+  // exactement comme la valeur initiale de l'ancien useState — et une valeur non autorisée pour
+  // le rôle actif est de toute façon déjà interceptée par `effectiveSection` plus bas, qui
+  // pré-existait à ce changement.
+  const navigate = useNavigate();
+  const { section: sectionParam } = useParams<{ section?: string }>();
+  const currentSection = (sectionParam || 'dashboard') as NavSection;
+  // === AMÉLIORATION AJOUTÉE : Phase 3 (2026-09-18) === Corrige l'URL (sans rien changer à ce qui
+  // est affiché : `effectiveSection` plus bas gérait déjà ce repli) dès qu'elle pointe vers une
+  // section non autorisée pour le rôle actif — ex. lien copié-collé, ancien signet, changement de
+  // rôle en base. Placé ici (avant tout `return` conditionnel plus bas) pour respecter les
+  // règles des Hooks React ; se contente de ne rien faire tant que `userRole` n'est pas encore
+  // résolu (aucune redirection prématurée pendant le chargement/l'écran de connexion).
+  useEffect(() => {
+    if (!userRole) return;
+    if (!isSectionAllowedForRole(userRole, currentSection)) {
+      navigate('/' + getDefaultSectionForRole(userRole), { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userRole, currentSection]);
   const [selectedMemberForMedicalForm, setSelectedMemberForMedicalForm] = useState<Member | null>(null);
   // === AMÉLIORATION AJOUTÉE : assuré présélectionné lors du clic sur "New Claim" depuis la
   // fiche d'identification de l'agent, pour préremplir le formulaire de réclamation.
   const [selectedMemberForClaim, setSelectedMemberForClaim] = useState<Member | null>(null);
 
   const handleSelectSection = (sec: NavSection) => {
-    setCurrentSection(sec);
     sessionStorage.setItem('activa_current_section', sec);
+    navigate('/' + sec);
   };
 
   // === AMÉLIORATION AJOUTÉE : carte du membre identifié à pré-remplir automatiquement en
@@ -288,7 +313,7 @@ export default function App() {
               const targetSection = isSavedAllowed && savedSec ? savedSec : getDefaultSectionForRole(resolvedRole);
 
               // Atomically update state
-              setCurrentSection(targetSection);
+              navigate('/' + targetSection, { replace: true });
               sessionStorage.setItem('activa_current_section', targetSection);
 
               setCurrentUser({
@@ -560,7 +585,7 @@ export default function App() {
       setForcedPasswordExpiry(false);
       setChangePasswordModalOpen(false);
       setToastMessage(null);
-      setCurrentSection('dashboard');
+      navigate('/dashboard', { replace: true });
       setShowInactivityModal(false);
       setInactivityRemainingSeconds(INACTIVITY_TIMEOUT_SECONDS);
       setAuthStatus('unauthenticated');
