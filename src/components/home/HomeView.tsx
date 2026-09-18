@@ -13,9 +13,7 @@ import {
   Briefcase,
   Stethoscope,
   ChevronDown,
-  Mail,
-  Phone,
-  MapPin,
+  Search,
 } from 'lucide-react';
 import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
@@ -59,6 +57,11 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
   // explicite, 2026-09-18 — "Remplir la page about, FAQ, et Contact us"), qui ne faisaient
   // jusqu'ici que renvoyer par ancrage vers d'autres sections (Features / How it works / CTA).
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  // === AMÉLIORATION AJOUTÉE : barre de recherche sur la page d'accueil (demande explicite,
+  // 2026-09-18 — "supprime contact us et ajoute une barre de recherche"). Même traitement que
+  // celle du Topbar de l'application connectée (Topbar.tsx) : champ contrôlé, sans branchement
+  // à une recherche métier pour l'instant.
+  const [searchQuery, setSearchQuery] = useState('');
 
   const workspaceOptions: WorkspaceMenuOption[] = [
     { role: 'Agent', title: t.auth.workspaceAgentTitle },
@@ -70,7 +73,6 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
     { label: t.home.navHome, href: '#home' },
     { label: t.home.navAbout, href: '#about' },
     { label: t.home.navFaq, href: '#faq' },
-    { label: t.home.navContact, href: '#contact' },
   ];
 
   const features = [
@@ -145,6 +147,20 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
               </a>
             ))}
           </nav>
+
+          <div className="hidden lg:flex flex-1 justify-center px-4">
+            <div className="relative w-full max-w-xs">
+              <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t.home.searchPlaceholder}
+                aria-label={t.home.searchLabel}
+                className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-full text-xs font-medium text-slate-700 placeholder:text-[#94A3B8] focus:outline-none focus:ring-1 focus:ring-[#0A347B] focus:bg-white transition"
+              />
+            </div>
+          </div>
 
           <div className="flex items-center gap-3">
             <div className="relative hidden sm:block">
@@ -339,34 +355,6 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
           >
             {t.home.ctaBannerButton}
           </a>
-        </div>
-      </section>
-
-      {/* CONTACT */}
-      <section id="contact" className="bg-[#F7FAFF] border-t border-[#E8EDF2] scroll-mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center max-w-xl mx-auto">
-            <h2 className="text-2xl sm:text-3xl font-black text-[#0D2B63]">{t.home.contactTitle}</h2>
-            <p className="mt-3 text-sm text-[#5B7091] font-medium">{t.home.contactSubtitle}</p>
-          </div>
-
-          <div className="mt-10 grid sm:grid-cols-3 gap-6 max-w-3xl mx-auto">
-            <div className="bg-white border border-[#E8EDF2] rounded-2xl p-6 flex flex-col items-center text-center gap-2">
-              <Mail className="w-5 h-5 text-[#0A347B]" />
-              <div className="text-xs font-bold text-[#0D2B63] uppercase tracking-wide">{t.home.contactEmailLabel}</div>
-              <div className="text-sm text-[#5B7091] font-medium">{t.home.contactEmailValue}</div>
-            </div>
-            <div className="bg-white border border-[#E8EDF2] rounded-2xl p-6 flex flex-col items-center text-center gap-2">
-              <Phone className="w-5 h-5 text-[#0A347B]" />
-              <div className="text-xs font-bold text-[#0D2B63] uppercase tracking-wide">{t.home.contactPhoneLabel}</div>
-              <div className="text-sm text-[#5B7091] font-medium">{t.home.contactPhoneValue}</div>
-            </div>
-            <div className="bg-white border border-[#E8EDF2] rounded-2xl p-6 flex flex-col items-center text-center gap-2">
-              <MapPin className="w-5 h-5 text-[#0A347B]" />
-              <div className="text-xs font-bold text-[#0D2B63] uppercase tracking-wide">{t.home.contactAddressLabel}</div>
-              <div className="text-sm text-[#5B7091] font-medium">{t.home.contactAddressValue}</div>
-            </div>
-          </div>
         </div>
       </section>
 
