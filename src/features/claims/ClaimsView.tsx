@@ -58,6 +58,21 @@ import { Claim360Panel } from './Claim360Panel';
 // déjà validée de AgentClaimsView). Source de vérité inchangée : App.tsx continue d'alimenter ce
 // cache via setClaimsAndMirror à chaque instantané Firestore.
 import { useClaimsQuery } from './useClaimsQuery';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18), limité aux 4 petits
+// formulaires autonomes ci-dessous (Rejet/Retour/Assignation/Nouveau Sinistre). Voir
+// claimsFormSchemas.ts pour le détail de chaque règle de validation reproduite à l'identique.
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  rejectClaimSchema,
+  RejectClaimFormValues,
+  returnClaimSchema,
+  ReturnClaimFormValues,
+  assignClaimSchema,
+  AssignClaimFormValues,
+  newClaimSchema,
+  NewClaimFormValues,
+} from './claimsFormSchemas';
 
 interface ClaimsViewProps {
   currentSection?: string;
@@ -128,19 +143,39 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
   // Reject Modal State
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedClaimToReject, setSelectedClaimToReject] = useState<Claim | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectComments, setRejectComments] = useState('');
-  const [rejectError, setRejectError] = useState<string | null>(null);
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les
+  // anciens `rejectReason`/`rejectComments`/`rejectError` (useState) : la valeur des champs et
+  // l'erreur de validation ("Please select a rejection reason.") sont désormais portées par ce
+  // formulaire, sans changement de comportement (voir claimsFormSchemas.ts).
+  const rejectForm = useForm<RejectClaimFormValues>({
+    resolver: zodResolver(rejectClaimSchema),
+    defaultValues: { reason: '', comments: '' },
+    // === AMÉLIORATION AJOUTÉE : reproduit fidèlement l'ancien `rejectError`, qui ne
+    // disparaissait qu'à la réouverture de la modale ou à une soumission réussie — jamais en
+    // cours de frappe (react-hook-form revaliderait sinon dès le changement de champ après un
+    // premier échec de soumission).
+    reValidateMode: 'onSubmit',
+  });
 
   // Return Modal State
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [selectedClaimToReturn, setSelectedClaimToReturn] = useState<Claim | null>(null);
-  const [returnReason, setReturnReason] = useState('');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace l'ancien
+  // `returnReason` (useState) ; voir claimsFormSchemas.ts.
+  const returnForm = useForm<ReturnClaimFormValues>({
+    resolver: zodResolver(returnClaimSchema),
+    defaultValues: { reason: '' },
+  });
 
   // Assign Modal State
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedClaimToAssign, setSelectedClaimToAssign] = useState<Claim | null>(null);
-  const [assignAgentName, setAssignAgentName] = useState('');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace l'ancien
+  // `assignAgentName` (useState) ; voir claimsFormSchemas.ts.
+  const assignForm = useForm<AssignClaimFormValues>({
+    resolver: zodResolver(assignClaimSchema),
+    defaultValues: { agentName: '' },
+  });
 
   // Delete Modal State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -151,14 +186,21 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
 
   // New Claim Modal State
   const [newClaimModalOpen, setNewClaimModalOpen] = useState(false);
-  const [newClaimForm, setNewClaimForm] = useState({
-    memberCardNo: '',
-    memberName: '',
-    organization: '',
-    provider: '',
-    amount: '',
-    careType: 'Consultation & Specialist Care',
-    serviceDate: new Date().toISOString().split('T')[0],
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace l'ancien
+  // `newClaimForm`/`setNewClaimForm` (useState) ; voir claimsFormSchemas.ts. Comportement
+  // inchangé : ouvrir la modale ne réinitialise pas le formulaire (comme avant), seule une
+  // soumission réussie le fait (voir handleCreateSubmit plus bas).
+  const newClaimForm = useForm<NewClaimFormValues>({
+    resolver: zodResolver(newClaimSchema),
+    defaultValues: {
+      memberCardNo: '',
+      memberName: '',
+      organization: '',
+      provider: '',
+      amount: '',
+      careType: 'Consultation & Specialist Care',
+      serviceDate: new Date().toISOString().split('T')[0],
+    },
   });
 
   // Filtered lists
@@ -224,53 +266,42 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
 
   const openRejectModal = (claim: Claim) => {
     setSelectedClaimToReject(claim);
-    setRejectReason('');
-    setRejectComments('');
-    setRejectError(null);
+    rejectForm.reset({ reason: '', comments: '' });
     setRejectModalOpen(true);
   };
 
-  const handleConfirmReject = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rejectReason) {
-      setRejectError('Please select a rejection reason.');
-      return;
-    }
+  const handleConfirmReject = rejectForm.handleSubmit((values) => {
     if (selectedClaimToReject) {
-      onReject(selectedClaimToReject, rejectReason, rejectComments);
+      onReject(selectedClaimToReject, values.reason, values.comments);
       setRejectModalOpen(false);
     }
-  };
+  });
 
   const openReturnModal = (claim: Claim) => {
     setSelectedClaimToReturn(claim);
-    setReturnReason('');
+    returnForm.reset({ reason: '' });
     setReturnModalOpen(true);
   };
 
-  const handleConfirmReturn = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!returnReason.trim()) return;
+  const handleConfirmReturn = returnForm.handleSubmit((values) => {
     if (selectedClaimToReturn && onReturn) {
-      onReturn(selectedClaimToReturn, returnReason);
+      onReturn(selectedClaimToReturn, values.reason);
       setReturnModalOpen(false);
     }
-  };
+  });
 
   const openAssignModal = (claim: Claim) => {
     setSelectedClaimToAssign(claim);
-    setAssignAgentName(claim.assignedAgentName || '');
+    assignForm.reset({ agentName: claim.assignedAgentName || '' });
     setAssignModalOpen(true);
   };
 
-  const handleConfirmAssign = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!assignAgentName.trim()) return;
+  const handleConfirmAssign = assignForm.handleSubmit((values) => {
     if (selectedClaimToAssign && onAssign) {
-      onAssign(selectedClaimToAssign, assignAgentName);
+      onAssign(selectedClaimToAssign, values.agentName);
       setAssignModalOpen(false);
     }
-  };
+  });
 
   const openDeleteModal = (claim: Claim) => {
     setSelectedClaimToDelete(claim);
@@ -315,17 +346,16 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
   // consultait cet écran (ClaimsView est partagé Admin + Supervisor).
   const roleTheme = getRoleTheme(userRole);
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateSubmit = newClaimForm.handleSubmit((values) => {
     onCreateClaim({
       reference: `CLM-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      memberCardNo: newClaimForm.memberCardNo,
-      memberName: newClaimForm.memberName,
-      organization: newClaimForm.organization,
-      provider: newClaimForm.provider,
-      amount: parseFloat(newClaimForm.amount) || 0,
-      careType: newClaimForm.careType,
-      serviceDate: newClaimForm.serviceDate,
+      memberCardNo: values.memberCardNo,
+      memberName: values.memberName,
+      organization: values.organization,
+      provider: values.provider,
+      amount: parseFloat(values.amount) || 0,
+      careType: values.careType,
+      serviceDate: values.serviceDate,
       status: 'pending',
       submissionDate: new Date().toISOString().split('T')[0],
       createdBy: currentUser?.uid || 'current_user',
@@ -333,7 +363,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
       creatorName: currentUser?.displayName || currentUser?.fullName || 'Intake Agent',
     });
     setNewClaimModalOpen(false);
-    setNewClaimForm({
+    newClaimForm.reset({
       memberCardNo: '',
       memberName: '',
       organization: '',
@@ -342,7 +372,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
       careType: 'Consultation & Specialist Care',
       serviceDate: new Date().toISOString().split('T')[0],
     });
-  };
+  });
 
   return (
     <div className="space-y-6">
@@ -1042,8 +1072,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 </label>
                 <textarea
                   rows={4}
-                  value={returnReason}
-                  onChange={(e) => setReturnReason(e.target.value)}
+                  {...returnForm.register('reason')}
                   placeholder={t.claims.returnPlaceholder}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   required
@@ -1103,8 +1132,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={assignAgentName}
-                  onChange={(e) => setAssignAgentName(e.target.value)}
+                  {...assignForm.register('agentName')}
                   placeholder={t.claims.assigneePlaceholder}
                   className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 ${roleTheme.palette.accentRing}`}
                   required
@@ -1194,10 +1222,18 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleConfirmReject} className="p-6 space-y-4">
-              {rejectError && (
+            {/* === AMÉLIORATION AJOUTÉE : correctif (retour de revue coderabbitai sur la PR #65,
+                2026-09-18) === `noValidate` : le `<select required>` ci-dessous bloquait déjà la
+                soumission native du navigateur avant que `onSubmit` ne s'exécute (donc avant que
+                le message d'erreur personnalisé "Please select a rejection reason." n'ait jamais
+                pu s'afficher) — un comportement latent identique dans l'ancien code impératif.
+                Sans changer la règle de blocage elle-même (le select reste `required`), ceci
+                laisse enfin `rejectForm.handleSubmit`/le resolver zod s'exécuter et afficher ce
+                message. */}
+            <form noValidate onSubmit={handleConfirmReject} className="p-6 space-y-4">
+              {rejectForm.formState.errors.reason && (
                 <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3 rounded-xl font-bold">
-                  {rejectError}
+                  {rejectForm.formState.errors.reason.message}
                 </div>
               )}
 
@@ -1206,8 +1242,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   {t.claims.rejectReasonLabel} <span className="text-rose-600">*</span>
                 </label>
                 <select
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
+                  {...rejectForm.register('reason')}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 font-semibold"
                   required
                 >
@@ -1231,8 +1266,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 </label>
                 <textarea
                   rows={3}
-                  value={rejectComments}
-                  onChange={(e) => setRejectComments(e.target.value)}
+                  {...rejectForm.register('comments')}
                   placeholder={t.claims.commentsPlaceholder}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
                 />
@@ -1283,17 +1317,14 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   {t.claims.insured} / {t.claims.cardNo}
                 </label>
                 <select
-                  value={newClaimForm.memberCardNo}
-                  onChange={(e) => {
-                    const card = e.target.value;
-                    const m = members.find((mb) => mb.cardNo === card);
-                    setNewClaimForm({
-                      ...newClaimForm,
-                      memberCardNo: card,
-                      memberName: m ? m.principalName : '',
-                      organization: m ? m.organization : newClaimForm.organization,
-                    });
-                  }}
+                  {...newClaimForm.register('memberCardNo', {
+                    onChange: (e) => {
+                      const card = e.target.value;
+                      const m = members.find((mb) => mb.cardNo === card);
+                      newClaimForm.setValue('memberName', m ? m.principalName : '');
+                      if (m) newClaimForm.setValue('organization', m.organization);
+                    },
+                  })}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                   required
                 >
@@ -1314,10 +1345,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                     {t.claims.provider}
                   </label>
                   <select
-                    value={newClaimForm.provider}
-                    onChange={(e) =>
-                      setNewClaimForm({ ...newClaimForm, provider: e.target.value })
-                    }
+                    {...newClaimForm.register('provider')}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                     required
                   >
@@ -1337,10 +1365,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                   </label>
                   <input
                     type="number"
-                    value={newClaimForm.amount}
-                    onChange={(e) =>
-                      setNewClaimForm({ ...newClaimForm, amount: e.target.value })
-                    }
+                    {...newClaimForm.register('amount')}
                     placeholder={currencyMode === 'LRD' ? 'e.g. 175000' : 'e.g. 850'}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                     required
@@ -1354,10 +1379,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={newClaimForm.careType}
-                  onChange={(e) =>
-                    setNewClaimForm({ ...newClaimForm, careType: e.target.value })
-                  }
+                  {...newClaimForm.register('careType')}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                   required
                 />
