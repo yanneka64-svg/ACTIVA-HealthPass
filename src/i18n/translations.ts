@@ -1221,6 +1221,11 @@ export const translations = {
       biometricModalSubtitle: 'AFIS 1:N Biometric Fingerprint Matcher',
       viewPolicy: 'View Policy',
       biometricMatchTemplate: 'Biometric AFIS 1:N Match Verified ({score}% confidence) for {name} (Card #{cardNo}) via {finger}.',
+      // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — voir handleFingerprintCaptured.
+      // Aucune correspondance 1:N réelle entre gabarits n'existe dans ce dépôt ; ce message
+      // remplace l'ancien faux "match" qui sélectionnait un assuré au hasard.
+      biometricMatchUnavailable: 'Biometric 1:N identification is not available yet. Please search by card number or name instead.',
+      ambiguousSearchResults: '{count} insured members match this search — please refine it (full card number or full name) to select the right one.',
     },
 
     // === AMÉLIORATION AJOUTÉE : namespace agentEnroll (2026-09-10) — traduction de l'écran
@@ -2792,6 +2797,8 @@ export const translations = {
       biometricModalSubtitle: "Comparateur d'empreintes biométriques AFIS 1:N",
       viewPolicy: 'Voir la police',
       biometricMatchTemplate: 'Correspondance biométrique AFIS 1:N vérifiée ({score} % de confiance) pour {name} (Carte n° {cardNo}) via {finger}.',
+      biometricMatchUnavailable: "L'identification biométrique 1:N n'est pas encore disponible. Veuillez rechercher par numéro de carte ou par nom.",
+      ambiguousSearchResults: '{count} assurés correspondent à cette recherche — précisez-la (numéro de carte complet ou nom complet) pour sélectionner la bonne personne.',
     },
 
     agentEnroll: {

@@ -184,6 +184,10 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   const [selectedBeneficiary, setSelectedBeneficiary] = useState<InsuredBeneficiary | null>(null);
   const [isFingerprintModalOpen, setIsFingerprintModalOpen] = useState(false);
   const [biometricMatchMessage, setBiometricMatchMessage] = useState<string | null>(null);
+  // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — voir handleSearchSubmit. Une
+  // recherche partielle (ex. préfixe de carte) peut désormais correspondre à plusieurs assurés ;
+  // ce message évite de sélectionner l'un d'eux au hasard.
+  const [searchAmbiguousMessage, setSearchAmbiguousMessage] = useState<string | null>(null);
   // === AMÉLIORATION AJOUTÉE : alerte bloquante affichée AVANT de laisser l'agent poursuivre
   // vers un flux de soin (Medical Form / New Claim) quand la police est Expired/Suspended.
   const [blockedActionAlert, setBlockedActionAlert] = useState<'medical_form' | 'new_claim' | null>(null);
@@ -273,6 +277,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   const handleSearchSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     setBiometricMatchMessage(null);
+    setSearchAmbiguousMessage(null);
     const q = searchQuery.toLowerCase().trim();
     if (!q) return;
 
@@ -286,36 +291,54 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     // recherche fonctionnait dans l'annuaire (desktop). C'est exactement le symptôme signalé
     // ("les données sur les assurés n'apparaissent pas") sur un écran tactile sans annuaire
     // visible (mobile/FP08) — le bouton "Search" ci-dessus n'aurait rien résolu seul.
-    const found = allBeneficiaries.find(
+    // === CORRECTIF (revue automatisée, 2026-09-18) : passer à .includes() rend plusieurs
+    // résultats possibles pour un même préfixe partagé (ex. "AMID" présent dans toutes les
+    // cartes) — l'ancien find() aurait alors sélectionné le premier assuré trouvé au hasard,
+    // un risque réel d'afficher le dossier d'une autre personne dans une appli santé. On ne
+    // sélectionne désormais que si le résultat est sans ambiguïté (correspondance exacte du
+    // n° de carte, ou un unique résultat partiel) ; sinon on demande à l'agent de préciser.
+    const matches = allBeneficiaries.filter(
       (b) =>
         b.cardNo.toLowerCase().includes(q) ||
         b.fullName.toLowerCase().includes(q) ||
         b.principalCardNo.toLowerCase().includes(q) ||
         b.principalName.toLowerCase().includes(q)
     );
-    if (found) {
-      setSelectedBeneficiary(found);
+    if (matches.length === 0) return;
+
+    const exactCardMatch = matches.find(
+      (b) => b.cardNo.toLowerCase() === q || b.principalCardNo.toLowerCase() === q
+    );
+    if (exactCardMatch) {
+      setSelectedBeneficiary(exactCardMatch);
+      return;
     }
+
+    if (matches.length === 1) {
+      setSelectedBeneficiary(matches[0]);
+      return;
+    }
+
+    setSearchAmbiguousMessage(t.agentId.ambiguousSearchResults.replace('{count}', String(matches.length)));
   };
 
   const handleOpenBiometricScanner = () => {
     setIsFingerprintModalOpen(true);
   };
 
-  const handleFingerprintCaptured = (data: { score: number; template: string; finger: string }) => {
-    // Biometric AFIS Match
-    if (allBeneficiaries.length > 0) {
-      const matched = allBeneficiaries.find((b) => b.hasBiometrics || b.fingerprintScore) || allBeneficiaries[0];
-      setSelectedBeneficiary(matched);
-      setSearchQuery(matched.cardNo);
-      setBiometricMatchMessage(
-        t.agentId.biometricMatchTemplate
-          .replace('{score}', String(data.score))
-          .replace('{name}', matched.fullName)
-          .replace('{cardNo}', matched.cardNo)
-          .replace('{finger}', data.finger.replace('_', ' '))
-      );
-    }
+  const handleFingerprintCaptured = () => {
+    // === CORRECTIF (revue automatisée, 2026-09-18) : cette fonction sélectionnait n'importe
+    // quel assuré ayant des données biométriques enregistrées (ou, à défaut, le tout premier
+    // de la liste), en ignorant totalement le gabarit capturé — un simulacre qui, tant que le
+    // callback était cassé (onCapture au lieu d'onFingerprintCaptured, voir plus haut), ne
+    // s'exécutait jamais. Une fois corrigé, ce faux "match" pouvait afficher le dossier d'un
+    // tout autre assuré avec un score de confiance fabriqué (souvent 96 %+) — un risque réel
+    // d'identification erronée dans une application de santé. Aucune correspondance 1:N réelle
+    // entre gabarits n'existe dans ce dépôt (le score stocké par assuré est une note de qualité
+    // de capture, pas un gabarit comparable) : plutôt que d'inventer un algorithme de
+    // correspondance ici, ce scan informe honnêtement l'agent au lieu de deviner un assuré.
+    setSearchAmbiguousMessage(null);
+    setBiometricMatchMessage(t.agentId.biometricMatchUnavailable);
   };
 
   const calculateAgeNumber = (birthDate?: string): number | null => {
@@ -453,16 +476,37 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         </div>
       </div>
 
-      {/* Biometric Success / Alert Feedback */}
+      {/* Biometric Alert Feedback — === AMÉLIORATION AJOUTÉE : couleur passée de vert/succès à
+          ambre/information (revue automatisée, 2026-09-18) — ce message ne signale plus un
+          "match" trouvé (voir handleFingerprintCaptured) mais informe que l'identification
+          biométrique 1:N n'est pas disponible ; le style vert + coche aurait été trompeur. */}
       {biometricMatchMessage && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 text-emerald-800 text-xs font-bold animate-in fade-in">
+        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2 text-amber-800 text-xs font-bold animate-in fade-in">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>{biometricMatchMessage}</span>
           </div>
           <button
             onClick={() => setBiometricMatchMessage(null)}
-            className="text-emerald-700 hover:text-emerald-900 text-xs underline"
+            className="text-amber-700 hover:text-amber-900 text-xs underline"
+          >
+            {t.agentId.dismiss}
+          </button>
+        </div>
+      )}
+
+      {/* === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — voir handleSearchSubmit.
+          Affiché quand une recherche partielle correspond à plusieurs assurés, pour ne jamais
+          en sélectionner un au hasard. */}
+      {searchAmbiguousMessage && (
+        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2 text-amber-800 text-xs font-bold animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{searchAmbiguousMessage}</span>
+          </div>
+          <button
+            onClick={() => setSearchAmbiguousMessage(null)}
+            className="text-amber-700 hover:text-amber-900 text-xs underline"
           >
             {t.agentId.dismiss}
           </button>

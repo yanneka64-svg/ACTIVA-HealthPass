@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Fingerprint, CheckCircle2, AlertCircle, X, RefreshCw, Cpu, Check, Radio, ShieldCheck, Zap } from 'lucide-react';
 import { Language } from '../types';
 import {
   HF_SECURITY_DEVICE_INFO,
   isHFSecurityBridgeAvailable,
   captureViaHFSecurityBridge,
+  CaptureHandle,
 } from '../services/hfSecurityBridge';
 
 interface BiometricFingerprintModalProps {
@@ -38,28 +39,57 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
   const [qualityScore, setQualityScore] = useState<number>(0);
   const [minutiaeCount, setMinutiaeCount] = useState<number>(0);
   const [capturedTemplate, setCapturedTemplate] = useState<string | null>(null);
+  // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — verrouille le doigt demandé au
+  // moment du déclenchement plutôt que de relire `selectedFinger` (mutable) à la confirmation :
+  // le sélecteur restait actif pendant la capture, donc le changer en cours de route pouvait
+  // faire correspondre le gabarit d'un doigt au libellé d'un autre.
+  const [capturedFinger, setCapturedFinger] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
   // true si le pont natif HFSecurity (coquille Android) est détecté — false dans tout
   // navigateur classique aujourd'hui, en attendant que cette coquille existe.
   const [hardwareDetected, setHardwareDetected] = useState<boolean>(false);
+  // Capture native active (le cas échéant) — annulée à la fermeture/au démontage ou avant une
+  // nouvelle capture, pour qu'une réponse tardive de la coquille native n'écrase jamais un état
+  // plus récent (revue automatisée, 2026-09-18).
+  const activeCaptureRef = useRef<CaptureHandle | null>(null);
+  // Minuteur de démarrage automatique — annulé si l'agent déclenche une capture manuelle avant
+  // son expiration, pour ne jamais lancer deux captures concurrentes (revue automatisée,
+  // 2026-09-18 — "One tap can start two sensor scans").
+  const autoStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startCaptureProcess = () => {
+    if (sensorStatus === 'capturing') return;
+    if (autoStartTimeoutRef.current) {
+      clearTimeout(autoStartTimeoutRef.current);
+      autoStartTimeoutRef.current = null;
+    }
+
+    const requestedFinger = selectedFinger;
+
     setSensorStatus('capturing');
     setProgress(10);
     setQualityScore(0);
     setMinutiaeCount(0);
     setCapturedTemplate(null);
+    setCapturedFinger(null);
     setCaptureError(null);
 
     if (isHFSecurityBridgeAvailable()) {
-      captureViaHFSecurityBridge(selectedFinger)
+      const handle = captureViaHFSecurityBridge(requestedFinger);
+      activeCaptureRef.current = handle;
+      handle.promise
         .then((result) => {
+          if (activeCaptureRef.current !== handle) return; // capture annulée/remplacée entre-temps
+          activeCaptureRef.current = null;
           setProgress(100);
           setQualityScore(result.score);
           setCapturedTemplate(result.template);
+          setCapturedFinger(requestedFinger);
           setSensorStatus('success');
         })
         .catch((err: Error) => {
+          if (activeCaptureRef.current !== handle) return;
+          activeCaptureRef.current = null;
           setCaptureError(err.message);
           setSensorStatus('error');
         });
@@ -78,6 +108,7 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
         const finalMinutiae = Math.floor(52 + Math.random() * 16);
         setQualityScore(finalScore);
         setMinutiaeCount(finalMinutiae);
+        setCapturedFinger(requestedFinger);
         setSensorStatus('success');
       } else {
         setProgress(curr);
@@ -93,18 +124,36 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
       setQualityScore(0);
       setMinutiaeCount(0);
       setCapturedTemplate(null);
+      setCapturedFinger(null);
       setCaptureError(null);
 
       if (autoStart) {
-        const timeout = setTimeout(() => {
+        autoStartTimeoutRef.current = setTimeout(() => {
+          autoStartTimeoutRef.current = null;
           startCaptureProcess();
         }, 500);
-        return () => clearTimeout(timeout);
+        return () => {
+          if (autoStartTimeoutRef.current) {
+            clearTimeout(autoStartTimeoutRef.current);
+            autoStartTimeoutRef.current = null;
+          }
+        };
       }
     } else {
       setSensorStatus('idle');
+      activeCaptureRef.current?.cancel();
+      activeCaptureRef.current = null;
     }
   }, [isOpen, autoStart]);
+
+  // Filet de sécurité au démontage réel du composant (indépendant de `isOpen`, par exemple si
+  // le parent cesse de le rendre sans passer par isOpen=false).
+  useEffect(() => {
+    return () => {
+      if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current);
+      activeCaptureRef.current?.cancel();
+    };
+  }, []);
 
   const handleStartCapture = () => {
     startCaptureProcess();
@@ -114,7 +163,7 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
     onFingerprintCaptured({
       score: qualityScore || 96,
       template: capturedTemplate ?? `ANSI_378_${selectedFinger.toUpperCase()}_${Date.now()}`,
-      finger: selectedFinger,
+      finger: capturedFinger ?? selectedFinger,
     });
     onClose();
   };
@@ -125,6 +174,7 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
     setQualityScore(0);
     setMinutiaeCount(0);
     setCapturedTemplate(null);
+    setCapturedFinger(null);
     setCaptureError(null);
   };
 
@@ -173,11 +223,12 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
                 <button
                   key={item.id}
                   type="button"
+                  disabled={sensorStatus === 'capturing'}
                   onClick={() => {
                     setSelectedFinger(item.id as any);
                     if (sensorStatus === 'success') handleReset();
                   }}
-                  className={`px-2.5 py-2 rounded-xl text-xs font-bold border transition text-center cursor-pointer ${
+                  className={`px-2.5 py-2 rounded-xl text-xs font-bold border transition text-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     selectedFinger === item.id
                       ? 'bg-slate-700 text-white border-slate-700 shadow-xs'
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'

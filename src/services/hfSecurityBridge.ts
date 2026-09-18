@@ -30,6 +30,38 @@ export interface FingerprintCaptureResult {
   finger: string;
 }
 
+/**
+ * Poignée d'une capture en cours : `promise` se règle sur le résultat (ou une erreur), `cancel`
+ * abandonne la requête (le composant appelant n'attend plus la réponse — voir `cancel` plus bas
+ * pour ce que cela signifie côté module).
+ */
+export interface CaptureHandle {
+  requestId: string;
+  promise: Promise<FingerprintCaptureResult>;
+  cancel: () => void;
+}
+
+// === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — sans délai, une requête dont la
+// coquille native ne répond jamais restait "capturing" indéfiniment ; sans validation, une
+// réponse JSON syntaxiquement valide mais incomplète (score hors bornes, template vide...)
+// était acceptée comme une capture réussie.
+const CAPTURE_TIMEOUT_MS = 30_000;
+
+function isValidCaptureResult(value: unknown): value is FingerprintCaptureResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.score === 'number' &&
+    Number.isFinite(v.score) &&
+    v.score >= 0 &&
+    v.score <= 100 &&
+    typeof v.template === 'string' &&
+    v.template.length > 0 &&
+    typeof v.finger === 'string' &&
+    v.finger.length > 0
+  );
+}
+
 interface HFSecurityBridgeApi {
   /**
    * Déclenche une capture côté natif. Le résultat n'est PAS retourné directement (limite du pont
@@ -49,30 +81,46 @@ declare global {
 }
 
 let requestCounter = 0;
-const pendingCaptures = new Map<
-  string,
-  { resolve: (r: FingerprintCaptureResult) => void; reject: (e: Error) => void }
->();
+
+interface PendingCapture {
+  resolve: (r: FingerprintCaptureResult) => void;
+  reject: (e: Error) => void;
+  timeoutHandle: ReturnType<typeof setTimeout>;
+}
+
+const pendingCaptures = new Map<string, PendingCapture>();
+
+function settlePending(requestId: string): PendingCapture | undefined {
+  const pending = pendingCaptures.get(requestId);
+  if (!pending) return undefined;
+  clearTimeout(pending.timeoutHandle);
+  pendingCaptures.delete(requestId);
+  return pending;
+}
 
 function ensureCallbacksRegistered(): void {
   if (typeof window === 'undefined' || window.__hfSecurityCaptureCallback) return;
 
   window.__hfSecurityCaptureCallback = (requestId, resultJson) => {
-    const pending = pendingCaptures.get(requestId);
+    const pending = settlePending(requestId);
     if (!pending) return;
-    pendingCaptures.delete(requestId);
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(resultJson) as FingerprintCaptureResult;
-      pending.resolve(parsed);
+      parsed = JSON.parse(resultJson);
     } catch {
       pending.reject(new Error('Réponse invalide du pont HFSecurity (JSON attendu).'));
+      return;
     }
+    if (!isValidCaptureResult(parsed)) {
+      pending.reject(new Error('Réponse invalide du pont HFSecurity (champs manquants ou hors limites).'));
+      return;
+    }
+    pending.resolve(parsed);
   };
 
   window.__hfSecurityErrorCallback = (requestId, message) => {
-    const pending = pendingCaptures.get(requestId);
+    const pending = settlePending(requestId);
     if (!pending) return;
-    pendingCaptures.delete(requestId);
     pending.reject(new Error(message));
   };
 }
@@ -83,19 +131,50 @@ export function isHFSecurityBridgeAvailable(): boolean {
 }
 
 /**
- * Déclenche une capture d'empreinte via le capteur physique HFSecurity FP08.
- * Rejette immédiatement si le pont natif n'est pas disponible (navigateur classique) —
- * à l'appelant de retomber sur la capture simulée dans ce cas.
+ * Déclenche une capture d'empreinte via le capteur physique HFSecurity FP08. Retourne une
+ * poignée dont `promise` se règle sur le résultat (validé) ou une erreur — délai dépassé,
+ * échec natif, réponse malformée — et dont `cancel()` abandonne la requête (l'appelant doit
+ * l'invoquer à la fermeture/au démontage de la modale, ou avant une nouvelle capture, pour
+ * qu'une réponse tardive de la coquille native n'écrase jamais un état plus récent).
  */
-export function captureViaHFSecurityBridge(finger: string): Promise<FingerprintCaptureResult> {
+export function captureViaHFSecurityBridge(finger: string): CaptureHandle {
+  const requestId = `hf-${Date.now()}-${requestCounter++}`;
+
   if (!isHFSecurityBridgeAvailable()) {
-    return Promise.reject(new Error('Pont HFSecurity indisponible (capteur physique non détecté).'));
+    return {
+      requestId,
+      cancel: () => {},
+      promise: Promise.reject(new Error('Pont HFSecurity indisponible (capteur physique non détecté).')),
+    };
   }
   ensureCallbacksRegistered();
 
-  const requestId = `hf-${Date.now()}-${requestCounter++}`;
-  return new Promise((resolve, reject) => {
-    pendingCaptures.set(requestId, { resolve, reject });
-    window.HFSecurityBridge!.captureFingerprint(requestId, finger);
+  const promise = new Promise<FingerprintCaptureResult>((resolve, reject) => {
+    const timeoutHandle = setTimeout(() => {
+      pendingCaptures.delete(requestId);
+      reject(new Error('Délai de capture dépassé (le capteur HFSecurity FP08 n\'a pas répondu).'));
+    }, CAPTURE_TIMEOUT_MS);
+
+    pendingCaptures.set(requestId, { resolve, reject, timeoutHandle });
+
+    try {
+      window.HFSecurityBridge!.captureFingerprint(requestId, finger);
+    } catch (err) {
+      clearTimeout(timeoutHandle);
+      pendingCaptures.delete(requestId);
+      reject(err instanceof Error ? err : new Error('Échec du déclenchement de la capture HFSecurity.'));
+    }
   });
+
+  const cancel = () => {
+    const pending = pendingCaptures.get(requestId);
+    if (!pending) return;
+    clearTimeout(pending.timeoutHandle);
+    pendingCaptures.delete(requestId);
+    // La promesse elle-même reste non résolue : l'appelant l'a abandonnée (voir
+    // BiometricFingerprintModal.tsx, qui compare sa propre référence avant d'agir sur le
+    // résultat) — la retenir ainsi évite un rejet non intercepté si plus personne n'écoute.
+  };
+
+  return { requestId, promise, cancel };
 }
