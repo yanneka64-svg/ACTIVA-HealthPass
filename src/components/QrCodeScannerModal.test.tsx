@@ -24,10 +24,18 @@ function stubGetUserMedia(impl: () => Promise<MediaStream>) {
 // QrCodeScannerModal.tsx) — une fonction fléchée passée à `vi.fn().mockImplementation()` ne peut
 // pas servir de constructeur (`new` sur une arrow function échoue toujours en JS), d'où l'usage
 // d'une function expression classique ici.
-function stubBarcodeDetector(detectedCodes: Array<{ rawValue: string }>) {
-  (window as any).BarcodeDetector = vi.fn().mockImplementation(function () {
+// === AMÉLIORATION AJOUTÉE : `supportedFormats` (revue automatisée, 2026-09-18) — par défaut
+// `['qr_code']` pour ne rien changer aux tests existants ; un appelant peut passer `[]` pour
+// simuler une implémentation de `BarcodeDetector` qui ne sait pas décoder de QR codes.
+function stubBarcodeDetector(
+  detectedCodes: Array<{ rawValue: string }>,
+  supportedFormats: string[] = ['qr_code']
+) {
+  const BarcodeDetectorCtor: any = vi.fn().mockImplementation(function () {
     return { detect: vi.fn().mockResolvedValue(detectedCodes) };
   });
+  BarcodeDetectorCtor.getSupportedFormats = vi.fn().mockResolvedValue(supportedFormats);
+  (window as any).BarcodeDetector = BarcodeDetectorCtor;
 }
 
 beforeEach(() => {
@@ -116,5 +124,50 @@ describe('QrCodeScannerModal', () => {
     );
     expect(onCardNumberScanned).not.toHaveBeenCalled();
     expect(container.querySelector('video')).toBeInTheDocument();
+  });
+
+  // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — "Unsupported scanners blame the
+  // camera". `isSupported` ne vérifiait que la présence de la classe `BarcodeDetector`, jamais
+  // qu'elle sache décoder des QR codes. Verrouille : quand `getSupportedFormats()` ne liste pas
+  // `qr_code`, le repli "non pris en charge" s'affiche SANS jamais demander l'accès caméra.
+  it('affiche le repli "non pris en charge" quand BarcodeDetector ne sait pas décoder de QR codes, sans jamais demander la caméra', async () => {
+    stubBarcodeDetector([], []);
+    const getUserMedia = vi.fn().mockResolvedValue(fakeStream());
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia },
+    });
+
+    render(
+      <QrCodeScannerModal isOpen lang="en" onClose={() => {}} onCardNumberScanned={() => {}} />
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/QR code scanning is not supported on this device or browser/)
+      ).toBeInTheDocument()
+    );
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
+  // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — "Camera remains active after
+  // scanner errors". Si l'accès caméra réussit mais qu'une étape suivante échoue (ici
+  // `video.play()` rejeté), le flux devait rester actif jusqu'à la fermeture manuelle de la
+  // modale. Verrouille : les pistes caméra sont arrêtées dès cet échec, sans attendre la
+  // fermeture.
+  it('arrête les pistes caméra si une étape après getUserMedia échoue (ex. video.play() rejeté)', async () => {
+    stubBarcodeDetector([]);
+    const stop = vi.fn();
+    stubGetUserMedia(async () => ({ getTracks: () => [{ stop }] } as unknown as MediaStream));
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValue(new Error('play failed'));
+
+    render(
+      <QrCodeScannerModal isOpen lang="en" onClose={() => {}} onCardNumberScanned={() => {}} />
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText(/Unable to access the camera/)).toBeInTheDocument()
+    );
+    expect(stop).toHaveBeenCalled();
   });
 });

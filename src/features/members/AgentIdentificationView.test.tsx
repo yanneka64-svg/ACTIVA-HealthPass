@@ -212,4 +212,37 @@ describe('AgentIdentificationView — recherche par scan QR code', () => {
     expect(screen.queryByText('Identify an insured member')).not.toBeInTheDocument();
     expect(screen.getAllByText('Amina Diallo').length).toBeGreaterThan(0);
   });
+
+  // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — "Malformed scans can open wrong
+  // records". handleQrCodeScanned réutilisait auparavant handleSearchSubmit, qui accepte une
+  // correspondance PARTIELLE unique ; un QR tronqué/mal cadré pouvait donc sélectionner le
+  // dossier d'un tout autre assuré dont le numéro de carte contient simplement ce fragment.
+  // Verrouille : un scan qui ne correspond EXACTEMENT à aucun numéro de carte réel ne
+  // sélectionne personne et prévient l'agent au lieu de deviner.
+  it("un numéro de carte QR tronqué/invalide ne sélectionne aucun assuré par correspondance partielle", async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined as any);
+    (window as any).BarcodeDetector = vi.fn().mockImplementation(function () {
+      // "AMID-2026-000" est un fragment du numéro de testMember ("AMID-2026-0001") — un ancien
+      // .includes() l'aurait sélectionné à tort.
+      return { detect: vi.fn().mockResolvedValue([{ rawValue: 'Card No: AMID-2026-000' }]) };
+    });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] }),
+      },
+    });
+
+    render(
+      <AgentIdentificationView lang="en" members={[testMember, secondTestMember]} claims={[]} />
+    );
+
+    fireEvent.click(screen.getByText('Scan QR Code'));
+    await waitFor(() => expect(screen.queryByText('Scan Insured Card QR Code')).not.toBeInTheDocument());
+
+    expect(screen.getByText('Identify an insured member')).toBeInTheDocument();
+    expect(
+      screen.getByText(/does not match any enrolled insured member/)
+    ).toBeInTheDocument();
+  });
 });

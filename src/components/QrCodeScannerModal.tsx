@@ -59,6 +59,21 @@ export const QrCodeScannerModal: React.FC<QrCodeScannerModalProps> = ({
 
     const start = async () => {
       try {
+        const BarcodeDetectorCtor = (window as any).BarcodeDetector;
+        // === CORRECTIF (revue automatisée, 2026-09-18) : `isSupported` ne vérifiait que la
+        // présence de la classe `BarcodeDetector`, jamais qu'elle sache réellement décoder des
+        // QR codes (`getSupportedFormats()`). Sur une implémentation sans le format `qr_code`,
+        // la construction du détecteur plus bas échouait et tombait dans le catch générique,
+        // affichant à tort l'erreur "caméra inaccessible" au lieu du repli "non pris en charge"
+        // — avant même d'avoir demandé l'accès à la caméra.
+        if (typeof BarcodeDetectorCtor.getSupportedFormats === 'function') {
+          const supportedFormats: string[] = await BarcodeDetectorCtor.getSupportedFormats();
+          if (!supportedFormats.includes('qr_code')) {
+            if (!cancelled) setError(t.agentId.qrScannerUnsupported);
+            return;
+          }
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' },
         });
@@ -72,7 +87,6 @@ export const QrCodeScannerModal: React.FC<QrCodeScannerModalProps> = ({
           await videoRef.current.play();
         }
 
-        const BarcodeDetectorCtor = (window as any).BarcodeDetector;
         const detector = new BarcodeDetectorCtor({ formats: ['qr_code'] });
 
         const tick = async () => {
@@ -96,6 +110,12 @@ export const QrCodeScannerModal: React.FC<QrCodeScannerModalProps> = ({
         };
         rafRef.current = requestAnimationFrame(tick);
       } catch {
+        // === CORRECTIF (revue automatisée, 2026-09-18) : si l'accès caméra réussit mais qu'une
+        // étape suivante échoue (`video.play()` rejeté, construction du détecteur qui lève),
+        // le flux vidéo restait actif (pistes non arrêtées) tant que l'agent ne fermait pas
+        // manuellement la modale. `stopStream()` est un no-op sûr si aucun flux n'a encore été
+        // acquis (avant l'appel à `getUserMedia` par ex.).
+        stopStream();
         if (!cancelled) setError(t.agentId.qrScannerCameraError);
       }
     };

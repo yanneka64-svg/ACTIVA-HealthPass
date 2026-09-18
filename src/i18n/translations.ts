@@ -1241,6 +1241,11 @@ export const translations = {
       qrScannerCameraError: 'Unable to access the camera. Please check camera permissions or enter the card number manually.',
       qrScannerUnrecognized: 'This QR code was not recognized as an ACTIVA insured card. Please try again or enter the card number manually.',
       qrScannerCancel: 'Cancel',
+      // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — un scan QR exige désormais
+      // une correspondance EXACTE avec un numéro de carte réellement enregistré (voir
+      // handleQrCodeScanned) ; ce message s'affiche quand le numéro extrait du QR n'existe pas,
+      // au lieu de risquer une sélection par correspondance partielle.
+      qrCardNotFound: "This QR code's card number does not match any enrolled insured member. Please try again or search manually.",
     },
 
     // === AMÉLIORATION AJOUTÉE : namespace agentEnroll (2026-09-10) — traduction de l'écran
@@ -2821,6 +2826,7 @@ export const translations = {
       qrScannerCameraError: "Impossible d'accéder à la caméra. Vérifiez les autorisations de la caméra ou saisissez le numéro de carte manuellement.",
       qrScannerUnrecognized: "Ce QR code n'a pas été reconnu comme une carte assuré ACTIVA. Réessayez ou saisissez le numéro de carte manuellement.",
       qrScannerCancel: 'Annuler',
+      qrCardNotFound: "Le numéro de carte de ce QR code ne correspond à aucun assuré enregistré. Réessayez ou effectuez une recherche manuelle.",
     },
 
     agentEnroll: {

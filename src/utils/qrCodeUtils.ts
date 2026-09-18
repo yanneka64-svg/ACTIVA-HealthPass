@@ -4,9 +4,22 @@
 // généré côté carte membre (voir src/features/membercard/MemberIdCard.tsx), un texte multi-lignes
 // contenant une ligne "Card No: <numéro>". Cette fonction extrait ce numéro de carte à partir du
 // texte décodé, sans jamais deviner une valeur qui n'a pas été réellement scannée : si le texte
-// ne suit ni ce format ni celui d'un numéro de carte ACTIVA brut, elle renvoie `null`.
+// ne suit ni ce format ni celui d'un numéro de carte ACTIVA (actuel ou historique), elle renvoie
+// `null`. La validation qu'un numéro extrait correspond réellement à un assuré enregistré est
+// faite par l'appelant (correspondance EXACTE, voir handleQrCodeScanned dans
+// AgentIdentificationView.tsx) — cette fonction ne fait qu'identifier un candidat plausible.
+//
+// === CORRECTIF (revue automatisée, 2026-09-18) : le repli pour un QR contenant directement le
+// numéro de carte (sans ligne "Card No:") exigeait un préfixe suivi d'un tiret (ex.
+// "AMID-2026-0001"), l'ancien format. Depuis la migration vers un format libre de 11 caractères
+// alphanumériques sans tiret (voir cardNumberService.ts, format actuel des nouvelles cartes), un
+// QR contenant un numéro valide au nouveau format était rejeté à tort. On accepte désormais les
+// deux formats — le nouveau (validé via le même validateur que le reste de l'app) et l'ancien
+// format à tiret, toujours porté par des cartes déjà imprimées avant la migration.
+import { isValidCardNumberFormat } from '../services/cardNumberService';
+
 const CARD_NO_LINE_PATTERN = /Card No:\s*(\S+)/i;
-const ACTIVA_CARD_NUMBER_PATTERN = /^[A-Z]{2,6}-[\w-]+$/i;
+const LEGACY_HYPHENATED_CARD_PATTERN = /^[A-Z]{2,6}-[\w-]+$/i;
 
 export function extractCardNumberFromQrText(rawText: string): string | null {
   if (!rawText) return null;
@@ -16,7 +29,7 @@ export function extractCardNumberFromQrText(rawText: string): string | null {
   const lineMatch = text.match(CARD_NO_LINE_PATTERN);
   if (lineMatch) return lineMatch[1];
 
-  if (ACTIVA_CARD_NUMBER_PATTERN.test(text)) return text;
+  if (isValidCardNumberFormat(text) || LEGACY_HYPHENATED_CARD_PATTERN.test(text)) return text;
 
   return null;
 }

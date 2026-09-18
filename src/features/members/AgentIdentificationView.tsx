@@ -282,18 +282,11 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
 
   const activeCount = useMemo(() => principalDirectory.filter((b) => b.status === 'Active' || b.status === 'Actif').length, [principalDirectory]);
 
-  // === AMÉLIORATION AJOUTÉE : paramètre `queryOverride` (demande explicite, 2026-09-18) — permet
-  // au scan QR code (handleQrCodeScanned) de déclencher exactement la même recherche que la
-  // saisie manuelle + Entrée/bouton "Search", sans dépendre de la mise à jour asynchrone de
-  // l'état `searchQuery` (setSearchQuery puis handleSearchSubmit() dans le même tick lirait
-  // encore l'ancienne valeur de `searchQuery`). Comportement inchangé quand il est omis : les
-  // deux appels existants (onSubmit du formulaire, clic sur "Search") continuent d'utiliser
-  // `searchQuery`.
-  const handleSearchSubmit = (e?: React.FormEvent, queryOverride?: string) => {
+  const handleSearchSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     setBiometricMatchMessage(null);
     setSearchAmbiguousMessage(null);
-    const q = (queryOverride ?? searchQuery).toLowerCase().trim();
+    const q = searchQuery.toLowerCase().trim();
     if (!q) return;
 
     // Search across every beneficiary (principals AND dependents) so a dependent's name or
@@ -337,14 +330,27 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     setSearchAmbiguousMessage(t.agentId.ambiguousSearchResults.replace('{count}', String(matches.length)));
   };
 
-  // === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — "prévoir également un QR code
-  // pour capter les numéro de carte afin de faciliter la recherche". Le numéro de carte extrait
-  // du QR (voir QrCodeScannerModal.tsx / qrCodeUtils.ts) déclenche la même recherche
-  // désambiguïsée que la saisie manuelle, jamais une sélection directe inventée ici.
+  // === CORRECTIF (revue automatisée, 2026-09-18) : ce gestionnaire réutilisait auparavant
+  // `handleSearchSubmit`, qui accepte une correspondance PARTIELLE (.includes()) dès qu'elle est
+  // unique. Un QR mal cadré/tronqué (ex. "Card No: A1B2" au lieu de la valeur complète) pouvait
+  // donc sélectionner le dossier d'un tout autre assuré dont le numéro de carte contient
+  // simplement ce fragment, au lieu de signaler un scan invalide — un risque réel
+  // d'identification erronée. Un scan QR doit être une correspondance EXACTE avec un numéro de
+  // carte réellement enregistré ; sinon, on prévient l'agent plutôt que de deviner.
   const handleQrCodeScanned = (cardNumber: string) => {
     setIsQrScannerOpen(false);
     setSearchQuery(cardNumber);
-    handleSearchSubmit(undefined, cardNumber);
+    setBiometricMatchMessage(null);
+    const q = cardNumber.toLowerCase().trim();
+    const exactMatch = allBeneficiaries.find(
+      (b) => b.cardNo.toLowerCase() === q || b.principalCardNo.toLowerCase() === q
+    );
+    if (exactMatch) {
+      setSearchAmbiguousMessage(null);
+      setSelectedBeneficiary(exactMatch);
+    } else {
+      setSearchAmbiguousMessage(t.agentId.qrCardNotFound);
+    }
   };
 
   const handleOpenBiometricScanner = () => {
@@ -474,7 +480,12 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
           />
         </form>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        {/* === CORRECTIF (revue automatisée, 2026-09-18) : ce groupe de boutons (QR + Biométrie +
+            Search) ne passait jamais à la ligne (`flex` sans `flex-wrap`, largeur intrinsèque
+            fixe) ; sur mobile, surtout en français où les libellés sont plus longs, les 3
+            boutons dépassaient la largeur de l'écran. `flex-wrap` + pleine largeur sous `md`
+            laisse les boutons s'empiler sur plusieurs lignes plutôt que déborder. */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto md:shrink-0">
           {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — bouton de scan QR code
               pour capter le n° de carte depuis la carte assuré et faciliter la recherche (voir
               QrCodeScannerModal.tsx et handleQrCodeScanned). */}
