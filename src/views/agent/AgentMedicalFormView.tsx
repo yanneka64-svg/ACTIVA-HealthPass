@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   FileCheck,
   Download,
@@ -47,6 +49,15 @@ import { encryptMedicalFormPrescription, decryptMedicalFormPrescription } from '
 // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 2.4) ===
 import { DEFAULT_MEDICAL_FORM_RETENTION_YEARS, isPastRetention } from '../../config/dataRetention';
 import { getRoleTheme } from '../../theme/roleTheme';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Voir
+// agentMedicalFormSchemas.ts : les schémas n'encodent que le booléen de validité, les messages
+// précis restent construits ici (onInvalid).
+import {
+  generateMedicalFormSchema,
+  GenerateMedicalFormValues,
+  createClearAllHistoryFormSchema,
+  ClearAllHistoryFormValues,
+} from './agentMedicalFormSchemas';
 
 interface AgentMedicalFormViewProps {
   providers: Provider[];
@@ -113,8 +124,16 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // — CRITIQUE) — confirmation renforcée (saisie d'une phrase exacte) et motif obligatoire
   // avant toute suppression en masse de l'historique médical. Voir handleConfirmClearAll.
   const CLEAR_ALL_CONFIRM_PHRASE = 'DELETE ALL';
-  const [clearAllConfirmText, setClearAllConfirmText] = useState('');
-  const [clearAllReason, setClearAllReason] = useState('');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les 2
+  // useState de la modale "Clear All History" par un useForm dédié (voir
+  // agentMedicalFormSchemas.ts — createClearAllHistoryFormSchema reçoit CLEAR_ALL_CONFIRM_PHRASE
+  // en paramètre, seule source de vérité pour la phrase, aussi affichée à l'écran plus bas).
+  const clearAllForm = useForm<ClearAllHistoryFormValues>({
+    resolver: zodResolver(createClearAllHistoryFormSchema(CLEAR_ALL_CONFIRM_PHRASE)),
+    defaultValues: { reason: '', confirmText: '' },
+  });
+  const clearAllReason = clearAllForm.watch('reason');
+  const clearAllConfirmText = clearAllForm.watch('confirmText');
   const [formError, setFormError] = useState<string | null>(null);
 
   // === AMÉLIORATION AJOUTÉE : couleurs alignées sur roleTheme.palette (retour utilisateur —
@@ -129,22 +148,50 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // identique entre les deux rôles, le rouge étant réservé aux éléments structurels.
   const roleTheme = getRoleTheme(userRole);
 
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les
+  // useState des champs du formulaire "Generate Medical Form" par un unique useForm. Les états
+  // purement transitoires de l'UI (texte de recherche, ouverture du menu déroulant) restent en
+  // useState : ils ne font pas partie des données soumises (voir agentMedicalFormSchemas.ts).
+  const form = useForm<GenerateMedicalFormValues>({
+    resolver: zodResolver(generateMedicalFormSchema),
+    defaultValues: {
+      selectedMember: null,
+      selectedProvider: null,
+      practitionerType: 'Generalist',
+      doctorSpecialty: 'Cardiology',
+      customSpecialty: '',
+      coverageType: 'Outpatient',
+      doctorName: '',
+      presumedDiagnosis: '',
+      requestedExams: '',
+      treatmentOrder: '',
+    },
+  });
+  const selectedMember = form.watch('selectedMember');
+  const selectedProvider = form.watch('selectedProvider');
+  const practitionerType = form.watch('practitionerType');
+  const doctorSpecialty = form.watch('doctorSpecialty');
+  const customSpecialty = form.watch('customSpecialty');
+  const coverageType = form.watch('coverageType');
+  const doctorName = form.watch('doctorName');
+  const presumedDiagnosis = form.watch('presumedDiagnosis');
+  const requestedExams = form.watch('requestedExams');
+  const treatmentOrder = form.watch('treatmentOrder');
+
   // Smart Autocomplete State for Member
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const memberSearchRef = useRef<HTMLDivElement>(null);
 
   // Smart Autocomplete State for Provider
   const [providerSearchQuery, setProviderSearchQuery] = useState('');
   const [isProviderDropdownOpen, setIsProviderDropdownOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const providerSearchRef = useRef<HTMLDivElement>(null);
 
   // Preselection from Agent Identification View
   useEffect(() => {
     if (preselectedMember) {
-      setSelectedMember(preselectedMember);
+      form.setValue('selectedMember', preselectedMember);
       setMemberSearchQuery(`${preselectedMember.principalName} (${preselectedMember.cardNo})`);
       setActiveTab('create');
       // Arriver ici depuis un autre écran (ex: identification) équivaut à démarrer un
@@ -198,18 +245,10 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
       .slice(0, 10);
   }, [providers, providerSearchQuery]);
 
-  // Practitioner (Generalist vs Specialist) and Treatment (Outpatient vs Inpatient)
-  const [practitionerType, setPractitionerType] = useState<'Generalist' | 'Specialist'>('Generalist');
-  const [doctorSpecialty, setDoctorSpecialty] = useState<string>('Cardiology');
-  const [customSpecialty, setCustomSpecialty] = useState<string>('');
-  const [coverageType, setCoverageType] = useState<'Outpatient' | 'Inpatient'>('Outpatient');
-  
-  // Prescription & Diagnostic inputs
-  const [doctorName, setDoctorName] = useState('');
-  const [presumedDiagnosis, setPresumedDiagnosis] = useState('');
-  const [requestedExams, setRequestedExams] = useState('');
-  const [treatmentOrder, setTreatmentOrder] = useState('');
-  
+  // Practitioner (Generalist vs Specialist), Treatment (Outpatient vs Inpatient) et champs de
+  // prescription/diagnostic : voir `form` (useForm) plus haut — remplacés par des champs du
+  // formulaire, avec leurs alias `const x = form.watch('x')` déjà déclarés ci-dessus.
+
   // Active Generated Form state
   const [generatedForm, setGeneratedForm] = useState<MedicalForm | null>(null);
   const [previewModalForm, setPreviewModalForm] = useState<MedicalForm | null>(null);
@@ -226,77 +265,79 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
     return doctorSpecialty;
   }, [practitionerType, doctorSpecialty, customSpecialty]);
 
-  // Handle Form Generation
-  const handleGenerateForm = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-    if (!selectedMember || !selectedProvider) {
-      setFormError(t.agentMedForm.selectBothError);
-      return;
-    }
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Le schéma
+  // (agentMedicalFormSchemas.ts) ne fait que bloquer la soumission (booléen) ; le message précis
+  // reste construit dans onInvalid, identique au code impératif d'origine.
+  const handleGenerateForm = form.handleSubmit(
+    async (values) => {
+      setFormError(null);
 
-    // Structure officielle ACTIVA: AMID-XX (année) XX (jour)-XXXX (numéro de l'assuré)
-    const secNum = generateMedicalFormSecurityNumber({
-      date: new Date(),
-      memberCardNo: selectedMember.cardNo,
-      memberId: selectedMember.id,
-    });
+      // Structure officielle ACTIVA: AMID-XX (année) XX (jour)-XXXX (numéro de l'assuré)
+      const secNum = generateMedicalFormSecurityNumber({
+        date: new Date(),
+        memberCardNo: values.selectedMember!.cardNo,
+        memberId: values.selectedMember!.id,
+      });
 
-    const newForm: MedicalForm = {
-      id: `mf_${Date.now()}`,
-      securityNumber: secNum,
-      barcode: secNum,
-      memberId: selectedMember.id,
-      memberName: selectedMember.principalName,
-      memberCardNo: selectedMember.cardNo,
-      // === AMÉLIORATION AJOUTÉE : date de naissance et sexe transmis au PDF (remplacent
-      // l'affichage du solde disponible dans le document imprimé) ===
-      memberBirthDate: selectedMember.birthDate,
-      memberGender: selectedMember.gender,
-      organization: selectedMember.organization,
-      providerId: selectedProvider.id,
-      providerName: selectedProvider.name,
-      coverageType: coverageType,
-      practitionerType: practitionerType,
-      doctorSpecialty: practitionerType === 'Specialist' ? effectiveSpecialty : undefined,
-      outpatientBalanceUSD: selectedMember.outpatientBalanceUSD ?? 600,
-      inpatientBalanceUSD: selectedMember.inpatientBalanceUSD ?? 8500,
-      issueDate: new Date().toISOString().split('T')[0],
-      status: 'issued',
-      // === AMÉLIORATION AJOUTÉE : sur nouvelle demande explicite — pour un praticien
-      // Généraliste, préremplir "Dr. General Practitioner" quand l'agent ne saisit pas de nom
-      // (remplace le comportement précédent qui laissait le champ vide dans ce cas).
-      doctorName:
-        doctorName ||
-        (practitionerType === 'Specialist'
-          ? `Dr. Specialist (${effectiveSpecialty})`
-          : 'Dr. General Practitioner'),
-      doctorPrescription: {
-        presumedDiagnosis: presumedDiagnosis || undefined,
-        requestedExams: requestedExams || undefined,
-        treatmentOrder: treatmentOrder || undefined,
-      },
-      createdAt: new Date().toISOString(),
-    };
+      const newForm: MedicalForm = {
+        id: `mf_${Date.now()}`,
+        securityNumber: secNum,
+        barcode: secNum,
+        memberId: values.selectedMember!.id,
+        memberName: values.selectedMember!.principalName,
+        memberCardNo: values.selectedMember!.cardNo,
+        // === AMÉLIORATION AJOUTÉE : date de naissance et sexe transmis au PDF (remplacent
+        // l'affichage du solde disponible dans le document imprimé) ===
+        memberBirthDate: values.selectedMember!.birthDate,
+        memberGender: values.selectedMember!.gender,
+        organization: values.selectedMember!.organization,
+        providerId: values.selectedProvider!.id,
+        providerName: values.selectedProvider!.name,
+        coverageType: values.coverageType,
+        practitionerType: values.practitionerType,
+        doctorSpecialty: values.practitionerType === 'Specialist' ? effectiveSpecialty : undefined,
+        outpatientBalanceUSD: values.selectedMember!.outpatientBalanceUSD ?? 600,
+        inpatientBalanceUSD: values.selectedMember!.inpatientBalanceUSD ?? 8500,
+        issueDate: new Date().toISOString().split('T')[0],
+        status: 'issued',
+        // === AMÉLIORATION AJOUTÉE : sur nouvelle demande explicite — pour un praticien
+        // Généraliste, préremplir "Dr. General Practitioner" quand l'agent ne saisit pas de nom
+        // (remplace le comportement précédent qui laissait le champ vide dans ce cas).
+        doctorName:
+          values.doctorName ||
+          (values.practitionerType === 'Specialist'
+            ? `Dr. Specialist (${effectiveSpecialty})`
+            : 'Dr. General Practitioner'),
+        doctorPrescription: {
+          presumedDiagnosis: values.presumedDiagnosis || undefined,
+          requestedExams: values.requestedExams || undefined,
+          treatmentOrder: values.treatmentOrder || undefined,
+        },
+        createdAt: new Date().toISOString(),
+      };
 
-    if (onCreateMedicalForm) {
-      try {
-        // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05 & Go-Live Santé) —
-        // Le chiffrement applicatif est STRICTEMENT FAIL-CLOSED : en cas d'indisponibilité ou
-        // d'erreur du service de chiffrement, l'émission est bloquée pour interdire la persistance
-        // de données de santé en clair (RGPD Art. 9 / ISO 27799).
-        const formToPersist = await encryptMedicalFormPrescription(newForm);
-        onCreateMedicalForm(formToPersist);
+      if (onCreateMedicalForm) {
+        try {
+          // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05 & Go-Live Santé) —
+          // Le chiffrement applicatif est STRICTEMENT FAIL-CLOSED : en cas d'indisponibilité ou
+          // d'erreur du service de chiffrement, l'émission est bloquée pour interdire la persistance
+          // de données de santé en clair (RGPD Art. 9 / ISO 27799).
+          const formToPersist = await encryptMedicalFormPrescription(newForm);
+          onCreateMedicalForm(formToPersist);
+          setGeneratedForm(newForm);
+        } catch (err: any) {
+          setFormError(err?.message || t.agentMedForm.encryptionFailError);
+          setGeneratedForm(null);
+          return;
+        }
+      } else {
         setGeneratedForm(newForm);
-      } catch (err: any) {
-        setFormError(err?.message || t.agentMedForm.encryptionFailError);
-        setGeneratedForm(null);
-        return;
       }
-    } else {
-      setGeneratedForm(newForm);
+    },
+    () => {
+      setFormError(t.agentMedForm.selectBothError);
     }
-  };
+  );
 
   // PDF Download Handler
   // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05, section 3.1) —
@@ -423,23 +464,24 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
     }
   };
 
-  // Clear all medical forms history
-  const handleConfirmClearAll = async () => {
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Le schéma
+  // (createClearAllHistoryFormSchema) ne fait que bloquer l'appel (booléen) ; en pratique le
+  // bouton "Clear All History" est déjà désactivé tant que la condition n'est pas remplie (voir
+  // JSX plus bas), ce handleSubmit reste une défense supplémentaire, comme dans le code d'origine.
+  const handleConfirmClearAll = clearAllForm.handleSubmit(async (values) => {
     if (!onClearAllMedicalForms) return;
-    if (clearAllConfirmText.trim().toUpperCase() !== CLEAR_ALL_CONFIRM_PHRASE) return;
-    if (!clearAllReason.trim()) return;
     setIsDeleting(true);
     try {
-      await onClearAllMedicalForms(clearAllReason.trim());
+      await onClearAllMedicalForms(values.reason.trim());
       setIsClearAllModalOpen(false);
-      setClearAllConfirmText('');
-      setClearAllReason('');
+      clearAllForm.setValue('confirmText', '');
+      clearAllForm.setValue('reason', '');
     } catch (e) {
       console.error('Error clearing medical forms history:', e);
     } finally {
       setIsDeleting(false);
     }
-  };
+  });
 
   // Normalize any medical forms (existing and loaded) to ensure the AMID structure
   const normalizedForms = useMemo(() => {
@@ -605,7 +647,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            setSelectedMember(null);
+                            form.setValue('selectedMember', null);
                             setMemberSearchQuery('');
                           }}
                           className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-600 text-[11px] font-bold transition cursor-pointer"
@@ -659,7 +701,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                               <div
                                 key={m.id}
                                 onClick={() => {
-                                  setSelectedMember(m);
+                                  form.setValue('selectedMember', m);
                                   setIsMemberDropdownOpen(false);
                                   setMemberSearchQuery('');
                                 }}
@@ -708,7 +750,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            setSelectedProvider(null);
+                            form.setValue('selectedProvider', null);
                             setProviderSearchQuery('');
                           }}
                           className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-600 text-[11px] font-bold transition cursor-pointer"
@@ -746,7 +788,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                               <div
                                 key={p.id}
                                 onClick={() => {
-                                  setSelectedProvider(p);
+                                  form.setValue('selectedProvider', p);
                                   setIsProviderDropdownOpen(false);
                                   setProviderSearchQuery('');
                                 }}
@@ -786,7 +828,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => setPractitionerType('Generalist')}
+                      onClick={() => form.setValue('practitionerType', 'Generalist')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         practitionerType === 'Generalist'
                           ? ('bg-blue-50/90 border-[var(--brand-900)] ring-2 ring-[var(--brand-900)]/20 shadow-xs')
@@ -806,7 +848,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => setPractitionerType('Specialist')}
+                      onClick={() => form.setValue('practitionerType', 'Specialist')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         practitionerType === 'Specialist'
                           ? ('bg-blue-50/90 border-[var(--brand-900)] ring-2 ring-[var(--brand-900)]/20 shadow-xs')
@@ -832,8 +874,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                         {t.agentMedForm.medicalSpecialtyLabel}
                       </label>
                       <select
-                        value={doctorSpecialty}
-                        onChange={(e) => setDoctorSpecialty(e.target.value)}
+                        {...form.register('doctorSpecialty')}
                         className={`w-full px-3 py-2 bg-white border ${'border-blue-200'} rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 ${'focus:ring-[var(--brand-900)]'}`}
                       >
                         {COMMON_SPECIALTIES.map((spec) => (
@@ -846,8 +887,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                       {doctorSpecialty === 'Other Specialty' && (
                         <input
                           type="text"
-                          value={customSpecialty}
-                          onChange={(e) => setCustomSpecialty(e.target.value)}
+                          {...form.register('customSpecialty')}
                           placeholder={t.agentMedForm.otherSpecialtyPlaceholder}
                           className={`w-full px-3 py-1.5 bg-white border ${'border-blue-300'} rounded-lg text-xs`}
                           required
@@ -873,7 +913,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => setCoverageType('Outpatient')}
+                      onClick={() => form.setValue('coverageType', 'Outpatient')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         coverageType === 'Outpatient'
                           ? ('bg-blue-50/90 border-[var(--brand-900)] ring-2 ring-[var(--brand-900)]/20 shadow-xs')
@@ -896,7 +936,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => setCoverageType('Inpatient')}
+                      onClick={() => form.setValue('coverageType', 'Inpatient')}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between cursor-pointer ${
                         coverageType === 'Inpatient'
                           ? 'bg-emerald-50/90 border-[#00A859] ring-2 ring-[#00A859]/20 shadow-xs'
@@ -932,8 +972,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     <label className="block text-[10px] font-bold text-slate-700 mb-0.5">{t.agentMedForm.attendingPhysicianNameLabel}</label>
                     <input
                       type="text"
-                      value={doctorName}
-                      onChange={(e) => setDoctorName(e.target.value)}
+                      {...form.register('doctorName')}
                       placeholder={practitionerType === 'Generalist' ? t.agentMedForm.physicianPlaceholderGeneralist : `${t.agentMedForm.physicianPlaceholderSpecialist} ${effectiveSpecialty}`}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
@@ -945,8 +984,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     </label>
                     <input
                       type="text"
-                      value={presumedDiagnosis}
-                      onChange={(e) => setPresumedDiagnosis(e.target.value)}
+                      {...form.register('presumedDiagnosis')}
                       placeholder={t.agentMedForm.presumedDiagnosisPlaceholder}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
@@ -956,8 +994,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     <label className="block text-[10px] font-bold text-slate-700 mb-0.5">{t.agentMedForm.prescribedTestsLabel}</label>
                     <input
                       type="text"
-                      value={requestedExams}
-                      onChange={(e) => setRequestedExams(e.target.value)}
+                      {...form.register('requestedExams')}
                       placeholder={t.agentMedForm.prescribedTestsPlaceholder}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                     />
@@ -967,8 +1004,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                     <label className="block text-[10px] font-bold text-slate-700 mb-0.5">{t.agentMedForm.medicationOrdersLabel}</label>
                     <textarea
                       rows={2}
-                      value={treatmentOrder}
-                      onChange={(e) => setTreatmentOrder(e.target.value)}
+                      {...form.register('treatmentOrder')}
                       placeholder={t.agentMedForm.medicationOrdersPlaceholder}
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 resize-none"
                     />
@@ -1664,8 +1700,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   {t.agentMedForm.reasonForDeletionLabel}
                 </label>
                 <textarea
-                  value={clearAllReason}
-                  onChange={(e) => setClearAllReason(e.target.value)}
+                  {...clearAllForm.register('reason')}
                   disabled={isDeleting}
                   rows={2}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
@@ -1678,8 +1713,7 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={clearAllConfirmText}
-                  onChange={(e) => setClearAllConfirmText(e.target.value)}
+                  {...clearAllForm.register('confirmText')}
                   disabled={isDeleting}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
                   placeholder={CLEAR_ALL_CONFIRM_PHRASE}
@@ -1693,8 +1727,8 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                 type="button"
                 onClick={() => {
                   setIsClearAllModalOpen(false);
-                  setClearAllConfirmText('');
-                  setClearAllReason('');
+                  clearAllForm.setValue('confirmText', '');
+                  clearAllForm.setValue('reason', '');
                 }}
                 disabled={isDeleting}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
