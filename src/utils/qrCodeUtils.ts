@@ -21,15 +21,23 @@ import { isValidCardNumberFormat } from '../services/cardNumberService';
 const CARD_NO_LINE_PATTERN = /Card No:\s*(\S+)/i;
 const LEGACY_HYPHENATED_CARD_PATTERN = /^[A-Z]{2,6}-[\w-]+$/i;
 
+// === CORRECTIF (revue CodeRabbit, 2026-09-18) : la ligne "Card No: <valeur>" était renvoyée
+// telle quelle, sans validation — un QR affichant "Card No: invalid" était donc traité comme un
+// candidat "reconnu", fermant la modale de scan pour afficher ensuite "carte introuvable" sur
+// l'écran principal, au lieu du message "QR non reconnu" (qui garde la caméra active pour un
+// nouvel essai immédiat). La valeur capturée après "Card No:" (ou le texte brut à défaut) est
+// désormais validée avec les mêmes règles que la saisie directe.
 export function extractCardNumberFromQrText(rawText: string): string | null {
   if (!rawText) return null;
   const text = rawText.trim();
   if (!text) return null;
 
   const lineMatch = text.match(CARD_NO_LINE_PATTERN);
-  if (lineMatch) return lineMatch[1];
+  const candidate = lineMatch?.[1] ?? text;
 
-  if (isValidCardNumberFormat(text) || LEGACY_HYPHENATED_CARD_PATTERN.test(text)) return text;
+  if (isValidCardNumberFormat(candidate) || LEGACY_HYPHENATED_CARD_PATTERN.test(candidate)) {
+    return candidate;
+  }
 
   return null;
 }

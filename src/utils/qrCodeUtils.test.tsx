@@ -50,4 +50,13 @@ describe('extractCardNumberFromQrText', () => {
     expect(extractCardNumberFromQrText('')).toBeNull();
     expect(extractCardNumberFromQrText('   ')).toBeNull();
   });
+
+  // === AMÉLIORATION AJOUTÉE : revue CodeRabbit (2026-09-18) — "Validate the value captured
+  // from Card No:". La valeur après "Card No:" n'était pas validée : un QR affichant
+  // "Card No: invalid" était traité comme un candidat reconnu (fermant la modale de scan) au
+  // lieu de déclencher le message "QR non reconnu" (qui garde la caméra active).
+  it('renvoie null quand la valeur après "Card No:" ne correspond à aucun format de carte valide', () => {
+    const qrText = ['Card No: invalid', 'Name: Test'].join('\n');
+    expect(extractCardNumberFromQrText(qrText)).toBeNull();
+  });
 });
