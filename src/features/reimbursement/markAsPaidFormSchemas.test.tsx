@@ -21,7 +21,7 @@ describe('markAsPaidFormSchema', () => {
     expect(markAsPaidFormSchema.safeParse({ ...valid, paymentReference: '   ' }).success).toBe(false);
   });
 
-  it('accepte une référence valide sans la transformer (valeur brute conservée pour FirestoreService.updateInvoice)', () => {
+  it("accepte une référence valide sans la transformer au niveau du schéma (le .trim() réel avant écriture Firestore reste appliqué séparément par MarkAsPaidModal)", () => {
     const result = markAsPaidFormSchema.safeParse({ ...valid, paymentReference: '  TXN-2026-0001  ' });
     expect(result.success).toBe(true);
     if (result.success) {
