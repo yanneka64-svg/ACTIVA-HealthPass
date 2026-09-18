@@ -1405,8 +1405,12 @@ export default function App() {
           />
         )}
 
-        {/* Sidebar — superposition pleine hauteur sur mobile, bloc détaché sous le Topbar sur desktop */}
-        <div className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:h-full transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        {/* Sidebar — superposition pleine hauteur sur mobile ; sur desktop, marge sur les 4 côtés
+            (voir lg:p-3 ci-dessous) pour que la Sidebar (rounded-2xl, voir Sidebar.tsx) se
+            présente comme une carte flottante nettement détachée du Topbar et du pied de page,
+            demande explicite utilisateur (2026-09-18) — "détache complètement le sidebar du top
+            bar et de la bande de bas de page ... mets-le sur une forme arrondie". */}
+        <div className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:h-full lg:p-3 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <Sidebar
             currentSection={effectiveSection}
             currentUser={currentUser}

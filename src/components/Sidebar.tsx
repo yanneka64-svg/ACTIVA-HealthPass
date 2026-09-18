@@ -212,14 +212,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
     // "le sidebar et le top bar doivent être détaché l'un de l'autre ... et le logo [doit être]
-    // sur le topbar") === Sidebar blanche sans en-tête ni logo (le logo vit désormais dans
-    // Topbar.tsx) — structure identique à la maquette de référence, qui n'affiche aucun bandeau
-    // au-dessus de la liste de navigation. `theme.palette.sidebarLightBg`/`sidebarLightBorder`
-    // (nouvelles clés, neutres — voir roleTheme.ts) au lieu de `sidebarGradient`/`sidebarBorder`/
-    // `sidebarBg` (inchangées, toujours utilisées ailleurs — graphiques, barre de navigation
-    // mobile).
+    // sur le topbar", puis "détache complètement le sidebar du top bar et de la bande de bas de
+    // page, mets-le sur une forme arrondie ... le sidebar doit se présenter sur cette forme") ===
+    // Sidebar blanche sans en-tête ni logo (le logo vit désormais dans Topbar.tsx), présentée
+    // comme une carte flottante à coins arrondis (`rounded-2xl`, bordure sur les 4 côtés, ombre
+    // portée) — la marge qui la détache visuellement du Topbar et du pied de page est posée sur
+    // son conteneur parent (voir App.tsx, `lg:p-3`). `theme.palette.sidebarLightBg`/
+    // `sidebarLightBorder` (nouvelles clés, neutres — voir roleTheme.ts) au lieu de
+    // `sidebarGradient`/`sidebarBorder`/`sidebarBg` (inchangées, toujours utilisées ailleurs —
+    // graphiques, barre de navigation mobile).
     <aside
-      className={`w-[248px] ${theme.palette.sidebarLightBg} text-slate-700 flex flex-col h-full select-none border-r ${theme.palette.sidebarLightBorder} shadow-[1px_0_3px_rgba(15,23,42,0.04)] relative overflow-hidden z-10`}
+      className={`w-[248px] ${theme.palette.sidebarLightBg} text-slate-700 flex flex-col h-full select-none rounded-2xl border ${theme.palette.sidebarLightBorder} shadow-md relative overflow-hidden z-10`}
     >
       {/* Mobile-only close button (no header/logo block anymore — the logo is in the Topbar) */}
       {onCloseMobile && (
