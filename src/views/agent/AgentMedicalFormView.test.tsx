@@ -224,6 +224,45 @@ describe('AgentMedicalFormView — "Generate Medical Form" (caractérisation ava
     expect(await screen.findByText('KMS unavailable')).toBeInTheDocument();
     expect(onCreateMedicalForm).not.toHaveBeenCalled();
   });
+
+  // === AMÉLIORATION AJOUTÉE : régression, correctif revue CodeRabbit sur PR #79 (2026-09-18) ===
+  // Une double soumission rapide du formulaire (ex. touche Entrée pressée deux fois) pendant que
+  // le chiffrement asynchrone de la première est encore en cours ne doit émettre qu'UN SEUL
+  // formulaire médical, jamais deux (données de santé — pas de doublon silencieux). L'état
+  // `disabled` du bouton de soumission (basé sur `form.formState.isSubmitting`) ne protège que
+  // ce bouton précis, pas une soumission implicite concurrente du <form> lui-même — d'où le
+  // garde synchrone dédié (isGeneratingFormRef dans le composant), que ce test exerce en
+  // soumettant directement le <form>, deux fois de suite, avant que le chiffrement n'ait résolu.
+  it('une double soumission rapide pendant le chiffrement asynchrone n\'émet le formulaire qu\'une seule fois', async () => {
+    let resolveEncryption: (value: any) => void;
+    let encryptCallCount = 0;
+    vi.mocked(encryptMedicalFormPrescription).mockImplementation((form: any) => {
+      encryptCallCount += 1;
+      if (encryptCallCount === 1) {
+        return new Promise((resolve) => {
+          resolveEncryption = () => resolve(form);
+        });
+      }
+      return Promise.resolve(form);
+    });
+    const { onCreateMedicalForm } = renderView();
+    selectMember();
+    selectProvider();
+
+    const formEl = document.querySelector('form') as HTMLFormElement;
+    fireEvent.submit(formEl);
+    fireEvent.submit(formEl);
+
+    // react-hook-form résout la validation (donc l'appel à encryptMedicalFormPrescription) de
+    // façon asynchrone (microtask) : on attend qu'elle ait démarré avant de la résoudre.
+    await waitFor(() => expect(resolveEncryption).toBeDefined());
+    resolveEncryption!(undefined);
+    await waitFor(() => expect(onCreateMedicalForm).toHaveBeenCalledTimes(1));
+    // Laisse le temps à une éventuelle deuxième émission fautive de survenir avant de conclure.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(onCreateMedicalForm).toHaveBeenCalledTimes(1);
+    expect(encryptCallCount).toBe(1);
+  });
 });
 
 describe('AgentMedicalFormView — modale "Clear All History" (caractérisation avant migration)', () => {

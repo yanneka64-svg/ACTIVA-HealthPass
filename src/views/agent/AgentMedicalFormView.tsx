@@ -188,6 +188,15 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   const [isProviderDropdownOpen, setIsProviderDropdownOpen] = useState(false);
   const providerSearchRef = useRef<HTMLDivElement>(null);
 
+  // === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #79 (2026-09-18) === Garde
+  // synchrone contre une double soumission rapide (double-clic/Entrée) avant que le premier
+  // `await` (chiffrement) n'ait résolu : `form.formState.isSubmitting` seul ne suffit pas, car
+  // il ne devient vrai qu'après le prochain rendu React — une seconde invocation peut donc
+  // survenir avant que le bouton ne soit visuellement désactivé. Sans cela, un double-clic
+  // pouvait créer deux formulaires médicaux (deux appels à onCreateMedicalForm) pour une seule
+  // action de l'agent.
+  const isGeneratingFormRef = useRef(false);
+
   // Preselection from Agent Identification View
   useEffect(() => {
     if (preselectedMember) {
@@ -270,68 +279,81 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   // reste construit dans onInvalid, identique au code impératif d'origine.
   const handleGenerateForm = form.handleSubmit(
     async (values) => {
-      setFormError(null);
+      // === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #79 (2026-09-18) === Garde
+      // synchrone (voir isGeneratingFormRef plus haut) : une seconde invocation déclenchée avant
+      // le prochain rendu React (donc avant que `form.formState.isSubmitting` ne désactive
+      // visuellement le bouton) est ignorée silencieusement, comme le sont déjà les tentatives
+      // bloquées par le bouton désactivé (membre/prestataire manquant) ailleurs dans ce fichier.
+      if (isGeneratingFormRef.current) {
+        return;
+      }
+      isGeneratingFormRef.current = true;
+      try {
+        setFormError(null);
 
-      // Structure officielle ACTIVA: AMID-XX (année) XX (jour)-XXXX (numéro de l'assuré)
-      const secNum = generateMedicalFormSecurityNumber({
-        date: new Date(),
-        memberCardNo: values.selectedMember!.cardNo,
-        memberId: values.selectedMember!.id,
-      });
+        // Structure officielle ACTIVA: AMID-XX (année) XX (jour)-XXXX (numéro de l'assuré)
+        const secNum = generateMedicalFormSecurityNumber({
+          date: new Date(),
+          memberCardNo: values.selectedMember!.cardNo,
+          memberId: values.selectedMember!.id,
+        });
 
-      const newForm: MedicalForm = {
-        id: `mf_${Date.now()}`,
-        securityNumber: secNum,
-        barcode: secNum,
-        memberId: values.selectedMember!.id,
-        memberName: values.selectedMember!.principalName,
-        memberCardNo: values.selectedMember!.cardNo,
-        // === AMÉLIORATION AJOUTÉE : date de naissance et sexe transmis au PDF (remplacent
-        // l'affichage du solde disponible dans le document imprimé) ===
-        memberBirthDate: values.selectedMember!.birthDate,
-        memberGender: values.selectedMember!.gender,
-        organization: values.selectedMember!.organization,
-        providerId: values.selectedProvider!.id,
-        providerName: values.selectedProvider!.name,
-        coverageType: values.coverageType,
-        practitionerType: values.practitionerType,
-        doctorSpecialty: values.practitionerType === 'Specialist' ? effectiveSpecialty : undefined,
-        outpatientBalanceUSD: values.selectedMember!.outpatientBalanceUSD ?? 600,
-        inpatientBalanceUSD: values.selectedMember!.inpatientBalanceUSD ?? 8500,
-        issueDate: new Date().toISOString().split('T')[0],
-        status: 'issued',
-        // === AMÉLIORATION AJOUTÉE : sur nouvelle demande explicite — pour un praticien
-        // Généraliste, préremplir "Dr. General Practitioner" quand l'agent ne saisit pas de nom
-        // (remplace le comportement précédent qui laissait le champ vide dans ce cas).
-        doctorName:
-          values.doctorName ||
-          (values.practitionerType === 'Specialist'
-            ? `Dr. Specialist (${effectiveSpecialty})`
-            : 'Dr. General Practitioner'),
-        doctorPrescription: {
-          presumedDiagnosis: values.presumedDiagnosis || undefined,
-          requestedExams: values.requestedExams || undefined,
-          treatmentOrder: values.treatmentOrder || undefined,
-        },
-        createdAt: new Date().toISOString(),
-      };
+        const newForm: MedicalForm = {
+          id: `mf_${Date.now()}`,
+          securityNumber: secNum,
+          barcode: secNum,
+          memberId: values.selectedMember!.id,
+          memberName: values.selectedMember!.principalName,
+          memberCardNo: values.selectedMember!.cardNo,
+          // === AMÉLIORATION AJOUTÉE : date de naissance et sexe transmis au PDF (remplacent
+          // l'affichage du solde disponible dans le document imprimé) ===
+          memberBirthDate: values.selectedMember!.birthDate,
+          memberGender: values.selectedMember!.gender,
+          organization: values.selectedMember!.organization,
+          providerId: values.selectedProvider!.id,
+          providerName: values.selectedProvider!.name,
+          coverageType: values.coverageType,
+          practitionerType: values.practitionerType,
+          doctorSpecialty: values.practitionerType === 'Specialist' ? effectiveSpecialty : undefined,
+          outpatientBalanceUSD: values.selectedMember!.outpatientBalanceUSD ?? 600,
+          inpatientBalanceUSD: values.selectedMember!.inpatientBalanceUSD ?? 8500,
+          issueDate: new Date().toISOString().split('T')[0],
+          status: 'issued',
+          // === AMÉLIORATION AJOUTÉE : sur nouvelle demande explicite — pour un praticien
+          // Généraliste, préremplir "Dr. General Practitioner" quand l'agent ne saisit pas de nom
+          // (remplace le comportement précédent qui laissait le champ vide dans ce cas).
+          doctorName:
+            values.doctorName ||
+            (values.practitionerType === 'Specialist'
+              ? `Dr. Specialist (${effectiveSpecialty})`
+              : 'Dr. General Practitioner'),
+          doctorPrescription: {
+            presumedDiagnosis: values.presumedDiagnosis || undefined,
+            requestedExams: values.requestedExams || undefined,
+            treatmentOrder: values.treatmentOrder || undefined,
+          },
+          createdAt: new Date().toISOString(),
+        };
 
-      if (onCreateMedicalForm) {
-        try {
-          // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05 & Go-Live Santé) —
-          // Le chiffrement applicatif est STRICTEMENT FAIL-CLOSED : en cas d'indisponibilité ou
-          // d'erreur du service de chiffrement, l'émission est bloquée pour interdire la persistance
-          // de données de santé en clair (RGPD Art. 9 / ISO 27799).
-          const formToPersist = await encryptMedicalFormPrescription(newForm);
-          onCreateMedicalForm(formToPersist);
+        if (onCreateMedicalForm) {
+          try {
+            // === AMÉLIORATION AJOUTÉE : protection des données (revue 2026-09-05 & Go-Live Santé) —
+            // Le chiffrement applicatif est STRICTEMENT FAIL-CLOSED : en cas d'indisponibilité ou
+            // d'erreur du service de chiffrement, l'émission est bloquée pour interdire la persistance
+            // de données de santé en clair (RGPD Art. 9 / ISO 27799).
+            const formToPersist = await encryptMedicalFormPrescription(newForm);
+            onCreateMedicalForm(formToPersist);
+            setGeneratedForm(newForm);
+          } catch (err: any) {
+            setFormError(err?.message || t.agentMedForm.encryptionFailError);
+            setGeneratedForm(null);
+            return;
+          }
+        } else {
           setGeneratedForm(newForm);
-        } catch (err: any) {
-          setFormError(err?.message || t.agentMedForm.encryptionFailError);
-          setGeneratedForm(null);
-          return;
         }
-      } else {
-        setGeneratedForm(newForm);
+      } finally {
+        isGeneratingFormRef.current = false;
       }
     },
     () => {
@@ -1011,11 +1033,16 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
                   </div>
                 </div>
 
+                {/* === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #79 (2026-09-18) ===
+                    `form.formState.isSubmitting` ajouté à la condition de désactivation (en plus
+                    du garde synchrone ci-dessus) pour désactiver visuellement le bouton pendant
+                    le chiffrement asynchrone, sans changer le comportement existant lié au choix
+                    du membre/prestataire. */}
                 <button
                   type="submit"
-                  disabled={!selectedMember || !selectedProvider}
+                  disabled={!selectedMember || !selectedProvider || form.formState.isSubmitting}
                   className={`w-full py-3.5 rounded-xl font-bold text-xs shadow-md transition flex items-center justify-center gap-2 ${
-                    !selectedMember || !selectedProvider
+                    !selectedMember || !selectedProvider || form.formState.isSubmitting
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                       : 'bg-[#00A859] hover:bg-[#008f4c] text-white active:scale-98 cursor-pointer'
                   }`}
