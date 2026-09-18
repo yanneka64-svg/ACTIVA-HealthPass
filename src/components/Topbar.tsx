@@ -15,6 +15,7 @@ import {
   RefreshCw,
   UserCheck,
   ShieldAlert,
+  Search,
 } from 'lucide-react';
 import { Language, NavSection, AppNotification } from '../types';
 import { useTranslation } from '../i18n/translations';
@@ -59,20 +60,10 @@ export const Topbar: React.FC<TopbarProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // === AMÉLIORATION AJOUTÉE : le badge "Online" reflète désormais l'état réel de la connexion
-  // (navigator.onLine + événements 'online'/'offline'), au lieu d'être toujours affiché en vert
-  // quelle que soit la connectivité réelle — demande explicite de l'utilisateur, 2026-09-10.
-  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
-  useEffect(() => {
-    const goOnline = () => setIsOnline(true);
-    const goOffline = () => setIsOnline(false);
-    window.addEventListener('online', goOnline);
-    window.addEventListener('offline', goOffline);
-    return () => {
-      window.removeEventListener('online', goOnline);
-      window.removeEventListener('offline', goOffline);
-    };
-  }, []);
+  // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+  // "ajouter une barre de recherche sur le top bar") === État local de la barre de recherche
+  // globale du Topbar (structure de mise en page inspirée de la maquette de référence).
+  const [searchQuery, setSearchQuery] = useState('');
 
   const role = normalizeRole(userRole || currentUser?.profile || currentUser?.role);
   const theme = getRoleTheme(role);
@@ -172,7 +163,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   const initial = userName ? userName.charAt(0).toUpperCase() : 'A';
 
   return (
-    <header className="h-16 bg-white/95 backdrop-blur-md border-b border-[#E2E8F0] sticky top-0 z-30 px-4 sm:px-6 lg:px-8 flex items-center justify-between shadow-xs select-none">
+    <header className="h-16 bg-white/95 backdrop-blur-md border-b border-[#E2E8F0] sticky top-0 z-30 px-4 sm:px-6 lg:px-8 flex items-center gap-4 shadow-xs select-none">
       <div className="flex items-center gap-3 min-w-0">
         {onToggleSidebar && (
           <button 
@@ -212,24 +203,31 @@ export const Topbar: React.FC<TopbarProps> = ({
         </div>
       </div>
 
+      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+          "ajouter une barre de recherche sur le top bar") === Barre de recherche globale
+          (structure de mise en page inspirée de la maquette de référence), masquée sous `lg`
+          (comme les autres contrôles secondaires du Topbar) pour ne pas surcharger l'en-tête sur
+          mobile/tablette. Champ contrôlé, sans branchement à une recherche métier pour l'instant. */}
+      <div className="hidden lg:flex flex-1 justify-center px-4">
+        <div className="relative w-full max-w-md">
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search a member, a provider, a claim..."
+            aria-label="Global search"
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-[#E2E8F0] rounded-full text-xs font-medium text-slate-700 placeholder:text-[#94A3B8] focus:outline-none focus:ring-1 focus:ring-[var(--brand-700)] focus:bg-white transition"
+          />
+        </div>
+      </div>
+
       {/* Right Global Controls */}
-      {/* === AMÉLIORATION AJOUTÉE : la bande "Online" et la pastille "English" surchargeaient
-          l'en-tête sur mobile/tablette (texte tronqué, panneaux qui débordaient) — masquées
-          en dessous de md (768px), où seuls la cloche de notification et l'avatar restent
-          visibles ; à partir de md elles réapparaissent comme avant === */}
+      {/* === AMÉLIORATION AJOUTÉE : la pastille "English" surchargeait l'en-tête sur
+          mobile/tablette (texte tronqué, panneaux qui débordaient) — masquée en dessous de md
+          (768px), où seuls la cloche de notification et l'avatar restent visibles ; à partir de
+          md elle réapparaît comme avant === */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
-        {/* Online Status Badge — reflète navigator.onLine en direct (voir isOnline plus haut) */}
-        {isOnline ? (
-          <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-[#ECFDF5] border border-emerald-200 rounded-full text-xs font-semibold text-[#047857]">
-            <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse"></div>
-            <span>{t.online}</span>
-          </div>
-        ) : (
-          <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 rounded-full text-xs font-semibold text-rose-700">
-            <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
-            <span>{t.topbar.offline}</span>
-          </div>
-        )}
 
         {/* Language Selector — === AMÉLIORATION AJOUTÉE : véritable liste déroulante
             (2026-09-10, retour utilisateur explicite — "je préfère la sélection") au lieu d'un

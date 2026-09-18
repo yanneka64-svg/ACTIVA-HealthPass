@@ -14,6 +14,7 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  HelpCircle,
 } from 'lucide-react';
 import { NavSection, Language } from '../types';
 import { useTranslation } from '../i18n/translations';
@@ -103,7 +104,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const t = useTranslation(lang);
 
-  const [isOverviewOpen, setIsOverviewOpen] = useState(true);
   const [isManagementOpen, setIsManagementOpen] = useState(true);
   const [isSystemOpen, setIsSystemOpen] = useState(true);
 
@@ -244,15 +244,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Navigation list */}
       <div className="flex-1 overflow-y-auto py-2 space-y-3 relative z-10">
-        {/* Section 1: Overview */}
-        <CollapsibleNavSection
-          id="overview"
-          title="OVERVIEW"
-          isOpen={isOverviewOpen}
-          onToggle={() => setIsOverviewOpen((prev) => !prev)}
-        >
-          {filteredOverviewItems.map(renderNavItem)}
-        </CollapsibleNavSection>
+        {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+            utilisateur — "supprimer la mention overview uniquement dans sidebar") === Le
+            libellé "OVERVIEW" (et son bouton de repli associé) est retiré pour cette première
+            section : items affichés directement, comme sur la maquette de référence, qui
+            n'affiche aucun en-tête au-dessus de son premier groupe d'éléments. Les sections
+            "MANAGEMENT"/"SYSTEM" (Admin) gardent leur en-tête repliable, non concernées par
+            cette demande. */}
+        <div className="space-y-1 px-2 pb-2">{filteredOverviewItems.map(renderNavItem)}</div>
 
         {/* Section 2: Management */}
         {isAdmin && (
@@ -285,6 +284,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
           "Online"/"Offline" déjà présent dans le Topbar, et la maquette de référence n'affiche
           aucun texte de ce type en bas de la sidebar. Le copyright/les liens légaux vivent
           désormais dans le pied de page global de l'application (voir App.tsx). */}
+
+      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+          "ajoute les mentions de la capture 2 sur le sidebar") === Carte d'aide en bas de la
+          sidebar, reprenant le texte demandé par l'utilisateur. */}
+      <div className="p-3 relative z-10">
+        <div className="bg-slate-50 rounded-xl p-3 flex items-start gap-2.5">
+          <div className="w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0">
+            <HelpCircle className="w-4 h-4 text-slate-500" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-700 leading-tight">Need help?</p>
+            <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+              Check the documentation or contact the support team.
+            </p>
+          </div>
+        </div>
+      </div>
     </aside>
   );
 };
