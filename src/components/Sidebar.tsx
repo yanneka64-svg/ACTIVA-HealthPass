@@ -13,20 +13,21 @@ import {
   History,
   X,
   ChevronDown,
+  ChevronRight,
+  HelpCircle,
 } from 'lucide-react';
 import { NavSection, Language } from '../types';
 import { useTranslation } from '../i18n/translations';
-import { Logo } from './Logo';
 import { normalizeRole } from '../utils/authUtils';
 import { getRoleTheme } from '../theme/roleTheme';
-// === AMÉLIORATION AJOUTÉE : photos fournies par l'utilisateur, fond des sidebars Agent,
-// Superviseur et Admin (retour utilisateur explicite, 2026-09-11 — "ajoute cette photo comme
-// fond d'écran pour le sidebar interface agent", puis "utilise ceci pour le sidebar côté
-// superviseur", puis "utilise cette photo pour le sidebar côté admin") — voir plus bas
-// (sidebarPhoto).
-import agentSidebarPhoto from '../assets/sidebar-agent-photo.webp';
-import supervisorSidebarPhoto from '../assets/sidebar-supervisor-photo.webp';
-import adminSidebarPhoto from '../assets/sidebar-admin-photo.webp';
+// === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+// "je veux copier le style ... ne surtout pas copier le contenu", confirmé "toute
+// l'application" + "tokens + structure de mise en page", puis "remplacer par un sidebar blanc
+// (comme la maquette)") — la sidebar sombre avec photo de fond par rôle (Agent/Superviseur/
+// Admin, ci-dessus dans l'historique du fichier) est remplacée par une sidebar blanche, sur
+// confirmation explicite de l'utilisateur acceptant la perte de cette personnalisation. Les 3
+// fichiers photo restent sur disque (non supprimés), seuls leur import et leur usage ici sont
+// retirés puisqu'ils ne sont plus référencés par aucun autre composant.
 
 interface SidebarProps {
   currentUser?: any;
@@ -53,7 +54,12 @@ const CollapsibleNavSection: React.FC<CollapsibleNavSectionProps> = ({
   title,
   isOpen,
   onToggle,
-  titleColor = 'text-white/60',
+  // === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #80 (2026-09-18) === `text-slate-400`
+  // sur fond blanc n'offre qu'un contraste ~2.5:1, sous le minimum WCAG 4.5:1 pour du texte
+  // normal (les libellés de section restent en 11px, sous le seuil "texte large" qui
+  // permettrait 3:1). `text-slate-600` reste neutre (aucun contour/texte coloré) tout en
+  // satisfaisant le contraste requis.
+  titleColor = 'text-slate-600',
   children,
 }) => {
   return (
@@ -62,13 +68,13 @@ const CollapsibleNavSection: React.FC<CollapsibleNavSectionProps> = ({
         type="button"
         id={`nav-toggle-${id}`}
         onClick={onToggle}
-        className={`w-full px-3 py-2 flex items-center justify-between text-[11px] font-extrabold tracking-wider ${titleColor} hover:text-white uppercase transition-colors duration-150 cursor-pointer group select-none`}
+        className={`w-full px-3 py-2 flex items-center justify-between text-[11px] font-extrabold tracking-wider ${titleColor} hover:text-slate-700 uppercase transition-colors duration-150 cursor-pointer group select-none`}
         aria-expanded={isOpen}
       >
-        <span className="truncate group-hover:text-white transition-colors">{title}</span>
+        <span className="truncate group-hover:text-slate-700 transition-colors">{title}</span>
         <ChevronDown
-          className={`w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:text-white transition-transform duration-200 flex-shrink-0 ${
-            isOpen ? 'rotate-180 text-white opacity-100' : ''
+          className={`w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:text-slate-700 transition-transform duration-200 flex-shrink-0 ${
+            isOpen ? 'rotate-180 text-slate-700 opacity-100' : ''
           }`}
         />
       </button>
@@ -98,7 +104,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const t = useTranslation(lang);
 
-  const [isOverviewOpen, setIsOverviewOpen] = useState(true);
   const [isManagementOpen, setIsManagementOpen] = useState(true);
   const [isSystemOpen, setIsSystemOpen] = useState(true);
 
@@ -107,16 +112,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isAgent = role === 'Agent';
   const isSupervisor = role === 'Supervisor';
   const isAdmin = role === 'Admin';
-  // === AMÉLIORATION AJOUTÉE : photo de fond par rôle (Agent/Superviseur/Admin, retour
-  // utilisateur explicite, 2026-09-11) — voir l'import en haut du fichier et l'utilisation
-  // sur <aside> plus bas.
-  const sidebarPhoto = isAgent
-    ? agentSidebarPhoto
-    : isSupervisor
-    ? supervisorSidebarPhoto
-    : isAdmin
-    ? adminSidebarPhoto
-    : null;
 
   const overviewItems = [
     { id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard },
@@ -173,127 +168,90 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const isActive = currentSection === item.id;
     const Icon = item.icon;
 
-    // === AMÉLIORATION AJOUTÉE : forme arrondie retirée de la barre de navigation (menu
-    // latéral) sur demande — boutons de menu désormais à angles droits (rounded-xl
-    // supprimé), même chose pour le petit indicateur d'item actif (rounded-r-full retiré) ===
+    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+    // "je veux que le sidebar soit exactement comme celle sur la photo ... retirez les contours
+    // colorés partout") === Items de nav en pilule arrondie (au lieu de lignes pleine largeur à
+    // angles droits avec un liseré de couleur sur le bord gauche) : fond bleu clair + texte/icône
+    // colorés pour l'item actif, sans aucun contour/bordure colorée — un simple chevron indique
+    // l'item actif, comme sur la maquette de référence. Basé sur les clés `sidebarLight*` (fond
+    // clair, voir roleTheme.ts) ; les clés sombres `activeItemBg`/`activeItemText`/
+    // `activeIndicator`/`activeIconColor`/`inactiveText`/`inactiveHoverBg`/`badgeBg` restent
+    // inchangées pour leurs autres usages (graphiques, barre de navigation mobile).
     return (
       <button
         key={item.id}
         id={`nav-item-${item.id}`}
         onClick={() => onSelectSection(item.id)}
-        className={`w-full relative flex items-center justify-between px-3.5 py-2.5 text-[13px] transition-all duration-150 group text-left cursor-pointer ${
+        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[13px] transition-all duration-150 group text-left cursor-pointer ${
           isActive
-            ? `${theme.palette.activeItemBg} ${theme.palette.activeItemText} shadow-xs`
-            : `${theme.palette.inactiveText} ${theme.palette.inactiveHoverBg} font-medium`
+            ? `${theme.palette.sidebarLightActiveBg} ${theme.palette.sidebarLightActiveText}`
+            : `${theme.palette.sidebarLightInactiveText} ${theme.palette.sidebarLightInactiveHoverBg} font-medium`
         }`}
       >
-        {/* Subtle active indicator bar on the left */}
-        {isActive && (
-          <div className={`absolute left-0 top-2 bottom-2 w-1 ${theme.palette.activeIndicator}`} />
-        )}
-
-        <div className="flex items-center gap-3 min-w-0 pl-1">
+        <div className="flex items-center gap-3 min-w-0">
           <Icon
             className={`w-4 h-4 flex-shrink-0 transition-colors ${
-              isActive ? theme.palette.activeIconColor : 'opacity-80 group-hover:opacity-100 group-hover:text-white'
+              isActive ? theme.palette.sidebarLightActiveIcon : 'opacity-70 group-hover:opacity-100'
             }`}
           />
           <span className="truncate">{item.label}</span>
         </div>
 
-        {item.badge !== undefined && item.badge > 0 && (
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-              isAdmin ? 'bg-white/20 text-white' : theme.palette.badgeBg
-            }`}
-          >
-            {item.badge}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {item.badge !== undefined && item.badge > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${theme.palette.sidebarLightBadgeBg}`}>
+              {item.badge}
+            </span>
+          )}
+          {isActive && <ChevronRight className={`w-3.5 h-3.5 ${theme.palette.sidebarLightActiveIcon}`} />}
+        </div>
       </button>
     );
   };
 
   return (
+    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+    // "le sidebar et le top bar doivent être détaché l'un de l'autre ... et le logo [doit être]
+    // sur le topbar", puis "détache complètement le sidebar du top bar et de la bande de bas de
+    // page, mets-le sur une forme arrondie ... le sidebar doit se présenter sur cette forme") ===
+    // Sidebar blanche sans en-tête ni logo (le logo vit désormais dans Topbar.tsx), présentée
+    // comme une carte flottante à coins arrondis (`rounded-2xl`, bordure sur les 4 côtés, ombre
+    // portée) — la marge qui la détache visuellement du Topbar et du pied de page est posée sur
+    // son conteneur parent (voir App.tsx, `lg:p-3`). `theme.palette.sidebarLightBg`/
+    // `sidebarLightBorder` (nouvelles clés, neutres — voir roleTheme.ts) au lieu de
+    // `sidebarGradient`/`sidebarBorder`/`sidebarBg` (inchangées, toujours utilisées ailleurs —
+    // graphiques, barre de navigation mobile).
+    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+    // "sur cette capture il y'a trop d'espace en bas. ajuster") === `h-full` conservé sur mobile
+    // (superposition plein écran, voir App.tsx), mais `lg:h-auto lg:max-h-full` sur desktop : la
+    // carte se dimensionne désormais à son contenu (liste de navigation) au lieu de s'étirer sur
+    // toute la hauteur disponible, ce qui laissait un grand vide sous le dernier item.
     <aside
-      className={`w-[248px] ${sidebarPhoto ? 'bg-cover bg-center' : theme.palette.sidebarGradient} text-white flex flex-col h-full shadow-2xl select-none border-r ${theme.palette.sidebarBorder} relative overflow-hidden`}
-      // === AMÉLIORATION AJOUTÉE : couleur de fond unie posée derrière la photo (retour
-      // utilisateur explicite — "les images ont du mal à charger" sur les différentes pages) —
-      // cette photo est présente sur CHAQUE page authentifiée (le sidebar reste monté en
-      // permanence), donc tout délai de chargement réseau (première connexion, connexion
-      // mobile lente dans l'un des 7 pays où l'app est déployée) était jusqu'ici visible comme
-      // un flash de fond blanc/transparent le temps que l'image se charge, `background-image`
-      // et `background-color` étant deux propriétés CSS distinctes qui ne se substituent pas
-      // l'une à l'autre. `theme.palette.sidebarBg` (couleur unie déjà utilisée ailleurs pour ce
-      // même rôle) s'affiche donc désormais immédiatement, la photo venant simplement se peindre
-      // par-dessus dès qu'elle est prête — aucun flash, quelle que soit la vitesse du réseau.
-      style={{
-        backgroundColor: theme.palette.sidebarBg,
-        ...(sidebarPhoto ? { backgroundImage: `url(${sidebarPhoto})` } : {}),
-      }}
+      className={`w-[248px] ${theme.palette.sidebarLightBg} text-slate-700 flex flex-col h-full lg:h-auto lg:max-h-full select-none rounded-2xl border ${theme.palette.sidebarLightBorder} shadow-md relative overflow-hidden z-10`}
     >
-      {/* === AMÉLIORATION AJOUTÉE : photo en fond pour les 3 rôles (Agent, Superviseur, Admin),
-          avec le dégradé d'origine de chaque rôle (theme.palette.sidebarGradient — bleu marine
-          pour Agent/Superviseur, gris ardoise pour Admin) posé en surcouche semi-transparente
-          par-dessus — identique au traitement déjà appliqué au panneau gauche de la page de
-          connexion (LoginView.tsx) — afin que le logo, le motif et les libellés blancs restent
-          parfaitement lisibles. Les 3 photos sont pré-recadrées (voir src/assets/sidebar-*-
-          photo.webp) au même ratio étroit que le sidebar, pour que le cadrage automatique en
-          fond ("cover") ne coupe pas les repères visuels du genre — cravate/barbe naissante
-          côté Agent et Admin, cheveux bouclés/visage côté Superviseur. Surcouche allégée pour
-          les 3 rôles (0.60/0.55/0.65 au lieu des 0.90/0.85/0.92 d'origine, repris de LoginView)
-          — retour utilisateur explicite : "rassure toi qu'on voit bien qu'il s'agit d'une
-          femme" puis "... qu'il s'agit d'un homme un peu comme sur l'interface superviseur" —
-          la surcouche standard rendait ces repères trop peu distincts. === */}
-      {sidebarPhoto && (
-        <div
-          className={`absolute inset-0 bg-gradient-to-b pointer-events-none ${
-            isAdmin
-              ? 'from-[#334155]/60 via-[#3B485C]/55 to-[#1E293B]/65'
-              : 'from-[#072659]/60 via-[#0A347B]/55 to-[#0D2B63]/65'
-          }`}
-        />
-      )}
-
-      {/* Background ambient light glow */}
-      <div className={`absolute -bottom-16 -left-16 w-56 h-56 ${theme.palette.accentGlow} rounded-full blur-3xl pointer-events-none`} />
-
-      {/* === AMÉLIORATION AJOUTÉE : motif décoratif de courbes SVG retiré des 3 sidebars
-          (retour utilisateur explicite, 2026-09-11 — "supprimer les motifs qui se trouvent sur
-          tous les sidebar des interfaces (agent, superviseur, et admin)"), maintenant que les
-          photos de fond en tiennent lieu visuellement. Reste inchangé : le halo lumineux
-          ci-dessus et le dégradé de couleur (uni ou en surcouche sur la photo) selon le rôle. === */}
-
-      {/* Brand Header with White Background Logo & Mobile Close Button */}
-      <div className="p-3 relative z-10">
-        <div className="bg-white rounded-2xl p-3 shadow-md border border-slate-100/90 flex items-center justify-between">
-          <div className="flex-1 flex justify-center">
-            <Logo size="sm" showTagline={true} transparent={true} />
-          </div>
-          {onCloseMobile && (
-            <button
-              onClick={onCloseMobile}
-              className="lg:hidden p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg ml-2"
-              aria-label="Close menu"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+      {/* Mobile-only close button (no header/logo block anymore — the logo is in the Topbar) */}
+      {onCloseMobile && (
+        <div className="lg:hidden flex justify-end p-2">
+          <button
+            onClick={onCloseMobile}
+            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg"
+            aria-label="Close menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-      </div>
+      )}
 
       {/* Navigation list */}
       <div className="flex-1 overflow-y-auto py-2 space-y-3 relative z-10">
-        {/* Section 1: Overview */}
-        <CollapsibleNavSection
-          id="overview"
-          title="OVERVIEW"
-          isOpen={isOverviewOpen}
-          onToggle={() => setIsOverviewOpen((prev) => !prev)}
-          titleColor={isAdmin || isSupervisor ? 'text-slate-300/90' : 'text-blue-200/80'}
-        >
-          {filteredOverviewItems.map(renderNavItem)}
-        </CollapsibleNavSection>
+        {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+            utilisateur — "supprimer la mention overview uniquement dans sidebar") === Le
+            libellé "OVERVIEW" (et son bouton de repli associé) est retiré pour cette première
+            section : items affichés directement, comme sur la maquette de référence, qui
+            n'affiche aucun en-tête au-dessus de son premier groupe d'éléments. Les sections
+            "MANAGEMENT"/"SYSTEM" (Admin) gardent leur en-tête repliable, non concernées par
+            cette demande. */}
+        <div className="space-y-1 px-2 pb-2">{filteredOverviewItems.map(renderNavItem)}</div>
 
         {/* Section 2: Management */}
         {isAdmin && (
@@ -302,7 +260,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="MANAGEMENT"
             isOpen={isManagementOpen}
             onToggle={() => setIsManagementOpen((prev) => !prev)}
-            titleColor="text-slate-300/90"
           >
             {managementItems.map(renderNavItem)}
           </CollapsibleNavSection>
@@ -315,28 +272,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="SYSTEM"
             isOpen={isSystemOpen}
             onToggle={() => setIsSystemOpen((prev) => !prev)}
-            titleColor="text-slate-300/90"
           >
             {systemItems.map(renderNavItem)}
           </CollapsibleNavSection>
         )}
       </div>
 
-      {/* Bottom Status & Version Indicator */}
-      {/* === AMÉLIORATION AJOUTÉE : bannière/fond retiré (plus de bg-white/10 ni de bordure)
-          sur les deux badges — texte nu directement sur le fond de la sidebar — et taille
-          encore réduite (padding supprimé, texte plus petit), sur demande explicite. === */}
-      <div className="p-3 border-t border-white/10 bg-slate-900/20 relative z-10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 min-w-0">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse flex-shrink-0" />
-            <span className="text-[10px] font-semibold text-white/90 tracking-wide truncate">
-              {currentUser?.entity || 'ACTIVA Liberia'}
-            </span>
+      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+          "supprimer Activa Libéria sur le sidebar") === Le bloc de pied de sidebar (statut de
+          connexion + entité + version) est retiré : il faisait doublon avec le badge
+          "Online"/"Offline" déjà présent dans le Topbar, et la maquette de référence n'affiche
+          aucun texte de ce type en bas de la sidebar. Le copyright/les liens légaux vivent
+          désormais dans le pied de page global de l'application (voir App.tsx). */}
+
+      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+          "ajoute les mentions de la capture 2 sur le sidebar") === Carte d'aide en bas de la
+          sidebar, reprenant le texte demandé par l'utilisateur. */}
+      <div className="p-3 relative z-10">
+        <div className="bg-slate-50 rounded-xl p-3 flex items-start gap-2.5">
+          <div className="w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0">
+            <HelpCircle className="w-4 h-4 text-slate-500" />
           </div>
-          <span className="text-white/60 text-[10px] font-mono font-bold shrink-0">
-            v2.4.0
-          </span>
+          <div>
+            <p className="text-xs font-bold text-slate-700 leading-tight">{t.sidebar.helpTitle}</p>
+            <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+              {t.sidebar.helpBody}
+            </p>
+          </div>
         </div>
       </div>
     </aside>

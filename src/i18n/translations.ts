@@ -48,6 +48,8 @@ export const translations = {
       now: 'Now',
       activeLabel: 'Active',
       userLabel: 'User',
+      searchPlaceholder: 'Search a member, a provider, a claim...',
+      searchLabel: 'Global search',
       positions: {
         supervisor: 'Medical Supervisor',
         agent: 'Front Desk Officer',
@@ -96,6 +98,13 @@ export const translations = {
       enrollments_validation: 'Enrollments to Validate',
       validated_history: 'Decision History',
       receipts: 'Receipts / Vouchers'
+    },
+
+    // === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #80 (2026-09-18) === Carte
+    // d'aide en bas de la sidebar (voir Sidebar.tsx), auparavant en anglais codé en dur.
+    sidebar: {
+      helpTitle: 'Need help?',
+      helpBody: 'Check the documentation or contact the support team.',
     },
 
     // Auth
@@ -1273,11 +1282,14 @@ export const translations = {
       selectProviderOption: 'Select healthcare provider...',
       physicianLabel: 'Attending Physician Name / Practitioner:',
       physicianPlaceholder: 'e.g. Dr. Samuel Johnson',
-      section3TitlePrefix: '3. Medical Acts & Procedures',
+      // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+      // utilisateur — "Remplacer Medical Acts and Procedures par Prescription" / "remplacer Add
+      // medical act par Add services") ===
+      section3TitlePrefix: '3. Prescription',
       itemizedBreakdownPrefix: 'Itemized breakdown of care billed in',
       usdFull: 'US Dollars (USD / $)',
       lrdFull: 'Liberian Dollars (LRD / L$)',
-      addMedicalAct: 'Add Medical Act',
+      addMedicalAct: 'Add Services',
       procedureDescriptionPrefix: 'Procedure Description #',
       procedureDescriptionPlaceholder: 'Description of act / test...',
       careCategoryLabel: 'Care Category',
@@ -1617,6 +1629,8 @@ export const translations = {
       now: 'À l\'instant',
       activeLabel: 'Actif',
       userLabel: 'Utilisateur',
+      searchPlaceholder: 'Rechercher un assuré, un prestataire, une réclamation...',
+      searchLabel: 'Recherche globale',
       positions: {
         supervisor: 'Superviseur médical',
         agent: 'Agent d\'accueil',
@@ -1664,6 +1678,11 @@ export const translations = {
       enrollments_validation: 'Adhésions à valider',
       validated_history: 'Historique des décisions',
       receipts: 'Reçus / Bons'
+    },
+
+    sidebar: {
+      helpTitle: 'Besoin d\'aide ?',
+      helpBody: 'Consultez la documentation ou contactez l\'équipe support.',
     },
 
     auth: {
@@ -2772,11 +2791,11 @@ export const translations = {
       selectProviderOption: 'Sélectionner un prestataire de santé...',
       physicianLabel: 'Nom du médecin traitant / Praticien :',
       physicianPlaceholder: 'ex. Dr. Samuel Johnson',
-      section3TitlePrefix: '3. Actes et procédures médicales',
+      section3TitlePrefix: '3. Prescription',
       itemizedBreakdownPrefix: 'Détail des soins facturés en',
       usdFull: 'Dollars américains (USD / $)',
       lrdFull: 'Dollars libériens (LRD / L$)',
-      addMedicalAct: 'Ajouter un acte médical',
+      addMedicalAct: 'Ajouter des services',
       procedureDescriptionPrefix: 'Description de la procédure n°',
       procedureDescriptionPlaceholder: "Description de l'acte / test...",
       careCategoryLabel: 'Catégorie de soin',

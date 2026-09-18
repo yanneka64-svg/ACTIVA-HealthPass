@@ -81,7 +81,7 @@ import {
   playErrorSound,
   playLogoutSound,
 } from './utils/sound'; // === AMÉLIORATION AJOUTÉE : sons Web Audio API (succès, notification, connexion, erreur, déconnexion) ===
-import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon, Users, FileCheck } from 'lucide-react';
+import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon, Users, FileCheck, ChevronUp, ChevronDown } from 'lucide-react';
 
 export type AuthStateStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'inactive' | 'invalid_role';
 
@@ -1229,6 +1229,9 @@ export default function App() {
   const pendingEnrollmentsCount = enrollments.filter((e) => e.status === 'pending').length;
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18) — cible du rail de défilement à
+  // flèches ancré au bord droit de la page (voir plus bas, section Sidebar/Contenu).
+  const mainScrollRef = useRef<HTMLDivElement>(null);
 
   // 1. Loading screen: absolutely NO dashboard is rendered while resolving session & role
   if (authStatus === 'loading') {
@@ -1368,72 +1371,134 @@ export default function App() {
     // document lui-même ne défile plus. Voir plus bas : seule la zone de contenu (sous le
     // Topbar) devient scrollable, pour que la barre de défilement verticale ne remonte pas
     // au-dessus du bandeau blanc du haut (Topbar / bouton profil).
+    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+    // "le sidebar et le top bar doivent être détaché l'un de l'autre comme sur la photo et le
+    // logo [doit être] sur le topbar") === Le Topbar occupe désormais TOUTE la largeur de
+    // l'écran, tout en haut (avec le logo, voir Topbar.tsx), et la Sidebar ne couvre plus que
+    // la hauteur restante en dessous, à gauche — les deux sont maintenant deux blocs visuels
+    // nettement séparés au lieu d'une sidebar pleine hauteur avec un Topbar qui ne débordait
+    // que sur la zone de contenu. Comportement mobile inchangé : la sidebar reste un panneau
+    // `fixed` en superposition (pleine hauteur, au-dessus du Topbar) tant qu'elle est ouverte.
     <div
-      className="h-screen overflow-hidden bg-[#F8FAFC] text-[var(--brand-900)] font-sans flex antialiased selection:bg-[var(--brand-900)] selection:text-white"
+      className="h-screen overflow-hidden bg-[#F8FAFC] text-[var(--brand-900)] font-sans flex flex-col antialiased selection:bg-[var(--brand-900)] selection:text-white"
       style={roleCssVars}
     >
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 lg:hidden animate-in fade-in"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {/* Topbar — pleine largeur, au-dessus de la ligne Sidebar/Contenu */}
+      <Topbar
+        currentSection={effectiveSection}
+        currentUser={currentUser}
+        userRole={activeRole}
+        lang={lang}
+        onLanguageChange={handleLanguageChange}
+        notifications={notifications}
+        onMarkNotificationAsRead={(n) => FirestoreService.markNotificationRead(n.id)}
+        onMarkAllNotificationsAsRead={() => FirestoreService.markAllNotificationsRead(notifications)}
+        onSelectSection={(sec) => handleSelectSection(sec)}
+        onOpenChangePassword={() => setChangePasswordModalOpen(true)}
+        onLogout={handleLogout}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+      />
 
-      {/* Fixed Sidebar */}
-      <div className={`fixed top-0 left-0 h-full z-50 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <Sidebar
-          currentSection={effectiveSection}
-          currentUser={currentUser}
-          userRole={activeRole}
-          onSelectSection={(section) => {
-            handleSelectSection(section);
-            setSidebarOpen(false); // Close on mobile after selection
-          }}
-          lang={lang}
-          pendingClaimsCount={pendingClaimsCount}
-          pendingEnrollmentsCount={pendingEnrollmentsCount}
-          onCloseMobile={() => setSidebarOpen(false)}
-        />
-      </div>
+      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+          "sur cette capture il y'a trop d'espace en bas. ajuster") === `lg:items-start` : la
+          carte Sidebar (desktop) n'est plus étirée sur toute la hauteur de la ligne — elle se
+          dimensionne désormais à son contenu (liste de navigation), au lieu de laisser un grand
+          vide sous le dernier item. La zone de contenu principale garde `lg:self-stretch` pour
+          continuer à occuper toute la hauteur disponible (son défilement interne en dépend). */}
+      <div className="flex-1 flex min-h-0 overflow-hidden lg:items-start relative">
+        {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+            utilisateur — "la barre de navigation ... pas sur le sidebar, mais sur la page ...
+            côté droit", en référence à la mince barre de défilement avec flèches haut/bas sur
+            le bord droit de la maquette) === Rail de défilement du contenu principal, ancré au
+            bord droit de la fenêtre (desktop uniquement). Fonctionnel : les flèches défilent
+            réellement `mainScrollRef` (le conteneur scrollable du contenu, plus bas). */}
+        <div className="hidden lg:flex flex-col items-center justify-between absolute right-1.5 top-2 bottom-2 z-20 pointer-events-none">
+          <button
+            type="button"
+            onClick={() => mainScrollRef.current?.scrollBy({ top: -320, behavior: 'smooth' })}
+            className="pointer-events-auto p-1 rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+            aria-label="Scroll up"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <div className="w-px flex-1 bg-slate-200 my-1" />
+          <button
+            type="button"
+            onClick={() => mainScrollRef.current?.scrollBy({ top: 320, behavior: 'smooth' })}
+            className="pointer-events-auto p-1 rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+            aria-label="Scroll down"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 lg:ml-[240px] flex flex-col min-w-0 h-screen overflow-hidden">
-        <SyncIssueBanner />
-        <FallbackAlertBanner />
-        {/* Topbar (outside the scroll container below — stays fixed at the top, un-scrolled) */}
-        <Topbar
-          currentSection={effectiveSection}
-          currentUser={currentUser}
-          userRole={activeRole}
-          lang={lang}
-          onLanguageChange={handleLanguageChange}
-          notifications={notifications}
-          onMarkNotificationAsRead={(n) => FirestoreService.markNotificationRead(n.id)}
-          onMarkAllNotificationsAsRead={() => FirestoreService.markAllNotificationsRead(notifications)}
-          onSelectSection={(sec) => handleSelectSection(sec)}
-          onOpenChangePassword={() => setChangePasswordModalOpen(true)}
-          onLogout={handleLogout}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        />
-
-        {/* Global Toast Notification */}
-        {/* === ADDED IMPROVEMENT: the toast now uses the active role's color (theme.palette.modalHeaderBg) instead of a fixed Agent blue === */}
-        {toastMessage && (
-          <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className={`${activeRoleTheme.palette.modalHeaderBg} text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-white/10 text-xs font-semibold`}>
-              <div className="w-2 h-2 rounded-full bg-[#00A859] animate-ping" />
-              <span>{toastMessage}</span>
-            </div>
-          </div>
+        {/* Mobile Sidebar Overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 lg:hidden animate-in fade-in"
+            onClick={() => setSidebarOpen(false)}
+          />
         )}
 
-        {/* === AMÉLIORATION AJOUTÉE : conteneur de défilement dédié au contenu, sous le Topbar.
-            Le Topbar (bandeau blanc avec le bouton profil) reste désormais hors de cette zone
-            scrollable : la barre de défilement verticale ne part donc plus du tout en haut de
-            la page, mais juste sous le Topbar, comme demandé. === */}
-        <div className="flex-1 overflow-y-auto">
-        {/* Section Router Content */}
+        {/* Sidebar — superposition pleine hauteur sur mobile ; sur desktop, marge sur les 4 côtés
+            pour que la Sidebar (rounded-2xl, voir Sidebar.tsx) se présente comme une carte
+            flottante nettement détachée du Topbar et du pied de page, demande explicite
+            utilisateur (2026-09-18) — "détache complètement le sidebar du top bar et de la
+            bande de bas de page ... mets-le sur une forme arrondie".
+            === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #80 (2026-09-18) === `lg:h-full`
+            réintroduit ICI sur ce conteneur invisible (jamais retiré de la carte visible
+            elle-même, qui reste `lg:h-auto` dans Sidebar.tsx) : sans hauteur définie sur un
+            ancêtre, `lg:max-h-full` de la carte n'a rien à borner, et sa liste de navigation
+            pouvait s'étirer au-delà de la hauteur disponible au lieu de défiler. Comme ce
+            conteneur n'a ni fond ni bordure visibles, lui redonner une hauteur pleine ne
+            réintroduit PAS le vide sous la carte (retiré précédemment) — seule la carte
+            elle-même (dimensionnée à son contenu) est visible.
+            === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+            utilisateur — "mettre le sidebar au même niveau que les autres éléments du
+            tableau") === Marge du haut alignée sur celle du contenu principal (`lg:pt-8`, comme
+            le `lg:p-8` du <main> plus bas) au lieu de `lg:p-3` uniforme, qui démarrait la carte
+            plus haut (12px) que la première carte du tableau de bord (32px). */}
+        <div className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:h-full lg:pt-8 lg:px-3 lg:pb-3 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <Sidebar
+            currentSection={effectiveSection}
+            currentUser={currentUser}
+            userRole={activeRole}
+            onSelectSection={(section) => {
+              handleSelectSection(section);
+              setSidebarOpen(false); // Close on mobile after selection
+            }}
+            lang={lang}
+            pendingClaimsCount={pendingClaimsCount}
+            pendingEnrollmentsCount={pendingEnrollmentsCount}
+            onCloseMobile={() => setSidebarOpen(false)}
+          />
+        </div>
+
+        {/* Main Content Area — lg:self-stretch : occupe toute la hauteur de la ligne (nécessaire
+            à son défilement interne) malgré le lg:items-start posé plus haut, qui ne dimensionne
+            que la Sidebar à son contenu. */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden lg:self-stretch lg:h-full">
+          <SyncIssueBanner />
+          <FallbackAlertBanner />
+
+          {/* Global Toast Notification */}
+          {/* === ADDED IMPROVEMENT: the toast now uses the active role's color (theme.palette.modalHeaderBg) instead of a fixed Agent blue === */}
+          {toastMessage && (
+            <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className={`${activeRoleTheme.palette.modalHeaderBg} text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-white/10 text-xs font-semibold`}>
+                <div className="w-2 h-2 rounded-full bg-[#00A859] animate-ping" />
+                <span>{toastMessage}</span>
+              </div>
+            </div>
+          )}
+
+          {/* === AMÉLIORATION AJOUTÉE : conteneur de défilement dédié au contenu, sous le Topbar.
+              Le Topbar (bandeau blanc avec le bouton profil) reste désormais hors de cette zone
+              scrollable : la barre de défilement verticale ne part donc plus du tout en haut de
+              la page, mais juste sous le Topbar, comme demandé. === */}
+          {/* ref={mainScrollRef} : cible du rail de défilement à flèches ajouté plus haut. */}
+          <div className="flex-1 overflow-y-auto" ref={mainScrollRef}>
+          {/* Section Router Content */}
         <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
           {/* === AMÉLIORATION AJOUTÉE : limite Suspense pour les écrans en React.lazy ci-dessus —
               affiche un indicateur de chargement discret le temps que le code de la section
@@ -1724,7 +1789,29 @@ export default function App() {
             <span className="text-[10px] mt-0.5">Menu</span>
           </button>
         </nav>
+        </div>
       </div>
+
+      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+          utilisateur — "ajouter la bande noir en bas de page comme sur la capture") === Pied
+          de page global sombre, pleine largeur, toujours visible en bas de l'écran (desktop
+          uniquement — masqué sur mobile pour ne pas se superposer à la barre de navigation
+          mobile déjà fixée en bas). Contenu générique (copyright, liens légaux) : aucun contenu
+          de la maquette de référence n'est repris. */}
+      {/* === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #80 (2026-09-18) === Ces
+          libellés (Legal notice / Privacy policy / Contact) restent du texte simple : le dépôt
+          ne contient aucune page légale/confidentialité/contact vers laquelle les faire pointer,
+          et en inventer une (href factice) serait trompeur. Le style "hover"/"cursor-default"
+          d'origine, lui, laissait croire à tort qu'ils étaient interactifs sans être
+          atteignables au clavier — retiré pour ne plus suggérer une affordance inexistante. */}
+      <footer className="hidden lg:flex items-center justify-between shrink-0 h-11 px-6 bg-[#0F172A] text-slate-300 text-[11px]">
+        <span>© {new Date().getFullYear()} ACTIVA. All rights reserved.</span>
+        <div className="flex items-center gap-5">
+          <span>Legal notice</span>
+          <span>Privacy policy</span>
+          <span>Contact</span>
+        </div>
+      </footer>
 
       {/* Inactivity Warning Modal */}
       <InactivityWarningModal
