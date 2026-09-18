@@ -254,60 +254,65 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
         )}
       </header>
 
-      {/* HERO */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-16 lg:pt-20 lg:pb-24 grid lg:grid-cols-2 gap-12 items-center">
-        <div>
-          <h1 className="text-4xl sm:text-5xl font-black text-[#0D2B63] leading-[1.08] tracking-tight">
-            {t.home.heroTitle}
-          </h1>
-          <p className="mt-5 text-base text-[#5B7091] font-medium leading-relaxed max-w-lg">
-            {t.home.heroSubtitle}
-          </p>
-          {/* === AMÉLIORATION AJOUTÉE : remplace le bouton "Get started" (demande explicite,
-              2026-09-18) par le sélecteur d'espace de travail — liste déroulante native +
-              bouton "Go" qui renvoie directement vers la page de connexion pour l'espace
-              choisi. Une fois cette étape passée, il n'est plus possible de changer d'espace
-              sans revenir ici (aucun autre point d'entrée vers la connexion sur cette page). */}
-          <div id="workspace-select" className="mt-8 scroll-mt-24">
-            <label
-              htmlFor="hero-workspace-select"
-              className="block text-xs font-bold text-[#5B7091] uppercase tracking-wide mb-2"
-            >
-              {t.home.loginDropdownHint}
-            </label>
-            <div className="flex flex-col sm:flex-row gap-3 max-w-md">
-              <select
-                id="hero-workspace-select"
-                value={heroWorkspace}
-                onChange={(e) => setHeroWorkspace(e.target.value as AppRole)}
-                className="flex-1 px-4 py-3 bg-white border border-[#E8EDF2] rounded-lg text-sm font-semibold text-[#0D2B63] shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A347B]/30"
+      {/* HERO — === AMÉLIORATION AJOUTÉE : photo en fond pleine largeur sur toute la partie
+          supérieure (demande explicite, 2026-09-18 — "je veux que la photo soit sur toute la
+          partie supérieure"), remplace l'ancienne mise en page à deux colonnes (texte à gauche,
+          photo encadrée à droite). Toujours sans bandes/cartes superposées sur la photo
+          (retirées sur demande explicite précédente) : seul un dégradé assure la lisibilité du
+          texte, aucun contenu ajouté sur l'image elle-même. */}
+      <section className="relative w-full overflow-hidden min-h-[520px] lg:min-h-[600px] flex items-center">
+        <img
+          src={heroDoctorPhoto}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          draggable={false}
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0A2F6D]/95 via-[#0A347B]/80 to-[#0A347B]/25" />
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 w-full">
+          <div className="max-w-xl">
+            <h1 className="text-4xl sm:text-5xl font-black text-white leading-[1.08] tracking-tight">
+              {t.home.heroTitle}
+            </h1>
+            <p className="mt-5 text-base text-white/90 font-medium leading-relaxed">
+              {t.home.heroSubtitle}
+            </p>
+            {/* === AMÉLIORATION AJOUTÉE : remplace le bouton "Get started" (demande explicite,
+                2026-09-18) par le sélecteur d'espace de travail — liste déroulante native +
+                bouton "Go" qui renvoie directement vers la page de connexion pour l'espace
+                choisi. Une fois cette étape passée, il n'est plus possible de changer d'espace
+                sans revenir ici (aucun autre point d'entrée vers la connexion sur cette page). */}
+            <div id="workspace-select" className="mt-8 scroll-mt-24">
+              <label
+                htmlFor="hero-workspace-select"
+                className="block text-xs font-bold text-white/80 uppercase tracking-wide mb-2"
               >
-                {workspaceOptions.map((ws) => (
-                  <option key={ws.role} value={ws.role}>
-                    {ws.title}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                id="home-workspace-go-button"
-                onClick={() => onSelectWorkspace(heroWorkspace)}
-                className="shrink-0 px-6 py-3 bg-[#0A347B] hover:bg-[#0D2B63] text-white text-sm font-bold rounded-lg transition-colors cursor-pointer"
-              >
-                {t.home.goButton}
-              </button>
+                {t.home.loginDropdownHint}
+              </label>
+              <div className="flex flex-col sm:flex-row gap-3 max-w-md">
+                <select
+                  id="hero-workspace-select"
+                  value={heroWorkspace}
+                  onChange={(e) => setHeroWorkspace(e.target.value as AppRole)}
+                  className="flex-1 px-4 py-3 bg-white border border-white rounded-lg text-sm font-semibold text-[#0D2B63] shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50"
+                >
+                  {workspaceOptions.map((ws) => (
+                    <option key={ws.role} value={ws.role}>
+                      {ws.title}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  id="home-workspace-go-button"
+                  onClick={() => onSelectWorkspace(heroWorkspace)}
+                  className="shrink-0 px-6 py-3 bg-white hover:bg-[#EAF2FF] text-[#0A347B] text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  {t.home.goButton}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Photo — sans bandes/cartes superposées (retirées sur demande explicite) */}
-        <div className="relative rounded-2xl overflow-hidden shadow-xl aspect-4/3 lg:aspect-square xl:aspect-4/3">
-          <img
-            src={heroDoctorPhoto}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-            draggable={false}
-          />
         </div>
       </section>
 
