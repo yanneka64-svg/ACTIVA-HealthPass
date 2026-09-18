@@ -1396,7 +1396,13 @@ export default function App() {
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+          "sur cette capture il y'a trop d'espace en bas. ajuster") === `lg:items-start` : la
+          carte Sidebar (desktop) n'est plus étirée sur toute la hauteur de la ligne — elle se
+          dimensionne désormais à son contenu (liste de navigation), au lieu de laisser un grand
+          vide sous le dernier item. La zone de contenu principale garde `lg:self-stretch` pour
+          continuer à occuper toute la hauteur disponible (son défilement interne en dépend). */}
+      <div className="flex-1 flex min-h-0 overflow-hidden lg:items-start">
         {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
           <div
@@ -1409,8 +1415,10 @@ export default function App() {
             (voir lg:p-3 ci-dessous) pour que la Sidebar (rounded-2xl, voir Sidebar.tsx) se
             présente comme une carte flottante nettement détachée du Topbar et du pied de page,
             demande explicite utilisateur (2026-09-18) — "détache complètement le sidebar du top
-            bar et de la bande de bas de page ... mets-le sur une forme arrondie". */}
-        <div className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:h-full lg:p-3 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            bar et de la bande de bas de page ... mets-le sur une forme arrondie". Hauteur
+            désormais dimensionnée à son contenu sur desktop (voir lg:items-start ci-dessus) au
+            lieu de `lg:h-full` (retiré) qui étirait la carte sur toute la hauteur disponible. */}
+        <div className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:p-3 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <Sidebar
             currentSection={effectiveSection}
             currentUser={currentUser}
@@ -1426,8 +1434,10 @@ export default function App() {
           />
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Main Content Area — lg:self-stretch : occupe toute la hauteur de la ligne (nécessaire
+            à son défilement interne) malgré le lg:items-start posé plus haut, qui ne dimensionne
+            que la Sidebar à son contenu. */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden lg:self-stretch lg:h-full">
           <SyncIssueBanner />
           <FallbackAlertBanner />
 

@@ -221,8 +221,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // `sidebarLightBorder` (nouvelles clés, neutres — voir roleTheme.ts) au lieu de
     // `sidebarGradient`/`sidebarBorder`/`sidebarBg` (inchangées, toujours utilisées ailleurs —
     // graphiques, barre de navigation mobile).
+    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+    // "sur cette capture il y'a trop d'espace en bas. ajuster") === `h-full` conservé sur mobile
+    // (superposition plein écran, voir App.tsx), mais `lg:h-auto lg:max-h-full` sur desktop : la
+    // carte se dimensionne désormais à son contenu (liste de navigation) au lieu de s'étirer sur
+    // toute la hauteur disponible, ce qui laissait un grand vide sous le dernier item.
     <aside
-      className={`w-[248px] ${theme.palette.sidebarLightBg} text-slate-700 flex flex-col h-full select-none rounded-2xl border ${theme.palette.sidebarLightBorder} shadow-md relative overflow-hidden z-10`}
+      className={`w-[248px] ${theme.palette.sidebarLightBg} text-slate-700 flex flex-col h-full lg:h-auto lg:max-h-full select-none rounded-2xl border ${theme.palette.sidebarLightBorder} shadow-md relative overflow-hidden z-10`}
     >
       {/* Mobile-only close button (no header/logo block anymore — the logo is in the Topbar) */}
       {onCloseMobile && (
