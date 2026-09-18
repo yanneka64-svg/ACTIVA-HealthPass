@@ -974,10 +974,16 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
       </div>
 
       {/* 3. BIOMETRIC FINGERPRINT SCANNER MODAL */}
+      {/* === CORRECTIF : la prop réelle du composant est `onFingerprintCaptured` (voir
+          BiometricFingerprintModal.tsx) ; `onCapture` n'existe pas sur son interface, donc
+          `handleFingerprintCaptured` n'était jamais appelé et la confirmation d'empreinte
+          plantait silencieusement ici (onFingerprintCaptured undefined). Trouvé en vérifiant
+          les points d'intégration du capteur HFSecurity FP08 — voir aussi la note sur
+          @types/react manquant, qui empêchait tsc de détecter ce genre d'erreur de prop. */}
       <BiometricFingerprintModal
         isOpen={isFingerprintModalOpen}
         onClose={() => setIsFingerprintModalOpen(false)}
-        onCapture={handleFingerprintCaptured}
+        onFingerprintCaptured={handleFingerprintCaptured}
         title={t.agentId.biometricModalTitle}
         subtitle={t.agentId.biometricModalSubtitle}
       />
