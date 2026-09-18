@@ -104,6 +104,18 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
       >
         <div className="absolute inset-0 bg-gradient-to-b from-[#072659]/90 via-[#0A347B]/85 to-[#0D2B63]/92 pointer-events-none" />
         <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
+        {/* === AMÉLIORATION AJOUTÉE : fondu du panneau bleu vers le blanc (demande explicite) —
+            supprime la ligne de séparation verticale nette entre les deux panneaux. Le bleu
+            reste dominant sur la majeure partie du panneau, puis se dilue très progressivement
+            (courbe étalée sur une large zone, sans palier visible) jusqu'à son bord droit, qui
+            rejoint alors sans rupture le blanc pur du panneau de droite (inchangé). === */}
+        <div
+          className="absolute inset-y-0 right-0 w-3/5 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(to right, transparent 0%, rgba(255,255,255,0.06) 35%, rgba(255,255,255,0.22) 55%, rgba(255,255,255,0.5) 72%, rgba(255,255,255,0.8) 88%, #ffffff 100%)',
+          }}
+        />
 
         <div className="relative z-10 self-start bg-white rounded-lg px-3 py-2 shadow-sm">
           <img src={activaLogoOriginal} alt="Activa" className="h-12 w-auto" />
