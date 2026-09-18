@@ -1,24 +1,23 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Globe,
-  ShieldCheck,
-  Sparkles,
-  Gauge,
-  HeartHandshake,
+  Shield,
+  Users,
+  Clock,
+  HeartPulse,
   UserPlus,
   IdCard,
   FileText,
   Wallet,
-  ChevronDown,
-  Stethoscope,
-  ClipboardCheck,
-  Settings2,
 } from 'lucide-react';
 import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { AppRole } from '../../utils/authUtils';
 import { Logo } from '../Logo';
-import loginDoctorPhoto from '../../assets/login-doctor.webp';
+// === AMÉLIORATION AJOUTÉE : photo héro dédiée à la page d'accueil (demande explicite,
+// 2026-09-18) — distincte de login-doctor.webp (toujours utilisée telle quelle par
+// WorkspaceSelectionView.tsx, non modifiée).
+import heroDoctorPhoto from '../../assets/home-hero-doctor.webp';
 
 // === AMÉLIORATION AJOUTÉE : nouvelle page d'accueil publique (demande explicite, 2026-09-18)
 // — remplace l'ancien écran de sélection d'espace de travail (WorkspaceSelectionView, laissé
@@ -38,35 +37,23 @@ interface HomeViewProps {
 
 interface WorkspaceMenuOption {
   role: AppRole;
-  icon: React.ReactNode;
   title: string;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSelectWorkspace }) => {
   const t = useTranslation(lang || 'en');
-  const [loginMenuOpen, setLoginMenuOpen] = useState(false);
-  const loginMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (loginMenuRef.current && !loginMenuRef.current.contains(e.target as Node)) {
-        setLoginMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  // === AMÉLIORATION AJOUTÉE : remplace l'ancien menu déroulant du bouton "Log in" (demande
+  // explicite, 2026-09-18 — "supprime la liste déroulante sur login") par une unique liste
+  // déroulante native + bouton "Go", intégrée au bloc héro (voir plus bas, id="workspace-select").
+  // Le bouton "Log in" de la barre de navigation n'ouvre plus de menu : il fait défiler la page
+  // jusqu'à ce même sélecteur, qui reste la seule façon de choisir un espace de travail.
+  const [heroWorkspace, setHeroWorkspace] = useState<AppRole>('Agent');
 
   const workspaceOptions: WorkspaceMenuOption[] = [
-    { role: 'Agent', icon: <Stethoscope className="w-4 h-4" />, title: t.auth.workspaceAgentTitle },
-    { role: 'Supervisor', icon: <ClipboardCheck className="w-4 h-4" />, title: t.auth.workspaceSupervisorTitle },
-    { role: 'Admin', icon: <Settings2 className="w-4 h-4" />, title: t.auth.workspaceAdminTitle },
+    { role: 'Agent', title: t.auth.workspaceAgentTitle },
+    { role: 'Supervisor', title: t.auth.workspaceSupervisorTitle },
+    { role: 'Admin', title: t.auth.workspaceAdminTitle },
   ];
-
-  const handleChooseWorkspace = (role: AppRole) => {
-    setLoginMenuOpen(false);
-    onSelectWorkspace(role);
-  };
 
   const navLinks = [
     { label: t.home.navHome, href: '#home' },
@@ -76,10 +63,34 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
   ];
 
   const features = [
-    { icon: <ShieldCheck className="w-5 h-5" />, title: t.home.featureSecureTitle, desc: t.home.featureSecureDesc },
-    { icon: <Sparkles className="w-5 h-5" />, title: t.home.featureSimpleTitle, desc: t.home.featureSimpleDesc },
-    { icon: <Gauge className="w-5 h-5" />, title: t.home.featureReliableTitle, desc: t.home.featureReliableDesc },
-    { icon: <HeartHandshake className="w-5 h-5" />, title: t.home.featureImpactfulTitle, desc: t.home.featureImpactfulDesc },
+    {
+      icon: <Shield className="w-5 h-5" />,
+      title: t.home.featureSecureTitle,
+      desc: t.home.featureSecureDesc,
+      iconBg: 'bg-blue-100',
+      iconColor: 'text-blue-600',
+    },
+    {
+      icon: <Users className="w-5 h-5" />,
+      title: t.home.featureSimpleTitle,
+      desc: t.home.featureSimpleDesc,
+      iconBg: 'bg-purple-100',
+      iconColor: 'text-purple-600',
+    },
+    {
+      icon: <Clock className="w-5 h-5" />,
+      title: t.home.featureReliableTitle,
+      desc: t.home.featureReliableDesc,
+      iconBg: 'bg-pink-100',
+      iconColor: 'text-pink-600',
+    },
+    {
+      icon: <HeartPulse className="w-5 h-5" />,
+      title: t.home.featureImpactfulTitle,
+      desc: t.home.featureImpactfulDesc,
+      iconBg: 'bg-orange-100',
+      iconColor: 'text-orange-600',
+    },
   ];
 
   const steps = [
@@ -122,48 +133,16 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
               </select>
             </div>
 
-            {/* Log in — ouvre un menu déroulant de sélection d'espace de travail plutôt que
-                de naviguer directement, per demande explicite : "dans log in une liste
-                déroulante te permet de selectionner ton espace de travail. une fois l'espace
-                de travail selectionné on vous renvoi sur la page de connexion." */}
-            <div className="relative" ref={loginMenuRef}>
-              <button
-                type="button"
-                id="home-login-button"
-                onClick={() => setLoginMenuOpen((v) => !v)}
-                aria-haspopup="listbox"
-                aria-expanded={loginMenuOpen}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#0A347B] hover:bg-[#0D2B63] text-white text-sm font-bold rounded-lg transition-colors cursor-pointer"
-              >
-                {t.home.loginButton}
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${loginMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {loginMenuOpen && (
-                <div
-                  role="listbox"
-                  className="absolute right-0 mt-2 w-64 bg-white border border-[#E8EDF2] rounded-xl shadow-lg overflow-hidden z-40"
-                >
-                  <div className="px-3.5 pt-3 pb-2 text-[11px] font-semibold text-[#5B7091] uppercase tracking-wide">
-                    {t.home.loginDropdownHint}
-                  </div>
-                  {workspaceOptions.map((ws) => (
-                    <button
-                      key={ws.role}
-                      type="button"
-                      id={`home-login-workspace-${ws.role.toLowerCase()}`}
-                      role="option"
-                      aria-selected={false}
-                      onClick={() => handleChooseWorkspace(ws.role)}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-semibold text-[#0D2B63] hover:bg-[#F0F5FF] transition-colors text-left cursor-pointer"
-                    >
-                      <span className="text-[#0A347B]">{ws.icon}</span>
-                      {ws.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Log in — fait défiler jusqu'au sélecteur d'espace de travail du bloc héro
+                (id="workspace-select"), seul et unique endroit où choisir un espace (demande
+                explicite, 2026-09-18 — "supprime la liste déroulante sur login"). */}
+            <a
+              href="#workspace-select"
+              id="home-login-button"
+              className="px-4 py-2 bg-[#0A347B] hover:bg-[#0D2B63] text-white text-sm font-bold rounded-lg transition-colors cursor-pointer"
+            >
+              {t.home.loginButton}
+            </a>
           </div>
         </div>
       </header>
@@ -177,21 +156,47 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
           <p className="mt-5 text-base text-[#5B7091] font-medium leading-relaxed max-w-lg">
             {t.home.heroSubtitle}
           </p>
-          <div className="mt-8">
-            <button
-              type="button"
-              onClick={() => setLoginMenuOpen(true)}
-              className="px-6 py-3 bg-[#0A347B] hover:bg-[#0D2B63] text-white text-sm font-bold rounded-lg transition-colors cursor-pointer"
+          {/* === AMÉLIORATION AJOUTÉE : remplace le bouton "Get started" (demande explicite,
+              2026-09-18) par le sélecteur d'espace de travail — liste déroulante native +
+              bouton "Go" qui renvoie directement vers la page de connexion pour l'espace
+              choisi. Une fois cette étape passée, il n'est plus possible de changer d'espace
+              sans revenir ici (aucun autre point d'entrée vers la connexion sur cette page). */}
+          <div id="workspace-select" className="mt-8 scroll-mt-24">
+            <label
+              htmlFor="hero-workspace-select"
+              className="block text-xs font-bold text-[#5B7091] uppercase tracking-wide mb-2"
             >
-              {t.home.heroCta}
-            </button>
+              {t.home.loginDropdownHint}
+            </label>
+            <div className="flex flex-col sm:flex-row gap-3 max-w-md">
+              <select
+                id="hero-workspace-select"
+                value={heroWorkspace}
+                onChange={(e) => setHeroWorkspace(e.target.value as AppRole)}
+                className="flex-1 px-4 py-3 bg-white border border-[#E8EDF2] rounded-lg text-sm font-semibold text-[#0D2B63] shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A347B]/30"
+              >
+                {workspaceOptions.map((ws) => (
+                  <option key={ws.role} value={ws.role}>
+                    {ws.title}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                id="home-workspace-go-button"
+                onClick={() => onSelectWorkspace(heroWorkspace)}
+                className="shrink-0 px-6 py-3 bg-[#0A347B] hover:bg-[#0D2B63] text-white text-sm font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                {t.home.goButton}
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Photo — sans bandes/cartes superposées (retirées sur demande explicite) */}
         <div className="relative rounded-2xl overflow-hidden shadow-xl aspect-4/3 lg:aspect-square xl:aspect-4/3">
           <img
-            src={loginDoctorPhoto}
+            src={heroDoctorPhoto}
             alt=""
             className="absolute inset-0 w-full h-full object-cover"
             draggable={false}
@@ -201,10 +206,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
 
       {/* FEATURES */}
       <section id="about" className="bg-[#F7FAFF] border-y border-[#E8EDF2]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {features.map((f) => (
-            <div key={f.title} className="flex flex-col items-start gap-3">
-              <div className="w-11 h-11 rounded-xl bg-[#0A347B]/10 text-[#0A347B] flex items-center justify-center">
+            <div
+              key={f.title}
+              className="bg-white rounded-2xl border border-[#E8EDF2] shadow-sm p-6 flex flex-col items-start gap-3"
+            >
+              <div className={`w-11 h-11 rounded-full ${f.iconBg} ${f.iconColor} flex items-center justify-center`}>
                 {f.icon}
               </div>
               <div className="text-sm font-bold text-[#0D2B63]">{f.title}</div>
@@ -242,40 +250,25 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
             <h3 className="text-xl sm:text-2xl font-black text-white">{t.home.ctaBannerTitle}</h3>
             <p className="mt-2 text-sm text-[#EAF2FF]/90 font-medium">{t.home.ctaBannerSubtitle}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setLoginMenuOpen(true)}
+          <a
+            href="#workspace-select"
             className="shrink-0 px-6 py-3 bg-white hover:bg-[#EAF2FF] text-[#0A347B] text-sm font-bold rounded-lg transition-colors cursor-pointer"
           >
             {t.home.ctaBannerButton}
-          </button>
+          </a>
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="bg-[#0F172A] text-slate-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid sm:grid-cols-3 gap-8">
-          <div>
-            <Logo variant="responsive" size="sm" showTagline={false} />
-            <p className="mt-3 text-xs text-slate-400 font-medium">{t.home.footerTagline}</p>
-          </div>
-          <div>
-            <div className="text-xs font-bold text-white uppercase tracking-wide mb-3">{t.home.footerLinksTitle}</div>
-            <div className="flex flex-col gap-2 text-xs text-slate-400 font-medium">
-              <span>{t.home.navAbout}</span>
-              <span>{t.home.navFaq}</span>
-            </div>
-          </div>
-          <div>
-            <div className="text-xs font-bold text-white uppercase tracking-wide mb-3">{t.home.footerContactTitle}</div>
-            <div className="flex flex-col gap-2 text-xs text-slate-400 font-medium">
-              <span>{t.home.navContact}</span>
-            </div>
-          </div>
-        </div>
-        <div className="border-t border-white/10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-11 flex items-center text-[11px] text-slate-400">
-            {t.auth.copyright}
+      {/* FOOTER — reprend à l'identique le pied de page sombre déjà utilisé sur les écrans
+          authentifiés (voir App.tsx) : une seule ligne, copyright + liens légaux en texte
+          simple (pas de href factice, cohérent avec le correctif CodeRabbit de la PR #80). */}
+      <footer className="bg-[#0F172A] text-slate-300 text-[11px]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-11 flex items-center justify-between">
+          <span>{t.auth.copyright}</span>
+          <div className="flex items-center gap-5">
+            <span>Legal notice</span>
+            <span>Privacy policy</span>
+            <span>Contact</span>
           </div>
         </div>
       </footer>

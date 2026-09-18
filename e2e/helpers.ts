@@ -18,22 +18,22 @@ export const FALLBACK_TIMEOUT = 40_000;
  * === AMÉLIORATION AJOUTÉE : tient compte de la page d'accueil publique (HomeView, demande
  * explicite, 2026-09-18) affichée avant la page de connexion tant qu'aucun espace de travail
  * n'a été choisi. Elle remplace l'ancien écran de sélection par tuiles (WorkspaceSelectionView,
- * `#workspace-select-agent`) : il faut désormais ouvrir le menu déroulant "Log in"
- * (`#home-login-button`) puis choisir un espace (`#home-login-workspace-agent`). Le choix de
- * l'espace ("Medical Agent") n'a aucune incidence sur le rôle réellement résolu après connexion
- * (déterminé côté serveur à partir du compte) : le traverser avec n'importe quel espace suffit
- * pour atteindre le formulaire de connexion.
+ * `#workspace-select-agent`) : le sélecteur d'espace (`#hero-workspace-select`, "Medical Agent"
+ * par défaut) et son bouton "Go" (`#home-workspace-go-button`) sont désormais directement dans
+ * le bloc héro de la page d'accueil (plus de menu déroulant sur le bouton "Log in" de la barre
+ * de navigation, retiré sur demande explicite). Le choix de l'espace n'a aucune incidence sur le
+ * rôle réellement résolu après connexion (déterminé côté serveur à partir du compte) : cliquer
+ * "Go" avec la valeur par défaut suffit pour atteindre le formulaire de connexion.
  */
 async function reachLoginForm(page: Page): Promise<void> {
   const loginField = page.locator('#login-username');
-  const homeLoginButton = page.locator('#home-login-button');
+  const goButton = page.locator('#home-workspace-go-button');
   await Promise.race([
     loginField.waitFor({ state: 'visible', timeout: 20_000 }),
-    homeLoginButton.waitFor({ state: 'visible', timeout: 20_000 }),
+    goButton.waitFor({ state: 'visible', timeout: 20_000 }),
   ]);
-  if (await homeLoginButton.isVisible().catch(() => false)) {
-    await homeLoginButton.click();
-    await page.locator('#home-login-workspace-agent').click();
+  if (await goButton.isVisible().catch(() => false)) {
+    await goButton.click();
   }
   await loginField.waitFor({ state: 'visible', timeout: 20_000 });
 }
@@ -43,11 +43,11 @@ async function logoutIfNeeded(page: Page): Promise<void> {
   // either the home page / login form (signed out) or the profile button (already signed in)
   // to settle.
   const loginField = page.locator('#login-username');
-  const homeLoginButton = page.locator('#home-login-button');
+  const goButton = page.locator('#home-workspace-go-button');
   const profileButton = page.locator('#user-profile-button');
   await Promise.race([
     loginField.waitFor({ state: 'visible', timeout: 20_000 }),
-    homeLoginButton.waitFor({ state: 'visible', timeout: 20_000 }),
+    goButton.waitFor({ state: 'visible', timeout: 20_000 }),
     profileButton.waitFor({ state: 'visible', timeout: 20_000 }),
   ]);
   if (!(await profileButton.isVisible().catch(() => false))) {
