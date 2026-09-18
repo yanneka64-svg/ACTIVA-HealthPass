@@ -97,4 +97,76 @@ test.describe('Parcours critiques ACTIVA HealthPass', () => {
     await expect(invoiceRow).toBeVisible({ timeout: 10_000 });
     await expect(invoiceRow).toContainText(FULL_NAME.split(' ')[0]);
   });
+
+  // === AMÉLIORATION AJOUTÉE : Phase 3 (2026-09-18) — première introduction de react-router-dom
+  // (voir main.tsx/App.tsx) : l'app n'avait jusqu'ici AUCUN routage par URL (juste un état React
+  // en mémoire). Ce test verrouille la promesse centrale du changement — l'URL reflète
+  // désormais réellement la section affichée, et le bouton "précédent" du navigateur fonctionne
+  // — avant qu'une régression future ne le casse silencieusement. Indépendant des 3 tests
+  // ci-dessus (page/connexion propres), ne dépend d'aucune donnée créée par eux.
+  test('4. Navigation par URL : l\'adresse change avec la section et le bouton "précédent" du navigateur fonctionne', async ({
+    page,
+  }) => {
+    // === AMÉLIORATION AJOUTÉE : correctif (retour de revue qodo sur la PR #66, 2026-09-18) ===
+    // La barre latérale (Sidebar.tsx) affiche TOUJOURS le bouton "dashboard", actif ou non — la
+    // version précédente de ce test se contentait donc de vérifier que ce bouton existe (une
+    // tautologie, jamais capable d'échouer). Ce sélecteur cible plutôt l'indicateur visuel
+    // affiché UNIQUEMENT quand la section est réellement active (`isActive &&` dans
+    // Sidebar.tsx — classe statique `absolute left-0 top-2 bottom-2 w-1`, indépendante du thème
+    // de couleur par rôle), pour prouver que le CONTENU affiché a bien changé, pas seulement
+    // l'URL.
+    const activeIndicator = (section: string) =>
+      page.locator(`#nav-item-${section} > div.absolute.left-0.top-2.bottom-2.w-1`);
+
+    await loginAsSupervisor(page);
+    // Section par défaut du Superviseur (voir getDefaultSectionForRole) — atteinte directement
+    // après connexion, sans aucun clic.
+    await expect(page).toHaveURL(/\/claims_validation$/);
+
+    await page.click('#nav-item-dashboard');
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(activeIndicator('dashboard')).toBeVisible();
+
+    await page.click('#nav-item-reports');
+    await expect(page).toHaveURL(/\/reports$/);
+    await expect(activeIndicator('reports')).toBeVisible();
+    await expect(activeIndicator('dashboard')).toHaveCount(0);
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    // Le contenu affiché doit lui aussi être revenu en arrière, pas seulement l'URL.
+    await expect(activeIndicator('dashboard')).toBeVisible();
+    await expect(activeIndicator('reports')).toHaveCount(0);
+
+    // Un rechargement en pleine page ne doit pas faire perdre la section courante (persistance
+    // par l'URL elle-même, plus par sessionStorage) ni renvoyer une 404 (voir public/_redirects).
+    // === AMÉLIORATION AJOUTÉE : correctif (retour de revue qodo sur la PR #66, 2026-09-18) ===
+    // On attend d'abord que le contenu authentifié se stabilise (l'indicateur actif du
+    // dashboard réapparaît) AVANT de vérifier l'URL finale — sans quoi une éventuelle
+    // redirection tardive (déclenchée par la résolution asynchrone du compte après le
+    // rechargement) pourrait passer inaperçue si l'assertion d'URL réussissait sur un état
+    // transitoire précédent.
+    await page.reload();
+    await expect(activeIndicator('dashboard')).toBeVisible({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    // Une URL pointant vers une section non autorisée pour le rôle actif (ici "accounts",
+    // réservée à l'Admin — voir ROLE_ALLOWED_SECTIONS dans authUtils.ts) doit être corrigée vers
+    // la section par défaut du rôle, exactement comme le faisait déjà `effectiveSection` avant
+    // ce changement — la seule nouveauté est que l'URL elle-même est désormais corrigée en plus
+    // de l'affichage (voir le useEffect dédié dans App.tsx).
+    await page.goto('/accounts');
+    await expect(page).toHaveURL(/\/claims_validation$/);
+
+    // === AMÉLIORATION AJOUTÉE : correctif (retour de revue qodo sur la PR #66, 2026-09-18) ===
+    // Reproduction du bug identifié : un lien direct/partagé vers une section AUTORISÉE mais
+    // différente de la dernière section mémorisée (sessionStorage, ici "claims_validation" —
+    // voir l'assertion ci-dessus) devait rester sur cette section, pas être silencieusement
+    // remplacé par la valeur mémorisée. `page.goto` déclenche un vrai rechargement complet, donc
+    // exactement le même chemin de code (onAuthStateChanged -> onSnapshot du compte) que la
+    // connexion initiale ou un rafraîchissement de page.
+    await page.goto('/reports');
+    await expect(activeIndicator('reports')).toBeVisible({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/reports$/);
+  });
 });
