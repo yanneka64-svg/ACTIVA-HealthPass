@@ -25,6 +25,11 @@ import {
   exportProvidersToExcel,
   parseProviderExcel,
 } from '../../utils/excelUtils';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18). Voir
+// providersFormSchemas.ts.
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { providerFormSchema, ProviderFormValues } from './providersFormSchemas';
 
 interface ProvidersViewProps {
   lang: Language;
@@ -51,13 +56,21 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
 
-  // Form state
-  const [formName, setFormName] = useState('');
-  const [formType, setFormType] = useState<ProviderType>('Clinique');
-  const [formLocation, setFormLocation] = useState('Monrovia — Sinkor');
-  const [formConvention, setFormConvention] = useState('');
-  const [formKyp, setFormKyp] = useState<KYPStatus>('validated');
-  const [formPhone, setFormPhone] = useState('+231 770 00 00 00');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les
+  // anciens `formName`/`formType`/`formLocation`/`formConvention`/`formKyp`/`formPhone`
+  // (useState) ; voir providersFormSchemas.ts. Ouvrir la modale (création ou modification)
+  // réinitialise le formulaire via `reset()`, exactement comme avant.
+  const providerForm = useForm<ProviderFormValues>({
+    resolver: zodResolver(providerFormSchema),
+    defaultValues: {
+      name: '',
+      type: 'Clinique',
+      location: 'Monrovia — Sinkor',
+      conventionNumber: '',
+      kypStatus: 'validated',
+      phone: '+231 770 00 00 00',
+    },
+  });
 
   const filteredProviders = useMemo(() => {
     return providers.filter((p) => {
@@ -75,52 +88,53 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
 
   const openCreateModal = () => {
     setEditingProvider(null);
-    setFormName('');
-    setFormType('Clinique');
-    setFormLocation('Monrovia — Central');
-    setFormConvention(`CONV-2026-${Math.floor(1000 + Math.random() * 9000)}`);
-    setFormKyp('validated');
-    setFormPhone('+231 770 30 11 22');
+    providerForm.reset({
+      name: '',
+      type: 'Clinique',
+      location: 'Monrovia — Central',
+      conventionNumber: `CONV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      kypStatus: 'validated',
+      phone: '+231 770 30 11 22',
+    });
     setModalOpen(true);
   };
 
   const openEditModal = (p: Provider) => {
     setEditingProvider(p);
-    setFormName(p.name);
-    setFormType(p.type);
-    setFormLocation(p.location);
-    setFormConvention(p.conventionNumber);
-    setFormKyp(p.kypStatus);
-    setFormPhone(p.contactPhone || '+231 770 30 11 22');
+    providerForm.reset({
+      name: p.name,
+      type: p.type,
+      location: p.location,
+      conventionNumber: p.conventionNumber,
+      kypStatus: p.kypStatus,
+      phone: p.contactPhone || '+231 770 30 11 22',
+    });
     setModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formName.trim()) return;
-
+  const handleSubmit = providerForm.handleSubmit((values) => {
     if (editingProvider) {
       onUpdateProvider({
         ...editingProvider,
-        name: formName,
-        type: formType,
-        location: formLocation,
-        conventionNumber: formConvention,
-        kypStatus: formKyp,
-        contactPhone: formPhone,
+        name: values.name,
+        type: values.type as ProviderType,
+        location: values.location,
+        conventionNumber: values.conventionNumber,
+        kypStatus: values.kypStatus as KYPStatus,
+        contactPhone: values.phone,
       });
     } else {
       onAddProvider({
-        name: formName,
-        type: formType,
-        location: formLocation,
-        conventionNumber: formConvention,
-        kypStatus: formKyp,
-        contactPhone: formPhone,
+        name: values.name,
+        type: values.type as ProviderType,
+        location: values.location,
+        conventionNumber: values.conventionNumber,
+        kypStatus: values.kypStatus as KYPStatus,
+        contactPhone: values.phone,
       });
     }
     setModalOpen(false);
-  };
+  });
 
   return (
     <div className="space-y-6">
@@ -313,8 +327,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
+                  {...providerForm.register('name')}
                   placeholder={t.providers.namePlaceholder}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                   required
@@ -327,8 +340,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                     {t.providers.type}
                   </label>
                   <select
-                    value={formType}
-                    onChange={(e) => setFormType(e.target.value as ProviderType)}
+                    {...providerForm.register('type')}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold"
                   >
                     <option value="Hôpital">{t.providers.types.hospital}</option>
@@ -344,8 +356,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                     {t.providers.kypStatus}
                   </label>
                   <select
-                    value={formKyp}
-                    onChange={(e) => setFormKyp(e.target.value as KYPStatus)}
+                    {...providerForm.register('kypStatus')}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold"
                   >
                     <option value="validated">{t.providers.kypValidated}</option>
@@ -361,8 +372,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={formLocation}
-                  onChange={(e) => setFormLocation(e.target.value)}
+                  {...providerForm.register('location')}
                   placeholder={t.providers.locationPlaceholder}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium"
                   required
@@ -376,8 +386,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={formConvention}
-                    onChange={(e) => setFormConvention(e.target.value)}
+                    {...providerForm.register('conventionNumber')}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800"
                     required
                   />
@@ -388,8 +397,7 @@ export const ProvidersView: React.FC<ProvidersViewProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
+                    {...providerForm.register('phone')}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800"
                   />
                 </div>

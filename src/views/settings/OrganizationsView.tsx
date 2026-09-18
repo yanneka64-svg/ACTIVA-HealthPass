@@ -32,6 +32,11 @@ import {
 } from '../../utils/excelUtils';
 import { dedupeMembersByCardNo } from '../../utils/memberUtils';
 import { ADMIN_THEME } from '../../theme/roleTheme';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18). Voir
+// organizationsFormSchemas.ts.
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { organizationFormSchema, OrganizationFormValues } from './organizationsFormSchemas';
 
 interface OrganizationsViewProps {
   lang: Language;
@@ -108,16 +113,6 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
   const getPolicyForOrg = (org: Organization) => healthPolicies.find((p) => p.organizationId === org.name) || null;
   const getPaymentsForOrg = (org: Organization) => policyPayments.filter((p) => p.policyId === org.name);
 
-  // Form states
-  const [formName, setFormName] = useState('');
-  const [formPolicy, setFormPolicy] = useState('');
-  const [formEffective, setFormEffective] = useState('2026-01-01');
-  const [formExpiration, setFormExpiration] = useState('2026-12-31');
-  const [formMembers, setFormMembers] = useState('120');
-  const [formRate, setFormRate] = useState('80');
-  const [formStatus, setFormStatus] = useState<OrgStatus>('Actif');
-  const [formContactPhone, setFormContactPhone] = useState('+237 600 000 000');
-  const [formContactEmail, setFormContactEmail] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring —
@@ -127,19 +122,42 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
   // repliée par défaut à la création, ouverte automatiquement en édition si une police existe déjà.
   const [policySectionOpen, setPolicySectionOpen] = useState(false);
   const [policyExistedBeforeEdit, setPolicyExistedBeforeEdit] = useState(false);
-  const [formPolicyType, setFormPolicyType] = useState('Group Health Policy');
-  const [formAnnualPremium, setFormAnnualPremium] = useState('');
-  const [formPolicyCurrency, setFormPolicyCurrency] = useState('USD');
-  const [formPaymentFrequency, setFormPaymentFrequency] = useState<HealthPolicy['paymentFrequency']>('Quarterly');
-  const [formInstallmentAmount, setFormInstallmentAmount] = useState('');
-  const [formNextPaymentDueDate, setFormNextPaymentDueDate] = useState('');
-  const [formLastPaymentDate, setFormLastPaymentDate] = useState('');
-  const [formLastPaymentAmount, setFormLastPaymentAmount] = useState('');
-  const [formOutstandingAmount, setFormOutstandingAmount] = useState('0');
-  const [formGracePeriodDays, setFormGracePeriodDays] = useState('15');
-  const [formExpiringSoonWarningDays, setFormExpiringSoonWarningDays] = useState('30');
-  const [formManuallySuspended, setFormManuallySuspended] = useState(false);
-  const [formSuspensionReason, setFormSuspensionReason] = useState<SuspensionReason>('Non-payment');
+
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les 22
+  // anciens `formXxx` (useState) de ce formulaire combiné organisation + police santé ; voir
+  // organizationsFormSchemas.ts. `policySectionOpen`/`policyExistedBeforeEdit` ci-dessus restent
+  // un état séparé (purement UI/branchement, pas des données du formulaire).
+  const orgForm = useForm<OrganizationFormValues>({
+    resolver: zodResolver(organizationFormSchema),
+    defaultValues: {
+      name: '',
+      policyNumber: '',
+      effectiveDate: '2026-01-01',
+      expirationDate: '2026-12-31',
+      members: '120',
+      rate: '80',
+      status: 'Actif',
+      contactPhone: '+237 600 000 000',
+      contactEmail: '',
+      policyType: 'Group Health Policy',
+      annualPremium: '',
+      policyCurrency: 'USD',
+      paymentFrequency: 'Quarterly',
+      installmentAmount: '',
+      nextPaymentDueDate: '',
+      lastPaymentDate: '',
+      lastPaymentAmount: '',
+      outstandingAmount: '0',
+      gracePeriodDays: '15',
+      expiringSoonWarningDays: '30',
+      manuallySuspended: false,
+      suspensionReason: 'Non-payment',
+    },
+  });
+  // Valeur réactive du taux de couverture — lue par le sélecteur pastilles/curseur/champ
+  // numérique ci-dessous (3 contrôles synchronisés sur le même champ `rate`, voir JSX).
+  const watchedRate = orgForm.watch('rate');
+  const watchedManuallySuspended = orgForm.watch('manuallySuspended');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -251,36 +269,40 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
     });
   }, [organizations, searchTerm, statusFilter]);
 
-  // === AMÉLIORATION AJOUTÉE : réinitialisation/pré-remplissage des champs de la section
-  // "Health Insurance Policy Configuration" repliable, à l'ouverture du formulaire.
-  const resetPolicyFormFields = () => {
-    setFormPolicyType('Group Health Policy');
-    setFormAnnualPremium('');
-    setFormPolicyCurrency('USD');
-    setFormPaymentFrequency('Quarterly');
-    setFormInstallmentAmount('');
-    setFormNextPaymentDueDate('');
-    setFormLastPaymentDate('');
-    setFormLastPaymentAmount('');
-    setFormOutstandingAmount('0');
-    setFormGracePeriodDays('15');
-    setFormExpiringSoonWarningDays('30');
-    setFormManuallySuspended(false);
-    setFormSuspensionReason('Non-payment');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Valeurs par
+  // défaut de la section "Health Insurance Policy Configuration" repliable, réutilisées par
+  // `orgForm.reset()` dans openCreateModal/openEditModal ci-dessous (remplace l'ancienne
+  // fonction `resetPolicyFormFields` qui appelait directement les setters d'état).
+  const defaultPolicyFormValues = {
+    policyType: 'Group Health Policy',
+    annualPremium: '',
+    policyCurrency: 'USD',
+    paymentFrequency: 'Quarterly' as HealthPolicy['paymentFrequency'],
+    installmentAmount: '',
+    nextPaymentDueDate: '',
+    lastPaymentDate: '',
+    lastPaymentAmount: '',
+    outstandingAmount: '0',
+    gracePeriodDays: '15',
+    expiringSoonWarningDays: '30',
+    manuallySuspended: false,
+    suspensionReason: 'Non-payment' as SuspensionReason,
   };
 
   const openCreateModal = () => {
     setEditingOrg(null);
-    setFormName('');
-    setFormPolicy(`POL-2026-${Math.floor(1000 + Math.random() * 9000)}`);
-    setFormEffective('2026-01-01');
-    setFormExpiration('2026-12-31');
-    setFormMembers('120');
-    setFormRate('80');
-    setFormStatus('Actif');
-    setFormContactPhone('+231 770 11 22 33');
-    setFormContactEmail('contact@organization.com');
-    resetPolicyFormFields();
+    orgForm.reset({
+      name: '',
+      policyNumber: `POL-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      effectiveDate: '2026-01-01',
+      expirationDate: '2026-12-31',
+      members: '120',
+      rate: '80',
+      status: 'Actif',
+      contactPhone: '+231 770 11 22 33',
+      contactEmail: 'contact@organization.com',
+      ...defaultPolicyFormValues,
+    });
     setPolicySectionOpen(false);
     setPolicyExistedBeforeEdit(false);
     setModalOpen(true);
@@ -288,74 +310,72 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
 
   const openEditModal = (org: Organization) => {
     setEditingOrg(org);
-    setFormName(org.name);
-    setFormPolicy(org.policyNumber);
-    setFormEffective(org.effectiveDate);
-    setFormExpiration(org.expirationDate);
-    setFormMembers(org.declaredMembers.toString());
-    setFormRate(org.coverageRate.toString());
-    setFormStatus(org.status);
-    setFormContactPhone(org.contactPhone || '+231 770 11 22 33');
-    setFormContactEmail(org.contactEmail || '');
 
     // === AMÉLIORATION AJOUTÉE : pré-remplissage de la police existante (si configurée) —
     // section ouverte automatiquement pour qu'elle soit visible immédiatement en édition.
     const existingPolicy = getPolicyForOrg(org);
-    if (existingPolicy) {
-      setFormPolicyType(existingPolicy.policyType || 'Group Health Policy');
-      setFormAnnualPremium(String(existingPolicy.annualPremium ?? ''));
-      setFormPolicyCurrency(existingPolicy.currency || 'USD');
-      setFormPaymentFrequency(existingPolicy.paymentFrequency || 'Quarterly');
-      setFormInstallmentAmount(String(existingPolicy.installmentAmount ?? ''));
-      setFormNextPaymentDueDate(existingPolicy.nextPaymentDueDate || '');
-      setFormLastPaymentDate(existingPolicy.lastPaymentDate || '');
-      setFormLastPaymentAmount(existingPolicy.lastPaymentAmount != null ? String(existingPolicy.lastPaymentAmount) : '');
-      setFormOutstandingAmount(String(existingPolicy.outstandingAmount ?? 0));
-      setFormGracePeriodDays(String(existingPolicy.gracePeriodDays ?? 15));
-      setFormExpiringSoonWarningDays(String(existingPolicy.expiringSoonWarningDays ?? 30));
-      setFormManuallySuspended(!!existingPolicy.manuallySuspended);
-      setFormSuspensionReason(existingPolicy.suspensionReason || 'Non-payment');
-      setPolicySectionOpen(true);
-      setPolicyExistedBeforeEdit(true);
-    } else {
-      resetPolicyFormFields();
-      setPolicySectionOpen(false);
-      setPolicyExistedBeforeEdit(false);
-    }
+    orgForm.reset({
+      name: org.name,
+      policyNumber: org.policyNumber,
+      effectiveDate: org.effectiveDate,
+      expirationDate: org.expirationDate,
+      members: org.declaredMembers.toString(),
+      rate: org.coverageRate.toString(),
+      status: org.status,
+      contactPhone: org.contactPhone || '+231 770 11 22 33',
+      contactEmail: org.contactEmail || '',
+      ...(existingPolicy
+        ? {
+            policyType: existingPolicy.policyType || 'Group Health Policy',
+            annualPremium: String(existingPolicy.annualPremium ?? ''),
+            policyCurrency: existingPolicy.currency || 'USD',
+            paymentFrequency: existingPolicy.paymentFrequency || 'Quarterly',
+            installmentAmount: String(existingPolicy.installmentAmount ?? ''),
+            nextPaymentDueDate: existingPolicy.nextPaymentDueDate || '',
+            lastPaymentDate: existingPolicy.lastPaymentDate || '',
+            lastPaymentAmount:
+              existingPolicy.lastPaymentAmount != null ? String(existingPolicy.lastPaymentAmount) : '',
+            outstandingAmount: String(existingPolicy.outstandingAmount ?? 0),
+            gracePeriodDays: String(existingPolicy.gracePeriodDays ?? 15),
+            expiringSoonWarningDays: String(existingPolicy.expiringSoonWarningDays ?? 30),
+            manuallySuspended: !!existingPolicy.manuallySuspended,
+            suspensionReason: existingPolicy.suspensionReason || 'Non-payment',
+          }
+        : defaultPolicyFormValues),
+    });
+    setPolicySectionOpen(!!existingPolicy);
+    setPolicyExistedBeforeEdit(!!existingPolicy);
     setModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formName.trim()) return;
-
+  const handleSubmit = orgForm.handleSubmit((values) => {
     if (editingOrg) {
       onUpdateOrganization({
         ...editingOrg,
-        name: formName,
-        policyNumber: formPolicy,
-        effectiveDate: formEffective,
-        expirationDate: formExpiration,
-        declaredMembers: parseInt(formMembers, 10) || 50,
-        coverageRate: parseInt(formRate, 10) || 80,
-        status: formStatus,
-        contactPhone: formContactPhone,
-        contactEmail: formContactEmail,
+        name: values.name,
+        policyNumber: values.policyNumber,
+        effectiveDate: values.effectiveDate,
+        expirationDate: values.expirationDate,
+        declaredMembers: parseInt(values.members, 10) || 50,
+        coverageRate: parseInt(values.rate, 10) || 80,
+        status: values.status as OrgStatus,
+        contactPhone: values.contactPhone,
+        contactEmail: values.contactEmail,
       });
-      showToast(t.organizations.updatedToast.replace('{name}', formName).replace('{rate}', formRate));
+      showToast(t.organizations.updatedToast.replace('{name}', values.name).replace('{rate}', values.rate));
     } else {
       onAddOrganization({
-        name: formName,
-        policyNumber: formPolicy,
-        effectiveDate: formEffective,
-        expirationDate: formExpiration,
-        declaredMembers: parseInt(formMembers, 10) || 50,
-        coverageRate: parseInt(formRate, 10) || 80,
-        status: formStatus,
-        contactPhone: formContactPhone,
-        contactEmail: formContactEmail,
+        name: values.name,
+        policyNumber: values.policyNumber,
+        effectiveDate: values.effectiveDate,
+        expirationDate: values.expirationDate,
+        declaredMembers: parseInt(values.members, 10) || 50,
+        coverageRate: parseInt(values.rate, 10) || 80,
+        status: values.status as OrgStatus,
+        contactPhone: values.contactPhone,
+        contactEmail: values.contactEmail,
       });
-      showToast(t.organizations.registeredToast.replace('{name}', formName).replace('{rate}', formRate));
+      showToast(t.organizations.registeredToast.replace('{name}', values.name).replace('{rate}', values.rate));
     }
 
     // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring —
@@ -365,32 +385,32 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
     // silencieusement à $0 pour une organisation où personne n'a touché à cette section.
     if (onSaveHealthPolicy && (policySectionOpen || policyExistedBeforeEdit)) {
       const policyDraft: HealthPolicy = {
-        id: formName,
-        organizationId: formName,
-        policyNumber: formPolicy,
-        policyType: formPolicyType,
-        effectiveDate: formEffective,
-        expirationDate: formExpiration,
+        id: values.name,
+        organizationId: values.name,
+        policyNumber: values.policyNumber,
+        policyType: values.policyType,
+        effectiveDate: values.effectiveDate,
+        expirationDate: values.expirationDate,
         status: 'Active',
-        suspensionReason: formManuallySuspended ? formSuspensionReason : undefined,
-        manuallySuspended: formManuallySuspended,
-        annualPremium: parseFloat(formAnnualPremium) || 0,
-        currency: formPolicyCurrency,
-        paymentFrequency: formPaymentFrequency,
-        installmentAmount: parseFloat(formInstallmentAmount) || 0,
-        nextPaymentDueDate: formNextPaymentDueDate || undefined,
-        lastPaymentDate: formLastPaymentDate || undefined,
-        lastPaymentAmount: formLastPaymentAmount ? parseFloat(formLastPaymentAmount) : undefined,
-        gracePeriodDays: parseInt(formGracePeriodDays, 10) || 15,
-        expiringSoonWarningDays: parseInt(formExpiringSoonWarningDays, 10) || 30,
-        outstandingAmount: parseFloat(formOutstandingAmount) || 0,
+        suspensionReason: values.manuallySuspended ? (values.suspensionReason as SuspensionReason) : undefined,
+        manuallySuspended: values.manuallySuspended,
+        annualPremium: parseFloat(values.annualPremium) || 0,
+        currency: values.policyCurrency,
+        paymentFrequency: values.paymentFrequency as HealthPolicy['paymentFrequency'],
+        installmentAmount: parseFloat(values.installmentAmount) || 0,
+        nextPaymentDueDate: values.nextPaymentDueDate || undefined,
+        lastPaymentDate: values.lastPaymentDate || undefined,
+        lastPaymentAmount: values.lastPaymentAmount ? parseFloat(values.lastPaymentAmount) : undefined,
+        gracePeriodDays: parseInt(values.gracePeriodDays, 10) || 15,
+        expiringSoonWarningDays: parseInt(values.expiringSoonWarningDays, 10) || 30,
+        outstandingAmount: parseFloat(values.outstandingAmount) || 0,
         coverageBlocked: false,
         updatedAt: new Date().toISOString(),
       };
       // Recalcule le statut/blocage réels via le même moteur centralisé (jamais une valeur
       // devinée) avant d'écrire — cohérent avec HealthPolicyConfigModal.handleSave.
       const computed = getPolicyCoverageStatus(policyDraft);
-      onSaveHealthPolicy(formName, {
+      onSaveHealthPolicy(values.name, {
         ...policyDraft,
         status: computed.status,
         coverageBlocked: computed.coverageBlocked,
@@ -399,7 +419,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
     }
 
     setModalOpen(false);
-  };
+  });
 
   return (
     <div className="space-y-6">
@@ -669,8 +689,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
+                  {...orgForm.register('name')}
                   placeholder={t.organizations.orgNamePlaceholder}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                   required
@@ -684,8 +703,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={formPolicy}
-                    onChange={(e) => setFormPolicy(e.target.value)}
+                    {...orgForm.register('policyNumber')}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800"
                     required
                   />
@@ -693,8 +711,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.policyStatusLabel}</label>
                   <select
-                    value={formStatus}
-                    onChange={(e) => setFormStatus(e.target.value as OrgStatus)}
+                    {...orgForm.register('status')}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold"
                   >
                     <option value="Actif">{t.organizations.statusActive}</option>
@@ -710,8 +727,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 </label>
                 <input
                   type="number"
-                  value={formMembers}
-                  onChange={(e) => setFormMembers(e.target.value)}
+                  {...orgForm.register('members')}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-bold"
                 />
               </div>
@@ -720,10 +736,10 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-extrabold text-slate-800">
-                    {t.organizations.coverageRateFormLabel} <span className="text-[#047857] text-sm font-black">{formRate}%</span>
+                    {t.organizations.coverageRateFormLabel} <span className="text-[#047857] text-sm font-black">{watchedRate}%</span>
                   </label>
                   <span className="text-[11px] font-bold text-slate-500">
-                    {t.organizations.patientCopayLabel} <span className="text-amber-700">{100 - (parseInt(formRate, 10) || 0)}%</span>
+                    {t.organizations.patientCopayLabel} <span className="text-amber-700">{100 - (parseInt(watchedRate, 10) || 0)}%</span>
                   </span>
                 </div>
 
@@ -733,9 +749,9 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     <button
                       key={rate}
                       type="button"
-                      onClick={() => setFormRate(rate.toString())}
+                      onClick={() => orgForm.setValue('rate', rate.toString())}
                       className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
-                        parseInt(formRate, 10) === rate
+                        parseInt(watchedRate, 10) === rate
                           ? 'bg-slate-700 text-white shadow-xs'
                           : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                       }`}
@@ -752,8 +768,8 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     min="10"
                     max="100"
                     step="5"
-                    value={parseInt(formRate, 10) || 80}
-                    onChange={(e) => setFormRate(e.target.value)}
+                    value={parseInt(watchedRate, 10) || 80}
+                    onChange={(e) => orgForm.setValue('rate', e.target.value)}
                     className="flex-1 accent-slate-700 cursor-pointer"
                   />
                   <div className="flex items-center gap-1 w-20">
@@ -761,8 +777,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                       type="number"
                       min="10"
                       max="100"
-                      value={formRate}
-                      onChange={(e) => setFormRate(e.target.value)}
+                      {...orgForm.register('rate')}
                       className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center text-slate-800"
                     />
                     <span className="text-xs font-bold text-slate-500">%</span>
@@ -772,14 +787,14 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                 {/* Visual Ratio Indicator */}
                 <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
                   <div
-                    style={{ width: `${Math.min(100, Math.max(0, parseInt(formRate, 10) || 80))}%` }}
+                    style={{ width: `${Math.min(100, Math.max(0, parseInt(watchedRate, 10) || 80))}%` }}
                     className="bg-[#10B981] h-full"
-                    title={t.organizations.activaCoverageTooltip.replace('{rate}', formRate)}
+                    title={t.organizations.activaCoverageTooltip.replace('{rate}', watchedRate)}
                   />
                   <div
-                    style={{ width: `${100 - Math.min(100, Math.max(0, parseInt(formRate, 10) || 80))}%` }}
+                    style={{ width: `${100 - Math.min(100, Math.max(0, parseInt(watchedRate, 10) || 80))}%` }}
                     className="bg-amber-400 h-full"
-                    title={t.organizations.patientOutOfPocketTooltip.replace('{rate}', String(100 - (parseInt(formRate, 10) || 80)))}
+                    title={t.organizations.patientOutOfPocketTooltip.replace('{rate}', String(100 - (parseInt(watchedRate, 10) || 80)))}
                   />
                 </div>
               </div>
@@ -791,8 +806,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                   </label>
                   <input
                     type="date"
-                    value={formEffective}
-                    onChange={(e) => setFormEffective(e.target.value)}
+                    {...orgForm.register('effectiveDate')}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                   />
                 </div>
@@ -802,8 +816,7 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                   </label>
                   <input
                     type="date"
-                    value={formExpiration}
-                    onChange={(e) => setFormExpiration(e.target.value)}
+                    {...orgForm.register('expirationDate')}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                   />
                 </div>
@@ -832,11 +845,11 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.policyTypeLabel}</label>
-                        <input value={formPolicyType} onChange={(e) => setFormPolicyType(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold" />
+                        <input {...orgForm.register('policyType')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.reports.colPaymentFrequency}</label>
-                        <select value={formPaymentFrequency} onChange={(e) => setFormPaymentFrequency(e.target.value as HealthPolicy['paymentFrequency'])} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                        <select {...orgForm.register('paymentFrequency')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
                           <option value="Annual">{t.reports.freqAnnual}</option>
                           <option value="Semi-Annual">{t.reports.freqSemiAnnual}</option>
                           <option value="Quarterly">{t.reports.freqQuarterly}</option>
@@ -845,11 +858,11 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.reports.colAnnualPremium}</label>
-                        <input type="number" value={formAnnualPremium} onChange={(e) => setFormAnnualPremium(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                        <input type="number" {...orgForm.register('annualPremium')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.ceilings.currency}</label>
-                        <select value={formPolicyCurrency} onChange={(e) => setFormPolicyCurrency(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                        <select {...orgForm.register('policyCurrency')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
                           <option value="USD">USD ($)</option>
                           <option value="LRD">LRD (L$)</option>
                           <option value="XAF">XAF</option>
@@ -861,41 +874,41 @@ export const OrganizationsView: React.FC<OrganizationsViewProps> = ({
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.installmentAmountLabel}</label>
-                        <input type="number" value={formInstallmentAmount} onChange={(e) => setFormInstallmentAmount(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                        <input type="number" {...orgForm.register('installmentAmount')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.nextPaymentDueDateLabel}</label>
-                        <input type="date" value={formNextPaymentDueDate} onChange={(e) => setFormNextPaymentDueDate(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
+                        <input type="date" {...orgForm.register('nextPaymentDueDate')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.lastPaymentDateLabel}</label>
-                        <input type="date" value={formLastPaymentDate} onChange={(e) => setFormLastPaymentDate(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
+                        <input type="date" {...orgForm.register('lastPaymentDate')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.lastPaymentAmountLabel}</label>
-                        <input type="number" value={formLastPaymentAmount} onChange={(e) => setFormLastPaymentAmount(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                        <input type="number" {...orgForm.register('lastPaymentAmount')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.outstandingAmountLabel}</label>
-                        <input type="number" value={formOutstandingAmount} onChange={(e) => setFormOutstandingAmount(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-rose-700" />
+                        <input type="number" {...orgForm.register('outstandingAmount')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-rose-700" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.gracePeriodDaysLabel}</label>
-                        <input type="number" value={formGracePeriodDays} onChange={(e) => setFormGracePeriodDays(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                        <input type="number" {...orgForm.register('gracePeriodDays')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">{t.organizations.expiringSoonWarningDaysLabel}</label>
-                        <input type="number" value={formExpiringSoonWarningDays} onChange={(e) => setFormExpiringSoonWarningDays(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                        <input type="number" {...orgForm.register('expiringSoonWarningDays')} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
                       </div>
                     </div>
 
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
                       <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={formManuallySuspended} onChange={(e) => setFormManuallySuspended(e.target.checked)} className="w-4 h-4 accent-amber-600" />
+                        <input type="checkbox" {...orgForm.register('manuallySuspended')} className="w-4 h-4 accent-amber-600" />
                         <span className="text-xs font-extrabold text-amber-900">{t.organizations.manuallySuspendLabel}</span>
                       </label>
-                      {formManuallySuspended && (
-                        <select value={formSuspensionReason} onChange={(e) => setFormSuspensionReason(e.target.value as SuspensionReason)} className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-xs font-bold">
+                      {watchedManuallySuspended && (
+                        <select {...orgForm.register('suspensionReason')} className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-xs font-bold">
                           <option value="Non-payment">{t.organizations.suspensionReasonNonPayment}</option>
                           <option value="Administrative">{t.organizations.suspensionReasonAdministrative}</option>
                           <option value="Other">{t.organizations.suspensionReasonOther}</option>
