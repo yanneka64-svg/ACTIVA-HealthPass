@@ -51,6 +51,22 @@ export interface RoleThemeConfig {
     // l'interface active en naviguant d'un rôle à l'autre, même si le dégradé de fond reste
     // dans une tonalité bleu/marine proche. Le motif lui-même (tracé SVG) est inchangé.
     motifStroke: string;
+    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18) — nouvelle variante "claire" de
+    // la barre latérale (fond blanc, structure inspirée de la maquette "activa-whistleblowing"),
+    // ajoutée à côté des clés existantes (sidebarBg/sidebarGradient/... et activeItemBg/...)
+    // sans les modifier : ces dernières restent utilisées telles quelles ailleurs dans l'app
+    // (sidebarBg sert de couleur de marque dans des graphiques — ReportsView/DashboardView —, et
+    // activeIconColor est réutilisé par la barre de navigation mobile sombre dans App.tsx). Ces
+    // nouvelles clés ne sont consommées que par le nouveau rendu de Sidebar.tsx.
+    sidebarLightBg: string;
+    sidebarLightBorder: string;
+    sidebarLightActiveBg: string;
+    sidebarLightActiveText: string;
+    sidebarLightActiveIndicator: string;
+    sidebarLightActiveIcon: string;
+    sidebarLightInactiveText: string;
+    sidebarLightInactiveHoverBg: string;
+    sidebarLightBadgeBg: string;
   };
 }
 
@@ -90,6 +106,17 @@ const NEUTRAL_GRAY_PALETTE = {
   } as BrandHexRamp,
   // Admin — teinte or/ambre (identité "exécutif"), distincte du bleu Agent et du vert Superviseur.
   motifStroke: '245, 197, 66',
+  // === AMÉLIORATION AJOUTÉE : variante claire de la sidebar — accent gris-ardoise (identique à
+  // pageTitleColor/avatarBg d'ADMIN_THEME) pour rester cohérent avec le reste de l'interface Admin.
+  sidebarLightBg: 'bg-white',
+  sidebarLightBorder: 'border-slate-200',
+  sidebarLightActiveBg: 'bg-[#f1f5f9]',
+  sidebarLightActiveText: 'text-[#2c394c] font-bold',
+  sidebarLightActiveIndicator: 'bg-[#404e62]',
+  sidebarLightActiveIcon: 'text-[#404e62]',
+  sidebarLightInactiveText: 'text-slate-500 hover:text-slate-800',
+  sidebarLightInactiveHoverBg: 'hover:bg-slate-50',
+  sidebarLightBadgeBg: 'bg-[#f1f5f9] text-[#2c394c] border border-[#e2e8f0]',
 };
 
 export const ADMIN_THEME: RoleThemeConfig = {
@@ -162,6 +189,17 @@ export const AGENT_THEME: RoleThemeConfig = {
     // Agent — blanc, identique à l'existant (comportement inchangé, sert de référence à la
     // page de connexion qui reprend ce même motif).
     motifStroke: '255, 255, 255',
+    // === AMÉLIORATION AJOUTÉE : variante claire de la sidebar — accent bleu marine (identique à
+    // pageTitleColor/primaryText de AGENT_THEME).
+    sidebarLightBg: 'bg-white',
+    sidebarLightBorder: 'border-slate-200',
+    sidebarLightActiveBg: 'bg-[#eff6ff]',
+    sidebarLightActiveText: 'text-[#0A347B] font-bold',
+    sidebarLightActiveIndicator: 'bg-[#0A347B]',
+    sidebarLightActiveIcon: 'text-[#0A347B]',
+    sidebarLightInactiveText: 'text-slate-500 hover:text-slate-800',
+    sidebarLightInactiveHoverBg: 'hover:bg-slate-50',
+    sidebarLightBadgeBg: 'bg-[#dbeafe] text-[#0A347B] border border-[#bfdbfe]',
   },
 };
 
@@ -197,6 +235,11 @@ export const SUPERVISOR_THEME: RoleThemeConfig = {
     bannerBorder: 'border-[rgba(194,79,71,0.4)]',
     accentBadge: 'bg-[#0A347B] text-white border border-[rgba(194,79,71,0.4)]',
     motifStroke: '214, 52, 44',
+    // === AMÉLIORATION AJOUTÉE : variante claire de la sidebar — texte/fond actif hérités du bleu
+    // marine Agent (spread ci-dessus), mais l'indicateur d'item actif reprend le liseré rouge
+    // brique du Superviseur pour conserver la distinction visuelle avec Agent même en thème clair.
+    sidebarLightActiveIndicator: 'bg-[#C24F47]',
+    sidebarLightBorder: 'border-[rgba(194,79,71,0.25)]',
   },
 };
 
@@ -230,6 +273,13 @@ export const CLAIMS_AGENT_THEME: RoleThemeConfig = {
       '500': '#14b8a6', '600': '#0d9488', '700': '#0f766e', '800': '#115e59', '900': '#134e4a',
     },
     motifStroke: '20, 184, 166',
+    // === AMÉLIORATION AJOUTÉE : variante claire de la sidebar — accent teal (identique à
+    // pageTitleColor/primaryText de CLAIMS_AGENT_THEME).
+    sidebarLightActiveBg: 'bg-[#f0fdfa]',
+    sidebarLightActiveText: 'text-[#0F766E] font-bold',
+    sidebarLightActiveIndicator: 'bg-[#0F766E]',
+    sidebarLightActiveIcon: 'text-[#0F766E]',
+    sidebarLightBadgeBg: 'bg-[#ccfbf1] text-[#0F766E] border border-[#99f6e4]',
   },
 };
 
@@ -258,6 +308,13 @@ export const MEDICAL_REVIEWER_THEME: RoleThemeConfig = {
       '500': '#6366f1', '600': '#4f46e5', '700': '#4338ca', '800': '#3730a3', '900': '#312e81',
     },
     motifStroke: '79, 70, 229',
+    // === AMÉLIORATION AJOUTÉE : variante claire de la sidebar — accent indigo (identique à
+    // pageTitleColor/primaryText de MEDICAL_REVIEWER_THEME).
+    sidebarLightActiveBg: 'bg-[#eef2ff]',
+    sidebarLightActiveText: 'text-[#4338CA] font-bold',
+    sidebarLightActiveIndicator: 'bg-[#4338CA]',
+    sidebarLightActiveIcon: 'text-[#4338CA]',
+    sidebarLightBadgeBg: 'bg-[#e0e7ff] text-[#4338CA] border border-[#c7d2fe]',
   },
 };
 
@@ -286,6 +343,13 @@ export const FINANCE_THEME: RoleThemeConfig = {
       '500': '#10b981', '600': '#059669', '700': '#047857', '800': '#065f46', '900': '#064e3b',
     },
     motifStroke: '5, 150, 105',
+    // === AMÉLIORATION AJOUTÉE : variante claire de la sidebar — accent émeraude (identique à
+    // pageTitleColor/primaryText de FINANCE_THEME).
+    sidebarLightActiveBg: 'bg-[#ecfdf5]',
+    sidebarLightActiveText: 'text-[#047857] font-bold',
+    sidebarLightActiveIndicator: 'bg-[#047857]',
+    sidebarLightActiveIcon: 'text-[#047857]',
+    sidebarLightBadgeBg: 'bg-[#d1fae5] text-[#047857] border border-[#a7f3d0]',
   },
 };
 
@@ -314,6 +378,13 @@ export const MANAGEMENT_THEME: RoleThemeConfig = {
       '500': '#f59e0b', '600': '#d97706', '700': '#b45309', '800': '#92400e', '900': '#78350f',
     },
     motifStroke: '217, 119, 6',
+    // === AMÉLIORATION AJOUTÉE : variante claire de la sidebar — accent ambre (identique à
+    // pageTitleColor/primaryText de MANAGEMENT_THEME).
+    sidebarLightActiveBg: 'bg-[#fffbeb]',
+    sidebarLightActiveText: 'text-[#B45309] font-bold',
+    sidebarLightActiveIndicator: 'bg-[#B45309]',
+    sidebarLightActiveIcon: 'text-[#B45309]',
+    sidebarLightBadgeBg: 'bg-[#fef3c7] text-[#B45309] border border-[#fde68a]',
   },
 };
 

@@ -248,10 +248,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* 4 Stats Cards for Agent */}
+        {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18) — mêmes ajustements que la
+            version Admin/Supervisor plus bas : pastille d'icône par carte + `rounded-2xl`. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
-            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-              My Entered Records
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-[var(--brand-100)] text-[var(--brand-700)] flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                My Entered Records
+              </div>
             </div>
             <div className="mt-3 flex items-end justify-between">
               <div className="text-2xl font-bold text-slate-800">{myTotalCount}</div>
@@ -262,9 +269,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </p>
           </div>
 
-          <div className="bg-white rounded-xl p-4 border border-slate-200 border-l-4 border-l-amber-500 shadow-xs flex flex-col justify-between">
-            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-              Awaiting Supervisor
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 border-l-4 border-l-amber-500 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                Awaiting Supervisor
+              </div>
             </div>
             <div className="mt-3 flex items-end justify-between">
               <div className="text-2xl font-bold text-amber-600">{myPendingCount}</div>
@@ -277,9 +289,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </p>
           </div>
 
-          <div className="bg-white rounded-xl p-4 border border-slate-200 border-l-4 border-l-emerald-500 shadow-xs flex flex-col justify-between">
-            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-              Approved Records
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 border-l-4 border-l-emerald-500 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+              <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                Approved Records
+              </div>
             </div>
             <div className="mt-3 flex items-end justify-between">
               <div className="text-2xl font-bold text-emerald-600">{myApprovedCount}</div>
@@ -290,9 +307,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </p>
           </div>
 
-          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
-            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-              Rejected / To Revise
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-4 h-4" />
+              </div>
+              <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                Rejected / To Revise
+              </div>
             </div>
             <div className="mt-3 flex items-end justify-between">
               <div className="text-2xl font-bold text-slate-800">{myIssuesCount}</div>
@@ -491,11 +513,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* 4 Stats Cards */}
+      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18) — pastille d'icône ajoutée en
+          tête de chaque carte (structure "icône/libellé/nombre/delta" de la maquette de
+          référence) et coins arrondis alignés sur `rounded-2xl` (déjà utilisé par les autres
+          blocs de ce tableau de bord). Aucune donnée/texte/calcul existant n'est modifié. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Active Members */}
-        <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-xs flex flex-col justify-between hover:border-slate-200 transition">
-          <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-            {t.dashboard.activeMembers}
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs flex flex-col justify-between hover:border-slate-200 transition">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-[var(--brand-100)] text-[var(--brand-700)] flex items-center justify-center shrink-0">
+              <Users className="w-4 h-4" />
+            </div>
+            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              {t.dashboard.activeMembers}
+            </div>
           </div>
           <div className="mt-3 flex items-end justify-between">
             <div className="text-2xl font-bold text-slate-800">
@@ -511,9 +542,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 2: Processed Claims */}
-        <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-xs flex flex-col justify-between hover:border-slate-200 transition">
-          <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-            {t.dashboard.processedClaims}
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs flex flex-col justify-between hover:border-slate-200 transition">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              {t.dashboard.processedClaims}
+            </div>
           </div>
           <div className="mt-3 flex items-end justify-between">
             <div className="text-2xl font-bold text-slate-800">
@@ -529,9 +565,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 3: Pending Claims */}
-        <div className="bg-white rounded-xl p-4 border border-slate-100 border-l-4 border-l-slate-500 shadow-xs flex flex-col justify-between hover:border-slate-200 transition">
-          <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-            {t.dashboard.pendingClaims}
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 border-l-4 border-l-slate-500 shadow-xs flex flex-col justify-between hover:border-slate-200 transition">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              {t.dashboard.pendingClaims}
+            </div>
           </div>
           <div className="mt-3 flex items-end justify-between">
             <div className="text-2xl font-bold text-slate-800">{pendingClaimsCount}</div>
@@ -545,9 +586,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 4: Approval Rate */}
-        <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-xs flex flex-col justify-between hover:border-slate-200 transition">
-          <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-            {t.dashboard.approvalRate}
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs flex flex-col justify-between hover:border-slate-200 transition">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <div className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              {t.dashboard.approvalRate}
+            </div>
           </div>
           <div className="mt-3 flex items-end justify-between">
             <div className="text-2xl font-bold text-slate-800">{approvalRate}%</div>
