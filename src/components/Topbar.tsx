@@ -189,6 +189,15 @@ export const Topbar: React.FC<TopbarProps> = ({
           <MiniLogo className="bg-slate-50 border-[#E2E8F0]" showText={false} />
         </div>
 
+        {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+            utilisateur — "le logo [doit être] sur le topbar") === Logo desktop, désormais dans
+            le Topbar plutôt que dans la Sidebar (qui n'a plus d'en-tête propre). Un séparateur
+            neutre (non coloré) le distingue du titre de page qui suit. */}
+        <div className="hidden lg:flex items-center gap-3 shrink-0">
+          <MiniLogo transparent showText={true} />
+          <div className="h-8 w-px bg-slate-200" />
+        </div>
+
         {/* Global Page Title and Subtitle */}
         {/* === ADDED IMPROVEMENT: the title now follows the active role's color (theme.palette.pageTitleColor) instead of a fixed blue, to stay consistent with the Sidebar (Admin/Supervisor/Agent) === */}
         <div className="min-w-0">

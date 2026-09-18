@@ -13,10 +13,10 @@ import {
   History,
   X,
   ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { NavSection, Language } from '../types';
 import { useTranslation } from '../i18n/translations';
-import { Logo } from './Logo';
 import { normalizeRole } from '../utils/authUtils';
 import { getRoleTheme } from '../theme/roleTheme';
 // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
@@ -163,31 +163,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const isActive = currentSection === item.id;
     const Icon = item.icon;
 
-    // === AMÉLIORATION AJOUTÉE : forme arrondie retirée de la barre de navigation (menu
-    // latéral) sur demande — boutons de menu désormais à angles droits (rounded-xl
-    // supprimé), même chose pour le petit indicateur d'item actif (rounded-r-full retiré) ===
-    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18) — items de nav basés sur les
-    // nouvelles clés `sidebarLight*` (fond clair) au lieu des clés sombres `activeItemBg`/
-    // `activeItemText`/`activeIndicator`/`activeIconColor`/`inactiveText`/`inactiveHoverBg`/
-    // `badgeBg`, ces dernières restant inchangées pour leurs autres usages (graphiques,
-    // barre de navigation mobile — voir roleTheme.ts).
+    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+    // "je veux que le sidebar soit exactement comme celle sur la photo ... retirez les contours
+    // colorés partout") === Items de nav en pilule arrondie (au lieu de lignes pleine largeur à
+    // angles droits avec un liseré de couleur sur le bord gauche) : fond bleu clair + texte/icône
+    // colorés pour l'item actif, sans aucun contour/bordure colorée — un simple chevron indique
+    // l'item actif, comme sur la maquette de référence. Basé sur les clés `sidebarLight*` (fond
+    // clair, voir roleTheme.ts) ; les clés sombres `activeItemBg`/`activeItemText`/
+    // `activeIndicator`/`activeIconColor`/`inactiveText`/`inactiveHoverBg`/`badgeBg` restent
+    // inchangées pour leurs autres usages (graphiques, barre de navigation mobile).
     return (
       <button
         key={item.id}
         id={`nav-item-${item.id}`}
         onClick={() => onSelectSection(item.id)}
-        className={`w-full relative flex items-center justify-between px-3.5 py-2.5 text-[13px] transition-all duration-150 group text-left cursor-pointer ${
+        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[13px] transition-all duration-150 group text-left cursor-pointer ${
           isActive
             ? `${theme.palette.sidebarLightActiveBg} ${theme.palette.sidebarLightActiveText}`
             : `${theme.palette.sidebarLightInactiveText} ${theme.palette.sidebarLightInactiveHoverBg} font-medium`
         }`}
       >
-        {/* Subtle active indicator bar on the left */}
-        {isActive && (
-          <div className={`absolute left-0 top-2 bottom-2 w-1 ${theme.palette.sidebarLightActiveIndicator}`} />
-        )}
-
-        <div className="flex items-center gap-3 min-w-0 pl-1">
+        <div className="flex items-center gap-3 min-w-0">
           <Icon
             className={`w-4 h-4 flex-shrink-0 transition-colors ${
               isActive ? theme.palette.sidebarLightActiveIcon : 'opacity-70 group-hover:opacity-100'
@@ -196,41 +192,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="truncate">{item.label}</span>
         </div>
 
-        {item.badge !== undefined && item.badge > 0 && (
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${theme.palette.sidebarLightBadgeBg}`}>
-            {item.badge}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {item.badge !== undefined && item.badge > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${theme.palette.sidebarLightBadgeBg}`}>
+              {item.badge}
+            </span>
+          )}
+          {isActive && <ChevronRight className={`w-3.5 h-3.5 ${theme.palette.sidebarLightActiveIcon}`} />}
+        </div>
       </button>
     );
   };
 
   return (
-    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18) — sidebar blanche (structure
-    // inspirée de la maquette de référence), remplaçant le fond sombre en dégradé/photo par
-    // rôle. `theme.palette.sidebarLightBg`/`sidebarLightBorder` (nouvelles clés, voir
-    // roleTheme.ts) au lieu de `sidebarGradient`/`sidebarBorder`/`sidebarBg` (inchangées,
-    // toujours utilisées ailleurs — graphiques, barre de navigation mobile).
+    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+    // "le sidebar et le top bar doivent être détaché l'un de l'autre ... et le logo [doit être]
+    // sur le topbar") === Sidebar blanche sans en-tête ni logo (le logo vit désormais dans
+    // Topbar.tsx) — structure identique à la maquette de référence, qui n'affiche aucun bandeau
+    // au-dessus de la liste de navigation. `theme.palette.sidebarLightBg`/`sidebarLightBorder`
+    // (nouvelles clés, neutres — voir roleTheme.ts) au lieu de `sidebarGradient`/`sidebarBorder`/
+    // `sidebarBg` (inchangées, toujours utilisées ailleurs — graphiques, barre de navigation
+    // mobile).
     <aside
-      className={`w-[248px] ${theme.palette.sidebarLightBg} text-slate-700 flex flex-col h-full shadow-sm select-none border-r ${theme.palette.sidebarLightBorder} relative overflow-hidden`}
+      className={`w-[248px] ${theme.palette.sidebarLightBg} text-slate-700 flex flex-col h-full select-none border-r ${theme.palette.sidebarLightBorder} relative overflow-hidden`}
     >
-      {/* Brand Header with Logo & Mobile Close Button */}
-      <div className="p-3 relative z-10">
-        <div className="rounded-2xl p-3 flex items-center justify-between border-b border-slate-100">
-          <div className="flex-1 flex justify-center">
-            <Logo size="sm" showTagline={true} transparent={true} />
-          </div>
-          {onCloseMobile && (
-            <button
-              onClick={onCloseMobile}
-              className="lg:hidden p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg ml-2"
-              aria-label="Close menu"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+      {/* Mobile-only close button (no header/logo block anymore — the logo is in the Topbar) */}
+      {onCloseMobile && (
+        <div className="lg:hidden flex justify-end p-2">
+          <button
+            onClick={onCloseMobile}
+            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg"
+            aria-label="Close menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-      </div>
+      )}
 
       {/* Navigation list */}
       <div className="flex-1 overflow-y-auto py-2 space-y-3 relative z-10">

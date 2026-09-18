@@ -1368,72 +1368,82 @@ export default function App() {
     // document lui-même ne défile plus. Voir plus bas : seule la zone de contenu (sous le
     // Topbar) devient scrollable, pour que la barre de défilement verticale ne remonte pas
     // au-dessus du bandeau blanc du haut (Topbar / bouton profil).
+    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+    // "le sidebar et le top bar doivent être détaché l'un de l'autre comme sur la photo et le
+    // logo [doit être] sur le topbar") === Le Topbar occupe désormais TOUTE la largeur de
+    // l'écran, tout en haut (avec le logo, voir Topbar.tsx), et la Sidebar ne couvre plus que
+    // la hauteur restante en dessous, à gauche — les deux sont maintenant deux blocs visuels
+    // nettement séparés au lieu d'une sidebar pleine hauteur avec un Topbar qui ne débordait
+    // que sur la zone de contenu. Comportement mobile inchangé : la sidebar reste un panneau
+    // `fixed` en superposition (pleine hauteur, au-dessus du Topbar) tant qu'elle est ouverte.
     <div
-      className="h-screen overflow-hidden bg-[#F8FAFC] text-[var(--brand-900)] font-sans flex antialiased selection:bg-[var(--brand-900)] selection:text-white"
+      className="h-screen overflow-hidden bg-[#F8FAFC] text-[var(--brand-900)] font-sans flex flex-col antialiased selection:bg-[var(--brand-900)] selection:text-white"
       style={roleCssVars}
     >
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 lg:hidden animate-in fade-in"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {/* Topbar — pleine largeur, au-dessus de la ligne Sidebar/Contenu */}
+      <Topbar
+        currentSection={effectiveSection}
+        currentUser={currentUser}
+        userRole={activeRole}
+        lang={lang}
+        onLanguageChange={handleLanguageChange}
+        notifications={notifications}
+        onMarkNotificationAsRead={(n) => FirestoreService.markNotificationRead(n.id)}
+        onMarkAllNotificationsAsRead={() => FirestoreService.markAllNotificationsRead(notifications)}
+        onSelectSection={(sec) => handleSelectSection(sec)}
+        onOpenChangePassword={() => setChangePasswordModalOpen(true)}
+        onLogout={handleLogout}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+      />
 
-      {/* Fixed Sidebar */}
-      <div className={`fixed top-0 left-0 h-full z-50 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <Sidebar
-          currentSection={effectiveSection}
-          currentUser={currentUser}
-          userRole={activeRole}
-          onSelectSection={(section) => {
-            handleSelectSection(section);
-            setSidebarOpen(false); // Close on mobile after selection
-          }}
-          lang={lang}
-          pendingClaimsCount={pendingClaimsCount}
-          pendingEnrollmentsCount={pendingEnrollmentsCount}
-          onCloseMobile={() => setSidebarOpen(false)}
-        />
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 lg:ml-[240px] flex flex-col min-w-0 h-screen overflow-hidden">
-        <SyncIssueBanner />
-        <FallbackAlertBanner />
-        {/* Topbar (outside the scroll container below — stays fixed at the top, un-scrolled) */}
-        <Topbar
-          currentSection={effectiveSection}
-          currentUser={currentUser}
-          userRole={activeRole}
-          lang={lang}
-          onLanguageChange={handleLanguageChange}
-          notifications={notifications}
-          onMarkNotificationAsRead={(n) => FirestoreService.markNotificationRead(n.id)}
-          onMarkAllNotificationsAsRead={() => FirestoreService.markAllNotificationsRead(notifications)}
-          onSelectSection={(sec) => handleSelectSection(sec)}
-          onOpenChangePassword={() => setChangePasswordModalOpen(true)}
-          onLogout={handleLogout}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        />
-
-        {/* Global Toast Notification */}
-        {/* === ADDED IMPROVEMENT: the toast now uses the active role's color (theme.palette.modalHeaderBg) instead of a fixed Agent blue === */}
-        {toastMessage && (
-          <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className={`${activeRoleTheme.palette.modalHeaderBg} text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-white/10 text-xs font-semibold`}>
-              <div className="w-2 h-2 rounded-full bg-[#00A859] animate-ping" />
-              <span>{toastMessage}</span>
-            </div>
-          </div>
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* Mobile Sidebar Overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 lg:hidden animate-in fade-in"
+            onClick={() => setSidebarOpen(false)}
+          />
         )}
 
-        {/* === AMÉLIORATION AJOUTÉE : conteneur de défilement dédié au contenu, sous le Topbar.
-            Le Topbar (bandeau blanc avec le bouton profil) reste désormais hors de cette zone
-            scrollable : la barre de défilement verticale ne part donc plus du tout en haut de
-            la page, mais juste sous le Topbar, comme demandé. === */}
-        <div className="flex-1 overflow-y-auto">
-        {/* Section Router Content */}
+        {/* Sidebar — superposition pleine hauteur sur mobile, bloc détaché sous le Topbar sur desktop */}
+        <div className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:h-full transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <Sidebar
+            currentSection={effectiveSection}
+            currentUser={currentUser}
+            userRole={activeRole}
+            onSelectSection={(section) => {
+              handleSelectSection(section);
+              setSidebarOpen(false); // Close on mobile after selection
+            }}
+            lang={lang}
+            pendingClaimsCount={pendingClaimsCount}
+            pendingEnrollmentsCount={pendingEnrollmentsCount}
+            onCloseMobile={() => setSidebarOpen(false)}
+          />
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <SyncIssueBanner />
+          <FallbackAlertBanner />
+
+          {/* Global Toast Notification */}
+          {/* === ADDED IMPROVEMENT: the toast now uses the active role's color (theme.palette.modalHeaderBg) instead of a fixed Agent blue === */}
+          {toastMessage && (
+            <div className="fixed top-20 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className={`${activeRoleTheme.palette.modalHeaderBg} text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-white/10 text-xs font-semibold`}>
+                <div className="w-2 h-2 rounded-full bg-[#00A859] animate-ping" />
+                <span>{toastMessage}</span>
+              </div>
+            </div>
+          )}
+
+          {/* === AMÉLIORATION AJOUTÉE : conteneur de défilement dédié au contenu, sous le Topbar.
+              Le Topbar (bandeau blanc avec le bouton profil) reste désormais hors de cette zone
+              scrollable : la barre de défilement verticale ne part donc plus du tout en haut de
+              la page, mais juste sous le Topbar, comme demandé. === */}
+          <div className="flex-1 overflow-y-auto">
+          {/* Section Router Content */}
         <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
           {/* === AMÉLIORATION AJOUTÉE : limite Suspense pour les écrans en React.lazy ci-dessus —
               affiche un indicateur de chargement discret le temps que le code de la section
@@ -1724,6 +1734,7 @@ export default function App() {
             <span className="text-[10px] mt-0.5">Menu</span>
           </button>
         </nav>
+        </div>
       </div>
 
       {/* Inactivity Warning Modal */}

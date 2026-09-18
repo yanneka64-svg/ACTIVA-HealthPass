@@ -116,7 +116,7 @@ const NEUTRAL_GRAY_PALETTE = {
   sidebarLightActiveIcon: 'text-[#404e62]',
   sidebarLightInactiveText: 'text-slate-500 hover:text-slate-800',
   sidebarLightInactiveHoverBg: 'hover:bg-slate-50',
-  sidebarLightBadgeBg: 'bg-[#f1f5f9] text-[#2c394c] border border-[#e2e8f0]',
+  sidebarLightBadgeBg: 'bg-[#f1f5f9] text-[#2c394c]',
 };
 
 export const ADMIN_THEME: RoleThemeConfig = {
@@ -199,7 +199,7 @@ export const AGENT_THEME: RoleThemeConfig = {
     sidebarLightActiveIcon: 'text-[#0A347B]',
     sidebarLightInactiveText: 'text-slate-500 hover:text-slate-800',
     sidebarLightInactiveHoverBg: 'hover:bg-slate-50',
-    sidebarLightBadgeBg: 'bg-[#dbeafe] text-[#0A347B] border border-[#bfdbfe]',
+    sidebarLightBadgeBg: 'bg-[#dbeafe] text-[#0A347B]',
   },
 };
 
@@ -236,10 +236,11 @@ export const SUPERVISOR_THEME: RoleThemeConfig = {
     accentBadge: 'bg-[#0A347B] text-white border border-[rgba(194,79,71,0.4)]',
     motifStroke: '214, 52, 44',
     // === AMÉLIORATION AJOUTÉE : variante claire de la sidebar — texte/fond actif hérités du bleu
-    // marine Agent (spread ci-dessus), mais l'indicateur d'item actif reprend le liseré rouge
-    // brique du Superviseur pour conserver la distinction visuelle avec Agent même en thème clair.
-    sidebarLightActiveIndicator: 'bg-[#C24F47]',
-    sidebarLightBorder: 'border-[rgba(194,79,71,0.25)]',
+    // marine Agent (spread ci-dessus). Le liseré rouge brique distinguant le Superviseur (utilisé
+    // pour `sidebarBorder`, le thème sombre) n'est PAS repris ici : demande explicite
+    // utilisateur (2026-09-18) — "retirez les contours colorés partout" — la bordure de la
+    // sidebar claire reste neutre (`sidebarLightBorder`, héritée du spread ci-dessus), quel que
+    // soit le rôle.
   },
 };
 
@@ -279,7 +280,7 @@ export const CLAIMS_AGENT_THEME: RoleThemeConfig = {
     sidebarLightActiveText: 'text-[#0F766E] font-bold',
     sidebarLightActiveIndicator: 'bg-[#0F766E]',
     sidebarLightActiveIcon: 'text-[#0F766E]',
-    sidebarLightBadgeBg: 'bg-[#ccfbf1] text-[#0F766E] border border-[#99f6e4]',
+    sidebarLightBadgeBg: 'bg-[#ccfbf1] text-[#0F766E]',
   },
 };
 
@@ -314,7 +315,7 @@ export const MEDICAL_REVIEWER_THEME: RoleThemeConfig = {
     sidebarLightActiveText: 'text-[#4338CA] font-bold',
     sidebarLightActiveIndicator: 'bg-[#4338CA]',
     sidebarLightActiveIcon: 'text-[#4338CA]',
-    sidebarLightBadgeBg: 'bg-[#e0e7ff] text-[#4338CA] border border-[#c7d2fe]',
+    sidebarLightBadgeBg: 'bg-[#e0e7ff] text-[#4338CA]',
   },
 };
 
@@ -349,7 +350,7 @@ export const FINANCE_THEME: RoleThemeConfig = {
     sidebarLightActiveText: 'text-[#047857] font-bold',
     sidebarLightActiveIndicator: 'bg-[#047857]',
     sidebarLightActiveIcon: 'text-[#047857]',
-    sidebarLightBadgeBg: 'bg-[#d1fae5] text-[#047857] border border-[#a7f3d0]',
+    sidebarLightBadgeBg: 'bg-[#d1fae5] text-[#047857]',
   },
 };
 
@@ -384,7 +385,7 @@ export const MANAGEMENT_THEME: RoleThemeConfig = {
     sidebarLightActiveText: 'text-[#B45309] font-bold',
     sidebarLightActiveIndicator: 'bg-[#B45309]',
     sidebarLightActiveIcon: 'text-[#B45309]',
-    sidebarLightBadgeBg: 'bg-[#fef3c7] text-[#B45309] border border-[#fde68a]',
+    sidebarLightBadgeBg: 'bg-[#fef3c7] text-[#B45309]',
   },
 };
 
