@@ -104,6 +104,24 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
       >
         <div className="absolute inset-0 bg-gradient-to-b from-[#072659]/90 via-[#0A347B]/85 to-[#0D2B63]/92 pointer-events-none" />
         <div className="absolute -bottom-16 -left-16 w-72 h-72 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
+        {/* === AMÉLIORATION AJOUTÉE : fondu du panneau bleu vers le blanc (demande explicite,
+            ajustée après retour utilisateur du 2026-09-18 — "le trait se voit encore") ===
+            Le panneau parent porte un padding (`p-10 xl:p-14`) : un enfant `absolute right-0`
+            s'arrête à la bordure INTÉRIEURE de ce padding (bordure du "padding box", la zone
+            de positionnement des éléments absolus), et non au bord réel du panneau — ce qui
+            laissait une fine bande de bleu non fondu juste avant la jonction avec le panneau
+            blanc (c'est ce qui créait le "trait" encore visible). `-mr-10 xl:-mr-14` annule
+            exactement ce padding pour que le dégradé atteigne le bord réel du panneau. Zone
+            resserrée à ~20 % de la largeur du panneau (~15-20 % de la largeur totale de
+            l'écran, centrée sur la jonction, comme demandé) : bleu foncé → moyen → pâle →
+            blanc, sans palier ni bord visible. */}
+        <div
+          className="absolute inset-y-0 right-0 w-1/5 -mr-10 xl:-mr-14 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(to right, transparent 0%, rgba(255,255,255,0.3) 35%, rgba(255,255,255,0.68) 68%, #ffffff 100%)',
+          }}
+        />
 
         <div className="relative z-10 self-start bg-white rounded-lg px-3 py-2 shadow-sm">
           <img src={activaLogoOriginal} alt="Activa" className="h-12 w-auto" />
@@ -125,6 +143,20 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
 
       {/* RIGHT PANEL — sélection de l'espace de travail */}
       <div className="flex-1 bg-white relative flex flex-col">
+        {/* === AMÉLIORATION AJOUTÉE : prolongement très discret du fondu bleu → blanc côté
+            panneau blanc (demande explicite, ajustée le 2026-09-18) — pour que la transition
+            soit réellement centrée SUR la jonction (et pas entièrement contenue côté bleu),
+            une légère brume bleue s'estompe sur les tout premiers pourcents du bord gauche de
+            ce panneau, avant de rejoindre le blanc pur. Ce panneau n'a pas de padding propre
+            (le padding est sur le conteneur interne des cartes, plus loin), donc `left-0`
+            atteint directement le bord réel du panneau, sans le bug de padding corrigé côté
+            panneau bleu. N'affecte jamais les cartes (centrées, hors de cette bande). === */}
+        <div
+          className="hidden lg:block absolute inset-y-0 left-0 w-[10%] pointer-events-none"
+          style={{
+            background: 'linear-gradient(to right, rgba(10,52,123,0.08) 0%, transparent 100%)',
+          }}
+        />
         <div className="hidden lg:block absolute top-6 right-6 xl:top-10 xl:right-10 z-10">
           <div className="relative">
             <Globe className="w-3.5 h-3.5 text-[#0A34A3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
