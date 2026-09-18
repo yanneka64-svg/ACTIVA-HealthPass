@@ -696,12 +696,24 @@ export default function App() {
   };
 
   // CLAIMS HANDLERS WITH MULTI-ROLE NOTIFICATIONS & AUDIT
-  const handleApproveClaim = async (claimId: string) => {
-    const claim = claims.find((c) => c.id === claimId);
-    if (!claim) return;
+  // === AMÉLIORATION AJOUTÉE : correctif (retour de revue qodo sur la PR #64, 2026-09-18) ===
+  // Extrait du corps de handleApproveClaim ci-dessous, inchangé, pour être appelable directement
+  // avec le `Claim` déjà en main (voir ClaimsView.tsx) sans repasser par une recherche dans l'état
+  // `claims` de ce composant — cet état peut être transitoirement désynchronisé du cache
+  // scope-par-organisation que ClaimsView lit désormais via useClaimsQuery (ex. juste après un
+  // changement en direct de assignedOrgs, avant l'arrivée du nouvel instantané Firestore), ce qui
+  // aurait pu faire échouer silencieusement `claims.find(...)` sur un sinistre pourtant bien
+  // affiché et approuvé dans la vue.
+  const handleApproveClaimRecord = async (claim: Claim) => {
     await WorkflowService.approveClaim(claim, currentUser, members, organizations);
     setToastMessage(`Claim #${claim.reference} approved successfully.`);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleApproveClaim = async (claimId: string) => {
+    const claim = claims.find((c) => c.id === claimId);
+    if (!claim) return;
+    await handleApproveClaimRecord(claim);
   };
 
   const handleRejectClaim = async (claim: Claim, reason: string, comments: string) => {
@@ -1421,7 +1433,7 @@ export default function App() {
                 providers={providers}
                 members={members}
                 logs={logs}
-                onApprove={handleApproveClaim}
+                onApprove={handleApproveClaimRecord}
                 onReject={handleRejectClaim}
                 onReturn={handleReturnClaim}
                 onAssign={handleAssignClaim}
@@ -1517,7 +1529,7 @@ export default function App() {
               providers={providers}
               members={members}
               logs={logs}
-              onApprove={handleApproveClaim}
+              onApprove={handleApproveClaimRecord}
               onReject={handleRejectClaim}
               onReturn={handleReturnClaim}
               onAssign={handleAssignClaim}

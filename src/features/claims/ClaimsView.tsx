@@ -74,7 +74,14 @@ interface ClaimsViewProps {
   // (FirestoreService.subscribeToLogs), réutilisé tel quel par l'onglet Timeline. Optionnel :
   // absent, l'onglet affiche simplement "aucune activité enregistrée".
   logs?: any[];
-  onApprove: (id: string) => void;
+  // === AMÉLIORATION AJOUTÉE : correctif (retour de revue qodo sur la PR #64, 2026-09-18) ===
+  // Reçoit désormais le `Claim` complet (plus un simple id) : App.tsx n'a donc plus besoin de le
+  // retrouver par recherche dans son propre état `claims`, qui peut être transitoirement
+  // désynchronisé du cache scope-par-organisation lu ici via useClaimsQuery (ex. juste après un
+  // changement en direct de assignedOrgs, avant que le nouvel instantané Firestore n'arrive) —
+  // une recherche par id aurait alors pu échouer silencieusement sur un sinistre pourtant bien
+  // affiché et approuvé ici.
+  onApprove: (claim: Claim) => void;
   onReject: (claim: Claim, reason: string, comments: string) => void;
   onReturn?: (claim: Claim, reason: string) => void;
   onAssign?: (claim: Claim, agentName: string) => void;
@@ -283,7 +290,7 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
       setSodAlertMessage(approvalCheck.reason);
       return;
     }
-    onApprove(claim.id);
+    onApprove(claim);
   };
 
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
