@@ -648,9 +648,9 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
             <span>{t.agentClaims.newClaimBtn}</span>
           </button>
           {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — badge "ACTIVA Direct
-              Coverage" supprimé de ce bandeau. `t.agentClaims.directCoverageBadge` reste défini
-              dans translations.ts (peut encore être utilisé ailleurs / réintroduit facilement),
-              seul cet affichage est retiré. */}
+              Coverage" supprimé de ce bandeau, puis la clé de traduction `directCoverageBadge`
+              elle-même supprimée de translations.ts (mention retirée partout, plus seulement de
+              l'affichage). */}
         </div>
       </div>
 

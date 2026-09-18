@@ -62,14 +62,14 @@ export const translations = {
         // "Identification" et sous-titre remplacé pour refléter le contenu réel de l'écran
         // (identification biométrique + limites de couverture).
         identification: { title: 'Identification', subtitle: 'Biometric identification and coverage limits' },
-        medical_form: { title: 'Medical Form', subtitle: 'Issuance & management of healthcare authorization vouchers and prescriptions' },
-        claims: { title: 'Medical Claims Management', subtitle: 'Incoming claims, coverage assessments, and settlements' },
+        medical_form: { title: 'Medical Intake Form', subtitle: 'Issuance & management of healthcare authorization vouchers and prescriptions' },
+        claims: { title: 'Claims Processing', subtitle: 'Incoming claims, coverage assessments, and settlements' },
         claims_validation: { title: 'Medical Claims Validation', subtitle: 'Review, verify and approve provider claims' },
         enrollments_validation: { title: 'Beneficiary Enrollments Validation', subtitle: 'Biometric and policyholder admission approvals' },
         validated_history: { title: 'Validated Claims History', subtitle: 'Archive and audit trail of approved medical claims' },
         receipts: { title: 'Direct Billing Receipts', subtitle: 'Disbursement vouchers and settlement receipts' },
         invoices: { title: 'Direct Billing Invoices', subtitle: 'Healthcare provider disbursements, slips, and receipts' },
-        enrollments: { title: 'Beneficiary Enrollments', subtitle: 'Active policyholders, dependents, and biometric records' },
+        enrollments: { title: 'Enrollments', subtitle: 'Active policyholders, dependents, and biometric records' },
         reports: { title: 'Financial & Operational Reports', subtitle: 'Consolidated audits, payout analytics, and compliance' },
         members: { title: 'Insured Members Directory', subtitle: 'Policyholder profiles, plan tiers, and validity' },
         organizations: { title: 'Partner Organizations & Corporates', subtitle: 'Employer contracts, groups, and policy ceilings' },
@@ -1253,7 +1253,7 @@ export const translations = {
     agentEnroll: {
       pageTitle: 'Biometric Member Enrollment',
       pageSubtitle: 'Certified optical fingerprint capture, facial photograph acquisition, and policy affiliation',
-      newEnrollmentTab: 'New Beneficiary Enrollment',
+      newEnrollmentTab: 'New Enrollment',
       submittedRequestsTab: 'Submitted Requests',
       submitSuccessTitle: 'Enrollment file successfully submitted!',
       submitSuccessDesc: 'The file has been routed to the supervisor for review and health card generation.',
@@ -1300,7 +1300,7 @@ export const translations = {
       assigningCardNumber: 'Assigning card number…',
       submitApplication: 'Submit Enrollment Application for Approval',
       startNewEnrollment: 'Start a new enrollment',
-      activateFormHint: 'Click "New Beneficiary Enrollment" to activate this form.',
+      activateFormHint: 'Click "New Enrollment" to activate this form.',
       searchRequestsPlaceholder: 'Search requests by card no, name, reference...',
       allStatus: 'All Status',
       pendingValidationOption: 'Pending Validation',
@@ -1342,10 +1342,9 @@ export const translations = {
     // === AMÉLIORATION AJOUTÉE : namespace agentClaims (2026-09-10) — traduction de l'écran
     // de saisie des réclamations médicales côté Agent (formulaire + historique).
     agentClaims: {
-      pageTitle: 'Medical Claims Entry & Processing',
+      pageTitle: 'Medical Claims Entry',
       pageSubtitle: 'Real-time coverage adjudication, biometric verification and automated duplicate detection',
       newClaimBtn: 'New Claim',
-      directCoverageBadge: 'ACTIVA Direct Coverage',
       ineligibleTitle: 'Coverage Ineligibility / Direct-Billing Blocked',
       ineligibleHint: 'Direct billing cannot be submitted for this profile. Please advise patient to contact their HR sponsor or ACTIVA Care Management.',
       ineligibleFallback: 'Patient or Sponsor is ineligible for direct billing coverage.',
@@ -1463,7 +1462,7 @@ export const translations = {
     // === AMÉLIORATION AJOUTÉE : namespace agentMedForm (2026-09-10) — traduction de l'écran
     // Formulaire médical côté Agent (bon d'autorisation de prise en charge + historique).
     agentMedForm: {
-      pageTitle: 'Medical Form Generation (Coverage Authorization)',
+      pageTitle: 'Coverage Authorization',
       pageSubtitle: 'Smart search for member, practitioner and coverage limits',
       newFormTab: 'New Medical Form',
       historyTabPrefix: 'History',
@@ -1739,13 +1738,13 @@ export const translations = {
         dashboard: { title: 'Aperçu exécutif', subtitle: 'Indicateurs de santé globaux et KPI de traitement en direct' },
         identification: { title: 'Identification', subtitle: 'Identification biométrique et limites de couverture' },
         medical_form: { title: 'Formulaire médical', subtitle: 'Émission et gestion des bons d\'autorisation de soins et ordonnances' },
-        claims: { title: 'Gestion des réclamations médicales', subtitle: 'Réclamations entrantes, évaluations de couverture et règlements' },
+        claims: { title: 'Traitement des réclamations', subtitle: 'Réclamations entrantes, évaluations de couverture et règlements' },
         claims_validation: { title: 'Validation des réclamations médicales', subtitle: 'Examiner, vérifier et approuver les réclamations des prestataires' },
         enrollments_validation: { title: 'Validation des adhésions de bénéficiaires', subtitle: 'Approbations biométriques et d\'admission des assurés' },
         validated_history: { title: 'Historique des réclamations validées', subtitle: 'Archive et piste d\'audit des réclamations médicales approuvées' },
         receipts: { title: 'Reçus de facturation directe', subtitle: 'Bons de décaissement et reçus de règlement' },
         invoices: { title: 'Factures de facturation directe', subtitle: 'Décaissements, bordereaux et reçus des prestataires de santé' },
-        enrollments: { title: 'Adhésions de bénéficiaires', subtitle: 'Assurés actifs, ayants droit et dossiers biométriques' },
+        enrollments: { title: 'Adhésions', subtitle: 'Assurés actifs, ayants droit et dossiers biométriques' },
         reports: { title: 'Rapports financiers et opérationnels', subtitle: 'Audits consolidés, analyses de décaissement et conformité' },
         members: { title: 'Annuaire des assurés', subtitle: 'Profils des assurés, niveaux de plan et validité' },
         organizations: { title: 'Organisations partenaires & entreprises', subtitle: 'Contrats employeurs, groupes et plafonds de police' },
@@ -2919,10 +2918,9 @@ export const translations = {
     },
 
     agentClaims: {
-      pageTitle: 'Saisie et traitement des réclamations médicales',
+      pageTitle: 'Saisie des réclamations médicales',
       pageSubtitle: 'Adjudication de couverture en temps réel, vérification biométrique et détection automatisée des doublons',
       newClaimBtn: 'Nouvelle réclamation',
-      directCoverageBadge: 'Couverture directe ACTIVA',
       ineligibleTitle: 'Inéligibilité de couverture / Facturation directe bloquée',
       ineligibleHint: "La facturation directe ne peut être soumise pour ce profil. Veuillez conseiller au patient de contacter son sponsor RH ou la gestion des soins ACTIVA.",
       ineligibleFallback: "Le patient ou le sponsor n'est pas éligible à la couverture en facturation directe.",
@@ -3035,7 +3033,7 @@ export const translations = {
     },
 
     agentMedForm: {
-      pageTitle: 'Génération du formulaire médical (Autorisation de couverture)',
+      pageTitle: 'Autorisation de couverture',
       pageSubtitle: 'Recherche intelligente pour assuré, praticien et plafonds de couverture',
       newFormTab: 'Nouveau formulaire médical',
       historyTabPrefix: 'Historique',

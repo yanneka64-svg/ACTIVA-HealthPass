@@ -103,7 +103,7 @@ export const WorkflowService = {
     // Notify supervisors of the incoming enrollment
     await FirestoreService.addNotification({
       recipientRole: 'Supervisor',
-      title: 'New Beneficiary Enrollment',
+      title: 'New Enrollment',
       message: `Card #${payload.cardNo} for ${payload.fullName} (${payload.relationship}) was submitted by ${payload.creatorName}.`,
       timestamp: new Date().toISOString(),
       unread: true,

@@ -54,7 +54,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
   const t = useTranslation(lang);
   const [activeTab, setActiveTab] = useState<'create' | 'list'>('create');
   // === AMÉLIORATION AJOUTÉE : le formulaire d'enrôlement reste grisé/inactif tant que l'agent
-  // n'a pas explicitement cliqué sur "New Beneficiary Enrollment" (demande explicite de
+  // n'a pas explicitement cliqué sur "New Enrollment" (demande explicite de
   // l'utilisateur, 2026-09-10) — au lieu d'être actif par défaut simplement en arrivant sur cet
   // écran. Remis à `false` après chaque soumission réussie (voir handleSubmit) pour que la
   // prochaine ouverture nécessite à nouveau un clic explicite.
@@ -697,7 +697,7 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
           {/* === AMÉLIORATION AJOUTÉE : fenêtre/popup "Start a new enrollment" retirée
               (2026-09-10, demande explicite de l'utilisateur — "je ne veux pas la fenêtre").
               L'activation du formulaire reste pilotée par formActivated (voir plus haut) et ne
-              se déclenche plus que via le bouton "New Beneficiary Enrollment" en haut de page —
+              se déclenche plus que via le bouton "New Enrollment" en haut de page —
               le formulaire grisé/inactif (opacity-50, ci-dessus) suffit désormais seul à
               indiquer qu'il faut cliquer ce bouton, sans superposer de fenêtre par-dessus. === */}
           </div>
