@@ -1,6 +1,6 @@
 import React from 'react';
 import { Logo } from '../Logo';
-import { ShieldCheck, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface AuthLoadingScreenProps {
   message?: string;
@@ -16,13 +16,8 @@ export const AuthLoadingScreen: React.FC<AuthLoadingScreenProps> = ({
       id="auth-loading-screen"
       className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between p-6 font-sans antialiased select-none"
     >
-      {/* Top Header Bar */}
-      <header className="w-full flex items-center justify-between py-2 px-2 sm:px-4">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0a2e6b] shadow-2xs">
-          <ShieldCheck className="w-3.5 h-3.5 text-[#0a2e6b]" />
-          <span>ACTIVA Cloud Secure Gateway</span>
-        </div>
-      </header>
+      {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — suppression de la mention
+          "ACTIVA Cloud Secure Gateway" qui figurait ici en haut de l'écran de chargement. */}
 
       {/* Centered Loading Card */}
       <div className="my-auto flex flex-col items-center justify-center">
