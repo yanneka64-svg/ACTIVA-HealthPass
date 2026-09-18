@@ -564,8 +564,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
           </div>
           <div>
             {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — sous-titre retiré
-                sous ce grand titre. */}
-            <h2 className="font-bold text-sm sm:text-base text-slate-900">{t.agentMedForm.pageTitle}</h2>
+                sous ce grand titre ; taille/police harmonisées avec les autres grands titres de
+                page (text-base font-extrabold tracking-tight). */}
+            <h2 className="text-base font-extrabold text-slate-900 tracking-tight">{t.agentMedForm.pageTitle}</h2>
           </div>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
