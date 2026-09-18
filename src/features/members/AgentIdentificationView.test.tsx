@@ -174,7 +174,7 @@ describe('AgentIdentificationView — recherche par scan QR code', () => {
   it('le bouton "Scan QR Code" ouvre la modale de scan', () => {
     render(<AgentIdentificationView lang="en" members={[testMember]} claims={[]} />);
 
-    fireEvent.click(screen.getByText('Scan QR Code'));
+    fireEvent.click(screen.getByTitle('Scan QR Code'));
 
     expect(screen.getByText('Scan Insured Card QR Code')).toBeInTheDocument();
   });
@@ -182,7 +182,7 @@ describe('AgentIdentificationView — recherche par scan QR code', () => {
   it("sans BarcodeDetector disponible, affiche un repli honnête au lieu d'une capture simulée", () => {
     render(<AgentIdentificationView lang="en" members={[testMember]} claims={[]} />);
 
-    fireEvent.click(screen.getByText('Scan QR Code'));
+    fireEvent.click(screen.getByTitle('Scan QR Code'));
 
     expect(
       screen.getByText(/QR code scanning is not supported on this device or browser/)
@@ -206,7 +206,7 @@ describe('AgentIdentificationView — recherche par scan QR code', () => {
 
     render(<AgentIdentificationView lang="en" members={[testMember]} claims={[]} />);
 
-    fireEvent.click(screen.getByText('Scan QR Code'));
+    fireEvent.click(screen.getByTitle('Scan QR Code'));
     await waitFor(() => expect(screen.queryByText('Scan Insured Card QR Code')).not.toBeInTheDocument());
 
     expect(screen.queryByText('Identify an insured member')).not.toBeInTheDocument();
@@ -237,7 +237,7 @@ describe('AgentIdentificationView — recherche par scan QR code', () => {
       <AgentIdentificationView lang="en" members={[testMember, secondTestMember]} claims={[]} />
     );
 
-    fireEvent.click(screen.getByText('Scan QR Code'));
+    fireEvent.click(screen.getByTitle('Scan QR Code'));
     await waitFor(() => expect(screen.queryByText('Scan Insured Card QR Code')).not.toBeInTheDocument());
 
     expect(screen.getByText('Identify an insured member')).toBeInTheDocument();

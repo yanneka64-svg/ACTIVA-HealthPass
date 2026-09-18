@@ -470,33 +470,30 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             dans l'app. Unifié sur #0a2e6b/#07214f dans tout le fichier — aucun changement
             visuel perceptible, juste une seule et même teinte partout. */}
         <form onSubmit={handleSearchSubmit} className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t.agentId.searchPlaceholder}
-            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
+            className="w-full pl-11 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--brand-900)] focus:bg-white transition"
           />
-        </form>
-
-        {/* === CORRECTIF (revue automatisée, 2026-09-18) : ce groupe de boutons (QR + Biométrie +
-            Search) ne passait jamais à la ligne (`flex` sans `flex-wrap`, largeur intrinsèque
-            fixe) ; sur mobile, surtout en français où les libellés sont plus longs, les 3
-            boutons dépassaient la largeur de l'écran. `flex-wrap` + pleine largeur sous `md`
-            laisse les boutons s'empiler sur plusieurs lignes plutôt que déborder. */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto md:shrink-0">
-          {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — bouton de scan QR code
-              pour capter le n° de carte depuis la carte assuré et faciliter la recherche (voir
-              QrCodeScannerModal.tsx et handleQrCodeScanned). */}
+          {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18, ajustement) — le scan QR
+              vit désormais DANS la barre de recherche (icône à droite du champ), au lieu d'un
+              bouton séparé à côté ; le bouton "Rechercher" reste inchangé dans le groupe de
+              boutons ci-dessous. */}
           <button
             type="button"
             onClick={() => setIsQrScannerOpen(true)}
-            className="px-4 py-3 rounded-xl font-bold text-xs shadow-2xs transition flex items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap"
+            aria-label={t.agentId.scanQrCode}
+            title={t.agentId.scanQrCode}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-slate-400 hover:text-[var(--brand-900)] hover:bg-slate-200/60 transition cursor-pointer"
           >
             <QrCode className="w-4 h-4" />
-            <span>{t.agentId.scanQrCode}</span>
           </button>
+        </form>
+
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             onClick={handleOpenBiometricScanner}
