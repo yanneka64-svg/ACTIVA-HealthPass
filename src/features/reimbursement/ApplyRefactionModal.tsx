@@ -7,10 +7,17 @@
 // de la facture (`amount`) n'est jamais modifié — seul un nouveau `payableAmountUSD` dérivé est
 // écrit, utilisé ensuite pour le paiement et la réconciliation.
 import React, { useState } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { X, ScanSearch, Plus, Trash2 } from 'lucide-react';
 import { InvoiceItem, InvoiceActRefaction } from '../../types';
 import { FirestoreService } from '../../services/firestore';
 import { useCurrency } from '../../services/currency';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Voir
+// applyRefactionFormSchemas.ts : useFieldArray remplace les 3 tableaux parallèles
+// (acts/retained/reasons) par un unique tableau d'objets dans le formulaire ; le schéma
+// n'encode que le booléen de validité, les messages précis restent construits ici (onInvalid).
+import { createApplyRefactionFormSchema, ApplyRefactionFormValues } from './applyRefactionFormSchemas';
 
 interface ApplyRefactionModalProps {
   invoice: InvoiceItem;
@@ -42,21 +49,26 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
     ? invoice.medicalActs!.map((a) => ({ name: a.name, amount: a.amount, category: a.category }))
     : [{ name: invoice.careType, amount: invoice.amount, category: undefined as string | undefined }];
 
-  const [acts, setActs] = useState(initialActs);
-  const [retained, setRetained] = useState<number[]>(initialActs.map((a) => a.amount));
-  const [reasons, setReasons] = useState<string[]>(initialActs.map(() => ''));
+  const form = useForm<ApplyRefactionFormValues>({
+    resolver: zodResolver(createApplyRefactionFormSchema(invoice.amount)),
+    defaultValues: {
+      acts: initialActs.map((a) => ({ name: a.name, amount: a.amount, category: a.category, retained: a.amount, reason: '' })),
+    },
+  });
+  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'acts' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const totalOriginal = acts.reduce((s, a) => s + a.amount, 0);
-  const totalRetained = retained.reduce((s, v) => s + v, 0);
+  const watchedActs = form.watch('acts');
+  const totalOriginal = watchedActs.reduce((s, a) => s + a.amount, 0);
+  const totalRetained = watchedActs.reduce((s, a) => s + a.retained, 0);
   const totalRefacted = Math.max(0, totalOriginal - totalRetained);
   const linesMismatch = Math.abs(totalOriginal - invoice.amount) > 0.01;
 
   const handleRetainedChange = (i: number, raw: string) => {
-    const max = acts[i].amount;
+    const max = watchedActs[i].amount;
     const v = Math.max(0, Math.min(max, Number(raw) || 0));
-    setRetained((r) => r.map((x, idx) => (idx === i ? v : x)));
+    form.setValue(`acts.${i}.retained`, v);
   };
 
   // === AMÉLIORATION AJOUTÉE : le montant réfacté (rejeté) est désormais lui aussi saisissable
@@ -64,86 +76,92 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
   // n'était qu'un affichage calculé). Les deux champs restent synchronisés : modifier l'un
   // recalcule l'autre, sans jamais dépasser le montant original de l'acte.
   const handleRefactedChange = (i: number, raw: string) => {
-    const max = acts[i].amount;
+    const max = watchedActs[i].amount;
     const rejected = Math.max(0, Math.min(max, Number(raw) || 0));
-    setRetained((r) => r.map((x, idx) => (idx === i ? max - rejected : x)));
-  };
-
-  const handleActNameChange = (i: number, name: string) => {
-    setActs((prev) => prev.map((a, idx) => (idx === i ? { ...a, name } : a)));
+    form.setValue(`acts.${i}.retained`, max - rejected);
   };
 
   const handleActAmountChange = (i: number, raw: string) => {
     const v = Math.max(0, Number(raw) || 0);
-    setActs((prev) => prev.map((a, idx) => (idx === i ? { ...a, amount: v } : a)));
+    form.setValue(`acts.${i}.amount`, v);
     // Le montant retenu de cette ligne ne peut jamais dépasser son nouveau montant original.
-    setRetained((prev) => prev.map((r, idx) => (idx === i ? Math.min(r, v) : r)));
+    const currentRetained = form.getValues(`acts.${i}.retained`);
+    if (currentRetained > v) form.setValue(`acts.${i}.retained`, v);
   };
 
   const addActLine = () => {
-    setActs((prev) => [...prev, { name: '', amount: 0, category: undefined }]);
-    setRetained((prev) => [...prev, 0]);
-    setReasons((prev) => [...prev, '']);
+    append({ name: '', amount: 0, category: undefined, retained: 0, reason: '' });
   };
 
   const removeActLine = (i: number) => {
-    if (acts.length <= 1) return;
-    setActs((prev) => prev.filter((_, idx) => idx !== i));
-    setRetained((prev) => prev.filter((_, idx) => idx !== i));
-    setReasons((prev) => prev.filter((_, idx) => idx !== i));
+    if (fields.length <= 1) return;
+    remove(i);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const handleSubmit = form.handleSubmit(
+    async (values) => {
+      setError(null);
 
-    if (linesMismatch) {
-      setError(`Line amounts must add up to the original invoice total (${formatAmount(invoice.amount)}). Currently: ${formatAmount(totalOriginal)}.`);
-      return;
-    }
+      const totalOriginalV = values.acts.reduce((s, a) => s + a.amount, 0);
+      const totalRetainedV = values.acts.reduce((s, a) => s + a.retained, 0);
+      const totalRefactedV = Math.max(0, totalOriginalV - totalRetainedV);
 
-    const refactions: InvoiceActRefaction[] = [];
-    for (let i = 0; i < acts.length; i++) {
-      const rejected = Math.max(0, acts[i].amount - retained[i]);
-      if (rejected > 0) {
-        if (!reasons[i].trim()) {
-          setError(`A reason is required for "${acts[i].name || `Line ${i + 1}`}" — its retained amount is below the original.`);
+      const refactions: InvoiceActRefaction[] = [];
+      values.acts.forEach((a, i) => {
+        const rejected = Math.max(0, a.amount - a.retained);
+        if (rejected > 0) {
+          refactions.push({
+            actIndex: i,
+            actName: a.name || `Line ${i + 1}`,
+            originalAmountUSD: a.amount,
+            retainedAmountUSD: a.retained,
+            rejectedAmountUSD: rejected,
+            reason: a.reason.trim(),
+          });
+        }
+      });
+
+      setSaving(true);
+      try {
+        await FirestoreService.updateInvoice({
+          ...invoice,
+          refactionApplied: true,
+          refactions,
+          refactionTotalUSD: totalRefactedV,
+          refactionAppliedAt: new Date().toISOString(),
+          refactionAppliedBy: currentUserName,
+          refactionAppliedByRole: currentUserRole,
+          payableAmountUSD: totalRetainedV,
+        });
+        onClose();
+      } catch {
+        setError('Could not save this réfaction. Please try again.');
+        setSaving(false);
+      }
+    },
+    () => {
+      // Reproduit exactement l'ordre de priorité des vérifications d'origine : la validation
+      // zod ne fait que bloquer la soumission (booléen) ; le message précis (avec montants
+      // formatés) est reconstruit ici à partir des valeurs courantes du formulaire.
+      const values = form.getValues();
+      const totalOriginalV = values.acts.reduce((s, a) => s + a.amount, 0);
+
+      if (Math.abs(totalOriginalV - invoice.amount) > 0.01) {
+        setError(`Line amounts must add up to the original invoice total (${formatAmount(invoice.amount)}). Currently: ${formatAmount(totalOriginalV)}.`);
+        return;
+      }
+
+      for (let i = 0; i < values.acts.length; i++) {
+        const rejected = Math.max(0, values.acts[i].amount - values.acts[i].retained);
+        if (rejected > 0 && !values.acts[i].reason.trim()) {
+          setError(`A reason is required for "${values.acts[i].name || `Line ${i + 1}`}" — its retained amount is below the original.`);
           return;
         }
-        refactions.push({
-          actIndex: i,
-          actName: acts[i].name || `Line ${i + 1}`,
-          originalAmountUSD: acts[i].amount,
-          retainedAmountUSD: retained[i],
-          rejectedAmountUSD: rejected,
-          reason: reasons[i].trim(),
-        });
       }
-    }
 
-    if (refactions.length === 0) {
       setError('No act was reduced — lower at least one retained amount to apply a réfaction.');
-      return;
     }
-
-    setSaving(true);
-    try {
-      await FirestoreService.updateInvoice({
-        ...invoice,
-        refactionApplied: true,
-        refactions,
-        refactionTotalUSD: totalRefacted,
-        refactionAppliedAt: new Date().toISOString(),
-        refactionAppliedBy: currentUserName,
-        refactionAppliedByRole: currentUserRole,
-        payableAmountUSD: totalRetained,
-      });
-      onClose();
-    } catch {
-      setError('Could not save this réfaction. Please try again.');
-      setSaving(false);
-    }
-  };
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
@@ -176,8 +194,9 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
             )}
 
             <div className="space-y-3">
-              {acts.map((act, i) => {
-                const rejected = Math.max(0, act.amount - retained[i]);
+              {fields.map((field, i) => {
+                const act = watchedActs[i];
+                const rejected = Math.max(0, act.amount - act.retained);
                 return (
                   // === AMÉLIORATION AJOUTÉE : réalignement horizontal ET vertical des champs
                   // (2026-09-10, demande explicite) — chaque colonne (Medical Act / Original /
@@ -186,7 +205,7 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                   // champs démarrent tous à la même ligne, au lieu du décalage précédent
                   // (`mt-4` approximatif sur le bouton, absence de libellé au-dessus du nom).
                   // Aucune donnée ni logique n'a changé, uniquement la mise en page.
-                  <div key={i} className={`p-3.5 rounded-xl border space-y-2.5 ${rejected > 0 ? 'border-orange-200 bg-orange-50/30' : 'border-slate-200'}`}>
+                  <div key={field.id} className={`p-3.5 rounded-xl border space-y-2.5 ${rejected > 0 ? 'border-orange-200 bg-orange-50/30' : 'border-slate-200'}`}>
                     <div className="flex items-start gap-2.5">
                       <div className="min-w-0 flex-1">
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Medical Act</label>
@@ -198,8 +217,7 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                         ) : (
                           <input
                             type="text"
-                            value={act.name}
-                            onChange={(e) => handleActNameChange(i, e.target.value)}
+                            {...form.register(`acts.${i}.name`)}
                             placeholder={`Medical act / item name (e.g. Amoxicillin 500mg)`}
                             className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900"
                           />
@@ -220,7 +238,7 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                           />
                         )}
                       </div>
-                      {!hasOriginalBreakdown && acts.length > 1 && (
+                      {!hasOriginalBreakdown && fields.length > 1 && (
                         <div className="shrink-0">
                           <div className="mb-1 h-[14px]" aria-hidden="true" />
                           <button
@@ -257,7 +275,7 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 h-3.5 leading-[14px]">Retained</label>
                         <input
                           type="number"
-                          value={retained[i]}
+                          value={act.retained}
                           max={act.amount}
                           min={0}
                           step="0.01"
@@ -283,8 +301,7 @@ export const ApplyRefactionModal: React.FC<ApplyRefactionModalProps> = ({
                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Reason</label>
                       <input
                         type="text"
-                        value={reasons[i]}
-                        onChange={(e) => setReasons((r) => r.map((x, idx) => (idx === i ? e.target.value : x)))}
+                        {...form.register(`acts.${i}.reason`)}
                         placeholder={rejected > 0 ? 'Reason for rejection (required)' : 'Reason for rejection (only required if an amount is rejected)'}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400"
                       />
