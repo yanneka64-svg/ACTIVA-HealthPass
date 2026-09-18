@@ -81,7 +81,7 @@ import {
   playErrorSound,
   playLogoutSound,
 } from './utils/sound'; // === AMÉLIORATION AJOUTÉE : sons Web Audio API (succès, notification, connexion, erreur, déconnexion) ===
-import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon, Users, FileCheck } from 'lucide-react';
+import { LayoutDashboard, Receipt, FileText, UserCheck, Menu as MenuIcon, Users, FileCheck, ChevronUp, ChevronDown } from 'lucide-react';
 
 export type AuthStateStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'inactive' | 'invalid_role';
 
@@ -1229,6 +1229,9 @@ export default function App() {
   const pendingEnrollmentsCount = enrollments.filter((e) => e.status === 'pending').length;
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18) — cible du rail de défilement à
+  // flèches ancré au bord droit de la page (voir plus bas, section Sidebar/Contenu).
+  const mainScrollRef = useRef<HTMLDivElement>(null);
 
   // 1. Loading screen: absolutely NO dashboard is rendered while resolving session & role
   if (authStatus === 'loading') {
@@ -1402,7 +1405,33 @@ export default function App() {
           dimensionne désormais à son contenu (liste de navigation), au lieu de laisser un grand
           vide sous le dernier item. La zone de contenu principale garde `lg:self-stretch` pour
           continuer à occuper toute la hauteur disponible (son défilement interne en dépend). */}
-      <div className="flex-1 flex min-h-0 overflow-hidden lg:items-start">
+      <div className="flex-1 flex min-h-0 overflow-hidden lg:items-start relative">
+        {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+            utilisateur — "la barre de navigation ... pas sur le sidebar, mais sur la page ...
+            côté droit", en référence à la mince barre de défilement avec flèches haut/bas sur
+            le bord droit de la maquette) === Rail de défilement du contenu principal, ancré au
+            bord droit de la fenêtre (desktop uniquement). Fonctionnel : les flèches défilent
+            réellement `mainScrollRef` (le conteneur scrollable du contenu, plus bas). */}
+        <div className="hidden lg:flex flex-col items-center justify-between absolute right-1.5 top-2 bottom-2 z-20 pointer-events-none">
+          <button
+            type="button"
+            onClick={() => mainScrollRef.current?.scrollBy({ top: -320, behavior: 'smooth' })}
+            className="pointer-events-auto p-1 rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+            aria-label="Scroll up"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <div className="w-px flex-1 bg-slate-200 my-1" />
+          <button
+            type="button"
+            onClick={() => mainScrollRef.current?.scrollBy({ top: 320, behavior: 'smooth' })}
+            className="pointer-events-auto p-1 rounded text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+            aria-label="Scroll down"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
         {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
           <div
@@ -1467,7 +1496,8 @@ export default function App() {
               Le Topbar (bandeau blanc avec le bouton profil) reste désormais hors de cette zone
               scrollable : la barre de défilement verticale ne part donc plus du tout en haut de
               la page, mais juste sous le Topbar, comme demandé. === */}
-          <div className="flex-1 overflow-y-auto">
+          {/* ref={mainScrollRef} : cible du rail de défilement à flèches ajouté plus haut. */}
+          <div className="flex-1 overflow-y-auto" ref={mainScrollRef}>
           {/* Section Router Content */}
         <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
           {/* === AMÉLIORATION AJOUTÉE : limite Suspense pour les écrans en React.lazy ci-dessus —
