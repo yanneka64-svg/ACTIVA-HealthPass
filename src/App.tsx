@@ -33,9 +33,12 @@ import { Topbar } from './components/Topbar';
 import { SyncIssueBanner } from './components/SyncIssueBanner';
 import { FallbackAlertBanner } from './components/FallbackAlertBanner';
 import { LoginView } from './components/auth/LoginView';
-// === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande explicite),
-// affiché avant LoginView — voir usage plus bas (bloc `authStatus === 'unauthenticated'`).
-import { WorkspaceSelectionView } from './components/auth/WorkspaceSelectionView';
+// === AMÉLIORATION AJOUTÉE : page d'accueil publique (demande explicite, 2026-09-18), affichée
+// avant LoginView — voir usage plus bas (bloc `authStatus === 'unauthenticated'`). Remplace
+// l'ancien écran de sélection d'espace de travail par tuiles (WorkspaceSelectionView.tsx,
+// conservé dans le dépôt mais plus utilisé par défaut) : le menu déroulant "Log in" de HomeView
+// joue désormais ce rôle avant de renvoyer vers LoginView.
+import { HomeView } from './components/home/HomeView';
 import { AuthLoadingScreen } from './components/auth/AuthLoadingScreen';
 import { AuthBlockedScreen } from './components/auth/AuthBlockedScreen';
 import { ChangePasswordModal } from './components/auth/ChangePasswordModal';
@@ -1240,13 +1243,16 @@ export default function App() {
 
   // 2. Unauthenticated screen: render clean, secured Login view
   if (authStatus === 'unauthenticated') {
-    // === AMÉLIORATION AJOUTÉE : nouvel écran de sélection d'espace de travail (demande
-    // explicite), affiché en premier tant qu'aucun espace n'a été choisi — voir
-    // `selectedWorkspace` ci-dessus. Une fois un espace choisi, la page de connexion existante
-    // (LoginView) s'affiche exactement comme avant, avec juste un rappel de l'espace choisi.
+    // === AMÉLIORATION AJOUTÉE : page d'accueil publique (demande explicite, 2026-09-18),
+    // affichée en premier tant qu'aucun espace de travail n'a été choisi — voir
+    // `selectedWorkspace` ci-dessus. Le bouton "Log in" de HomeView ouvre un menu déroulant de
+    // sélection d'espace ; une fois un espace choisi, la page de connexion existante (LoginView)
+    // s'affiche exactement comme avant, avec juste un rappel de l'espace choisi. Aucun accès à
+    // un espace n'est possible sans authentification et rôle valide : ce comportement (géré par
+    // LoginView, la résolution du rôle et AuthBlockedScreen ci-dessous) est inchangé.
     if (!selectedWorkspace) {
       return (
-        <WorkspaceSelectionView
+        <HomeView
           lang={lang}
           onLanguageChange={handleLanguageChange}
           onSelectWorkspace={handleSelectWorkspace}
