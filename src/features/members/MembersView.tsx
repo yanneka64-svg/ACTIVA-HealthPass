@@ -1,4 +1,9 @@
 import React, { useState, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Voir
+// membersFormSchemas.ts pour le détail de ce qui est/n'est pas couvert par ce schéma.
+import { memberFormSchema, MemberFormValues } from './membersFormSchemas';
 import {
   Search,
   UploadCloud,
@@ -132,17 +137,28 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   // existants (Excel mono-organisation / classeur multi-organisations Staff+Deps), sur le même
   // modèle que le bouton "Export" ci-dessus (menu déroulant, deux options).
   const [importMenuOpen, setImportMenuOpen] = useState(false);
-  const [formCardNo, setFormCardNo] = useState('');
-  const [formPrincipalName, setFormPrincipalName] = useState('');
-  const [formBirthDate, setFormBirthDate] = useState('');
-  const [formGender, setFormGender] = useState<'M' | 'F'>('M');
-  const [formOrg, setFormOrg] = useState('');
-  const [formRelationship, setFormRelationship] = useState<RelationshipType>('Principal');
-  const [mainInsuredName, setMainInsuredName] = useState('');
-  const [mainInsuredCardNo, setMainInsuredCardNo] = useState('');
-  const [formPhone, setFormPhone] = useState('');
-  const [formEmail, setFormEmail] = useState('');
-  const [formStatus, setFormStatus] = useState<MemberStatus>('Actif');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les
+  // 11 useState de champs textuels/select (formCardNo/formPrincipalName/formBirthDate/
+  // formGender/formOrg/formRelationship/mainInsuredName/mainInsuredCardNo/formPhone/
+  // formEmail/formStatus) par un unique useForm. Les autres états liés au formulaire (photo,
+  // biométrie, conjoint/enfants hérités) restent séparés — voir membersFormSchemas.ts.
+  const memberForm = useForm<MemberFormValues>({
+    resolver: zodResolver(memberFormSchema),
+    defaultValues: {
+      cardNo: '',
+      principalName: '',
+      birthDate: '',
+      gender: 'M',
+      organization: '',
+      relationship: 'Principal',
+      status: 'Actif',
+      mainInsuredName: '',
+      mainInsuredCardNo: '',
+      phone: '',
+      email: '',
+    },
+  });
+  const watchedRelationship = memberForm.watch('relationship');
   const [formHasPhoto, setFormHasPhoto] = useState(false);
   const [formHasBiometrics, setFormHasBiometrics] = useState(false);
   const [photoData, setPhotoData] = useState<string | null>(null);
@@ -284,17 +300,19 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     // === AMÉLIORATION AJOUTÉE (v3) : Centralized Card Number Management System — le champ
     // est laissé vide par défaut ; il doit désormais être saisi manuellement (11 caractères
     // alphanumériques), la génération automatique ayant été retirée.
-    setFormCardNo('');
-    setFormPrincipalName('');
-    setFormBirthDate('');
-    setFormGender('M');
-    setFormOrg(organizations.length > 0 ? organizations[0].name : 'TotalEnergies Liberia Ltd');
-    setFormRelationship('Principal');
-    setMainInsuredName('');
-    setMainInsuredCardNo('');
-    setFormPhone('');
-    setFormEmail('');
-    setFormStatus('Actif');
+    memberForm.reset({
+      cardNo: '',
+      principalName: '',
+      birthDate: '',
+      gender: 'M',
+      organization: organizations.length > 0 ? organizations[0].name : 'TotalEnergies Liberia Ltd',
+      relationship: 'Principal',
+      status: 'Actif',
+      mainInsuredName: '',
+      mainInsuredCardNo: '',
+      phone: '',
+      email: '',
+    });
     setFormHasPhoto(false);
     setFormHasBiometrics(false);
     setPhotoData(null);
@@ -307,17 +325,19 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
 
   const openEditModal = (m: Member) => {
     setEditingMember(m);
-    setFormCardNo(m.cardNo);
-    setFormPrincipalName(m.principalName);
-    setFormBirthDate(m.birthDate || '');
-    setFormGender(m.gender || 'M');
-    setFormOrg(m.organization || (organizations[0]?.name || ''));
-    setFormRelationship(m.relationship || 'Principal');
-    setMainInsuredName(m.relationship !== 'Principal' ? (m.principalName || '') : '');
-    setMainInsuredCardNo(m.relationship !== 'Principal' ? (m.cardNo || '') : '');
-    setFormPhone(m.phone || '');
-    setFormEmail(m.email || '');
-    setFormStatus(m.status);
+    memberForm.reset({
+      cardNo: m.cardNo,
+      principalName: m.principalName,
+      birthDate: m.birthDate || '',
+      gender: m.gender || 'M',
+      organization: m.organization || (organizations[0]?.name || ''),
+      relationship: m.relationship || 'Principal',
+      status: m.status,
+      mainInsuredName: m.relationship !== 'Principal' ? (m.principalName || '') : '',
+      mainInsuredCardNo: m.relationship !== 'Principal' ? (m.cardNo || '') : '',
+      phone: m.phone || '',
+      email: m.email || '',
+    });
     setFormHasPhoto(m.hasPhoto || !!m.photoUrl);
     setFormHasBiometrics(m.hasBiometrics || !!m.fingerprintScore);
     setPhotoData(m.photoUrl || null);
@@ -371,123 +391,125 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   // puis réservé de façon transactionnelle (rejeté si déjà attribué à un autre assuré). En
   // édition, le numéro de carte n'est jamais touché (le champ est d'ailleurs désactivé dans
   // le formulaire).
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-    if (!formPrincipalName.trim() || !formOrg.trim()) {
-      setFormError('Please fill in all mandatory fields (Name and Organization).');
-      return;
-    }
+  const handleSubmit = memberForm.handleSubmit(
+    async (values) => {
+      setFormError(null);
 
-    const finalCardNo = normalizeCardNumber(formCardNo);
-    if (!editingMember) {
-      if (!isValidCardNumberFormat(finalCardNo)) {
-        setFormError('Health Card No must be 11 alphanumeric characters (A-Z, 0-9).');
-        return;
-      }
-      setIsSavingCard(true);
-      try {
-        await reserveExistingCardNumber(finalCardNo, {
-          organization: formOrg,
-          insuredName: formPrincipalName.trim(),
-          assignedBy: currentUser?.uid,
-          assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
-          method: 'MANUAL',
-        });
-      } catch (err: any) {
-        setFormError(err?.message || 'Could not assign this card number. Please try again.');
+      const finalCardNo = normalizeCardNumber(values.cardNo);
+      if (!editingMember) {
+        if (!isValidCardNumberFormat(finalCardNo)) {
+          setFormError('Health Card No must be 11 alphanumeric characters (A-Z, 0-9).');
+          return;
+        }
+        setIsSavingCard(true);
+        try {
+          await reserveExistingCardNumber(finalCardNo, {
+            organization: values.organization,
+            insuredName: values.principalName.trim(),
+            assignedBy: currentUser?.uid,
+            assignedByName: currentUser?.fullName || currentUser?.displayName || currentUser?.email,
+            method: 'MANUAL',
+          });
+        } catch (err: any) {
+          setFormError(err?.message || 'Could not assign this card number. Please try again.');
+          setIsSavingCard(false);
+          return;
+        }
         setIsSavingCard(false);
-        return;
       }
-      setIsSavingCard(false);
-    }
 
-    // Construct dependents array
-    const dependentsList: DependentItem[] = [];
-    if (formSpouseName.trim()) {
-      dependentsList.push({
-        id: `dep-${Date.now()}-1`,
-        fullName: formSpouseName.trim(),
-        relationship: formDependentRelationship,
-      });
-    }
-    formChildren.forEach((child, i) => {
-      dependentsList.push({
-        id: `dep-${Date.now()}-${i + 2}`,
-        fullName: child,
-        relationship: 'child',
-      });
-    });
-
-    // === ADDED IMPROVEMENT: upload the captured/uploaded photo to Firebase Storage
-    // (instead of saving it as base64 in the Firestore document) once, at save time.
-    // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #7) — l'upload
-    // échoue désormais explicitement (fail-closed, voir storageUtils.ts) au lieu de dégrader
-    // silencieusement vers un stockage base64 ; la sauvegarde du membre est bloquée avec un
-    // message clair plutôt que de continuer avec une photo mal stockée.
-    let resolvedPhotoUrl = editingMember?.photoUrl;
-    if (photoData) {
-      try {
-        resolvedPhotoUrl = await uploadPhotoOrFallback(photoData, 'member-photos', formCardNo.trim(), formOrg);
-      } catch (err: any) {
-        setFormError(err?.message || 'Could not save the photo. Please try again.');
-        return;
+      // Construct dependents array
+      const dependentsList: DependentItem[] = [];
+      if (formSpouseName.trim()) {
+        dependentsList.push({
+          id: `dep-${Date.now()}-1`,
+          fullName: formSpouseName.trim(),
+          relationship: formDependentRelationship,
+        });
       }
-    }
+      formChildren.forEach((child, i) => {
+        dependentsList.push({
+          id: `dep-${Date.now()}-${i + 2}`,
+          fullName: child,
+          relationship: 'child',
+        });
+      });
 
-    if (editingMember) {
-      onUpdateMember({
-        ...editingMember,
-        cardNo: formCardNo.trim(),
-        principalName: formPrincipalName.trim(),
-        birthDate: formBirthDate || '1990-01-01',
-        gender: formGender,
-        organization: formOrg,
-        relationship: formRelationship,
-        phone: formPhone.trim() || undefined,
-        email: formEmail.trim() || undefined,
-        spouseName: formSpouseName.trim() || undefined,
-        dependentRelationship: formDependentRelationship,
-        dependents: dependentsList,
-        children: formChildren,
-        status: formStatus,
-        hasPhoto: formHasPhoto || !!photoData,
-        photoUrl: resolvedPhotoUrl || undefined,
-        hasBiometrics: formHasBiometrics || !!biometricData,
-        fingerprintScore: biometricData?.score || editingMember.fingerprintScore || (formHasBiometrics ? 96 : undefined),
-        fingerprintSensor: 'FAP-20 USB Optical Scanner',
-        fingerprintDate: new Date().toISOString().split('T')[0],
-      });
-    } else {
-      onAddMember({
-        cardNo: finalCardNo,
-        principalName: formPrincipalName.trim(),
-        birthDate: formBirthDate || '1990-01-01',
-        gender: formGender,
-        organization: formOrg,
-        relationship: formRelationship,
-        phone: formPhone.trim() || undefined,
-        email: formEmail.trim() || undefined,
-        spouseName: formSpouseName.trim() || undefined,
-        dependentRelationship: formDependentRelationship,
-        dependents: dependentsList,
-        children: formChildren,
-        status: formStatus,
-        hasPhoto: formHasPhoto || !!photoData,
-        photoUrl: resolvedPhotoUrl || undefined,
-        hasBiometrics: formHasBiometrics || !!biometricData,
-        fingerprintScore: biometricData?.score || (formHasBiometrics ? 96 : undefined),
-        fingerprintSensor: 'FAP-20 USB Optical Scanner',
-        fingerprintDate: new Date().toISOString().split('T')[0],
-        createdAt: new Date().toISOString().split('T')[0],
-        outpatientCeilingUSD: 500,
-        outpatientBalanceUSD: 500,
-        inpatientCeilingUSD: 5000,
-        inpatientBalanceUSD: 5000,
-      });
+      // === ADDED IMPROVEMENT: upload the captured/uploaded photo to Firebase Storage
+      // (instead of saving it as base64 in the Firestore document) once, at save time.
+      // === AMÉLIORATION AJOUTÉE : sécurité (Revue complète 2026-09-06, finding #7) — l'upload
+      // échoue désormais explicitement (fail-closed, voir storageUtils.ts) au lieu de dégrader
+      // silencieusement vers un stockage base64 ; la sauvegarde du membre est bloquée avec un
+      // message clair plutôt que de continuer avec une photo mal stockée.
+      let resolvedPhotoUrl = editingMember?.photoUrl;
+      if (photoData) {
+        try {
+          resolvedPhotoUrl = await uploadPhotoOrFallback(photoData, 'member-photos', values.cardNo.trim(), values.organization);
+        } catch (err: any) {
+          setFormError(err?.message || 'Could not save the photo. Please try again.');
+          return;
+        }
+      }
+
+      if (editingMember) {
+        onUpdateMember({
+          ...editingMember,
+          cardNo: values.cardNo.trim(),
+          principalName: values.principalName.trim(),
+          birthDate: values.birthDate || '1990-01-01',
+          gender: values.gender as 'M' | 'F',
+          organization: values.organization,
+          relationship: values.relationship as RelationshipType,
+          phone: values.phone.trim() || undefined,
+          email: values.email.trim() || undefined,
+          spouseName: formSpouseName.trim() || undefined,
+          dependentRelationship: formDependentRelationship,
+          dependents: dependentsList,
+          children: formChildren,
+          status: values.status as MemberStatus,
+          hasPhoto: formHasPhoto || !!photoData,
+          photoUrl: resolvedPhotoUrl || undefined,
+          hasBiometrics: formHasBiometrics || !!biometricData,
+          fingerprintScore: biometricData?.score || editingMember.fingerprintScore || (formHasBiometrics ? 96 : undefined),
+          fingerprintSensor: 'FAP-20 USB Optical Scanner',
+          fingerprintDate: new Date().toISOString().split('T')[0],
+        });
+      } else {
+        onAddMember({
+          cardNo: finalCardNo,
+          principalName: values.principalName.trim(),
+          birthDate: values.birthDate || '1990-01-01',
+          gender: values.gender as 'M' | 'F',
+          organization: values.organization,
+          relationship: values.relationship as RelationshipType,
+          phone: values.phone.trim() || undefined,
+          email: values.email.trim() || undefined,
+          spouseName: formSpouseName.trim() || undefined,
+          dependentRelationship: formDependentRelationship,
+          dependents: dependentsList,
+          children: formChildren,
+          status: values.status as MemberStatus,
+          hasPhoto: formHasPhoto || !!photoData,
+          photoUrl: resolvedPhotoUrl || undefined,
+          hasBiometrics: formHasBiometrics || !!biometricData,
+          fingerprintScore: biometricData?.score || (formHasBiometrics ? 96 : undefined),
+          fingerprintSensor: 'FAP-20 USB Optical Scanner',
+          fingerprintDate: new Date().toISOString().split('T')[0],
+          createdAt: new Date().toISOString().split('T')[0],
+          outpatientCeilingUSD: 500,
+          outpatientBalanceUSD: 500,
+          inpatientCeilingUSD: 5000,
+          inpatientBalanceUSD: 5000,
+        });
+      }
+      setMemberModalOpen(false);
+    },
+    () => {
+      // Préserve le message combiné unique de l'ancienne validation impérative
+      // (`!formPrincipalName.trim() || !formOrg.trim()`), quel que soit le champ en échec.
+      setFormError('Please fill in all mandatory fields (Name and Organization).');
     }
-    setMemberModalOpen(false);
-  };
+  );
 
   return (
     <div className="space-y-6">
@@ -1368,8 +1390,8 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     </label>
                     <input
                       type="text"
-                      value={formCardNo}
-                      onChange={(e) => setFormCardNo(e.target.value.toUpperCase().slice(0, 11))}
+                      value={memberForm.watch('cardNo')}
+                      onChange={(e) => memberForm.setValue('cardNo', e.target.value.toUpperCase().slice(0, 11))}
                       placeholder={editingMember ? undefined : 'e.g. A1B2C3D4E5F (11 alphanumeric characters)'}
                       maxLength={11}
                       disabled={!!editingMember}
@@ -1383,8 +1405,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     </label>
                     <input
                       type="text"
-                      value={formPrincipalName}
-                      onChange={(e) => setFormPrincipalName(e.target.value)}
+                      {...memberForm.register('principalName')}
                       placeholder="e.g. John Doe"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                       required
@@ -1399,8 +1420,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     </label>
                     <input
                       type="date"
-                      value={formBirthDate}
-                      onChange={(e) => setFormBirthDate(e.target.value)}
+                      {...memberForm.register('birthDate')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                       required
                     />
@@ -1410,8 +1430,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       Gender *
                     </label>
                     <select
-                      value={formGender}
-                      onChange={(e) => setFormGender(e.target.value as 'M' | 'F')}
+                      {...memberForm.register('gender')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer"
                     >
                       <option value="M">Male</option>
@@ -1423,8 +1442,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       Organization / Employer *
                     </label>
                     <select
-                      value={formOrg}
-                      onChange={(e) => setFormOrg(e.target.value)}
+                      {...memberForm.register('organization')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer"
                       required
                     >
@@ -1453,8 +1471,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       Relationship *
                     </label>
                     <select
-                      value={formRelationship}
-                      onChange={(e) => setFormRelationship(e.target.value as RelationshipType)}
+                      {...memberForm.register('relationship')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer"
                     >
                       <option value="Principal">Principal Insured</option>
@@ -1468,8 +1485,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       Member Status
                     </label>
                     <select
-                      value={formStatus}
-                      onChange={(e) => setFormStatus(e.target.value as MemberStatus)}
+                      {...memberForm.register('status')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500 cursor-pointer"
                     >
                       <option value="Actif">{t.active}</option>
@@ -1479,7 +1495,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                   </div>
                 </div>
 
-                {formRelationship !== 'Principal' && (
+                {watchedRelationship !== 'Principal' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -1487,8 +1503,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       </label>
                       <input
                         type="text"
-                        value={mainInsuredName}
-                        onChange={(e) => setMainInsuredName(e.target.value)}
+                        {...memberForm.register('mainInsuredName')}
                         placeholder="e.g. Samuel Cooper"
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         required
@@ -1500,8 +1515,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                       </label>
                       <input
                         type="text"
-                        value={mainInsuredCardNo}
-                        onChange={(e) => setMainInsuredCardNo(e.target.value)}
+                        {...memberForm.register('mainInsuredCardNo')}
                         placeholder="e.g. A1B2C3D4E5F"
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
                         required
@@ -1527,8 +1541,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     </label>
                     <input
                       type="tel"
-                      value={formPhone}
-                      onChange={(e) => setFormPhone(e.target.value)}
+                      {...memberForm.register('phone')}
                       placeholder="+231 77 123 4567"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
@@ -1539,8 +1552,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                     </label>
                     <input
                       type="email"
-                      value={formEmail}
-                      onChange={(e) => setFormEmail(e.target.value)}
+                      {...memberForm.register('email')}
                       placeholder="insured@organization.com"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
