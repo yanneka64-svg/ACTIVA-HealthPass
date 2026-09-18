@@ -373,12 +373,77 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   };
 
   // Print Handler
+  // === CORRECTIF (demande explicite, 2026-09-18) : "l'impression de la fiche maladie sur
+  // mobile ne fonctionne pas et télécharge un fichier". `doc.autoPrint()` + `window.open(blobUrl)`
+  // suppose un lecteur PDF intégré qui honore l'action d'impression automatique à l'ouverture —
+  // vrai sur la plupart des navigateurs desktop, jamais respecté par les navigateurs mobiles
+  // (iOS Safari, Chrome Android), qui se contentent de télécharger le fichier sans jamais
+  // proposer d'impression. Sur les appareils qui supportent le partage de fichiers natif (Web
+  // Share API niveau 2 — la quasi-totalité des mobiles, très peu de navigateurs desktop), on
+  // ouvre la feuille de partage du système à la place : elle propose nativement "Imprimer"
+  // (AirPrint sur iOS, service d'impression sur Android), qui fonctionne réellement là où
+  // l'ancienne approche échouait silencieusement. Même détection de capacité que handleShare
+  // ci-dessous (canShare({ files })), avec repli sur l'ancien comportement desktop inchangé.
   const handlePrint = async (form: MedicalForm) => {
     const decrypted = await decryptMedicalFormPrescription(form);
     const doc = generateMedicalFormPDF(decrypted);
+
+    const fileName = `Medical_Form_ACTIVA_${form.securityNumber}.pdf`;
+    let pdfFile: File | null = null;
+    try {
+      const pdfBlob = doc.output('blob');
+      pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    } catch (err) {
+      console.warn('Could not generate the PDF for the native print/share sheet:', err);
+    }
+
+    let canShareFile = false;
+    try {
+      canShareFile = !!(
+        pdfFile &&
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [pdfFile] })
+      );
+    } catch (err) {
+      console.warn('navigator.canShare threw while checking file support:', err);
+      canShareFile = false;
+    }
+
+    if (canShareFile && pdfFile) {
+      try {
+        await navigator.share({
+          title: `ACTIVA Medical Voucher - ${form.securityNumber}`,
+          files: [pdfFile],
+        });
+        return;
+      } catch (err) {
+        // === CORRECTIF (revue CodeRabbit, 2026-09-18) : un `AbortError` signifie que l'agent a
+        // lui-même fermé la feuille de partage — ne rien faire de plus est correct (pas de
+        // téléchargement surprise juste après une fermeture volontaire). Toute AUTRE erreur
+        // (ex. `NotAllowedError` si l'activation utilisateur a expiré pendant le déchiffrement
+        // ci-dessus, ou tout autre échec du partage natif) ne doit PAS laisser l'agent sans
+        // aucun document : on retombe sur le téléchargement, comme le fait déjà handleShare.
+        // `err?.name` (plutôt que `err instanceof Error`) : le DOMException de jsdom (utilisé
+        // par les tests) n'hérite pas de `Error`, contrairement à celui de la plupart des
+        // navigateurs — vérifier la propriété `name` fonctionne dans les deux cas.
+        if ((err as { name?: string } | null)?.name === 'AbortError') {
+          return;
+        }
+        // Repli direct sur le téléchargement du PDF déjà généré — PAS sur le chemin desktop
+        // ci-dessous (`window.open` + `autoPrint`), qui reproduirait le bug d'origine sur un
+        // appareil mobile où le partage était pourtant supporté mais a échoué ponctuellement.
+        console.warn('Print share sheet failed (not user-canceled) — falling back to download:', err);
+        doc.save(fileName);
+        return;
+      }
+    }
+
+    // No native file-share support (typically desktop): keep the previous behavior — open the
+    // PDF in a new tab with auto-print, which desktop PDF viewers honor.
     doc.autoPrint();
-    const pdfBlob = doc.output('bloburl');
-    window.open(pdfBlob, '_blank');
+    const pdfBlobUrl = doc.output('bloburl');
+    window.open(pdfBlobUrl, '_blank');
   };
 
   // Share Handler
@@ -564,8 +629,9 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
           </div>
           <div>
             {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — sous-titre retiré
-                sous ce grand titre. */}
-            <h2 className="font-bold text-sm sm:text-base text-slate-900">{t.agentMedForm.pageTitle}</h2>
+                sous ce grand titre ; taille/police harmonisées avec les autres grands titres de
+                page (text-base font-extrabold tracking-tight). */}
+            <h2 className="text-base font-extrabold text-slate-900 tracking-tight">{t.agentMedForm.pageTitle}</h2>
           </div>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">

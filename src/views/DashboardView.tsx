@@ -200,7 +200,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
                 Operational Agent
               </span>
-              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+              {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — taille/police
+                  harmonisées avec les autres grands titres de page (text-base font-extrabold
+                  tracking-tight, voir AgentClaimsView/AgentEnrollmentsView/DashboardView
+                  Superviseur-Admin). */}
+              <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
                 Activity Dashboard
               </h2>
             </div>
@@ -475,17 +479,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     <div className="space-y-6">
       {/* Top Controls: Compact Currency Dropdown & Role Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-xs">
-        {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — badge "Supervision
-            Workspace" retiré côté superviseur, et sous-titre retiré sous ce grand titre (les
-            deux rôles). */}
+        {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — badges "Supervision
+            Workspace" et "General Administration" retirés (les deux rôles), et sous-titre
+            retiré sous ce grand titre (les deux rôles). */}
         <div>
           <div className="flex items-center gap-2">
-            {!isSupervisor && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-800">
-                General Administration
-              </span>
-            )}
-            <h2 className="text-sm font-bold text-slate-800 tracking-tight">
+            <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
               {isSupervisor ? 'Team Supervision & Control' : 'Overview & Performance'}
             </h2>
           </div>

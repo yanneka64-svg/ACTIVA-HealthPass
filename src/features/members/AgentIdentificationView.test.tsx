@@ -246,3 +246,27 @@ describe('AgentIdentificationView — recherche par scan QR code', () => {
     ).toBeInTheDocument();
   });
 });
+
+// === AMÉLIORATION AJOUTÉE : correctif mobile (demande explicite, 2026-09-18) — "quand je suis
+// sur la version mobile et que je clique sur un assuré, je n'arrive pas à voir le détail des
+// informations". L'annuaire s'affichant désormais AU-DESSUS de la fiche détaillée sur mobile
+// (grille mono-colonne), sélectionner un assuré laissait la fiche apparaître hors écran sans
+// défilement automatique. Verrouille : sélectionner un assuré déclenche bien un défilement vers
+// la fiche détaillée.
+describe('AgentIdentificationView — défilement automatique vers la fiche détaillée', () => {
+  it("fait défiler vers la fiche détaillée dès qu'un assuré est sélectionné", () => {
+    const scrollIntoViewMock = vi.fn();
+    // jsdom n'implémente pas scrollIntoView — on le simule pour vérifier qu'il est bien appelé.
+    (window.HTMLElement.prototype as any).scrollIntoView = scrollIntoViewMock;
+
+    render(<AgentIdentificationView lang="en" members={[testMember]} claims={[]} />);
+
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Amina Diallo'));
+
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+
+    delete (window.HTMLElement.prototype as any).scrollIntoView;
+  });
+});

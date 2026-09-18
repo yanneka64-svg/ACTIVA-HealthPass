@@ -490,103 +490,13 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
     setWizardOpen(false);
   };
 
-  // Active organization details for Age Limits card
-  const activeOrgCeiling = useMemo(() => {
-    if (selectedOrgFilter !== 'ALL') {
-      return ceilings.find((c) => c.organization === selectedOrgFilter) || null;
-    }
-    return ceilings[0] || null;
-  }, [ceilings, selectedOrgFilter]);
-
-  const activeAgePrinc = activeOrgCeiling?.maxAgePrincipal ?? 65;
-  const activeAgeSpouse = activeOrgCeiling?.maxAgeSpouse ?? 65;
-  const activeAgeChild = activeOrgCeiling?.maxAgeChild ?? 21;
-  const activeAgeStudent = activeOrgCeiling?.maxAgeStudent ?? 25;
-
   return (
     <div className="space-y-6">
-      {/* 1. TOP POLICY AGE LIMITS & REAL-TIME ELIGIBILITY CONTROLS BANNER */}
-      {/* === AMÉLIORATION AJOUTÉE : retour au gris (retour utilisateur, 2026-09-07) — le fond
-          rouge introduit puis affiné à plusieurs reprises est abandonné ("revient au gris comme
-          c'était avant"). Ce bandeau suit désormais ADMIN_THEME.palette.bannerGradient, la même
-          teinte grise (plus claire qu'avant le rouge) que le reste de l'interface Admin, au lieu
-          d'une couleur propre à cette bannière. Le texte/les badges/bulles restent dans les
-          mêmes teintes claires translucides (blanc/10, blanc/20) qu'avant, qui fonctionnent sur
-          n'importe quel fond sombre — seule la couleur de fond change réellement. */}
-      <div className={`${ADMIN_THEME.palette.bannerGradient} rounded-3xl p-6 text-white shadow-xl border ${ADMIN_THEME.palette.bannerBorder} relative overflow-hidden`}>
-        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
-        
-        {/* === AMÉLIORATION AJOUTÉE : refonte du bandeau (retour utilisateur, 2026-09-11 —
-            "repenser ce tableau", piste C retenue parmi 3 propositions) ===
-            Depuis le retrait de la phrase explicative sous le badge "Real-Time Eligibility
-            Verification" (correctif précédent), ce badge flottait seul en haut à gauche avec un
-            grand vide avant les bulles d'âge — les deux zones (badge d'un côté, bulles+bouton de
-            l'autre) lisaient comme deux blocs déconnectés. Le badge adopte désormais le même
-            style que les bulles d'âge (fond/bordure/coins identiques) et devient la première
-            puce d'une seule rangée continue, séparée des bulles par un simple trait vertical —
-            toute la bannière se lit comme un ensemble cohérent. Contenu inchangé : même icône,
-            même texte de badge (t.ceilings.eligibilityBadge), mêmes bulles, même bouton.
-            flex-wrap (au lieu de l'ancien flex-nowrap strict) laisse la rangée revenir à la
-            ligne sur petit écran plutôt que de forcer un défilement horizontal ou un
-            débordement — chaque puce garde sa taille naturelle et wrap proprement. */}
-        <div className="relative z-10">
-          <div className="flex flex-wrap lg:flex-nowrap items-center gap-3">
-            <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5 shrink-0">
-              <ShieldAlert className="w-4.5 h-4.5 text-amber-300 shrink-0" />
-              <span className="text-xs font-bold uppercase tracking-wide text-slate-200 leading-tight">
-                {t.ceilings.eligibilityBadge}
-              </span>
-            </div>
-
-            <div className="hidden lg:block w-px self-stretch bg-white/15 shrink-0" />
-
-            {/* Dynamic Age Limits Display Pills */}
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px] shrink-0">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-200 block">
-                {t.ceilings.primaryInsuredLabel}
-              </span>
-              <div className="flex items-baseline gap-1 mt-0.5">
-                <span className="text-xl font-black text-white">≤ {activeAgePrinc}</span>
-                <span className="text-[10px] font-bold text-slate-200">{t.ceilings.yearsUnit}</span>
-              </div>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[130px] shrink-0">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-200 block">
-                {t.ceilings.spouseLabel}
-              </span>
-              <div className="flex items-baseline gap-1 mt-0.5">
-                <span className="text-xl font-black text-white">≤ {activeAgeSpouse}</span>
-                <span className="text-[10px] font-bold text-slate-200">{t.ceilings.yearsUnit}</span>
-              </div>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 min-w-[140px] shrink-0">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-200 block">
-                {t.ceilings.childDependantLabel}
-              </span>
-              <div className="flex items-baseline gap-1 mt-0.5">
-                <span className="text-xl font-black text-white">≤ {activeAgeChild}</span>
-                <span className="text-[10px] font-bold text-emerald-400">({t.ceilings.studentSuffixTemplate.replace('{age}', String(activeAgeStudent))})</span>
-              </div>
-            </div>
-
-            {/* === AMÉLIORATION AJOUTÉE : bouton "Configure Age Limits" retiré — un seul bouton
-                subsiste ("Configure Benefit Limit"), restylé en blanc comme demandé.
-                openAgeLimitsModal reste disponible dans le code (état ageLimitsModalOpen conservé)
-                pour ne rien supprimer côté logique métier, seul le déclencheur visuel est retiré. */}
-            <button
-              id="configure-benefit-limit-btn"
-              onClick={openNewBenefitLimitWizard}
-              className="px-4 py-3 rounded-2xl bg-white text-slate-800 hover:bg-slate-100 font-black text-xs transition flex items-center gap-2 shadow-lg cursor-pointer shrink-0 lg:ml-auto"
-            >
-              <PlusCircle className="w-4 h-4 text-slate-800" />
-              <span>{t.ceilings.configureBenefitLimitBtn}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
+      {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — bandeau "Real-Time
+          Eligibility Verification" (badge + bulles d'âge Primary Insured/Spouse/Child) retiré.
+          Le bouton "Configure Benefit Limit" qui s'y trouvait est déplacé ci-dessous, à côté de
+          la barre de recherche, et renommé "Coverage Limit Settings" (voir
+          t.ceilings.configureBenefitLimitBtn). */}
       {/* SEARCH & FILTERS BAR */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
         <div className="flex flex-wrap md:flex-nowrap gap-2.5 items-center flex-1">
@@ -604,6 +514,16 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           </div>
+
+          <button
+            id="configure-benefit-limit-btn"
+            type="button"
+            onClick={openNewBenefitLimitWizard}
+            className={`px-4 py-2 rounded-xl ${ADMIN_THEME.palette.primaryColor} text-white font-bold text-xs transition flex items-center gap-2 cursor-pointer shadow-xs shrink-0 whitespace-nowrap`}
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>{t.ceilings.configureBenefitLimitBtn}</span>
+          </button>
 
           {/* Benefit Filter */}
           <select
@@ -656,9 +576,6 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 {filteredCeilings.length} {t.ceilings.benefitsCountSuffix}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5 font-normal">
-              {t.ceilings.tableSubtitle}
-            </p>
           </div>
         </div>
 

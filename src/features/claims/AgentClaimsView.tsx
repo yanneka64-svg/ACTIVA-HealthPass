@@ -625,8 +625,11 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       {/* Page Header Banner */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
+          {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — icône remplacée par
+              `Receipt` (facturation/réclamation), plus représentative de cet écran que le "+"
+              générique `PlusCircle` (déjà utilisé pour l'action "New Claim" plus bas). */}
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-[var(--brand-900)] flex items-center justify-center shrink-0">
-            <PlusCircle className="w-5 h-5" />
+            <Receipt className="w-5 h-5" />
           </div>
           <div>
             {/* === AMÉLIORATION AJOUTÉE : taille harmonisée avec les titres de page utilisés

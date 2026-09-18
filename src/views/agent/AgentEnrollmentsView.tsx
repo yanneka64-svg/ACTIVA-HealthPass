@@ -285,13 +285,21 @@ export const AgentEnrollmentsView: React.FC<AgentEnrollmentsViewProps> = ({
           la bannière reste visible sur les deux onglets (create/list) pour ne jamais perdre le
           moyen de basculer entre les deux. */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs px-6 py-5 flex items-center justify-between flex-wrap gap-4">
-        <div>
-          {/* === AMÉLIORATION AJOUTÉE : taille harmonisée avec les titres de page utilisés
-              ailleurs dans l'app (ReportsView, AccountsView, OrganizationsView…) —
-              text-base font-extrabold tracking-tight, au lieu de text-lg ici seulement. === */}
-          {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — sous-titre retiré
-              sous ce grand titre. */}
-          <h2 className="text-base font-extrabold text-slate-900 tracking-tight">{t.agentEnroll.pageTitle}</h2>
+        <div className="flex items-center gap-3">
+          {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — icône ajoutée devant le
+              titre, harmonisée avec les autres écrans Agent (AgentClaimsView,
+              AgentMedicalFormView), qui en ont déjà une. */}
+          <div className="w-10 h-10 rounded-xl bg-[var(--brand-50)] flex items-center justify-center shrink-0">
+            <Fingerprint className="w-5 h-5 text-[var(--brand-900)]" />
+          </div>
+          <div>
+            {/* === AMÉLIORATION AJOUTÉE : taille harmonisée avec les titres de page utilisés
+                ailleurs dans l'app (ReportsView, AccountsView, OrganizationsView…) —
+                text-base font-extrabold tracking-tight, au lieu de text-lg ici seulement. === */}
+            {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — sous-titre retiré
+                sous ce grand titre. */}
+            <h2 className="text-base font-extrabold text-slate-900 tracking-tight">{t.agentEnroll.pageTitle}</h2>
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button

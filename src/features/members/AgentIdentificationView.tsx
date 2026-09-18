@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search,
   User,
@@ -187,6 +187,21 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   const { formatAmount } = useCurrency();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBeneficiary, setSelectedBeneficiary] = useState<InsuredBeneficiary | null>(null);
+  // === AMÉLIORATION AJOUTÉE : correctif mobile (demande explicite, 2026-09-18) — "je n'arrive
+  // pas à voir le détail des informations". Sur mobile/tablette, l'annuaire (colonne de gauche)
+  // s'affiche désormais AU-DESSUS de la fiche détaillée (grille mono-colonne, voir plus bas) :
+  // sélectionner un assuré dans une liste potentiellement longue laissait la fiche apparaître
+  // hors écran, sans indication qu'il fallait défiler pour la voir. Un défilement automatique
+  // vers la fiche à chaque nouvelle sélection résout ce problème (sans effet perceptible sur
+  // desktop, où les deux colonnes sont déjà côte à côte à la même hauteur).
+  const detailPanelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // `scrollIntoView` est absent de l'environnement jsdom utilisé par les tests (et de
+    // certains anciens navigateurs) — vérifié explicitement plutôt que supposé présent.
+    if (selectedBeneficiary && typeof detailPanelRef.current?.scrollIntoView === 'function') {
+      detailPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [selectedBeneficiary]);
   const [isFingerprintModalOpen, setIsFingerprintModalOpen] = useState(false);
   const [biometricMatchMessage, setBiometricMatchMessage] = useState<string | null>(null);
   // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-18) — voir handleSearchSubmit. Une
@@ -648,7 +663,7 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             </p>
           </div>
         ) : (
-          <div className="space-y-6 animate-in fade-in duration-200">
+          <div ref={detailPanelRef} className="space-y-6 animate-in fade-in duration-200">
             {/* Mobile-only "New Search" — l'annuaire n'étant plus affiché du tout sur mobile
                 (voir plus haut), ce bouton efface la sélection pour revenir à l'état de
                 recherche ci-dessus, au lieu de faire défiler toute la fiche détaillée. */}
