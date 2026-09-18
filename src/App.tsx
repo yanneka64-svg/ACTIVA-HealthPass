@@ -1737,6 +1737,21 @@ export default function App() {
         </div>
       </div>
 
+      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+          utilisateur — "ajouter la bande noir en bas de page comme sur la capture") === Pied
+          de page global sombre, pleine largeur, toujours visible en bas de l'écran (desktop
+          uniquement — masqué sur mobile pour ne pas se superposer à la barre de navigation
+          mobile déjà fixée en bas). Contenu générique (copyright, liens légaux) : aucun contenu
+          de la maquette de référence n'est repris. */}
+      <footer className="hidden lg:flex items-center justify-between shrink-0 h-11 px-6 bg-[#0F172A] text-slate-300 text-[11px]">
+        <span>© {new Date().getFullYear()} ACTIVA HealthPass. All rights reserved.</span>
+        <div className="flex items-center gap-5">
+          <span className="hover:text-white transition-colors cursor-default">Legal notice</span>
+          <span className="hover:text-white transition-colors cursor-default">Privacy policy</span>
+          <span className="hover:text-white transition-colors cursor-default">Contact</span>
+        </div>
+      </footer>
+
       {/* Inactivity Warning Modal */}
       <InactivityWarningModal
         isOpen={showInactivityModal}

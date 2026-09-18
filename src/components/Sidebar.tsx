@@ -219,7 +219,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // `sidebarBg` (inchangées, toujours utilisées ailleurs — graphiques, barre de navigation
     // mobile).
     <aside
-      className={`w-[248px] ${theme.palette.sidebarLightBg} text-slate-700 flex flex-col h-full select-none border-r ${theme.palette.sidebarLightBorder} relative overflow-hidden`}
+      className={`w-[248px] ${theme.palette.sidebarLightBg} text-slate-700 flex flex-col h-full select-none border-r ${theme.palette.sidebarLightBorder} shadow-[1px_0_3px_rgba(15,23,42,0.04)] relative overflow-hidden z-10`}
     >
       {/* Mobile-only close button (no header/logo block anymore — the logo is in the Topbar) */}
       {onCloseMobile && (
@@ -271,22 +271,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* Bottom Status & Version Indicator */}
-      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18) — mêmes informations, couleurs
-          adaptées au fond blanc (texte sombre au lieu de texte blanc/translucide). === */}
-      <div className="p-3 border-t border-slate-100 relative z-10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 min-w-0">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse flex-shrink-0" />
-            <span className="text-[10px] font-semibold text-slate-600 tracking-wide truncate">
-              {currentUser?.entity || 'ACTIVA Liberia'}
-            </span>
-          </div>
-          <span className="text-slate-400 text-[10px] font-mono font-bold shrink-0">
-            v2.4.0
-          </span>
-        </div>
-      </div>
+      {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+          "supprimer Activa Libéria sur le sidebar") === Le bloc de pied de sidebar (statut de
+          connexion + entité + version) est retiré : il faisait doublon avec le badge
+          "Online"/"Offline" déjà présent dans le Topbar, et la maquette de référence n'affiche
+          aucun texte de ce type en bas de la sidebar. Le copyright/les liens légaux vivent
+          désormais dans le pied de page global de l'application (voir App.tsx). */}
     </aside>
   );
 };
