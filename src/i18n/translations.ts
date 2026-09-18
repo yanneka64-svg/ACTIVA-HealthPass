@@ -190,6 +190,7 @@ export const translations = {
       // 2026-09-18 — "supprime contact us et ajoute une barre de recherche").
       searchPlaceholder: 'Search...',
       searchLabel: 'Site search',
+      mobileMenuLabel: 'Open menu',
       heroTitle: 'Your health benefits, simplified.',
       heroSubtitle: 'ACTIVA HealthPass brings enrollments, claims and coverage together in one secure platform, built for insurers, employers and their members.',
       heroCta: 'Get started',
@@ -1817,6 +1818,7 @@ export const translations = {
       goButton: 'Accéder',
       searchPlaceholder: 'Rechercher...',
       searchLabel: 'Recherche sur le site',
+      mobileMenuLabel: 'Ouvrir le menu',
       heroTitle: 'Vos prestations santé, simplifiées.',
       heroSubtitle: 'ACTIVA HealthPass réunit adhésions, réclamations et couverture sur une plateforme sécurisée unique, conçue pour les assureurs, les employeurs et leurs assurés.',
       heroCta: 'Commencer',

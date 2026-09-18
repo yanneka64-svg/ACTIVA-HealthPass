@@ -14,6 +14,8 @@ import {
   Stethoscope,
   ChevronDown,
   Search,
+  Menu,
+  X,
 } from 'lucide-react';
 import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
@@ -62,6 +64,11 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
   // celle du Topbar de l'application connectée (Topbar.tsx) : champ contrôlé, sans branchement
   // à une recherche métier pour l'instant.
   const [searchQuery, setSearchQuery] = useState('');
+  // === AMÉLIORATION AJOUTÉE : menu mobile (demande explicite, 2026-09-18 — "ajoute un menu
+  // mobile pour ces liens") — les liens de navigation, la recherche et le sélecteur de langue
+  // sont masqués sous `md`/`lg`/`sm` sur les petits écrans ; ce menu déroulant regroupe les trois
+  // pour qu'ils restent accessibles sur mobile.
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const workspaceOptions: WorkspaceMenuOption[] = [
     { role: 'Agent', title: t.auth.workspaceAgentTitle },
@@ -163,7 +170,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative hidden sm:block">
+            <div className="relative hidden md:block">
               <Globe className="w-3.5 h-3.5 text-[#0A34A3] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <select
                 value={lang || 'en'}
@@ -182,12 +189,69 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
             <a
               href="#workspace-select"
               id="home-login-button"
+              onClick={() => setMobileMenuOpen(false)}
               className="px-4 py-2 bg-[#0A347B] hover:bg-[#0D2B63] text-white text-sm font-bold rounded-lg transition-colors cursor-pointer"
             >
               {t.home.loginButton}
             </a>
+
+            {/* Bouton hamburger — regroupe les liens de nav, la recherche et le sélecteur de
+                langue (tous masqués au-dessus de `md`/`lg`/`sm` respectivement) dans un panneau
+                dépliant, visible uniquement sur mobile/tablette. */}
+            <button
+              type="button"
+              id="home-mobile-menu-button"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              aria-label={t.home.mobileMenuLabel}
+              aria-expanded={mobileMenuOpen}
+              className="md:hidden p-2 -mr-1 text-[#334155] cursor-pointer"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
+
+        {mobileMenuOpen && (
+          <div id="home-mobile-menu" className="md:hidden border-t border-[#E8EDF2] bg-white px-4 py-4 space-y-4">
+            <nav className="flex flex-col gap-1">
+              {navLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-2 text-sm font-semibold text-[#334155] hover:text-[#0A347B] transition-colors"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </nav>
+
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t.home.searchPlaceholder}
+                aria-label={t.home.searchLabel}
+                className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-full text-xs font-medium text-slate-700 placeholder:text-[#94A3B8] focus:outline-none focus:ring-1 focus:ring-[#0A347B] focus:bg-white transition"
+              />
+            </div>
+
+            <div className="relative">
+              <Globe className="w-3.5 h-3.5 text-[#0A34A3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={lang || 'en'}
+                onChange={(e) => onLanguageChange?.(e.target.value as Language)}
+                className="w-full appearance-none pl-8 pr-5 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-lg text-xs font-semibold text-[#0D2B63] cursor-pointer focus:outline-none"
+                aria-label="Select display language"
+              >
+                <option value="en">EN — English</option>
+                <option value="fr">FR — Français</option>
+              </select>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* HERO */}
