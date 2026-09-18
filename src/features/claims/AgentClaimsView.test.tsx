@@ -10,7 +10,7 @@
 // `currency` ne sont PAS réinitialisés après soumission, contrairement aux autres champs), pour
 // détecter toute régression pendant la migration vers react-hook-form + zod.
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { AgentClaimsView } from './AgentClaimsView';
@@ -233,7 +233,7 @@ describe('AgentClaimsView — comportement actuel (caractérisation avant migrat
     ).toBeInTheDocument();
   });
 
-  it('bloque la soumission et affiche le motif d\'inéligibilité pour un membre suspendu', () => {
+  it('bloque la soumission et affiche le motif d\'inéligibilité pour un membre suspendu', async () => {
     const suspendedMember: Member = { ...testMember, status: 'Suspended' };
     const { onCreateClaim } = renderView({ members: [suspendedMember] });
     fireEvent.change(getCardInput(), { target: { value: 'CARD-001' } });
@@ -247,7 +247,22 @@ describe('AgentClaimsView — comportement actuel (caractérisation avant migrat
     fireEvent.change(getPhysicianInput(), { target: { value: 'Dr. Smith' } });
     fireEvent.change(screen.getByPlaceholderText('Description of act / test...'), { target: { value: 'Consult' } });
     fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '10' } });
+
+    // === AMÉLIORATION AJOUTÉE : retour de revue CodeRabbit sur PR #78 === Le formulaire est
+    // maintenant autrement soumissible (prestataire/médecin/acte/montant renseignés) : une
+    // soumission forcée (contournant le bouton désactivé, ex. Enter dans un champ texte) doit
+    // rester bloquée par l'inéligibilité. `await act(...)` : `handleSubmit` de react-hook-form
+    // est asynchrone (zodResolver), une assertion synchrone immédiate pourrait passer avant que
+    // la validation n'ait réellement tranché.
+    const form = document.querySelector('form') as HTMLFormElement;
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+
     expect(onCreateClaim).not.toHaveBeenCalled();
+    expect(
+      screen.getByText('Principal insured (John Doe) is SUSPENDED. All healthcare benefits are blocked.')
+    ).toBeInTheDocument();
   });
 
   it('soumission valide : construit le payload attendu, réinitialise le formulaire mais PAS currency ni patientRelationship', async () => {
@@ -302,7 +317,7 @@ describe('AgentClaimsView — comportement actuel (caractérisation avant migrat
     expect(submitBtn).toBeDisabled();
   });
 
-  it('une soumission forcée (bypass du bouton désactivé) sans prestataire ne fait rien silencieusement', () => {
+  it('une soumission forcée (bypass du bouton désactivé) sans prestataire ne fait rien silencieusement', async () => {
     const { onCreateClaim } = renderView();
     fireEvent.change(getCardInput(), { target: { value: 'CARD-001' } });
     fireEvent.change(screen.getByPlaceholderText('Description of act / test...'), { target: { value: 'x' } });
@@ -310,7 +325,10 @@ describe('AgentClaimsView — comportement actuel (caractérisation avant migrat
     // Pas de prestataire sélectionné : soumission directe du <form>, contournant le bouton
     // désactivé (reproduit une soumission implicite via Enter dans un champ texte).
     const form = document.querySelector('form') as HTMLFormElement;
-    fireEvent.submit(form);
+    // `await act(...)` : handleSubmit de react-hook-form est asynchrone (zodResolver).
+    await act(async () => {
+      fireEvent.submit(form);
+    });
 
     expect(onCreateClaim).not.toHaveBeenCalled();
     expect(screen.queryByText('Coverage Ineligibility / Direct-Billing Blocked')).not.toBeInTheDocument();
