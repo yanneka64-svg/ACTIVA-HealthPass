@@ -500,7 +500,6 @@ export const translations = {
 
     // Reports
     reports: {
-      title: 'Reports & Analytics',
       subtitle: 'Key performance indicators and operational activity summaries',
       exportPdf: 'Export to PDF',
       exportExcel: 'Export to Excel (.xlsx)',
@@ -518,7 +517,6 @@ export const translations = {
       overviewTab: 'Overview',
       policiesPremiumsTab: 'Policies & Premiums',
       reconciliationTab: 'Reconciliation',
-      statsSubtitle: 'Statistical analytics, expenditure insights, and medical claims consolidation',
       fromLabel: 'From:',
       toLabel: 'To:',
       exportLabel: 'Export',
@@ -1252,7 +1250,6 @@ export const translations = {
     // d'enrôlement biométrique côté Agent (formulaire de création + historique des demandes).
     agentEnroll: {
       pageTitle: 'Biometric Member Enrollment',
-      pageSubtitle: 'Certified optical fingerprint capture, facial photograph acquisition, and policy affiliation',
       newEnrollmentTab: 'New Enrollment',
       submittedRequestsTab: 'Submitted Requests',
       submitSuccessTitle: 'Enrollment file successfully submitted!',
@@ -1343,7 +1340,6 @@ export const translations = {
     // de saisie des réclamations médicales côté Agent (formulaire + historique).
     agentClaims: {
       pageTitle: 'Medical Claims Entry',
-      pageSubtitle: 'Real-time coverage adjudication, biometric verification and automated duplicate detection',
       newClaimBtn: 'New Claim',
       ineligibleTitle: 'Coverage Ineligibility / Direct-Billing Blocked',
       ineligibleHint: 'Direct billing cannot be submitted for this profile. Please advise patient to contact their HR sponsor or ACTIVA Care Management.',
@@ -1463,7 +1459,6 @@ export const translations = {
     // Formulaire médical côté Agent (bon d'autorisation de prise en charge + historique).
     agentMedForm: {
       pageTitle: 'Coverage Authorization',
-      pageSubtitle: 'Smart search for member, practitioner and coverage limits',
       newFormTab: 'New Medical Form',
       historyTabPrefix: 'History',
       selectBothError: 'Please select both the insured member and the healthcare provider using smart search.',
@@ -2131,7 +2126,6 @@ export const translations = {
     },
 
     reports: {
-      title: 'Rapports et analyses',
       subtitle: 'Indicateurs clés de performance et synthèses d\'activité opérationnelle',
       exportPdf: 'Exporter en PDF',
       exportExcel: 'Exporter en Excel (.xlsx)',
@@ -2147,7 +2141,6 @@ export const translations = {
       overviewTab: 'Vue d\'ensemble',
       policiesPremiumsTab: 'Polices et primes',
       reconciliationTab: 'Réconciliation',
-      statsSubtitle: 'Analyses statistiques, aperçu des dépenses et consolidation des réclamations médicales',
       fromLabel: 'Du :',
       toLabel: 'Au :',
       exportLabel: 'Exporter',
@@ -2830,7 +2823,6 @@ export const translations = {
 
     agentEnroll: {
       pageTitle: "Enrôlement biométrique de l'assuré",
-      pageSubtitle: "Capture optique certifiée d'empreinte, acquisition de la photo faciale et affiliation à la police",
       newEnrollmentTab: 'Nouvelle adhésion',
       submittedRequestsTab: 'Demandes soumises',
       submitSuccessTitle: "Dossier d'adhésion soumis avec succès !",
@@ -2919,7 +2911,6 @@ export const translations = {
 
     agentClaims: {
       pageTitle: 'Saisie des réclamations médicales',
-      pageSubtitle: 'Adjudication de couverture en temps réel, vérification biométrique et détection automatisée des doublons',
       newClaimBtn: 'Nouvelle réclamation',
       ineligibleTitle: 'Inéligibilité de couverture / Facturation directe bloquée',
       ineligibleHint: "La facturation directe ne peut être soumise pour ce profil. Veuillez conseiller au patient de contacter son sponsor RH ou la gestion des soins ACTIVA.",
@@ -3034,7 +3025,6 @@ export const translations = {
 
     agentMedForm: {
       pageTitle: 'Autorisation de couverture',
-      pageSubtitle: 'Recherche intelligente pour assuré, praticien et plafonds de couverture',
       newFormTab: 'Nouveau formulaire médical',
       historyTabPrefix: 'Historique',
       selectBothError: "Veuillez sélectionner l'assuré et le prestataire de santé via la recherche intelligente.",

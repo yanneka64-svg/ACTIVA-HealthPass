@@ -632,8 +632,9 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
             {/* === AMÉLIORATION AJOUTÉE : taille harmonisée avec les titres de page utilisés
                 ailleurs dans l'app (ReportsView, AccountsView, OrganizationsView…) —
                 text-base font-extrabold tracking-tight, au lieu de text-sm ici seulement. === */}
+            {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — sous-titre retiré
+                sous ce grand titre. */}
             <h2 className="text-base font-extrabold text-slate-900 tracking-tight">{t.agentClaims.pageTitle}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{t.agentClaims.pageSubtitle}</p>
           </div>
         </div>
         <div className="flex items-center gap-2.5 self-start sm:self-auto">

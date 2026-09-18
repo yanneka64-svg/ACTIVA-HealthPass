@@ -475,20 +475,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     <div className="space-y-6">
       {/* Top Controls: Compact Currency Dropdown & Role Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-xs">
+        {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — badge "Supervision
+            Workspace" retiré côté superviseur, et sous-titre retiré sous ce grand titre (les
+            deux rôles). */}
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-800">
-              {isSupervisor ? 'Supervision Workspace' : 'General Administration'}
-            </span>
+            {!isSupervisor && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-800">
+                General Administration
+              </span>
+            )}
             <h2 className="text-sm font-bold text-slate-800 tracking-tight">
               {isSupervisor ? 'Team Supervision & Control' : 'Overview & Performance'}
             </h2>
           </div>
-          <p className="text-[11px] text-slate-500 font-medium">
-            {isSupervisor
-              ? 'Audit files submitted by field agents, medical approvals and team statistics'
-              : 'Healthcare portfolio KPIs and operational performance metrics'}
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
