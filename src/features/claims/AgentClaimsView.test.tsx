@@ -153,7 +153,7 @@ describe('AgentClaimsView — comportement actuel (caractérisation avant migrat
     renderView();
     expect(screen.getAllByPlaceholderText('Description of act / test...')).toHaveLength(1);
 
-    fireEvent.click(screen.getByText('Add Medical Act'));
+    fireEvent.click(screen.getByText('Add Services'));
     const descriptionInputs = screen.getAllByPlaceholderText('Description of act / test...');
     expect(descriptionInputs).toHaveLength(2);
 
@@ -265,15 +265,19 @@ describe('AgentClaimsView — comportement actuel (caractérisation avant migrat
     ).toBeInTheDocument();
   });
 
-  it('soumission valide : construit le payload attendu, réinitialise le formulaire mais PAS currency ni patientRelationship', async () => {
+  it('soumission valide : construit le payload attendu, réinitialise le formulaire mais PAS patientRelationship', async () => {
+    // === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite utilisateur —
+    // "retirer les référence sur la convertion de l'USD vers le dollar libérien") === Le
+    // sélecteur de devise USD/LRD de la section 3 (et l'option LRD du <select> "Service
+    // Currency") ont été retirés de l'interface ; `currency` vaut désormais toujours 'USD'. Ce
+    // test ne couvre donc plus la particularité "la devise n'est pas réinitialisée" (plus
+    // aucune interface ne permet de la faire varier), seulement `patientRelationship`.
     const { onCreateClaim } = renderView();
     fireEvent.change(getCardInput(), { target: { value: 'CARD-001' } });
     fireEvent.change(getProviderSelect(), { target: { value: 'City Clinic' } });
     fireEvent.change(getPhysicianInput(), { target: { value: 'Dr. Smith' } });
     fireEvent.change(screen.getByPlaceholderText('Description of act / test...'), { target: { value: 'Routine check' } });
     fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '40' } });
-    // Devise changée en LRD avant soumission : ne doit PAS être réinitialisée après.
-    fireEvent.click(screen.getByText('LRD (L$)'));
 
     fireEvent.click(screen.getByText('Submit Claim for Supervisor Validation'));
 
@@ -285,7 +289,7 @@ describe('AgentClaimsView — comportement actuel (caractérisation avant migrat
         organization: 'Acme Corp',
         provider: 'City Clinic',
         doctorName: 'Dr. Smith',
-        currency: 'LRD',
+        currency: 'USD',
         status: 'pending',
         medicalActs: [
           expect.objectContaining({ amount: 40, category: 'General Practitioner Consultation', description: 'Routine check' }),
@@ -300,9 +304,6 @@ describe('AgentClaimsView — comportement actuel (caractérisation avant migrat
     expect(getPhysicianInput()).toHaveValue('');
     expect(screen.getAllByPlaceholderText('Description of act / test...')).toHaveLength(1);
     expect(screen.getByPlaceholderText('Description of act / test...')).toHaveValue('Consultation');
-
-    // Comportement existant (particularité à préserver) : la devise reste LRD, pas remise à USD.
-    expect(screen.getByText('LRD (L$)').closest('button')).toHaveClass('bg-[var(--brand-900)]');
   });
 
   it('bouton de soumission désactivé sans prestataire sélectionné ou avec un montant total nul', () => {

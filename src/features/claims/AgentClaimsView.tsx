@@ -801,12 +801,18 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       {t.agentClaims.serviceCurrencyLabel}
                     </label>
+                    {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+                        utilisateur — "retirer les référence sur la convertion de l'USD vers le
+                        dollar libérien") === Option LRD retirée : seul l'USD reste sélectionnable
+                        ici. Le champ `currency` du formulaire (et son calcul de conversion,
+                        voir `totalAmountInUSD`/`totalAmountInLRD` plus haut) reste inchangé —
+                        il vaut désormais toujours 'USD', plus aucune interface ne permettant de
+                        le faire basculer sur 'LRD'. */}
                     <select
                       {...form.register('currency')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                     >
                       <option value="USD">{t.agentClaims.usdOption}</option>
-                      <option value="LRD">{t.agentClaims.lrdOption}</option>
                     </select>
                   </div>
                 </div>
@@ -944,12 +950,18 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 </div>
               </div>
 
-              {/* 3. Medical Acts & Procedures - USD & LRD Support */}
+              {/* === AMÉLIORATION AJOUTÉE : refonte visuelle (2026-09-18, demande explicite
+                  utilisateur — "retirer les référence sur la convertion de l'USD vers le dollar
+                  libérien, remplacer Add medical act par Add services. Remplacer Medical Acts
+                  and Procedures par Prescription") === Le sélecteur USD/LRD et la note de taux
+                  de change sont retirés (voir aussi le <select> "Service Currency" plus haut) ;
+                  le titre de section et le libellé du bouton sont renommés (voir
+                  translations.ts : section3TitlePrefix, addMedicalAct). */}
               <div className="space-y-3.5 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
                   {/* === AMÉLIORATION AJOUTÉE : le clic pour replier/déplier ne porte que sur ce
                       bloc titre (pas sur toute la ligne), pour ne jamais intercepter les clics
-                      sur le sélecteur de devise / bouton "Add Medical Act" à droite. === */}
+                      sur le bouton "Add Services" à droite. === */}
                   <div
                     onClick={() => toggleMobileSection(3)}
                     className="flex items-center gap-2 cursor-pointer lg:cursor-default"
@@ -961,36 +973,12 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         <ChevronDown className={`w-4 h-4 text-slate-400 lg:hidden transition-transform ${mobileOpenSection === 3 ? 'rotate-180' : ''}`} />
                       </h4>
                       <p className="text-[11px] text-slate-400 font-medium">
-                        {t.agentClaims.itemizedBreakdownPrefix} {currency === 'USD' ? t.agentClaims.usdFull : t.agentClaims.lrdFull}
+                        {t.agentClaims.itemizedBreakdownPrefix} {t.agentClaims.usdFull}
                       </p>
                     </div>
                   </div>
 
-                  {/* Currency Selector inside section 3 */}
                   <div className="flex items-center gap-2">
-                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => form.setValue('currency', 'USD')}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
-                          currency === 'USD' ? 'bg-[var(--brand-900)] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        USD ($)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => form.setValue('currency', 'LRD')}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
-                          currency === 'LRD' ? 'bg-[var(--brand-900)] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        LRD (L$)
-                      </button>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
-                      (1 USD = {exchangeRate || 195} LRD)
-                    </span>
                     <button
                       type="button"
                       onClick={handleAddAct}
@@ -1040,11 +1028,11 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
                       <div className="sm:col-span-3">
                         <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
-                          {t.agentClaims.amountLabel} ({currency === 'USD' ? 'USD / $' : 'LRD / L$'})
+                          {t.agentClaims.amountLabel} (USD / $)
                         </label>
                         <div className="relative">
                           <span className="absolute left-2.5 top-1.5 text-slate-400 font-bold text-xs">
-                            {currency === 'USD' ? '$' : 'L$'}
+                            $
                           </span>
                           <input
                             type="number"
@@ -1055,11 +1043,6 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                             className="w-full pl-7 pr-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 text-right"
                             required
                           />
-                        </div>
-                        <div className="text-[10px] text-right text-slate-400 mt-0.5 font-medium">
-                          {currency === 'USD'
-                            ? `≈ L$ ${(Number(act.amount || 0) * (exchangeRate || 195)).toLocaleString('en-US', { maximumFractionDigits: 0 })} LRD`
-                            : `≈ $${(Number(act.amount || 0) / (exchangeRate || 195)).toFixed(2)} USD`}
                         </div>
                       </div>
 
@@ -1089,7 +1072,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 <div className="p-4 bg-[var(--brand-900)] rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-white">
                   <div>
                     <span className="text-[11px] font-extrabold text-emerald-300 uppercase tracking-wide">
-                      {t.agentClaims.copayCalcPrefix} ({coverageRatePercent}% / {(100 - coverageRatePercent).toFixed(0)}%) — {currency === 'USD' ? 'US Dollar (USD)' : 'Liberian Dollar (LRD)'}
+                      {t.agentClaims.copayCalcPrefix} ({coverageRatePercent}% / {(100 - coverageRatePercent).toFixed(0)}%) — US Dollar (USD)
                     </span>
                     <p className="text-xs font-semibold text-blue-100 mt-1">
                       {t.agentClaims.activaCoveredLabel} <span className="text-emerald-300 font-bold">{formatAmount(activaCoveredAmount)}</span>
