@@ -307,13 +307,36 @@ export default function App() {
                 setForcedPasswordExpiry(false);
               }
 
+              // === AMÉLIORATION AJOUTÉE : correctif (retour de revue qodo sur la PR #66,
+              // 2026-09-18) === Ce callback est capturé une seule fois au montage
+              // (useEffect(..., []) ci-dessus) : `sectionParam`/`currentSection` issus de
+              // `useParams()` y seraient donc figés sur leur valeur du tout premier rendu, jamais
+              // mis à jour — on lit `window.location.pathname` directement pour toujours refléter
+              // l'URL réelle au moment où ce listener se déclenche (initialement, mais aussi à
+              // chaque nouvel instantané du document accounts/{uid}, qui peut survenir en pleine
+              // session). Avant ce correctif, cette résolution ignorait totalement l'URL en cours
+              // et la remplaçait systématiquement par la section sauvegardée (ou celle par défaut
+              // du rôle) — cassant un lien direct/partagé, un rechargement après navigation via
+              // les boutons précédent/suivant, ou même la section en cours si ce listener se
+              // redéclenchait pendant la session. Une section d'URL valide ET autorisée pour le
+              // rôle est désormais préservée telle quelle (aucune navigation) ; sessionStorage
+              // est mis à jour pour rester synchronisé avec elle.
+              const urlSection = window.location.pathname.replace(/^\//, '') as NavSection;
+              const isUrlSectionAllowed = Boolean(urlSection) && isSectionAllowedForRole(resolvedRole, urlSection);
+
               // Resolve allowed section for this exact role
               const savedSec = sessionStorage.getItem('activa_current_section') as NavSection | null;
               const isSavedAllowed = savedSec ? isSectionAllowedForRole(resolvedRole, savedSec) : false;
-              const targetSection = isSavedAllowed && savedSec ? savedSec : getDefaultSectionForRole(resolvedRole);
+              const targetSection = isUrlSectionAllowed
+                ? urlSection
+                : isSavedAllowed && savedSec
+                ? savedSec
+                : getDefaultSectionForRole(resolvedRole);
 
               // Atomically update state
-              navigate('/' + targetSection, { replace: true });
+              if (!isUrlSectionAllowed) {
+                navigate('/' + targetSection, { replace: true });
+              }
               sessionStorage.setItem('activa_current_section', targetSection);
 
               setCurrentUser({
