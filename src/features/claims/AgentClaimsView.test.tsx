@@ -128,6 +128,27 @@ describe('AgentClaimsView — comportement actuel (caractérisation avant migrat
     expect(getPatientInput()).toHaveValue('Custom Patient');
   });
 
+  it("la saisie dans un champ d'acte médical (description ou montant) ne fait jamais perdre le focus (pas de démontage de ligne)", () => {
+    // === AMÉLIORATION AJOUTÉE : verrouille le correctif du finding Qodo sur PR #78 —
+    // useFieldArray.update() démonte et remonte la ligne à chaque frappe, ce qui ferait perdre
+    // le focus après chaque caractère saisi. form.setValue (pas update()) ne démonte rien.
+    renderView();
+    const descriptionInput = screen.getByPlaceholderText('Description of act / test...');
+    descriptionInput.focus();
+    'Routine check'.split('').forEach((char, i) => {
+      fireEvent.change(descriptionInput, { target: { value: 'Routine check'.slice(0, i + 1) } });
+      expect(document.activeElement).toBe(descriptionInput);
+    });
+    expect(descriptionInput).toHaveValue('Routine check');
+
+    const amountInput = screen.getByPlaceholderText('0.00');
+    amountInput.focus();
+    '120'.split('').forEach((char, i) => {
+      fireEvent.change(amountInput, { target: { value: '120'.slice(0, i + 1) } });
+      expect(document.activeElement).toBe(amountInput);
+    });
+  });
+
   it('ajoute une ligne d\'acte médical avec les valeurs par défaut, et empêche la suppression de la dernière ligne', () => {
     renderView();
     expect(screen.getAllByPlaceholderText('Description of act / test...')).toHaveLength(1);

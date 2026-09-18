@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   PlusCircle, // === AMÉLIORATION AJOUTÉE : "+" entouré d'un cercle, harmonisé sur toute l'interface ===
@@ -177,8 +177,6 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
     fields: medicalActFields,
     append: appendMedicalAct,
     remove: removeMedicalAct,
-    replace: replaceMedicalActs,
-    update: updateMedicalAct,
   } = useFieldArray({
     control: form.control,
     name: 'medicalActs',
@@ -192,13 +190,19 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   const selectedProviderName = form.watch('selectedProviderName');
   const doctorName = form.watch('doctorName');
   const selectedMedicalFormId = form.watch('selectedMedicalFormId');
-  // === AMÉLIORATION AJOUTÉE : lire medicalActs directement depuis `medicalActFields`
-  // (useFieldArray), pas via form.watch()/useWatch — combiner un watch séparé sur le même
-  // tableau avec useFieldArray provoquait un décalage documenté de react-hook-form (les mises à
-  // jour de valeur, via setValue OU une structure changée par append/replace, n'étaient pas
-  // toujours reflétées de façon fiable). `update()` (voir handleUpdateAct plus bas) maintient
-  // `medicalActFields` lui-même à jour de façon synchrone, ce qui rend cette dépendance inutile.
-  const medicalActs = medicalActFields;
+  // === AMÉLIORATION AJOUTÉE : correctif (retour de revue Qodo sur PR #78, 2026-09-18) === Un
+  // premier essai utilisait `useFieldArray.update()` dans handleUpdateAct pour garder les
+  // valeurs affichées synchronisées — mais `update()` démonte et remonte la ligne à CHAQUE
+  // frappe (documenté par react-hook-form), ce qui aurait fait perdre le focus du champ après
+  // chaque caractère saisi dans un vrai navigateur (non détecté par les tests jsdom d'origine,
+  // qui ne vérifiaient que la valeur finale, pas la rétention du focus). Le motif recommandé et
+  // retenu à la place : `useWatch` (pas `form.watch`, moins fiable ici en combinaison avec
+  // useFieldArray) fusionné avec `medicalActFields` — `medicalActFields` reste la source
+  // structurelle (longueur, identité de ligne, clés React) toujours fraîche après
+  // append/remove/replace ; `useWatch` reste la source des VALEURS toujours fraîche après un
+  // `setValue` imbriqué (frappe clavier), sans jamais démonter la ligne.
+  const watchedMedicalActs = useWatch({ control: form.control, name: 'medicalActs' });
+  const medicalActs = medicalActFields.map((field, index) => ({ ...field, ...watchedMedicalActs[index] }));
   // Reste hors du formulaire : jamais relié à un contrôle d'interface (voir handleSubmit),
   // conservé tel quel sans modification de comportement.
   const [careTypeMain, setCareTypeMain] = useState('General Practitioner Consultation');
@@ -447,7 +451,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
   // Update act row
   const handleUpdateAct = (index: number, field: keyof MedicalAct, val: any) => {
-    updateMedicalAct(index, { ...medicalActFields[index], [field]: val });
+    form.setValue(`medicalActs.${index}.${field}` as any, val);
   };
 
   // Helper to format file size
@@ -592,7 +596,14 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       setPrescriptionFile(null);
       setInvoiceFile(null);
       setUploadedAttachments([]);
-      replaceMedicalActs([{ id: '1', category: 'General Practitioner Consultation', description: 'Consultation', amount: 35 }]);
+      // === AMÉLIORATION AJOUTÉE : `form.setValue` directement (pas `replaceMedicalActs` /
+      // useFieldArray.replace) — replace() met à jour `medicalActFields` (structure) de façon
+      // synchrone mais laisse `useWatch` (valeurs) refléter transitoirement l'ancien contenu au
+      // même rendu, ce qui aurait affiché "Routine check" au lieu de "Consultation" juste après
+      // la remise à zéro (voir AgentClaimsView.test.tsx). Un setValue simple sur le chemin
+      // complet du tableau se comporte comme n'importe quel autre setValue de ce composant :
+      // toujours reflété de façon fiable par useWatch, sans démonter les lignes.
+      form.setValue('medicalActs', [{ id: '1', category: 'General Practitioner Consultation', description: 'Consultation', amount: 35 }]);
       setFingerprintVerification(null);
       form.setValue('selectedMedicalFormId', '');
     },
