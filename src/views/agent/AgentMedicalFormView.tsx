@@ -416,12 +416,27 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
           title: `ACTIVA Medical Voucher - ${form.securityNumber}`,
           files: [pdfFile],
         });
+        return;
       } catch (err) {
-        // Share sheet canceled/failed — nothing more to do, no surprise download right after
-        // the user dismissed the native sheet.
-        console.log('Print share sheet canceled or failed', err);
+        // === CORRECTIF (revue CodeRabbit, 2026-09-18) : un `AbortError` signifie que l'agent a
+        // lui-même fermé la feuille de partage — ne rien faire de plus est correct (pas de
+        // téléchargement surprise juste après une fermeture volontaire). Toute AUTRE erreur
+        // (ex. `NotAllowedError` si l'activation utilisateur a expiré pendant le déchiffrement
+        // ci-dessus, ou tout autre échec du partage natif) ne doit PAS laisser l'agent sans
+        // aucun document : on retombe sur le téléchargement, comme le fait déjà handleShare.
+        // `err?.name` (plutôt que `err instanceof Error`) : le DOMException de jsdom (utilisé
+        // par les tests) n'hérite pas de `Error`, contrairement à celui de la plupart des
+        // navigateurs — vérifier la propriété `name` fonctionne dans les deux cas.
+        if ((err as { name?: string } | null)?.name === 'AbortError') {
+          return;
+        }
+        // Repli direct sur le téléchargement du PDF déjà généré — PAS sur le chemin desktop
+        // ci-dessous (`window.open` + `autoPrint`), qui reproduirait le bug d'origine sur un
+        // appareil mobile où le partage était pourtant supporté mais a échoué ponctuellement.
+        console.warn('Print share sheet failed (not user-canceled) — falling back to download:', err);
+        doc.save(fileName);
+        return;
       }
-      return;
     }
 
     // No native file-share support (typically desktop): keep the previous behavior — open the

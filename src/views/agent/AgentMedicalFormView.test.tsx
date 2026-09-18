@@ -18,6 +18,21 @@ vi.mock('../../utils/sensitiveData', () => ({
   decryptMedicalFormPrescription: vi.fn(async (form) => form),
 }));
 
+// === AMÉLIORATION AJOUTÉE : tests d'impression mobile (2026-09-18) — jsPDF n'expose pas `save`
+// sur son prototype (assigné en propriété d'instance dans le constructeur), donc `vi.spyOn`
+// dessus échoue ("property not defined on the object"). On simule directement le document PDF
+// retourné par `generateMedicalFormPDF`, contrôlable depuis chaque test via `mockPdfDoc`.
+const mockPdfDoc = {
+  output: vi.fn((type?: string) =>
+    type === 'blob' ? new Blob(['pdf'], { type: 'application/pdf' }) : 'blob:mock-pdf-url'
+  ),
+  autoPrint: vi.fn(),
+  save: vi.fn(),
+};
+vi.mock('../../utils/pdfMedicalForm', () => ({
+  generateMedicalFormPDF: vi.fn(() => mockPdfDoc),
+}));
+
 const testMember: Member = {
   id: 'm1',
   cardNo: 'CARD-001',
@@ -314,6 +329,9 @@ describe('AgentMedicalFormView — impression (Print)', () => {
   afterEach(() => {
     delete (navigator as any).share;
     delete (navigator as any).canShare;
+    mockPdfDoc.output.mockClear();
+    mockPdfDoc.autoPrint.mockClear();
+    mockPdfDoc.save.mockClear();
     vi.restoreAllMocks();
   });
 
@@ -344,5 +362,38 @@ describe('AgentMedicalFormView — impression (Print)', () => {
     fireEvent.click(screen.getByTitle('Print'));
 
     await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
+  });
+
+  // === AMÉLIORATION AJOUTÉE : revue CodeRabbit (2026-09-18) — "AbortError should remain a
+  // no-op, while other share failures should invoke the existing PDF-saving fallback instead
+  // of returning without an alternative". Verrouille les deux cas distincts.
+  it("n'affiche rien de plus (aucun téléchargement) quand l'agent ferme lui-même la feuille de partage (AbortError)", async () => {
+    const abortError = new DOMException('Share canceled', 'AbortError');
+    (navigator as any).share = vi.fn().mockRejectedValue(abortError);
+    (navigator as any).canShare = vi.fn().mockReturnValue(true);
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    renderView({ medicalForms: [existingMedicalForm] });
+    fireEvent.click(screen.getByText(/History/));
+    fireEvent.click(screen.getByTitle('Print'));
+
+    await waitFor(() => expect((navigator as any).share).toHaveBeenCalledTimes(1));
+    expect(mockPdfDoc.save).not.toHaveBeenCalled();
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('télécharge le PDF déjà généré quand le partage échoue pour une autre raison que l\'annulation (ex. NotAllowedError)', async () => {
+    const notAllowedError = new DOMException('Permission denied', 'NotAllowedError');
+    (navigator as any).share = vi.fn().mockRejectedValue(notAllowedError);
+    (navigator as any).canShare = vi.fn().mockReturnValue(true);
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    renderView({ medicalForms: [existingMedicalForm] });
+    fireEvent.click(screen.getByText(/History/));
+    fireEvent.click(screen.getByTitle('Print'));
+
+    await waitFor(() => expect(mockPdfDoc.save).toHaveBeenCalledTimes(1));
+    expect(mockPdfDoc.save).toHaveBeenCalledWith(expect.stringContaining(existingMedicalForm.securityNumber));
+    expect(openSpy).not.toHaveBeenCalled();
   });
 });
