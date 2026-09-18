@@ -1222,7 +1222,15 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleConfirmReject} className="p-6 space-y-4">
+            {/* === AMÉLIORATION AJOUTÉE : correctif (retour de revue coderabbitai sur la PR #65,
+                2026-09-18) === `noValidate` : le `<select required>` ci-dessous bloquait déjà la
+                soumission native du navigateur avant que `onSubmit` ne s'exécute (donc avant que
+                le message d'erreur personnalisé "Please select a rejection reason." n'ait jamais
+                pu s'afficher) — un comportement latent identique dans l'ancien code impératif.
+                Sans changer la règle de blocage elle-même (le select reste `required`), ceci
+                laisse enfin `rejectForm.handleSubmit`/le resolver zod s'exécuter et afficher ce
+                message. */}
+            <form noValidate onSubmit={handleConfirmReject} className="p-6 space-y-4">
               {rejectForm.formState.errors.reason && (
                 <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3 rounded-xl font-bold">
                   {rejectForm.formState.errors.reason.message}
