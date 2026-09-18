@@ -1,4 +1,10 @@
 import React, { useState, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Voir
+// ceilingsFormSchemas.ts : seule la modale "Age Limits Quick Editor" est migrée (le wizard 3
+// étapes n'a pas de <form> et n'est pas concerné, arbitrage utilisateur).
+import { ageLimitsFormSchema, AgeLimitsFormValues } from './ceilingsFormSchemas';
 import {
   Search,
   Plus,
@@ -74,12 +80,15 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
 
   // Age Limits Modal for Quick Policy Age Management
   const [ageLimitsModalOpen, setAgeLimitsModalOpen] = useState(false);
-  const [ageLimitsOrg, setAgeLimitsOrg] = useState('');
-  const [ageLimitPrincipal, setAgeLimitPrincipal] = useState(65);
-  const [ageLimitSpouse, setAgeLimitSpouse] = useState(65);
-  const [ageLimitChild, setAgeLimitChild] = useState(21);
-  const [ageLimitStudent, setAgeLimitStudent] = useState(25);
   const [ageSavedSuccess, setAgeSavedSuccess] = useState(false);
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les 5
+  // useState de champs (ageLimitsOrg/ageLimitPrincipal/ageLimitSpouse/ageLimitChild/
+  // ageLimitStudent) par un unique useForm. ageLimitsModalOpen/ageSavedSuccess restent en état
+  // séparé (état UI, non soumis au schéma), comme sur les domaines précédents.
+  const ageLimitsForm = useForm<AgeLimitsFormValues>({
+    resolver: zodResolver(ageLimitsFormSchema),
+    defaultValues: { organization: '', principal: 65, spouse: 65, child: 21, student: 25 },
+  });
 
   // Drawer / Wizard State for New Benefit Limit
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -325,39 +334,41 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
   // Open Age Limits Quick Editor Modal
   const openAgeLimitsModal = (orgName?: string) => {
     const targetOrg = orgName || (selectedOrgFilter !== 'ALL' ? selectedOrgFilter : availableOrgs[0]?.name || 'TotalEnergies Liberia Ltd');
-    setAgeLimitsOrg(targetOrg);
     const existingCeiling = ceilings.find((c) => c.organization === targetOrg);
-    setAgeLimitPrincipal(existingCeiling?.maxAgePrincipal ?? 65);
-    setAgeLimitSpouse(existingCeiling?.maxAgeSpouse ?? 65);
-    setAgeLimitChild(existingCeiling?.maxAgeChild ?? 21);
-    setAgeLimitStudent(existingCeiling?.maxAgeStudent ?? 25);
+    ageLimitsForm.reset({
+      organization: targetOrg,
+      principal: existingCeiling?.maxAgePrincipal ?? 65,
+      spouse: existingCeiling?.maxAgeSpouse ?? 65,
+      child: existingCeiling?.maxAgeChild ?? 21,
+      student: existingCeiling?.maxAgeStudent ?? 25,
+    });
     setAgeSavedSuccess(false);
     setAgeLimitsModalOpen(true);
   };
 
   // Save Age Limits across ceilings for this organization
-  const handleSaveAgeLimits = () => {
-    const orgCeilings = ceilings.filter((c) => c.organization === ageLimitsOrg);
+  const handleSaveAgeLimits = ageLimitsForm.handleSubmit((values) => {
+    const orgCeilings = ceilings.filter((c) => c.organization === values.organization);
     if (orgCeilings.length > 0) {
       orgCeilings.forEach((c) => {
         onUpdateCeiling({
           ...c,
-          maxAgePrincipal: ageLimitPrincipal,
-          maxAgeSpouse: ageLimitSpouse,
-          maxAgeChild: ageLimitChild,
-          maxAgeStudent: ageLimitStudent,
+          maxAgePrincipal: values.principal,
+          maxAgeSpouse: values.spouse,
+          maxAgeChild: values.child,
+          maxAgeStudent: values.student,
         });
       });
     } else {
       // If no ceiling entry exists for this organization yet, create a baseline rule
       onAddCeiling({
-        organization: ageLimitsOrg,
+        organization: values.organization,
         careType: 'Outpatient Consultations',
         serviceCategory: 'Outpatient Consultations',
-        maxAgePrincipal: ageLimitPrincipal,
-        maxAgeSpouse: ageLimitSpouse,
-        maxAgeChild: ageLimitChild,
-        maxAgeStudent: ageLimitStudent,
+        maxAgePrincipal: values.principal,
+        maxAgeSpouse: values.spouse,
+        maxAgeChild: values.child,
+        maxAgeStudent: values.student,
         monthlyLimit: 250,
         individualLimit: 1000,
         familyLimit: 3000,
@@ -371,7 +382,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
       setAgeLimitsModalOpen(false);
       setAgeSavedSuccess(false);
     }, 1200);
-  };
+  });
 
   // Toggle benefit selection in Step 2
   const toggleBenefitSelection = (benefit: string) => {
@@ -1027,15 +1038,15 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                   {t.ceilings.targetOrgLabel}
                 </label>
                 <select
-                  value={ageLimitsOrg}
+                  value={ageLimitsForm.watch('organization')}
                   onChange={(e) => {
                     const newOrg = e.target.value;
-                    setAgeLimitsOrg(newOrg);
                     const ex = ceilings.find((c) => c.organization === newOrg);
-                    setAgeLimitPrincipal(ex?.maxAgePrincipal ?? 65);
-                    setAgeLimitSpouse(ex?.maxAgeSpouse ?? 65);
-                    setAgeLimitChild(ex?.maxAgeChild ?? 21);
-                    setAgeLimitStudent(ex?.maxAgeStudent ?? 25);
+                    ageLimitsForm.setValue('organization', newOrg);
+                    ageLimitsForm.setValue('principal', ex?.maxAgePrincipal ?? 65);
+                    ageLimitsForm.setValue('spouse', ex?.maxAgeSpouse ?? 65);
+                    ageLimitsForm.setValue('child', ex?.maxAgeChild ?? 21);
+                    ageLimitsForm.setValue('student', ex?.maxAgeStudent ?? 25);
                   }}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                 >
@@ -1057,8 +1068,8 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       type="number"
                       min="18"
                       max="100"
-                      value={ageLimitPrincipal}
-                      onChange={(e) => setAgeLimitPrincipal(parseInt(e.target.value, 10) || 65)}
+                      value={ageLimitsForm.watch('principal')}
+                      onChange={(e) => ageLimitsForm.setValue('principal', parseInt(e.target.value, 10) || 65)}
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
                     <span className="text-xs font-bold text-slate-400">{t.ceilings.yearsUnit}</span>
@@ -1075,8 +1086,8 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       type="number"
                       min="18"
                       max="100"
-                      value={ageLimitSpouse}
-                      onChange={(e) => setAgeLimitSpouse(parseInt(e.target.value, 10) || 65)}
+                      value={ageLimitsForm.watch('spouse')}
+                      onChange={(e) => ageLimitsForm.setValue('spouse', parseInt(e.target.value, 10) || 65)}
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
                     <span className="text-xs font-bold text-slate-400">{t.ceilings.yearsUnit}</span>
@@ -1093,8 +1104,8 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       type="number"
                       min="0"
                       max="40"
-                      value={ageLimitChild}
-                      onChange={(e) => setAgeLimitChild(parseInt(e.target.value, 10) || 21)}
+                      value={ageLimitsForm.watch('child')}
+                      onChange={(e) => ageLimitsForm.setValue('child', parseInt(e.target.value, 10) || 21)}
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
                     <span className="text-xs font-bold text-slate-400">{t.ceilings.yearsUnit}</span>
@@ -1111,8 +1122,8 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                       type="number"
                       min="18"
                       max="40"
-                      value={ageLimitStudent}
-                      onChange={(e) => setAgeLimitStudent(parseInt(e.target.value, 10) || 25)}
+                      value={ageLimitsForm.watch('student')}
+                      onChange={(e) => ageLimitsForm.setValue('student', parseInt(e.target.value, 10) || 25)}
                       className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
                     />
                     <span className="text-xs font-bold text-slate-400">{t.ceilings.yearsUnit}</span>
@@ -1124,7 +1135,7 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
               {ageSavedSuccess && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{t.ceilings.ageLimitsSavedSuccess.replace('{org}', ageLimitsOrg)}</span>
+                  <span>{t.ceilings.ageLimitsSavedSuccess.replace('{org}', ageLimitsForm.watch('organization'))}</span>
                 </div>
               )}
             </div>
