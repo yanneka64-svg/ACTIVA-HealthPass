@@ -41,8 +41,8 @@ describe('BiometricFingerprintModal — capture simulée (pas de pont HFSecurity
 
     expect(onFingerprintCaptured).toHaveBeenCalledTimes(1);
     const payload = onFingerprintCaptured.mock.calls[0][0];
-    expect(payload.finger).toBe('right_index');
-    expect(payload.template).toMatch(/^ANSI_378_RIGHT_INDEX_/);
+    expect(payload.finger).toBe('right_thumb');
+    expect(payload.template).toMatch(/^ANSI_378_RIGHT_THUMB_/);
     expect(typeof payload.score).toBe('number');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -87,10 +87,9 @@ describe('BiometricFingerprintModal — pont HFSecurity natif (simulé via windo
     expect(captureFingerprint).toHaveBeenCalledTimes(1);
   });
 
-  it('désactive le sélecteur de doigt pendant une capture en cours', async () => {
-    const captureFingerprint = vi.fn(); // ne répond jamais — la capture reste "en cours"
-    (window as any).HFSecurityBridge = { captureFingerprint };
-
+  // === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — "la prise d'empreinte se fait
+  // uniquement sur le pouce" : plus de sélecteur de doigt, capture toujours sur le pouce droit.
+  it('capture toujours sur le pouce droit, sans sélecteur de doigt', () => {
     render(
       <BiometricFingerprintModal
         isOpen
@@ -100,17 +99,20 @@ describe('BiometricFingerprintModal — pont HFSecurity natif (simulé via windo
       />
     );
 
-    fireEvent.click(screen.getByText('Trigger Sensor'));
-    await waitFor(() => expect(screen.getByText('Left Index').closest('button')).toBeDisabled());
+    expect(screen.getByText('Target Finger')).toBeInTheDocument();
+    expect(screen.getByText('Right Thumb')).toBeInTheDocument();
+    expect(screen.queryByText('Left Index')).not.toBeInTheDocument();
+    expect(screen.queryByText('Right Index')).not.toBeInTheDocument();
+    expect(screen.queryByText('Left Thumb')).not.toBeInTheDocument();
   });
 
-  it('utilise le template et le score renvoyés par le pont natif à la confirmation', async () => {
+  it('utilise le template et le score renvoyés par le pont natif à la confirmation (doigt verrouillé sur le pouce droit)', async () => {
     (window as any).HFSecurityBridge = {
       captureFingerprint: (requestId: string) => {
         setTimeout(() => {
           window.__hfSecurityCaptureCallback?.(
             requestId,
-            JSON.stringify({ score: 88, template: 'REAL_FP08_TEMPLATE', finger: 'right_index' })
+            JSON.stringify({ score: 88, template: 'REAL_FP08_TEMPLATE', finger: 'right_thumb' })
           );
         }, 0);
       },
@@ -133,7 +135,7 @@ describe('BiometricFingerprintModal — pont HFSecurity natif (simulé via windo
     expect(onFingerprintCaptured).toHaveBeenCalledWith({
       score: 88,
       template: 'REAL_FP08_TEMPLATE',
-      finger: 'right_index',
+      finger: 'right_thumb',
     });
   });
 
@@ -173,7 +175,7 @@ describe('BiometricFingerprintModal — pont HFSecurity natif (simulé via windo
     // Réponse tardive de la coquille native, après la fermeture : ne doit avoir aucun effet.
     window.__hfSecurityCaptureCallback?.(
       capturedRequestId,
-      JSON.stringify({ score: 90, template: 'STALE_TEMPLATE', finger: 'right_index' })
+      JSON.stringify({ score: 90, template: 'STALE_TEMPLATE', finger: 'right_thumb' })
     );
     await new Promise((r) => setTimeout(r, 0));
 

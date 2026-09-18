@@ -28,7 +28,6 @@ import {
   Paperclip,
   Check,
   ShieldAlert,
-  ShieldCheck,
   Fingerprint,
   ChevronDown,
 } from 'lucide-react';
@@ -648,10 +647,10 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
             <PlusCircle className="w-4 h-4" />
             <span>{t.agentClaims.newClaimBtn}</span>
           </button>
-          <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>{t.agentClaims.directCoverageBadge}</span>
-          </span>
+          {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — badge "ACTIVA Direct
+              Coverage" supprimé de ce bandeau. `t.agentClaims.directCoverageBadge` reste défini
+              dans translations.ts (peut encore être utilisé ailleurs / réintroduit facilement),
+              seul cet affichage est retiré. */}
         </div>
       </div>
 

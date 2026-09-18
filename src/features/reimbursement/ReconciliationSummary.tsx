@@ -35,21 +35,25 @@ export const ReconciliationSummary: React.FC<ReconciliationSummaryProps> = ({ su
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t.invoices.reconciliationApproved}</p>
-          <p className="text-lg font-black text-slate-900 mt-1">{formatMoney(summary.approvedAmount, 'DUAL')}</p>
+          {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — "dézoomer un peu" ce
+              panneau : le montant double devise (USD + LRD) au format `text-lg` retournait à la
+              ligne dans chaque carte, donnant une impression de zoom excessif ; `text-base`
+              laisse plus de place sans changer la mise en page des cartes. */}
+          <p className="text-base font-black text-slate-900 mt-1">{formatMoney(summary.approvedAmount, 'DUAL')}</p>
           <p className="text-[11px] text-slate-400 mt-0.5">{summary.approvedCount} {t.invoices.invoiceCountSuffix}</p>
         </div>
         <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
           <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> {t.invoices.paidBadge}
           </p>
-          <p className="text-lg font-black text-emerald-700 mt-1">{formatMoney(summary.paidAmount, 'DUAL')}</p>
+          <p className="text-base font-black text-emerald-700 mt-1">{formatMoney(summary.paidAmount, 'DUAL')}</p>
           <p className="text-[11px] text-emerald-600/80 mt-0.5">{summary.paidCount} {t.invoices.invoiceCountSuffix}</p>
         </div>
         <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
           <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide flex items-center gap-1">
             <AlertCircle className="w-3 h-3" /> {t.invoices.outstandingBadge}
           </p>
-          <p className="text-lg font-black text-amber-700 mt-1">{formatMoney(summary.outstandingAmount, 'DUAL')}</p>
+          <p className="text-base font-black text-amber-700 mt-1">{formatMoney(summary.outstandingAmount, 'DUAL')}</p>
           <p className="text-[11px] text-amber-600/80 mt-0.5">{summary.outstandingCount} {t.invoices.invoiceCountSuffix}</p>
         </div>
         {/* === AMÉLIORATION AJOUTÉE : réfaction post-contrôle médical (2026-09-10, sur demande
@@ -58,14 +62,14 @@ export const ReconciliationSummary: React.FC<ReconciliationSummaryProps> = ({ su
           <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wide flex items-center gap-1">
             <ScanSearch className="w-3 h-3" /> {t.invoices.reconciliationRefacted}
           </p>
-          <p className="text-lg font-black text-orange-700 mt-1">{formatMoney(summary.refactedAmount, 'DUAL')}</p>
+          <p className="text-base font-black text-orange-700 mt-1">{formatMoney(summary.refactedAmount, 'DUAL')}</p>
           <p className="text-[11px] text-orange-600/80 mt-0.5">{summary.refactedCount} {t.invoices.invoiceCountSuffix}</p>
         </div>
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200">
           <p className="text-[10px] font-bold text-rose-700 uppercase tracking-wide flex items-center gap-1">
             <Undo2 className="w-3 h-3" /> {t.invoices.reconciliationPendingRecovery}
           </p>
-          <p className="text-lg font-black text-rose-700 mt-1">{formatMoney(summary.pendingRecoveryAmount, 'DUAL')}</p>
+          <p className="text-base font-black text-rose-700 mt-1">{formatMoney(summary.pendingRecoveryAmount, 'DUAL')}</p>
           <p className="text-[11px] text-rose-600/80 mt-0.5">{summary.pendingRecoveryCount} {t.invoices.invoiceCountSuffix}</p>
         </div>
       </div>
