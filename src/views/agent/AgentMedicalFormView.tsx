@@ -373,12 +373,62 @@ export const AgentMedicalFormView: React.FC<AgentMedicalFormViewProps> = ({
   };
 
   // Print Handler
+  // === CORRECTIF (demande explicite, 2026-09-18) : "l'impression de la fiche maladie sur
+  // mobile ne fonctionne pas et télécharge un fichier". `doc.autoPrint()` + `window.open(blobUrl)`
+  // suppose un lecteur PDF intégré qui honore l'action d'impression automatique à l'ouverture —
+  // vrai sur la plupart des navigateurs desktop, jamais respecté par les navigateurs mobiles
+  // (iOS Safari, Chrome Android), qui se contentent de télécharger le fichier sans jamais
+  // proposer d'impression. Sur les appareils qui supportent le partage de fichiers natif (Web
+  // Share API niveau 2 — la quasi-totalité des mobiles, très peu de navigateurs desktop), on
+  // ouvre la feuille de partage du système à la place : elle propose nativement "Imprimer"
+  // (AirPrint sur iOS, service d'impression sur Android), qui fonctionne réellement là où
+  // l'ancienne approche échouait silencieusement. Même détection de capacité que handleShare
+  // ci-dessous (canShare({ files })), avec repli sur l'ancien comportement desktop inchangé.
   const handlePrint = async (form: MedicalForm) => {
     const decrypted = await decryptMedicalFormPrescription(form);
     const doc = generateMedicalFormPDF(decrypted);
+
+    const fileName = `Medical_Form_ACTIVA_${form.securityNumber}.pdf`;
+    let pdfFile: File | null = null;
+    try {
+      const pdfBlob = doc.output('blob');
+      pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    } catch (err) {
+      console.warn('Could not generate the PDF for the native print/share sheet:', err);
+    }
+
+    let canShareFile = false;
+    try {
+      canShareFile = !!(
+        pdfFile &&
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [pdfFile] })
+      );
+    } catch (err) {
+      console.warn('navigator.canShare threw while checking file support:', err);
+      canShareFile = false;
+    }
+
+    if (canShareFile && pdfFile) {
+      try {
+        await navigator.share({
+          title: `ACTIVA Medical Voucher - ${form.securityNumber}`,
+          files: [pdfFile],
+        });
+      } catch (err) {
+        // Share sheet canceled/failed — nothing more to do, no surprise download right after
+        // the user dismissed the native sheet.
+        console.log('Print share sheet canceled or failed', err);
+      }
+      return;
+    }
+
+    // No native file-share support (typically desktop): keep the previous behavior — open the
+    // PDF in a new tab with auto-print, which desktop PDF viewers honor.
     doc.autoPrint();
-    const pdfBlob = doc.output('bloburl');
-    window.open(pdfBlob, '_blank');
+    const pdfBlobUrl = doc.output('bloburl');
+    window.open(pdfBlobUrl, '_blank');
   };
 
   // Share Handler

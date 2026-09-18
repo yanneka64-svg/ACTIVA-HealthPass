@@ -576,9 +576,6 @@ export const CeilingsView: React.FC<CeilingsViewProps> = ({
                 {filteredCeilings.length} {t.ceilings.benefitsCountSuffix}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5 font-normal">
-              {t.ceilings.tableSubtitle}
-            </p>
           </div>
         </div>
 

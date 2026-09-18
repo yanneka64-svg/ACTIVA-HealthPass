@@ -7,7 +7,7 @@
 // confirmation exacte + motif obligatoire avant toute suppression en masse. Ces tests
 // verrouillent le comportement EXACT du code impératif actuel pour détecter toute régression
 // pendant la migration vers react-hook-form + zod.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AgentMedicalFormView } from './AgentMedicalFormView';
 import { Member, Provider, MedicalForm } from '../../types';
@@ -300,5 +300,49 @@ describe('AgentMedicalFormView — modale "Clear All History" (caractérisation 
 
     await waitFor(() => expect(onClearAllMedicalForms).toHaveBeenCalledWith('End of quarter cleanup'));
     await waitFor(() => expect(screen.queryByText('Clear All History')).not.toBeInTheDocument());
+  });
+});
+
+// === AMÉLIORATION AJOUTÉE : correctif mobile (demande explicite, 2026-09-18) — "l'impression de
+// la fiche maladie sur mobile ne fonctionne pas et télécharge un fichier". L'ancien handlePrint
+// ouvrait toujours un nouvel onglet avec doc.autoPrint(), une action que seuls les lecteurs PDF
+// desktop honorent — les navigateurs mobiles se contentaient de télécharger le fichier sans
+// jamais proposer d'impression. Verrouille : sur un appareil qui supporte le partage de fichiers
+// natif (Web Share API), Print utilise la feuille de partage système (qui propose "Imprimer")
+// au lieu d'ouvrir un onglet ; sans ce support (desktop), l'ancien comportement est inchangé.
+describe('AgentMedicalFormView — impression (Print)', () => {
+  afterEach(() => {
+    delete (navigator as any).share;
+    delete (navigator as any).canShare;
+    vi.restoreAllMocks();
+  });
+
+  it("utilise la feuille de partage native quand l'appareil supporte le partage de fichiers, au lieu d'ouvrir un nouvel onglet", async () => {
+    const shareMock = vi.fn().mockResolvedValue(undefined);
+    (navigator as any).share = shareMock;
+    (navigator as any).canShare = vi.fn().mockReturnValue(true);
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    renderView({ medicalForms: [existingMedicalForm] });
+    fireEvent.click(screen.getByText(/History/));
+    fireEvent.click(screen.getByTitle('Print'));
+
+    await waitFor(() => expect(shareMock).toHaveBeenCalledTimes(1));
+    const shareArgs = shareMock.mock.calls[0][0];
+    expect(shareArgs.files).toHaveLength(1);
+    expect(shareArgs.files[0].type).toBe('application/pdf');
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it("retombe sur l'ouverture d'un nouvel onglet (comportement desktop inchangé) quand le partage de fichiers n'est pas supporté", async () => {
+    delete (navigator as any).share;
+    delete (navigator as any).canShare;
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    renderView({ medicalForms: [existingMedicalForm] });
+    fireEvent.click(screen.getByText(/History/));
+    fireEvent.click(screen.getByTitle('Print'));
+
+    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
   });
 });
