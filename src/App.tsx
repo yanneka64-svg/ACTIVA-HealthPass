@@ -1401,7 +1401,7 @@ export default function App() {
           {effectiveSection === 'claims' && (
             activeRole === 'Agent' ? (
               <AgentClaimsView
-                claims={claims}
+                assignedOrgs={assignedOrgs}
                 members={members}
                 providers={providers}
                 organizations={organizations}

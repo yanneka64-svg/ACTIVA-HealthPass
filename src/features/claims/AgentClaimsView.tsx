@@ -40,9 +40,15 @@ import { BiometricFingerprintModal } from '../../components/BiometricFingerprint
 // reste de son contenu (voir plus bas).
 import { isFeatureEnabled } from '../../config/featureFlags';
 import { EntityTimeline } from '../timeline/EntityTimeline';
+import { useClaimsQuery } from './useClaimsQuery';
 
 interface AgentClaimsViewProps {
-  claims: Claim[];
+  // === AMÉLIORATION AJOUTÉE : Phase 3 du plan de durcissement — premier composant migré vers
+  // useClaimsQuery (2026-09-18). `claims` n'est plus reçu en prop : ce composant le lit
+  // directement depuis le cache react-query alimenté par l'abonnement Firestore de App.tsx (voir
+  // useClaimsQuery.ts), à partir du même périmètre d'organisation (`assignedOrgs`) déjà utilisé
+  // pour cet abonnement — comportement inchangé, seul le mécanisme de distribution change.
+  assignedOrgs: string[] | null;
   members: Member[];
   providers: Provider[];
   organizations?: Organization[];
@@ -91,7 +97,7 @@ const CARE_CATEGORIES = [
 ];
 
 export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
-  claims,
+  assignedOrgs,
   members,
   providers,
   organizations = [],
@@ -102,6 +108,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   medicalForms = [],
   onCreateClaim,
 }) => {
+  const { data: claims } = useClaimsQuery(assignedOrgs);
   const t = useTranslation(lang);
   const claim360Enabled = isFeatureEnabled('hp3_claim_360');
   // === AMÉLIORATION AJOUTÉE : versions traduites de DOC_CATEGORY_LABELS/DOC_CATEGORY_TAGS
