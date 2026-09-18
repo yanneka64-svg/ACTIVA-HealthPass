@@ -1415,10 +1415,16 @@ export default function App() {
             (voir lg:p-3 ci-dessous) pour que la Sidebar (rounded-2xl, voir Sidebar.tsx) se
             présente comme une carte flottante nettement détachée du Topbar et du pied de page,
             demande explicite utilisateur (2026-09-18) — "détache complètement le sidebar du top
-            bar et de la bande de bas de page ... mets-le sur une forme arrondie". Hauteur
-            désormais dimensionnée à son contenu sur desktop (voir lg:items-start ci-dessus) au
-            lieu de `lg:h-full` (retiré) qui étirait la carte sur toute la hauteur disponible. */}
-        <div className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:p-3 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            bar et de la bande de bas de page ... mets-le sur une forme arrondie".
+            === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #80 (2026-09-18) === `lg:h-full`
+            réintroduit ICI sur ce conteneur invisible (jamais retiré de la carte visible
+            elle-même, qui reste `lg:h-auto` dans Sidebar.tsx) : sans hauteur définie sur un
+            ancêtre, `lg:max-h-full` de la carte n'a rien à borner, et sa liste de navigation
+            pouvait s'étirer au-delà de la hauteur disponible au lieu de défiler. Comme ce
+            conteneur n'a ni fond ni bordure visibles, lui redonner une hauteur pleine ne
+            réintroduit PAS le vide sous la carte (retiré précédemment) — seule la carte
+            elle-même (dimensionnée à son contenu) est visible. */}
+        <div className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto lg:h-full lg:p-3 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <Sidebar
             currentSection={effectiveSection}
             currentUser={currentUser}
@@ -1757,12 +1763,18 @@ export default function App() {
           uniquement — masqué sur mobile pour ne pas se superposer à la barre de navigation
           mobile déjà fixée en bas). Contenu générique (copyright, liens légaux) : aucun contenu
           de la maquette de référence n'est repris. */}
+      {/* === AMÉLIORATION AJOUTÉE : correctif revue CodeRabbit, PR #80 (2026-09-18) === Ces
+          libellés (Legal notice / Privacy policy / Contact) restent du texte simple : le dépôt
+          ne contient aucune page légale/confidentialité/contact vers laquelle les faire pointer,
+          et en inventer une (href factice) serait trompeur. Le style "hover"/"cursor-default"
+          d'origine, lui, laissait croire à tort qu'ils étaient interactifs sans être
+          atteignables au clavier — retiré pour ne plus suggérer une affordance inexistante. */}
       <footer className="hidden lg:flex items-center justify-between shrink-0 h-11 px-6 bg-[#0F172A] text-slate-300 text-[11px]">
         <span>© {new Date().getFullYear()} ACTIVA HealthPass. All rights reserved.</span>
         <div className="flex items-center gap-5">
-          <span className="hover:text-white transition-colors cursor-default">Legal notice</span>
-          <span className="hover:text-white transition-colors cursor-default">Privacy policy</span>
-          <span className="hover:text-white transition-colors cursor-default">Contact</span>
+          <span>Legal notice</span>
+          <span>Privacy policy</span>
+          <span>Contact</span>
         </div>
       </footer>
 
