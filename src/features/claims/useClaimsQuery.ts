@@ -9,6 +9,7 @@
 // socle validé.
 import { useQuery, skipToken } from '@tanstack/react-query';
 import { Claim } from '../../types';
+import { getFullDemoData } from '../../services/seedData';
 
 // === AMÉLIORATION AJOUTÉE : sécurité/robustesse (retour de revue qodo sur la PR #62,
 // 2026-09-17) === Clé structurée (tableau trié, pas une chaîne pré-concaténée par espace) :
@@ -29,6 +30,13 @@ export function useClaimsQuery(assignedOrgs: string[] | null) {
     // ni automatiquement ni via un `refetch()` manuel — le cache reste in fine uniquement piloté
     // par `queryClient.setQueryData` (App.tsx).
     queryFn: skipToken,
-    initialData: [] as Claim[],
+    // === AMÉLIORATION AJOUTÉE : migration du premier consommateur (AgentClaimsView, 2026-09-18)
+    // === Même repli de démo que `useState(() => demoData.sampleClaims)` dans App.tsx : sans ce
+    // repli, un composant lisant depuis ce cache verrait une liste vide pendant le court instant
+    // avant que l'abonnement Firestore n'ait livré son premier instantané (App.tsx alimente
+    // `claims` avec ce même repli dès le premier rendu) — comportement désormais identique.
+    // Fonction (pas une valeur directe) : évaluée une seule fois par instance de requête, comme
+    // le ferait `useState(() => ...)`.
+    initialData: () => (getFullDemoData().sampleClaims || []) as Claim[],
   });
 }

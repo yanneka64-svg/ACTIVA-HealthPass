@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useClaimsQuery, claimsQueryKey } from './useClaimsQuery';
 import { Claim } from '../../types';
+import { getFullDemoData } from '../../services/seedData';
 
 function wrapper(queryClient: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -54,10 +55,13 @@ describe('useClaimsQuery', () => {
     expect(queryClient.getQueryData(claimsQueryKey(['OrgA']))).toEqual(seeded);
   });
 
-  it('retombe sur un tableau vide tant qu\'aucune donnée n\'a encore été poussée dans le cache', () => {
+  it('retombe sur les données de démo (comme App.tsx) tant qu\'aucune donnée réelle n\'a encore été poussée dans le cache', () => {
+    // === AMÉLIORATION AJOUTÉE : migration du premier consommateur (2026-09-18) === Même repli
+    // que `useState(() => demoData.sampleClaims)` dans App.tsx — pas un tableau vide — pour que
+    // rien ne change visuellement le temps que le premier instantané Firestore arrive.
     const queryClient = new QueryClient();
     const { result } = renderHook(() => useClaimsQuery(['OrgB']), { wrapper: wrapper(queryClient) });
 
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data).toEqual(getFullDemoData().sampleClaims);
   });
 });
