@@ -1154,6 +1154,12 @@ export const translations = {
       searchPlaceholder: 'Search by Card Number (e.g. ACT-2025-0012), Insured Name, Policy or Organization...',
       scanBiometric: 'Scan Biometric Sensor',
       newEnrollment: 'New Enrollment',
+      // === AMÉLIORATION AJOUTÉE : remplace le bouton "New Enrollment" du bandeau de recherche
+      // par un bouton "Search" explicite (demande explicite, 2026-09-18) — sur les écrans
+      // tactiles (terminal HFSecurity FP08), il n'y avait aucun moyen visible de déclencher la
+      // recherche sans clavier physique/touche Entrée, donnant l'impression que les données ne
+      // s'affichaient jamais après une saisie.
+      searchButton: 'Search',
       dismiss: 'Dismiss',
       insuredDirectory: 'Insured Directory',
       noSearchMatch: 'No insured member matches your search.',
@@ -2724,6 +2730,7 @@ export const translations = {
       searchPlaceholder: "Rechercher par numéro de carte (ex. ACT-2025-0012), nom de l'assuré, police ou organisation...",
       scanBiometric: 'Scanner le capteur biométrique',
       newEnrollment: 'Nouvelle adhésion',
+      searchButton: 'Rechercher',
       dismiss: 'Fermer',
       insuredDirectory: 'Annuaire des assurés',
       noSearchMatch: 'Aucun assuré ne correspond à votre recherche.',

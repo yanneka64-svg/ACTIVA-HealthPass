@@ -23,7 +23,6 @@ import {
   Check,
   RefreshCw,
   Plus,
-  PlusCircle,
 } from 'lucide-react';
 import { Member, Claim, Language, Organization, HealthPolicy } from '../../types';
 import { useTranslation } from '../../i18n/translations';
@@ -271,8 +270,8 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
 
   const activeCount = useMemo(() => principalDirectory.filter((b) => b.status === 'Active' || b.status === 'Actif').length, [principalDirectory]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     setBiometricMatchMessage(null);
     const q = searchQuery.toLowerCase().trim();
     if (!q) return;
@@ -280,11 +279,18 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     // Search across every beneficiary (principals AND dependents) so a dependent's name or
     // card number can still be looked up directly, even though the directory panel only
     // lists principals visually.
+    // === CORRECTIF : le n° de carte utilisait une comparaison EXACTE (===) alors que le
+    // filtre de l'annuaire (filteredDirectory, ci-dessus) utilise déjà .includes() — un agent
+    // tapant un préfixe naturel comme "AMID" (toutes les cartes ACTIVA suivent le format
+    // AMID-YYMMDD-NNNNN) ne trouvait donc jamais rien à la soumission, alors que la même
+    // recherche fonctionnait dans l'annuaire (desktop). C'est exactement le symptôme signalé
+    // ("les données sur les assurés n'apparaissent pas") sur un écran tactile sans annuaire
+    // visible (mobile/FP08) — le bouton "Search" ci-dessus n'aurait rien résolu seul.
     const found = allBeneficiaries.find(
       (b) =>
-        b.cardNo.toLowerCase() === q ||
+        b.cardNo.toLowerCase().includes(q) ||
         b.fullName.toLowerCase().includes(q) ||
-        b.principalCardNo.toLowerCase() === q ||
+        b.principalCardNo.toLowerCase().includes(q) ||
         b.principalName.toLowerCase().includes(q)
     );
     if (found) {
@@ -429,16 +435,21 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
             <Fingerprint className="w-4 h-4" />
             <span>{t.agentId.scanBiometric}</span>
           </button>
-          {onNewEnrollment && (
-            <button
-              type="button"
-              onClick={onNewEnrollment}
-              className="px-4 py-3 rounded-xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[var(--brand-900)] hover:bg-[#07214f] text-white whitespace-nowrap"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>{t.agentId.newEnrollment}</span>
-            </button>
-          )}
+          {/* === AMÉLIORATION AJOUTÉE : remplace le bouton "New Enrollment" par un bouton
+              "Search" explicite (demande explicite, 2026-09-18) — sur les écrans tactiles (ex.
+              terminal HFSecurity FP08), rien ne permettait de déclencher la recherche sans
+              clavier physique/touche Entrée : la saisie dans le champ ne montrait donc jamais
+              de résultat. Ce bouton déclenche exactement la même recherche que la touche Entrée
+              (handleSearchSubmit) ; la nouvelle adhésion reste accessible depuis les autres
+              écrans Agent, `onNewEnrollment` n'est donc plus utilisé ici. */}
+          <button
+            type="button"
+            onClick={() => handleSearchSubmit()}
+            className="px-4 py-3 rounded-xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer bg-[var(--brand-900)] hover:bg-[#07214f] text-white whitespace-nowrap"
+          >
+            <Search className="w-4 h-4" />
+            <span>{t.agentId.searchButton}</span>
+          </button>
         </div>
       </div>
 
