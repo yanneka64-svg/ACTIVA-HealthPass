@@ -58,7 +58,10 @@ export const translations = {
       },
       sections: {
         dashboard: { title: 'Executive Overview', subtitle: 'Global healthcare metrics and live processing KPIs' },
-        identification: { title: 'Member Identification', subtitle: 'Member lookup, biometric verification, coverage entitlements, and care history' },
+        // === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — titre raccourci en
+        // "Identification" et sous-titre remplacé pour refléter le contenu réel de l'écran
+        // (identification biométrique + limites de couverture).
+        identification: { title: 'Identification', subtitle: 'Biometric identification and coverage limits' },
         medical_form: { title: 'Medical Form', subtitle: 'Issuance & management of healthcare authorization vouchers and prescriptions' },
         claims: { title: 'Medical Claims Management', subtitle: 'Incoming claims, coverage assessments, and settlements' },
         claims_validation: { title: 'Medical Claims Validation', subtitle: 'Review, verify and approve provider claims' },
@@ -92,7 +95,9 @@ export const translations = {
       ceilings: 'Coverage Ceilings',
       accounts: 'User Accounts',
       logs: 'Audit & Access Logs',
-      identification: 'Member Identification',
+      // === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — libellé de la sidebar
+      // raccourci en "Identification".
+      identification: 'Identification',
       medical_form: 'Medical Intake Form',
       claims_validation: 'Claims to Validate',
       enrollments_validation: 'Enrollments to Validate',
@@ -1167,7 +1172,7 @@ export const translations = {
       genderLabel: 'Gender:',
       identifyMember: 'Identify an insured member',
       identifyMemberDesc: 'Search by card number or name, or scan a biometric fingerprint to identify a beneficiary and view their coverage.',
-      browseDirectoryHint: ' You can also browse the directory on the left.',
+      browseDirectoryHint: ' You can also browse the insured directory.',
       newSearch: 'New Search',
       remainingBalance: 'Remaining Balance',
       ofCeiling: 'of',
@@ -1226,6 +1231,16 @@ export const translations = {
       // remplace l'ancien faux "match" qui sélectionnait un assuré au hasard.
       biometricMatchUnavailable: 'Biometric 1:N identification is not available yet. Please search by card number or name instead.',
       ambiguousSearchResults: '{count} insured members match this search — please refine it (full card number or full name) to select the right one.',
+      // === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — "prévoir également un QR
+      // code pour capter les numéro de carte afin de faciliter la recherche". Le QR scanné est
+      // celui déjà généré par MemberIdCard.tsx (voir Card No: <numéro> dans son contenu texte).
+      scanQrCode: 'Scan QR Code',
+      qrScannerTitle: 'Scan Insured Card QR Code',
+      qrScannerSubtitle: 'Point the camera at the QR code on the insured member card.',
+      qrScannerUnsupported: 'QR code scanning is not supported on this device or browser. Please enter the card number manually.',
+      qrScannerCameraError: 'Unable to access the camera. Please check camera permissions or enter the card number manually.',
+      qrScannerUnrecognized: 'This QR code was not recognized as an ACTIVA insured card. Please try again or enter the card number manually.',
+      qrScannerCancel: 'Cancel',
     },
 
     // === AMÉLIORATION AJOUTÉE : namespace agentEnroll (2026-09-10) — traduction de l'écran
@@ -1717,7 +1732,7 @@ export const translations = {
       },
       sections: {
         dashboard: { title: 'Aperçu exécutif', subtitle: 'Indicateurs de santé globaux et KPI de traitement en direct' },
-        identification: { title: 'Identification de l\'assuré', subtitle: 'Recherche d\'assuré, vérification biométrique, droits à la couverture et historique de soins' },
+        identification: { title: 'Identification', subtitle: 'Identification biométrique et limites de couverture' },
         medical_form: { title: 'Formulaire médical', subtitle: 'Émission et gestion des bons d\'autorisation de soins et ordonnances' },
         claims: { title: 'Gestion des réclamations médicales', subtitle: 'Réclamations entrantes, évaluations de couverture et règlements' },
         claims_validation: { title: 'Validation des réclamations médicales', subtitle: 'Examiner, vérifier et approuver les réclamations des prestataires' },
@@ -1750,7 +1765,7 @@ export const translations = {
       ceilings: 'Plafonds de couverture',
       accounts: 'Comptes utilisateurs',
       logs: 'Journaux d\'audit et d\'accès',
-      identification: 'Identification de l\'assuré',
+      identification: 'Identification',
       medical_form: 'Formulaire médical',
       claims_validation: 'Réclamations à valider',
       enrollments_validation: 'Adhésions à valider',
@@ -2743,7 +2758,7 @@ export const translations = {
       genderLabel: 'Sexe :',
       identifyMember: 'Identifier un assuré',
       identifyMemberDesc: 'Recherchez par numéro de carte ou nom, ou scannez une empreinte biométrique pour identifier un bénéficiaire et consulter sa couverture.',
-      browseDirectoryHint: " Vous pouvez aussi parcourir l'annuaire à gauche.",
+      browseDirectoryHint: " Vous pouvez aussi parcourir l'annuaire des assurés.",
       newSearch: 'Nouvelle recherche',
       remainingBalance: 'Solde restant',
       ofCeiling: 'sur',
@@ -2799,6 +2814,13 @@ export const translations = {
       biometricMatchTemplate: 'Correspondance biométrique AFIS 1:N vérifiée ({score} % de confiance) pour {name} (Carte n° {cardNo}) via {finger}.',
       biometricMatchUnavailable: "L'identification biométrique 1:N n'est pas encore disponible. Veuillez rechercher par numéro de carte ou par nom.",
       ambiguousSearchResults: '{count} assurés correspondent à cette recherche — précisez-la (numéro de carte complet ou nom complet) pour sélectionner la bonne personne.',
+      scanQrCode: 'Scanner le QR code',
+      qrScannerTitle: "Scanner le QR code de la carte assuré",
+      qrScannerSubtitle: "Pointez la caméra vers le QR code figurant sur la carte de l'assuré.",
+      qrScannerUnsupported: "La lecture de QR code n'est pas prise en charge sur cet appareil ou ce navigateur. Veuillez saisir le numéro de carte manuellement.",
+      qrScannerCameraError: "Impossible d'accéder à la caméra. Vérifiez les autorisations de la caméra ou saisissez le numéro de carte manuellement.",
+      qrScannerUnrecognized: "Ce QR code n'a pas été reconnu comme une carte assuré ACTIVA. Réessayez ou saisissez le numéro de carte manuellement.",
+      qrScannerCancel: 'Annuler',
     },
 
     agentEnroll: {

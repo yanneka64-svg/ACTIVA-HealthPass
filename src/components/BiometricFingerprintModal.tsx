@@ -33,7 +33,13 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
   subtitle = `${HF_SECURITY_DEVICE_INFO.deviceType} · S/N ${HF_SECURITY_DEVICE_INFO.serialNumber}`,
   autoStart = true,
 }) => {
-  const [selectedFinger, setSelectedFinger] = useState<'right_index' | 'left_index' | 'right_thumb' | 'left_thumb'>('right_index');
+  // === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — "la prise d'empreinte se fait
+  // uniquement sur le pouce" : plus de sélecteur de doigt (Right/Left Index, Right/Left Thumb),
+  // capture systématiquement sur le pouce droit — déjà la convention implicite ailleurs dans
+  // l'app (voir le libellé "Right Thumb" codé en dur dans MembersView.tsx pour les biométries
+  // existantes). `targetFinger` remplace l'ancien état `selectedFinger` (n'a plus besoin d'être
+  // mutable, il n'y a plus qu'une seule valeur possible).
+  const targetFinger = 'right_thumb' as const;
   const [sensorStatus, setSensorStatus] = useState<'idle' | 'ready' | 'capturing' | 'success' | 'error'>('idle');
   const [progress, setProgress] = useState<number>(0);
   const [qualityScore, setQualityScore] = useState<number>(0);
@@ -64,7 +70,7 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
       autoStartTimeoutRef.current = null;
     }
 
-    const requestedFinger = selectedFinger;
+    const requestedFinger = targetFinger;
 
     setSensorStatus('capturing');
     setProgress(10);
@@ -162,8 +168,8 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
   const handleConfirm = () => {
     onFingerprintCaptured({
       score: qualityScore || 96,
-      template: capturedTemplate ?? `ANSI_378_${selectedFinger.toUpperCase()}_${Date.now()}`,
-      finger: capturedFinger ?? selectedFinger,
+      template: capturedTemplate ?? `ANSI_378_${targetFinger.toUpperCase()}_${Date.now()}`,
+      finger: capturedFinger ?? targetFinger,
     });
     onClose();
   };
@@ -208,36 +214,14 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
 
         {/* Content */}
         <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
-          {/* Target Finger Selector */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              Select Biometric Finger
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { id: 'right_index', label: 'Right Index' },
-                { id: 'left_index', label: 'Left Index' },
-                { id: 'right_thumb', label: 'Right Thumb' },
-                { id: 'left_thumb', label: 'Left Thumb' },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  disabled={sensorStatus === 'capturing'}
-                  onClick={() => {
-                    setSelectedFinger(item.id as any);
-                    if (sensorStatus === 'success') handleReset();
-                  }}
-                  className={`px-2.5 py-2 rounded-xl text-xs font-bold border transition text-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                    selectedFinger === item.id
-                      ? 'bg-slate-700 text-white border-slate-700 shadow-xs'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+          {/* Target Finger — === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) —
+              capture désormais toujours sur le pouce droit, plus de sélecteur (voir
+              `targetFinger` plus haut). Simple rappel informatif, non interactif. */}
+          <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+            <span className="text-xs font-bold text-slate-700">Target Finger</span>
+            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-700 text-white">
+              Right Thumb
+            </span>
           </div>
 
           {/* Scanner Visualizer Area */}

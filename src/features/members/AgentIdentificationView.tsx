@@ -23,11 +23,16 @@ import {
   Check,
   RefreshCw,
   Plus,
+  QrCode,
 } from 'lucide-react';
 import { Member, Claim, Language, Organization, HealthPolicy } from '../../types';
 import { useTranslation } from '../../i18n/translations';
 import { useCurrency } from '../../services/currency';
 import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
+// === AMÉLIORATION AJOUTÉE : lecteur de QR code pour la recherche d'assuré (demande explicite,
+// 2026-09-18) — voir QrCodeScannerModal.tsx pour le détail (API BarcodeDetector, repli honnête
+// si non disponible).
+import { QrCodeScannerModal } from '../../components/QrCodeScannerModal';
 import { PhotoThumbnail } from '../../components/PhotoThumbnail';
 // === AMÉLIORATION AJOUTÉE : import direct depuis le module utilitaire léger (auto-revue,
 // 2026-09-12) — mêmes fonctions, déplacées depuis MembersView.tsx vers memberUtils.ts (aucun
@@ -188,6 +193,9 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
   // recherche partielle (ex. préfixe de carte) peut désormais correspondre à plusieurs assurés ;
   // ce message évite de sélectionner l'un d'eux au hasard.
   const [searchAmbiguousMessage, setSearchAmbiguousMessage] = useState<string | null>(null);
+  // === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — état d'ouverture de la modale de
+  // scan QR code (voir QrCodeScannerModal.tsx et handleQrCodeScanned ci-dessous).
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   // === AMÉLIORATION AJOUTÉE : alerte bloquante affichée AVANT de laisser l'agent poursuivre
   // vers un flux de soin (Medical Form / New Claim) quand la police est Expired/Suspended.
   const [blockedActionAlert, setBlockedActionAlert] = useState<'medical_form' | 'new_claim' | null>(null);
@@ -274,11 +282,18 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
 
   const activeCount = useMemo(() => principalDirectory.filter((b) => b.status === 'Active' || b.status === 'Actif').length, [principalDirectory]);
 
-  const handleSearchSubmit = (e?: React.FormEvent) => {
+  // === AMÉLIORATION AJOUTÉE : paramètre `queryOverride` (demande explicite, 2026-09-18) — permet
+  // au scan QR code (handleQrCodeScanned) de déclencher exactement la même recherche que la
+  // saisie manuelle + Entrée/bouton "Search", sans dépendre de la mise à jour asynchrone de
+  // l'état `searchQuery` (setSearchQuery puis handleSearchSubmit() dans le même tick lirait
+  // encore l'ancienne valeur de `searchQuery`). Comportement inchangé quand il est omis : les
+  // deux appels existants (onSubmit du formulaire, clic sur "Search") continuent d'utiliser
+  // `searchQuery`.
+  const handleSearchSubmit = (e?: React.FormEvent, queryOverride?: string) => {
     e?.preventDefault();
     setBiometricMatchMessage(null);
     setSearchAmbiguousMessage(null);
-    const q = searchQuery.toLowerCase().trim();
+    const q = (queryOverride ?? searchQuery).toLowerCase().trim();
     if (!q) return;
 
     // Search across every beneficiary (principals AND dependents) so a dependent's name or
@@ -320,6 +335,16 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
     }
 
     setSearchAmbiguousMessage(t.agentId.ambiguousSearchResults.replace('{count}', String(matches.length)));
+  };
+
+  // === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — "prévoir également un QR code
+  // pour capter les numéro de carte afin de faciliter la recherche". Le numéro de carte extrait
+  // du QR (voir QrCodeScannerModal.tsx / qrCodeUtils.ts) déclenche la même recherche
+  // désambiguïsée que la saisie manuelle, jamais une sélection directe inventée ici.
+  const handleQrCodeScanned = (cardNumber: string) => {
+    setIsQrScannerOpen(false);
+    setSearchQuery(cardNumber);
+    handleSearchSubmit(undefined, cardNumber);
   };
 
   const handleOpenBiometricScanner = () => {
@@ -450,6 +475,17 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         </form>
 
         <div className="flex items-center gap-2.5 shrink-0">
+          {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — bouton de scan QR code
+              pour capter le n° de carte depuis la carte assuré et faciliter la recherche (voir
+              QrCodeScannerModal.tsx et handleQrCodeScanned). */}
+          <button
+            type="button"
+            onClick={() => setIsQrScannerOpen(true)}
+            className="px-4 py-3 rounded-xl font-bold text-xs shadow-2xs transition flex items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap"
+          >
+            <QrCode className="w-4 h-4" />
+            <span>{t.agentId.scanQrCode}</span>
+          </button>
           <button
             type="button"
             onClick={handleOpenBiometricScanner}
@@ -514,15 +550,14 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
       )}
 
       {/* 2. TWO-COLUMN LAYOUT: DIRECTORY (left) + SELECTED MEMBER DETAIL (right) */}
-      {/* === AMÉLIORATION AJOUTÉE : sur mobile (< lg), l'annuaire (liste des assurés) n'est plus
-          affiché du tout, même avant sélection — précision explicite de l'utilisateur (2026-09-10) :
-          plus aucune liste d'assurés parcourable sur mobile, côté Agent. Le champ de recherche et
-          le scan biométrique du bandeau du haut restent pleinement fonctionnels pour retrouver un
-          assuré précis (voir handleSearchSubmit/handleOpenBiometricScanner) — seule la LISTE
-          parcourable disparaît. Annuaire inchangé à partir de `lg`. === */}
+      {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — "la liste des assurés déjà
+          enrôlés doit apparaître sur la version mobile et tablette". Remplace la précédente
+          décision (2026-09-10) qui masquait entièrement cet annuaire sous `lg` : il redevient
+          visible à toutes les largeurs. En grille mono-colonne (mobile/tablette), il s'affiche
+          au-dessus de la fiche détaillée (ordre naturel des enfants de la grille). === */}
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-start">
-        {/* LEFT: Insured Directory — hidden below lg regardless of selection (mobile: search/biometric only) */}
-        <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
+        {/* LEFT: Insured Directory — visible à toutes les largeurs (voir commentaire ci-dessus) */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
               {t.agentId.insuredDirectory} ({filteredDirectory.length})
@@ -595,12 +630,13 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
           <div className="bg-white rounded-2xl border border-dashed border-slate-300 shadow-xs p-12 flex flex-col items-center justify-center text-center gap-2">
             <Users className="w-8 h-8 text-slate-300" />
             <p className="text-sm font-bold text-slate-500">{t.agentId.identifyMember}</p>
-            {/* === AMÉLIORATION AJOUTÉE : copie ajustée (2026-09-10) — l'annuaire n'étant plus
-                affiché du tout sur mobile (voir plus haut), le renvoi vers "on the left" ne
-                s'applique qu'à partir de `lg`. */}
+            {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — l'annuaire étant
+                désormais visible à toutes les largeurs (voir plus haut), ce renvoi s'affiche
+                partout ; le libellé ne mentionne plus "à gauche" (position valable sur desktop
+                uniquement, l'annuaire s'affichant au-dessus sur mobile/tablette). */}
             <p className="text-xs text-slate-400 max-w-sm">
               {t.agentId.identifyMemberDesc}
-              <span className="hidden lg:inline">{t.agentId.browseDirectoryHint}</span>
+              {t.agentId.browseDirectoryHint}
             </p>
           </div>
         ) : (
@@ -1041,6 +1077,15 @@ export const AgentIdentificationView: React.FC<AgentIdentificationViewProps> = (
         onFingerprintCaptured={handleFingerprintCaptured}
         title={t.agentId.biometricModalTitle}
         subtitle={t.agentId.biometricModalSubtitle}
+      />
+
+      {/* === AMÉLIORATION AJOUTÉE : demande explicite (2026-09-18) — modale de scan QR code pour
+          capter le n° de carte depuis la carte assuré (voir QrCodeScannerModal.tsx). */}
+      <QrCodeScannerModal
+        isOpen={isQrScannerOpen}
+        lang={lang}
+        onClose={() => setIsQrScannerOpen(false)}
+        onCardNumberScanned={handleQrCodeScanned}
       />
 
       {/* === AMÉLIORATION AJOUTÉE : alerte bloquante affichée avant de laisser l'agent
