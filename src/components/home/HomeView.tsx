@@ -9,6 +9,13 @@ import {
   IdCard,
   FileText,
   Wallet,
+  Building2,
+  Briefcase,
+  Stethoscope,
+  ChevronDown,
+  Mail,
+  Phone,
+  MapPin,
 } from 'lucide-react';
 import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
@@ -48,6 +55,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
   // Le bouton "Log in" de la barre de navigation n'ouvre plus de menu : il fait défiler la page
   // jusqu'à ce même sélecteur, qui reste la seule façon de choisir un espace de travail.
   const [heroWorkspace, setHeroWorkspace] = useState<AppRole>('Agent');
+  // === AMÉLIORATION AJOUTÉE : contenu réel des sections About / FAQ / Contact us (demande
+  // explicite, 2026-09-18 — "Remplir la page about, FAQ, et Contact us"), qui ne faisaient
+  // jusqu'ici que renvoyer par ancrage vers d'autres sections (Features / How it works / CTA).
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   const workspaceOptions: WorkspaceMenuOption[] = [
     { role: 'Agent', title: t.auth.workspaceAgentTitle },
@@ -98,6 +109,22 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
     { icon: <IdCard className="w-5 h-5" />, title: t.home.step2Title, desc: t.home.step2Desc },
     { icon: <FileText className="w-5 h-5" />, title: t.home.step3Title, desc: t.home.step3Desc },
     { icon: <Wallet className="w-5 h-5" />, title: t.home.step4Title, desc: t.home.step4Desc },
+  ];
+
+  const aboutAudience = [
+    { icon: <Building2 className="w-5 h-5" />, label: t.home.aboutAudienceInsurers },
+    { icon: <Briefcase className="w-5 h-5" />, label: t.home.aboutAudienceEmployers },
+    { icon: <Users className="w-5 h-5" />, label: t.home.aboutAudienceMembers },
+    { icon: <Stethoscope className="w-5 h-5" />, label: t.home.aboutAudienceProviders },
+  ];
+
+  const faqItems = [
+    { q: t.home.faqQ1, a: t.home.faqA1 },
+    { q: t.home.faqQ2, a: t.home.faqA2 },
+    { q: t.home.faqQ3, a: t.home.faqA3 },
+    { q: t.home.faqQ4, a: t.home.faqA4 },
+    { q: t.home.faqQ5, a: t.home.faqA5 },
+    { q: t.home.faqQ6, a: t.home.faqA6 },
   ];
 
   return (
@@ -205,7 +232,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
       </section>
 
       {/* FEATURES */}
-      <section id="about" className="bg-[#F7FAFF] border-y border-[#E8EDF2]">
+      <section className="bg-[#F7FAFF] border-y border-[#E8EDF2]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {features.map((f) => (
             <div
@@ -222,29 +249,85 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
         </div>
       </section>
 
-      {/* HOW DOES IT WORK */}
-      <section id="faq" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center max-w-xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-black text-[#0D2B63]">{t.home.howItWorksTitle}</h2>
-          <p className="mt-3 text-sm text-[#5B7091] font-medium">{t.home.howItWorksSubtitle}</p>
+      {/* ABOUT */}
+      <section id="about" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 scroll-mt-16 grid lg:grid-cols-2 gap-12 items-center">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-black text-[#0D2B63]">{t.home.aboutTitle}</h2>
+          <p className="mt-4 text-sm text-[#5B7091] font-medium leading-relaxed">{t.home.aboutParagraph1}</p>
+          <p className="mt-4 text-sm text-[#5B7091] font-medium leading-relaxed">{t.home.aboutParagraph2}</p>
         </div>
-
-        <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {steps.map((s, i) => (
-            <div key={s.title} className="relative text-center flex flex-col items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-[#0A347B] text-white flex items-center justify-center font-black text-sm">
-                {i + 1}
+        <div className="grid grid-cols-2 gap-4">
+          {aboutAudience.map((a) => (
+            <div
+              key={a.label}
+              className="bg-[#F7FAFF] border border-[#E8EDF2] rounded-2xl p-5 flex flex-col items-start gap-3"
+            >
+              <div className="w-10 h-10 rounded-full bg-[#0A347B]/10 text-[#0A347B] flex items-center justify-center">
+                {a.icon}
               </div>
-              <div className="text-[#0A347B]">{s.icon}</div>
-              <div className="text-sm font-bold text-[#0D2B63]">{s.title}</div>
-              <p className="text-xs text-[#5B7091] font-medium leading-relaxed max-w-[200px]">{s.desc}</p>
+              <div className="text-sm font-bold text-[#0D2B63]">{a.label}</div>
             </div>
           ))}
         </div>
       </section>
 
+      {/* HOW DOES IT WORK */}
+      <section className="bg-[#F7FAFF] border-y border-[#E8EDF2]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center max-w-xl mx-auto">
+            <h2 className="text-2xl sm:text-3xl font-black text-[#0D2B63]">{t.home.howItWorksTitle}</h2>
+            <p className="mt-3 text-sm text-[#5B7091] font-medium">{t.home.howItWorksSubtitle}</p>
+          </div>
+
+          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {steps.map((s, i) => (
+              <div key={s.title} className="relative text-center flex flex-col items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#0A347B] text-white flex items-center justify-center font-black text-sm">
+                  {i + 1}
+                </div>
+                <div className="text-[#0A347B]">{s.icon}</div>
+                <div className="text-sm font-bold text-[#0D2B63]">{s.title}</div>
+                <p className="text-xs text-[#5B7091] font-medium leading-relaxed max-w-[200px]">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 scroll-mt-16">
+        <div className="text-center max-w-xl mx-auto">
+          <h2 className="text-2xl sm:text-3xl font-black text-[#0D2B63]">{t.home.faqTitle}</h2>
+          <p className="mt-3 text-sm text-[#5B7091] font-medium">{t.home.faqSubtitle}</p>
+        </div>
+
+        <div className="mt-10 max-w-2xl mx-auto divide-y divide-[#E8EDF2] border-y border-[#E8EDF2]">
+          {faqItems.map((item, i) => {
+            const isOpen = openFaqIndex === i;
+            return (
+              <div key={item.q}>
+                <button
+                  type="button"
+                  onClick={() => setOpenFaqIndex(isOpen ? null : i)}
+                  aria-expanded={isOpen}
+                  className="w-full flex items-center justify-between gap-4 py-4 text-left cursor-pointer"
+                >
+                  <span className="text-sm font-bold text-[#0D2B63]">{item.q}</span>
+                  <ChevronDown
+                    className={`w-4 h-4 shrink-0 text-[#5B7091] transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {isOpen && (
+                  <p className="pb-4 text-sm text-[#5B7091] font-medium leading-relaxed">{item.a}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       {/* CTA BANNER */}
-      <section id="contact" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
         <div className="rounded-2xl bg-[#0A347B] px-8 py-10 sm:px-14 sm:py-14 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="text-center sm:text-left">
             <h3 className="text-xl sm:text-2xl font-black text-white">{t.home.ctaBannerTitle}</h3>
@@ -256,6 +339,34 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
           >
             {t.home.ctaBannerButton}
           </a>
+        </div>
+      </section>
+
+      {/* CONTACT */}
+      <section id="contact" className="bg-[#F7FAFF] border-t border-[#E8EDF2] scroll-mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center max-w-xl mx-auto">
+            <h2 className="text-2xl sm:text-3xl font-black text-[#0D2B63]">{t.home.contactTitle}</h2>
+            <p className="mt-3 text-sm text-[#5B7091] font-medium">{t.home.contactSubtitle}</p>
+          </div>
+
+          <div className="mt-10 grid sm:grid-cols-3 gap-6 max-w-3xl mx-auto">
+            <div className="bg-white border border-[#E8EDF2] rounded-2xl p-6 flex flex-col items-center text-center gap-2">
+              <Mail className="w-5 h-5 text-[#0A347B]" />
+              <div className="text-xs font-bold text-[#0D2B63] uppercase tracking-wide">{t.home.contactEmailLabel}</div>
+              <div className="text-sm text-[#5B7091] font-medium">{t.home.contactEmailValue}</div>
+            </div>
+            <div className="bg-white border border-[#E8EDF2] rounded-2xl p-6 flex flex-col items-center text-center gap-2">
+              <Phone className="w-5 h-5 text-[#0A347B]" />
+              <div className="text-xs font-bold text-[#0D2B63] uppercase tracking-wide">{t.home.contactPhoneLabel}</div>
+              <div className="text-sm text-[#5B7091] font-medium">{t.home.contactPhoneValue}</div>
+            </div>
+            <div className="bg-white border border-[#E8EDF2] rounded-2xl p-6 flex flex-col items-center text-center gap-2">
+              <MapPin className="w-5 h-5 text-[#0A347B]" />
+              <div className="text-xs font-bold text-[#0D2B63] uppercase tracking-wide">{t.home.contactAddressLabel}</div>
+              <div className="text-sm text-[#5B7091] font-medium">{t.home.contactAddressValue}</div>
+            </div>
+          </div>
         </div>
       </section>
 
