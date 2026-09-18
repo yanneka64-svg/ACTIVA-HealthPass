@@ -32,6 +32,18 @@ import {
 } from '../services/permissions';
 import { getRoleTheme } from '../theme/roleTheme';
 import { reserveExistingCardNumber, isValidCardNumberFormat, normalizeCardNumber } from '../services/cardNumberService';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18), limité aux 3 petits
+// formulaires autonomes ci-dessous (Rejet/Retour/Assignation). Voir enrollmentsFormSchemas.ts.
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  rejectEnrollmentSchema,
+  RejectEnrollmentFormValues,
+  returnEnrollmentSchema,
+  ReturnEnrollmentFormValues,
+  assignEnrollmentSchema,
+  AssignEnrollmentFormValues,
+} from './enrollmentsFormSchemas';
 
 interface EnrollmentsViewProps {
   lang: Language;
@@ -94,17 +106,32 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
   // Rejection modal
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedEnrToReject, setSelectedEnrToReject] = useState<Enrollment | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace l'ancien
+  // `rejectReason` (useState) ; voir enrollmentsFormSchemas.ts.
+  const rejectForm = useForm<RejectEnrollmentFormValues>({
+    resolver: zodResolver(rejectEnrollmentSchema),
+    defaultValues: { reason: '' },
+  });
 
   // Return modal
   const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [selectedEnrToReturn, setSelectedEnrToReturn] = useState<Enrollment | null>(null);
-  const [returnReason, setReturnReason] = useState('');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace l'ancien
+  // `returnReason` (useState) ; voir enrollmentsFormSchemas.ts.
+  const returnForm = useForm<ReturnEnrollmentFormValues>({
+    resolver: zodResolver(returnEnrollmentSchema),
+    defaultValues: { reason: '' },
+  });
 
   // Assign modal
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedEnrToAssign, setSelectedEnrToAssign] = useState<Enrollment | null>(null);
-  const [assignAgentName, setAssignAgentName] = useState('');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace l'ancien
+  // `assignAgentName` (useState) ; voir enrollmentsFormSchemas.ts.
+  const assignForm = useForm<AssignEnrollmentFormValues>({
+    resolver: zodResolver(assignEnrollmentSchema),
+    defaultValues: { agentName: '' },
+  });
 
   // Delete modal
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -156,48 +183,42 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
 
   const openRejectModal = (enr: Enrollment) => {
     setSelectedEnrToReject(enr);
-    setRejectReason('');
+    rejectForm.reset({ reason: '' });
     setRejectModalOpen(true);
   };
 
-  const handleConfirmReject = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rejectReason) return;
+  const handleConfirmReject = rejectForm.handleSubmit((values) => {
     if (selectedEnrToReject) {
-      onReject(selectedEnrToReject, rejectReason);
+      onReject(selectedEnrToReject, values.reason);
       setRejectModalOpen(false);
     }
-  };
+  });
 
   const openReturnModal = (enr: Enrollment) => {
     setSelectedEnrToReturn(enr);
-    setReturnReason('');
+    returnForm.reset({ reason: '' });
     setReturnModalOpen(true);
   };
 
-  const handleConfirmReturn = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!returnReason.trim()) return;
+  const handleConfirmReturn = returnForm.handleSubmit((values) => {
     if (selectedEnrToReturn && onReturn) {
-      onReturn(selectedEnrToReturn, returnReason);
+      onReturn(selectedEnrToReturn, values.reason);
       setReturnModalOpen(false);
     }
-  };
+  });
 
   const openAssignModal = (enr: Enrollment) => {
     setSelectedEnrToAssign(enr);
-    setAssignAgentName(enr.assignedAgentName || '');
+    assignForm.reset({ agentName: enr.assignedAgentName || '' });
     setAssignModalOpen(true);
   };
 
-  const handleConfirmAssign = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!assignAgentName.trim()) return;
+  const handleConfirmAssign = assignForm.handleSubmit((values) => {
     if (selectedEnrToAssign && onAssign) {
-      onAssign(selectedEnrToAssign, assignAgentName);
+      onAssign(selectedEnrToAssign, values.agentName);
       setAssignModalOpen(false);
     }
-  };
+  });
 
   const openDeleteModal = (enr: Enrollment) => {
     setSelectedEnrToDelete(enr);
@@ -816,8 +837,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 </label>
                 <textarea
                   rows={4}
-                  value={returnReason}
-                  onChange={(e) => setReturnReason(e.target.value)}
+                  {...returnForm.register('reason')}
                   placeholder={t.enrollments.correctionPlaceholder}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   required
@@ -877,8 +897,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={assignAgentName}
-                  onChange={(e) => setAssignAgentName(e.target.value)}
+                  {...assignForm.register('agentName')}
                   placeholder={t.enrollments.agentNamePlaceholder}
                   className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 ${roleTheme.palette.accentRing}`}
                   required
@@ -968,8 +987,7 @@ export const EnrollmentsView: React.FC<EnrollmentsViewProps> = ({
                   <span className="text-rose-600">*</span>
                 </label>
                 <select
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
+                  {...rejectForm.register('reason')}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 font-semibold"
                   required
                 >
