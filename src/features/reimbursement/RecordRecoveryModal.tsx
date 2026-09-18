@@ -3,10 +3,16 @@
 // depuis un bouton dédié sur la ligne d'une facture refactée (InvoicesView.tsx), tant qu'il reste
 // un montant refacté non récupéré, pour Admin et Superviseur.
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { X, Undo2 } from 'lucide-react';
 import { InvoiceItem, InvoiceRecovery } from '../../types';
 import { FirestoreService } from '../../services/firestore';
 import { useCurrency } from '../../services/currency';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Voir
+// recordRecoveryFormSchemas.ts : la borne de `amount` dépend de `pending` (calculé ci-dessous à
+// partir de la facture ouverte), d'où la fabrique de schéma plutôt qu'un schéma statique.
+import { createRecordRecoveryFormSchema, RecordRecoveryFormValues } from './recordRecoveryFormSchemas';
 
 interface RecordRecoveryModalProps {
   invoice: InvoiceItem;
@@ -24,42 +30,50 @@ export const RecordRecoveryModal: React.FC<RecordRecoveryModalProps> = ({
   const { formatAmount } = useCurrency();
   const pending = Math.max(0, (invoice.refactionTotalUSD || 0) - (invoice.recoveredTotalUSD || 0));
 
-  const [amount, setAmount] = useState(pending);
-  const [reference, setReference] = useState('');
-  const [notes, setNotes] = useState('');
-  const [recordedAt, setRecordedAt] = useState(new Date().toISOString().slice(0, 10));
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les 4
+  // useState de champs (amount/reference/notes/recordedAt) par un unique useForm. saving/error
+  // restent en état séparé (état UI/soumission, non géré par le formulaire).
+  const form = useForm<RecordRecoveryFormValues>({
+    resolver: zodResolver(createRecordRecoveryFormSchema(pending)),
+    defaultValues: {
+      amount: pending,
+      reference: '',
+      notes: '',
+      recordedAt: new Date().toISOString().slice(0, 10),
+    },
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (amount <= 0 || amount > pending) {
+  const handleSubmit = form.handleSubmit(
+    async (values) => {
+      setError(null);
+      setSaving(true);
+      try {
+        const recovery: InvoiceRecovery = {
+          amountUSD: values.amount,
+          recordedAt: new Date(values.recordedAt).toISOString(),
+          recordedBy: currentUserName,
+          recordedByRole: currentUserRole,
+          reference: values.reference.trim() || undefined,
+          notes: values.notes.trim() || undefined,
+        };
+        const recoveries = [...(invoice.recoveries || []), recovery];
+        await FirestoreService.updateInvoice({
+          ...invoice,
+          recoveries,
+          recoveredTotalUSD: (invoice.recoveredTotalUSD || 0) + values.amount,
+        });
+        onClose();
+      } catch {
+        setError('Could not save this recovery. Please try again.');
+        setSaving(false);
+      }
+    },
+    () => {
       setError(`Amount must be between 0 and the pending refacted amount (${formatAmount(pending)}).`);
-      return;
     }
-    setSaving(true);
-    try {
-      const recovery: InvoiceRecovery = {
-        amountUSD: amount,
-        recordedAt: new Date(recordedAt).toISOString(),
-        recordedBy: currentUserName,
-        recordedByRole: currentUserRole,
-        reference: reference.trim() || undefined,
-        notes: notes.trim() || undefined,
-      };
-      const recoveries = [...(invoice.recoveries || []), recovery];
-      await FirestoreService.updateInvoice({
-        ...invoice,
-        recoveries,
-        recoveredTotalUSD: (invoice.recoveredTotalUSD || 0) + amount,
-      });
-      onClose();
-    } catch {
-      setError('Could not save this recovery. Please try again.');
-      setSaving(false);
-    }
-  };
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
@@ -98,11 +112,11 @@ export const RecordRecoveryModal: React.FC<RecordRecoveryModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 mb-1.5">Amount Recovered</label>
             <input
               type="number"
-              value={amount}
+              value={form.watch('amount')}
               max={pending}
               min={0}
               step="0.01"
-              onChange={(e) => setAmount(Math.max(0, Math.min(pending, Number(e.target.value) || 0)))}
+              onChange={(e) => form.setValue('amount', Math.max(0, Math.min(pending, Number(e.target.value) || 0)))}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
               required
             />
@@ -112,8 +126,7 @@ export const RecordRecoveryModal: React.FC<RecordRecoveryModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 mb-1.5">Reference / Justification</label>
             <input
               type="text"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
+              {...form.register('reference')}
               placeholder="e.g. supporting medical file ref"
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400"
             />
@@ -123,8 +136,7 @@ export const RecordRecoveryModal: React.FC<RecordRecoveryModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 mb-1.5">Notes (optional)</label>
             <input
               type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              {...form.register('notes')}
               placeholder="Any additional context"
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400"
             />
@@ -134,8 +146,7 @@ export const RecordRecoveryModal: React.FC<RecordRecoveryModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 mb-1.5">Recovery Date</label>
             <input
               type="date"
-              value={recordedAt}
-              onChange={(e) => setRecordedAt(e.target.value)}
+              {...form.register('recordedAt')}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800"
               required
             />
