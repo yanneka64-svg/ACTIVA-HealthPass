@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   PlusCircle, // === AMÉLIORATION AJOUTÉE : "+" entouré d'un cercle, harmonisé sur toute l'interface ===
   Receipt,
@@ -41,6 +43,10 @@ import { BiometricFingerprintModal } from '../../components/BiometricFingerprint
 import { isFeatureEnabled } from '../../config/featureFlags';
 import { EntityTimeline } from '../timeline/EntityTimeline';
 import { useClaimsQuery } from './useClaimsQuery';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Voir
+// agentClaimsFormSchemas.ts : le schéma n'encode que le booléen de validité (éligibilité +
+// prestataire/montant), les messages précis restent construits ici (onInvalid).
+import { createAgentClaimsFormSchema, AgentClaimsFormValues } from './agentClaimsFormSchemas';
 
 interface AgentClaimsViewProps {
   // === AMÉLIORATION AJOUTÉE : Phase 3 du plan de durcissement — premier composant migré vers
@@ -145,19 +151,57 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
     setMobileOpenSection((prev) => (prev === section ? 0 : section));
   };
 
-  // Form State
-  const [memberCardInput, setMemberCardInput] = useState('');
-  const [principalNameInput, setPrincipalNameInput] = useState('');
-  const [organizationInput, setOrganizationInput] = useState('');
-  const [patientName, setPatientName] = useState('');
-  const [patientRelationship, setPatientRelationship] = useState('Principal');
-  const [currency, setCurrency] = useState<'USD' | 'LRD'>('USD');
-  const [selectedProviderName, setSelectedProviderName] = useState('');
-  const [doctorName, setDoctorName] = useState('');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les 9
+  // useState de champs du formulaire par un unique useForm. La validation "métier" réelle
+  // (éligibilité, prestataire/montant) dépend de members/organizations/ceilings (props) — la
+  // factory recrée le schéma à chaque rendu pour rester à jour avec ces données, comme pour
+  // RecordRecoveryModal/ApplyRefactionModal.
+  const form = useForm<AgentClaimsFormValues>({
+    resolver: zodResolver(createAgentClaimsFormSchema(members, organizations || [], ceilings || [])),
+    defaultValues: {
+      principalName: '',
+      memberCard: '',
+      organization: '',
+      patientName: '',
+      patientRelationship: 'Principal',
+      currency: 'USD',
+      selectedProviderName: '',
+      doctorName: '',
+      selectedMedicalFormId: '',
+      medicalActs: [
+        { id: '1', category: 'General Practitioner Consultation', description: 'Routine medical consultation', amount: 35 },
+      ],
+    },
+  });
+  const {
+    fields: medicalActFields,
+    append: appendMedicalAct,
+    remove: removeMedicalAct,
+    replace: replaceMedicalActs,
+    update: updateMedicalAct,
+  } = useFieldArray({
+    control: form.control,
+    name: 'medicalActs',
+  });
+  const memberCardInput = form.watch('memberCard');
+  const principalNameInput = form.watch('principalName');
+  const organizationInput = form.watch('organization');
+  const patientName = form.watch('patientName');
+  const patientRelationship = form.watch('patientRelationship');
+  const currency = form.watch('currency');
+  const selectedProviderName = form.watch('selectedProviderName');
+  const doctorName = form.watch('doctorName');
+  const selectedMedicalFormId = form.watch('selectedMedicalFormId');
+  // === AMÉLIORATION AJOUTÉE : lire medicalActs directement depuis `medicalActFields`
+  // (useFieldArray), pas via form.watch()/useWatch — combiner un watch séparé sur le même
+  // tableau avec useFieldArray provoquait un décalage documenté de react-hook-form (les mises à
+  // jour de valeur, via setValue OU une structure changée par append/replace, n'étaient pas
+  // toujours reflétées de façon fiable). `update()` (voir handleUpdateAct plus bas) maintient
+  // `medicalActFields` lui-même à jour de façon synchrone, ce qui rend cette dépendance inutile.
+  const medicalActs = medicalActFields;
+  // Reste hors du formulaire : jamais relié à un contrôle d'interface (voir handleSubmit),
+  // conservé tel quel sans modification de comportement.
   const [careTypeMain, setCareTypeMain] = useState('General Practitioner Consultation');
-  const [medicalActs, setMedicalActs] = useState<MedicalAct[]>([
-    { id: '1', category: 'General Practitioner Consultation', description: 'Routine medical consultation', amount: 35 }
-  ]);
 
   // Uploaded Supporting Documents State
   const [uploadedAttachments, setUploadedAttachments] = useState<ClaimAttachment[]>([]);
@@ -176,9 +220,8 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   const [isFingerprintModalOpen, setIsFingerprintModalOpen] = useState(false);
   const [fingerprintVerification, setFingerprintVerification] = useState<{ score: number } | null>(null);
 
-  // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
-  // fiche maladie optionnellement rattachée à la réclamation en cours de saisie.
-  const [selectedMedicalFormId, setSelectedMedicalFormId] = useState('');
+  // selectedMedicalFormId (lien Claim <-> MedicalForm) est désormais un champ du formulaire —
+  // voir `form.watch('selectedMedicalFormId')` ci-dessus.
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prescriptionInputRef = useRef<HTMLInputElement>(null);
@@ -229,9 +272,9 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   // quand il n'y en a qu'une — l'agent reste libre de la désélectionner via l'option "None".
   useEffect(() => {
     if (selectedMedicalFormId && !linkableMedicalForms.some((f) => f.id === selectedMedicalFormId)) {
-      setSelectedMedicalFormId('');
+      form.setValue('selectedMedicalFormId', '');
     } else if (!selectedMedicalFormId && linkableMedicalForms.length === 1) {
-      setSelectedMedicalFormId(linkableMedicalForms[0].id);
+      form.setValue('selectedMedicalFormId', linkableMedicalForms[0].id);
     }
   }, [linkableMedicalForms, selectedMedicalFormId]);
 
@@ -239,11 +282,11 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   // arrive depuis la fiche d'identification via le bouton "New Claim".
   useEffect(() => {
     if (preselectedMember) {
-      setMemberCardInput(preselectedMember.cardNo);
-      setPrincipalNameInput(preselectedMember.principalName);
-      setOrganizationInput(preselectedMember.organization);
-      setPatientName(preselectedMember.principalName);
-      setPatientRelationship('Principal');
+      form.setValue('memberCard', preselectedMember.cardNo);
+      form.setValue('principalName', preselectedMember.principalName);
+      form.setValue('organization', preselectedMember.organization);
+      form.setValue('patientName', preselectedMember.principalName);
+      form.setValue('patientRelationship', 'Principal');
       // === AMÉLIORATION AJOUTÉE : arriver avec un assuré présélectionné vaut déjà "New Claim"
       // cliqué — pas besoin d'un second clic pour activer le formulaire.
       setFormActivated(true);
@@ -252,27 +295,27 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
 
   // Sync with matched member if found
   const handleCardInputChange = (val: string) => {
-    setMemberCardInput(val);
+    form.setValue('memberCard', val);
     const m = members.find((x) => x.cardNo.toLowerCase() === val.toLowerCase().trim());
     if (m) {
-      setPrincipalNameInput(m.principalName);
-      setOrganizationInput(m.organization);
-      if (!patientName) {
-        setPatientName(m.principalName);
-        setPatientRelationship('Principal');
+      form.setValue('principalName', m.principalName);
+      form.setValue('organization', m.organization);
+      if (!form.getValues('patientName')) {
+        form.setValue('patientName', m.principalName);
+        form.setValue('patientRelationship', 'Principal');
       }
     }
   };
 
   const handlePrincipalNameChange = (val: string) => {
-    setPrincipalNameInput(val);
-    if (!patientName || patientRelationship === 'Principal') {
-      setPatientName(val);
+    form.setValue('principalName', val);
+    if (!form.getValues('patientName') || form.getValues('patientRelationship') === 'Principal') {
+      form.setValue('patientName', val);
     }
     const m = members.find((x) => x.principalName.toLowerCase() === val.toLowerCase().trim());
     if (m) {
-      setMemberCardInput(m.cardNo);
-      setOrganizationInput(m.organization);
+      form.setValue('memberCard', m.cardNo);
+      form.setValue('organization', m.organization);
     }
   };
 
@@ -382,36 +425,29 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
   }, [matchedMember, totalAmountInUSD, t]);
 
   const handleBeneficiarySelect = (name: string, relation: string) => {
-    setPatientName(name);
-    setPatientRelationship(relation);
+    form.setValue('patientName', name);
+    form.setValue('patientRelationship', relation);
   };
 
   // Add act row
   const handleAddAct = () => {
-    setMedicalActs((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        category: 'Pharmacy / Prescription Drugs',
-        description: '',
-        amount: 0
-      }
-    ]);
+    appendMedicalAct({
+      id: Date.now().toString(),
+      category: 'Pharmacy / Prescription Drugs',
+      description: '',
+      amount: 0
+    });
   };
 
   // Remove act row
   const handleRemoveAct = (index: number) => {
     if (medicalActs.length <= 1) return;
-    setMedicalActs((prev) => prev.filter((_, idx) => idx !== index));
+    removeMedicalAct(index);
   };
 
   // Update act row
   const handleUpdateAct = (index: number, field: keyof MedicalAct, val: any) => {
-    setMedicalActs((prev) => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: val };
-      return copy;
-    });
+    updateMedicalAct(index, { ...medicalActFields[index], [field]: val });
   };
 
   // Helper to format file size
@@ -483,77 +519,92 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
     return list;
   }, [prescriptionFile, invoiceFile, uploadedAttachments]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setEligibilityBlockError(null);
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Le schéma
+  // (agentClaimsFormSchemas.ts) ne fait que bloquer la soumission (booléen) ; les vérifications
+  // ci-dessous sont conservées en défense (comportement identique au code impératif d'origine,
+  // y compris le cas "prestataire manquant ou montant nul" qui échoue SILENCIEUSEMENT, sans
+  // message — voir onInvalid plus bas pour le seul cas qui affiche un message).
+  const handleSubmit = form.handleSubmit(
+    (values) => {
+      setEligibilityBlockError(null);
 
-    const finalCardNo = memberCardInput.trim() || 'CARD-' + Math.floor(100000 + Math.random() * 900000);
-    const finalName = principalNameInput.trim() || 'Anonymous Insured';
-    const finalOrg = organizationInput.trim() || matchedMember?.organization || 'Individual Policy';
-    const finalPatient = patientName.trim() || finalName;
+      const finalCardNo = values.memberCard.trim() || 'CARD-' + Math.floor(100000 + Math.random() * 900000);
+      const finalName = values.principalName.trim() || 'Anonymous Insured';
+      const finalOrg = values.organization.trim() || matchedMember?.organization || 'Individual Policy';
+      const finalPatient = values.patientName.trim() || finalName;
 
-    // Enforce Eligibility Verification
-    if (eligibilityStatus && !eligibilityStatus.isEligible) {
-      setEligibilityBlockError(eligibilityStatus.reason || t.agentClaims.ineligibleFallback);
-      return;
+      // Enforce Eligibility Verification
+      if (eligibilityStatus && !eligibilityStatus.isEligible) {
+        setEligibilityBlockError(eligibilityStatus.reason || t.agentClaims.ineligibleFallback);
+        return;
+      }
+
+      if (!values.selectedProviderName || totalAmount <= 0) return;
+
+      // Consolidate all attachments
+      const allAttachments: ClaimAttachment[] = [];
+      if (prescriptionFile) allAttachments.push(prescriptionFile);
+      if (invoiceFile) allAttachments.push(invoiceFile);
+      allAttachments.push(...uploadedAttachments);
+
+      // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
+      // fiche maladie choisie dans le sélecteur "Link to Medical Form" ci-dessous, le cas échéant.
+      const linkedMedicalForm = linkableMedicalForms.find((f) => f.id === values.selectedMedicalFormId);
+
+      onCreateClaim({
+        // === AMÉLIORATION AJOUTÉE : préfixe CLM (retour utilisateur, 2026-09-12 — "la référence
+        // de la réclamation ... doit commencer par CLM et non SIN"), remplace l'ancien préfixe SIN.
+        reference: `CLM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        memberCardNo: finalCardNo,
+        memberName: finalName,
+        organization: finalOrg,
+        provider: values.selectedProviderName,
+        doctorName: values.doctorName || 'Attending Physician',
+        amount: totalAmountInUSD,
+        currency: values.currency,
+        careType: values.medicalActs[0]?.category || careTypeMain,
+        medicalActs: values.medicalActs.map((a) => ({
+          name: `${a.category}: ${a.description || 'Medical Service'}`,
+          amount: Number(a.amount) || 0,
+          category: a.category,
+          description: a.description
+        })),
+        serviceDate: new Date().toISOString().split('T')[0],
+        submissionDate: new Date().toISOString().split('T')[0],
+        status: 'pending',
+        comments: `Patient: ${finalPatient} (${values.patientRelationship}). Physician: ${values.doctorName || 'N/A'}. Supporting docs: ${allAttachments.length} document(s) attached.`,
+        prescriptionUrl: prescriptionFile?.url || (allAttachments.find(a => a.type === 'image' || a.type === 'pdf')?.url),
+        invoiceDocumentUrl: invoiceFile?.url || (allAttachments[1]?.url),
+        attachments: allAttachments,
+        medicalFormId: linkedMedicalForm?.id,
+        medicalFormReference: linkedMedicalForm?.securityNumber
+      });
+
+      // Reset form — patientRelationship et currency ne sont PAS réinitialisés (comportement
+      // existant préservé, voir AgentClaimsView.test.tsx).
+      setFormActivated(false);
+      form.setValue('memberCard', '');
+      form.setValue('principalName', '');
+      form.setValue('organization', '');
+      form.setValue('patientName', '');
+      form.setValue('selectedProviderName', '');
+      form.setValue('doctorName', '');
+      setPrescriptionFile(null);
+      setInvoiceFile(null);
+      setUploadedAttachments([]);
+      replaceMedicalActs([{ id: '1', category: 'General Practitioner Consultation', description: 'Consultation', amount: 35 }]);
+      setFingerprintVerification(null);
+      form.setValue('selectedMedicalFormId', '');
+    },
+    () => {
+      // Seul le cas d'inéligibilité affiche un message (identique à avant) ; le cas
+      // "prestataire manquant ou montant nul" échoue silencieusement, sans message.
+      setEligibilityBlockError(null);
+      if (eligibilityStatus && !eligibilityStatus.isEligible) {
+        setEligibilityBlockError(eligibilityStatus.reason || t.agentClaims.ineligibleFallback);
+      }
     }
-
-    if (!selectedProviderName || totalAmount <= 0) return;
-
-    // Consolidate all attachments
-    const allAttachments: ClaimAttachment[] = [];
-    if (prescriptionFile) allAttachments.push(prescriptionFile);
-    if (invoiceFile) allAttachments.push(invoiceFile);
-    allAttachments.push(...uploadedAttachments);
-
-    // === AMÉLIORATION AJOUTÉE : lien Claim <-> MedicalForm (retour utilisateur, 2026-09-12) —
-    // fiche maladie choisie dans le sélecteur "Link to Medical Form" ci-dessous, le cas échéant.
-    const linkedMedicalForm = linkableMedicalForms.find((f) => f.id === selectedMedicalFormId);
-
-    onCreateClaim({
-      // === AMÉLIORATION AJOUTÉE : préfixe CLM (retour utilisateur, 2026-09-12 — "la référence
-      // de la réclamation ... doit commencer par CLM et non SIN"), remplace l'ancien préfixe SIN.
-      reference: `CLM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      memberCardNo: finalCardNo,
-      memberName: finalName,
-      organization: finalOrg,
-      provider: selectedProviderName,
-      doctorName: doctorName || 'Attending Physician',
-      amount: totalAmountInUSD,
-      currency: currency,
-      careType: medicalActs[0]?.category || careTypeMain,
-      medicalActs: medicalActs.map((a) => ({
-        name: `${a.category}: ${a.description || 'Medical Service'}`,
-        amount: Number(a.amount) || 0,
-        category: a.category,
-        description: a.description
-      })),
-      serviceDate: new Date().toISOString().split('T')[0],
-      submissionDate: new Date().toISOString().split('T')[0],
-      status: 'pending',
-      comments: `Patient: ${finalPatient} (${patientRelationship}). Physician: ${doctorName || 'N/A'}. Supporting docs: ${allAttachments.length} document(s) attached.`,
-      prescriptionUrl: prescriptionFile?.url || (allAttachments.find(a => a.type === 'image' || a.type === 'pdf')?.url),
-      invoiceDocumentUrl: invoiceFile?.url || (allAttachments[1]?.url),
-      attachments: allAttachments,
-      medicalFormId: linkedMedicalForm?.id,
-      medicalFormReference: linkedMedicalForm?.securityNumber
-    });
-
-    // Reset form
-    setFormActivated(false);
-    setMemberCardInput('');
-    setPrincipalNameInput('');
-    setOrganizationInput('');
-    setPatientName('');
-    setSelectedProviderName('');
-    setDoctorName('');
-    setPrescriptionFile(null);
-    setInvoiceFile(null);
-    setUploadedAttachments([]);
-    setMedicalActs([{ id: '1', category: 'General Practitioner Consultation', description: 'Consultation', amount: 35 }]);
-    setFingerprintVerification(null);
-    setSelectedMedicalFormId('');
-  };
+  );
 
   // Current month/year label used for the "Recent Claims History" section, consistent with
   // the equivalent badge on the Identification view.
@@ -706,8 +757,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     </label>
                     <input
                       type="text"
-                      value={patientName}
-                      onChange={(e) => setPatientName(e.target.value)}
+                      {...form.register('patientName')}
                       placeholder={t.agentClaims.patientTreatedPlaceholder}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
@@ -741,8 +791,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       {t.agentClaims.serviceCurrencyLabel}
                     </label>
                     <select
-                      value={currency}
-                      onChange={(e) => setCurrency(e.target.value as 'USD' | 'LRD')}
+                      {...form.register('currency')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                     >
                       <option value="USD">{t.agentClaims.usdOption}</option>
@@ -763,8 +812,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       {t.agentClaims.linkedMedicalFormLabel}
                     </label>
                     <select
-                      value={selectedMedicalFormId}
-                      onChange={(e) => setSelectedMedicalFormId(e.target.value)}
+                      {...form.register('selectedMedicalFormId')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                     >
                       <option value="">{t.agentClaims.linkedMedicalFormNone}</option>
@@ -789,8 +837,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={organizationInput}
-                        onChange={(e) => setOrganizationInput(e.target.value)}
+                        {...form.register('organization')}
                         placeholder={t.agentClaims.orgSponsorPlaceholder}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       />
@@ -800,8 +847,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         {t.agentClaims.relationshipLabel}
                       </label>
                       <select
-                        value={patientRelationship}
-                        onChange={(e) => setPatientRelationship(e.target.value)}
+                        {...form.register('patientRelationship')}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       >
                         <option value="Principal">{t.agentClaims.relationshipPrincipal}</option>
@@ -858,8 +904,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       {t.agentClaims.providerLabel}
                     </label>
                     <select
-                      value={selectedProviderName}
-                      onChange={(e) => setSelectedProviderName(e.target.value)}
+                      {...form.register('selectedProviderName')}
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
                     >
@@ -878,8 +923,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     </label>
                     <input
                       type="text"
-                      value={doctorName}
-                      onChange={(e) => setDoctorName(e.target.value)}
+                      {...form.register('doctorName')}
                       placeholder={t.agentClaims.physicianPlaceholder}
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[var(--brand-900)]"
                       required
@@ -916,7 +960,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                     <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
                       <button
                         type="button"
-                        onClick={() => setCurrency('USD')}
+                        onClick={() => form.setValue('currency', 'USD')}
                         className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
                           currency === 'USD' ? 'bg-[var(--brand-900)] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
@@ -925,7 +969,7 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setCurrency('LRD')}
+                        onClick={() => form.setValue('currency', 'LRD')}
                         className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
                           currency === 'LRD' ? 'bg-[var(--brand-900)] text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-50'
                         }`}
@@ -950,8 +994,10 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                 <div className={`${mobileOpenSection === 3 ? 'block' : 'hidden'} lg:!block space-y-3.5`}>
                 {/* Medical Act items */}
                 <div className="space-y-2.5">
-                  {medicalActs.map((act, idx) => (
-                    <div key={act.id || idx} className="p-3 bg-slate-50/70 border border-slate-200 rounded-xl space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 gap-2.5 items-center">
+                  {medicalActFields.map((fieldItem, idx) => {
+                    const act = medicalActs[idx];
+                    return (
+                    <div key={fieldItem.id} className="p-3 bg-slate-50/70 border border-slate-200 rounded-xl space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 gap-2.5 items-center">
                       <div className="sm:col-span-4">
                         <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
                           {t.agentClaims.procedureDescriptionPrefix}{idx + 1}
@@ -1022,7 +1068,8 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* === AMÉLIORATION AJOUTÉE : bandeau de calcul automatisé du co-paiement ACTIVA,
@@ -1413,10 +1460,15 @@ export const AgentClaimsView: React.FC<AgentClaimsViewProps> = ({
       </div>
 
       {/* Biometric Fingerprint Verification Modal (optional, section 4 footer) */}
+      {/* === FIX (pre-existing bug, found during Phase 3 migration, 2026-09-18) === the prop
+          passed was "onCapture", which doesn't exist on BiometricFingerprintModalProps — the
+          real prop is "onFingerprintCaptured" (same bug already fixed in MembersView.tsx). This
+          silently prevented `fingerprintVerification` from EVER being set: the "Fingerprint
+          Verified" badge never appeared no matter what the agent did in the modal. */}
       <BiometricFingerprintModal
         isOpen={isFingerprintModalOpen}
         onClose={() => setIsFingerprintModalOpen(false)}
-        onCapture={(data) => {
+        onFingerprintCaptured={(data) => {
           setFingerprintVerification({ score: data.score });
           setIsFingerprintModalOpen(false);
         }}
