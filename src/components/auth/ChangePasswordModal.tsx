@@ -1,7 +1,22 @@
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { KeyRound, Check, X, ShieldAlert, Lock } from 'lucide-react';
 import { Language } from '../../types';
 import { useTranslation } from '../../i18n/translations';
+// === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Voir
+// changePasswordFormSchemas.ts : les prédicats individuels sont réutilisés ici pour la
+// checklist affichée en direct, et le schéma pour la règle globale de soumission.
+import {
+  changePasswordFormSchema,
+  ChangePasswordFormValues,
+  hasLower,
+  hasMinLength,
+  hasNumber,
+  hasSpecial,
+  hasUpper,
+  isMatchingPassword,
+} from './changePasswordFormSchemas';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -37,36 +52,48 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   const isSupervisor = userRole.toLowerCase() === 'supervisor' || userRole.toLowerCase() === 'superviseur';
   const accentBtnClass = isAdmin || isSupervisor ? 'bg-slate-700 hover:bg-slate-800' : 'bg-[#0a2e6b] hover:bg-[#07214f]';
   const accentRingClass = isAdmin || isSupervisor ? 'focus:ring-slate-500' : 'focus:ring-[#0a2e6b]';
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Remplace les 3
+  // useState de champs (currentPassword/newPassword/confirmPassword) par un unique useForm.
+  // error reste en état séparé (état de soumission, non géré par le formulaire).
+  const form = useForm<ChangePasswordFormValues>({
+    resolver: zodResolver(changePasswordFormSchema),
+    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
+  });
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const isMandatory = isForcedFirstLogin || isExpiredPassword;
 
-  const hasMinLength = newPassword.length >= 8;
-  const hasUpper = /[A-Z]/.test(newPassword);
-  const hasLower = /[a-z]/.test(newPassword);
-  const hasNumber = /\d/.test(newPassword);
-  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
-  const isMatching = newPassword.length > 0 && newPassword === confirmPassword;
-  const isFormValid = hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial && isMatching;
+  // Checklist affichée en direct à chaque frappe — dérivée des valeurs surveillées via
+  // `watch()`, indépendamment de la validation zod (qui ne s'exécute qu'à la soumission).
+  const watchedNewPassword = form.watch('newPassword');
+  const watchedConfirmPassword = form.watch('confirmPassword');
+  const newPasswordHasMinLength = hasMinLength(watchedNewPassword);
+  const newPasswordHasUpper = hasUpper(watchedNewPassword);
+  const newPasswordHasLower = hasLower(watchedNewPassword);
+  const newPasswordHasNumber = hasNumber(watchedNewPassword);
+  const newPasswordHasSpecial = hasSpecial(watchedNewPassword);
+  const passwordsMatch = isMatchingPassword(watchedNewPassword, watchedConfirmPassword);
+  const isFormValid =
+    newPasswordHasMinLength &&
+    newPasswordHasUpper &&
+    newPasswordHasLower &&
+    newPasswordHasNumber &&
+    newPasswordHasSpecial &&
+    passwordsMatch;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isFormValid) {
-      setError(
-        'Please meet all the password security requirements.'
-      );
-      return;
+  const handleSubmit = form.handleSubmit(
+    (values) => {
+      setError(null);
+      // isForcedFirstLogin: no "current password" field (the user just signed in with their
+      // temporary password) -> currentPassword stays undefined.
+      onSuccess(values.newPassword, isForcedFirstLogin ? undefined : values.currentPassword);
+    },
+    () => {
+      setError('Please meet all the password security requirements.');
     }
-    setError(null);
-    // isForcedFirstLogin: no "current password" field (the user just signed in with their
-    // temporary password) -> currentPassword stays undefined.
-    onSuccess(newPassword, isForcedFirstLogin ? undefined : currentPassword);
-  };
+  );
 
   const modalTitle = customTitle || (isExpiredPassword ? 'Periodic Password Renewal' : isForcedFirstLogin ? t.auth.changePasswordTitle : t.changePassword);
   const modalSubtitle = customSubtitle || (isExpiredPassword ? 'Your password has reached its 2-month validity limit. Please set a new password.' : isForcedFirstLogin ? t.auth.changePasswordSubtitle : 'Securing your account');
@@ -113,8 +140,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               <div className="relative">
                 <input
                   type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  {...form.register('currentPassword')}
                   className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 ${accentRingClass} focus:bg-white transition`}
                   placeholder="••••••••"
                   required
@@ -131,8 +157,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             <div className="relative">
               <input
                 type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                {...form.register('newPassword')}
                 className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 ${accentRingClass} focus:bg-white transition`}
                 placeholder="••••••••"
                 required
@@ -148,8 +173,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             <div className="relative">
               <input
                 type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                {...form.register('confirmPassword')}
                 className={`w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 ${accentRingClass} focus:bg-white transition`}
                 placeholder="••••••••"
                 required
@@ -164,40 +188,40 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               {'Security requirements:'}
             </p>
             <div className="grid grid-cols-1 gap-1 text-[11px]">
-              <div className={`flex items-center gap-2 font-medium ${hasMinLength ? 'text-emerald-600' : 'text-slate-400'}`}>
-                {hasMinLength ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
+              <div className={`flex items-center gap-2 font-medium ${newPasswordHasMinLength ? 'text-emerald-600' : 'text-slate-400'}`}>
+                {newPasswordHasMinLength ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
                 <span>Minimum 8 characters</span>
               </div>
-              <div className={`flex items-center gap-2 font-medium ${hasUpper ? 'text-emerald-600' : 'text-slate-400'}`}>
-                {hasUpper ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
+              <div className={`flex items-center gap-2 font-medium ${newPasswordHasUpper ? 'text-emerald-600' : 'text-slate-400'}`}>
+                {newPasswordHasUpper ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
                 <span>At least one uppercase letter</span>
               </div>
-              <div className={`flex items-center gap-2 font-medium ${hasLower ? 'text-emerald-600' : 'text-slate-400'}`}>
-                {hasLower ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
+              <div className={`flex items-center gap-2 font-medium ${newPasswordHasLower ? 'text-emerald-600' : 'text-slate-400'}`}>
+                {newPasswordHasLower ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
                 <span>At least one lowercase letter</span>
               </div>
               <div
                 className={`flex items-center gap-2 font-medium ${
-                  hasNumber ? 'text-emerald-600' : 'text-slate-400'
+                  newPasswordHasNumber ? 'text-emerald-600' : 'text-slate-400'
                 }`}
               >
-                {hasNumber ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
+                {newPasswordHasNumber ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
                 <span>{t.auth.ruleNumber}</span>
               </div>
               <div
                 className={`flex items-center gap-2 font-medium ${
-                  hasSpecial ? 'text-emerald-600' : 'text-slate-400'
+                  newPasswordHasSpecial ? 'text-emerald-600' : 'text-slate-400'
                 }`}
               >
-                {hasSpecial ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
+                {newPasswordHasSpecial ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
                 <span>{t.auth.ruleSpecial}</span>
               </div>
               <div
                 className={`flex items-center gap-2 font-medium ${
-                  isMatching ? 'text-emerald-600' : 'text-slate-400'
+                  passwordsMatch ? 'text-emerald-600' : 'text-slate-400'
                 }`}
               >
-                {isMatching ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
+                {passwordsMatch ? <Check className="w-3.5 h-3.5 text-[#00A859]" /> : <span className="w-3.5 h-3.5 rounded-full border border-slate-300 inline-block"></span>}
                 <span>{t.auth.ruleMatch}</span>
               </div>
             </div>
