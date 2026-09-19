@@ -18,20 +18,20 @@ import {
   Trash2,
   ShieldAlert,
 } from 'lucide-react';
-import { Enrollment, Language, Organization, RelationshipType, UserProfile } from '../types';
-import { useTranslation } from '../i18n/translations';
-import { AttachmentBiometricViewerModal } from '../components/AttachmentBiometricViewerModal';
-import { BiometricCameraModal } from '../components/BiometricCameraModal';
-import { uploadPhotoOrFallback } from '../utils/storageUtils';
-import { BiometricFingerprintModal } from '../components/BiometricFingerprintModal';
+import { Enrollment, Language, Organization, RelationshipType, UserProfile } from '../../types';
+import { useTranslation } from '../../i18n/translations';
+import { AttachmentBiometricViewerModal } from '../../components/AttachmentBiometricViewerModal';
+import { BiometricCameraModal } from '../../components/BiometricCameraModal';
+import { uploadPhotoOrFallback } from '../../utils/storageUtils';
+import { BiometricFingerprintModal } from '../../components/BiometricFingerprintModal';
 import {
   canApproveRecord,
   canReturnRecord,
   canAssignRecord,
   canDeleteRecord,
-} from '../services/permissions';
-import { getRoleTheme } from '../theme/roleTheme';
-import { reserveExistingCardNumber, isValidCardNumberFormat, normalizeCardNumber } from '../services/cardNumberService';
+} from '../../services/permissions';
+import { getRoleTheme } from '../../theme/roleTheme';
+import { reserveExistingCardNumber, isValidCardNumberFormat, normalizeCardNumber } from '../../services/cardNumberService';
 // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18), limité aux 3 petits
 // formulaires autonomes ci-dessous (Rejet/Retour/Assignation). Voir enrollmentsFormSchemas.ts.
 import { useForm } from 'react-hook-form';

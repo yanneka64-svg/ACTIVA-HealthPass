@@ -63,7 +63,7 @@ import { getClientLocationInfo, parseUserAgent } from './utils/geoUtils';
 const DashboardView = lazy(() => import('./views/DashboardView').then((m) => ({ default: m.DashboardView })));
 const ClaimsView = lazy(() => import('./features/claims/ClaimsView').then((m) => ({ default: m.ClaimsView })));
 const InvoicesView = lazy(() => import('./views/InvoicesView').then((m) => ({ default: m.InvoicesView })));
-const EnrollmentsView = lazy(() => import('./views/EnrollmentsView').then((m) => ({ default: m.EnrollmentsView })));
+const EnrollmentsView = lazy(() => import('./features/enrollments/EnrollmentsView').then((m) => ({ default: m.EnrollmentsView })));
 const ReportsView = lazy(() => import('./views/ReportsView').then((m) => ({ default: m.ReportsView })));
 const MembersView = lazy(() => import('./features/members/MembersView').then((m) => ({ default: m.MembersView })));
 const OrganizationsView = lazy(() => import('./views/settings/OrganizationsView').then((m) => ({ default: m.OrganizationsView })));
@@ -75,7 +75,7 @@ const LogsView = lazy(() => import('./views/settings/LogsView').then((m) => ({ d
 const AgentIdentificationView = lazy(() => import('./features/members/AgentIdentificationView').then((m) => ({ default: m.AgentIdentificationView })));
 const AgentMedicalFormView = lazy(() => import('./views/agent/AgentMedicalFormView').then((m) => ({ default: m.AgentMedicalFormView })));
 const AgentClaimsView = lazy(() => import('./features/claims/AgentClaimsView').then((m) => ({ default: m.AgentClaimsView })));
-const AgentEnrollmentsView = lazy(() => import('./views/agent/AgentEnrollmentsView').then((m) => ({ default: m.AgentEnrollmentsView })));
+const AgentEnrollmentsView = lazy(() => import('./features/enrollments/AgentEnrollmentsView').then((m) => ({ default: m.AgentEnrollmentsView })));
 import { InactivityWarningModal } from './components/InactivityWarningModal';
 import {
   playSuccessSound,
