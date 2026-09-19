@@ -54,11 +54,6 @@ export const WebcamCaptureModal: React.FC<WebcamCaptureModalProps> = ({
         throw new Error('Webcam / Camera API is not supported on this browser.');
       }
 
-      // Check available video devices
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
-      setHasMultipleCameras(videoDevices.length > 1);
-
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: mode,
@@ -76,6 +71,22 @@ export const WebcamCaptureModal: React.FC<WebcamCaptureModalProps> = ({
         videoRef.current.play().catch((e) => {
           console.warn('Video playback error:', e);
         });
+      }
+
+      // === AMÉLIORATION AJOUTÉE : correctif (demande explicite, 2026-09-19 — "seule la
+      // caméra avant est actionnée") — l'énumération des périphériques se faisait AVANT
+      // la toute première autorisation caméra ; à ce moment-là, plusieurs navigateurs
+      // (notamment mobiles) ne remontent pas encore un décompte fiable des caméras
+      // disponibles (labels/deviceId vides tant qu'aucune permission n'a jamais été
+      // accordée pour cette origine), ce qui pouvait masquer à tort le bouton de bascule
+      // avant/arrière dès la première ouverture. On réénumère ici, une fois la permission
+      // obtenue, pour détecter fiablement une caméra arrière.
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+        setHasMultipleCameras(videoDevices.length > 1);
+      } catch {
+        // Non bloquant : le bouton de bascule reste simplement masqué si l'énumération échoue.
       }
     } catch (err: any) {
       console.error('Camera access error:', err);
