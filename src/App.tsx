@@ -503,14 +503,14 @@ export default function App() {
       seedInitialDemoDataIfEmpty();
       // Set up Firestore data listeners — `assignedOrgs` (null par défaut = comportement
       // inchangé) scope les collections concernées par la Phase 1.3.
+      // === AMÉLIORATION AJOUTÉE : performance (retour utilisateur — "le login est lent") ===
+      // `invoices`/`ceilings`/`medicalForms` ont été retirées d'ici : voir les 3 effets dédiés
+      // juste en dessous, qui ne les abonnent qu'au moment où elles sont réellement nécessaires.
       const unsubMembers = FirestoreService.subscribeToMembers(setMembers, assignedOrgs);
       const unsubOrgs = FirestoreService.subscribeToOrganizations(setOrganizations);
       const unsubProviders = FirestoreService.subscribeToProviders(setProviders);
       const unsubClaims = FirestoreService.subscribeToClaims(setClaimsAndMirror, assignedOrgs);
-      const unsubInvoices = FirestoreService.subscribeToInvoices(setInvoices, assignedOrgs);
       const unsubEnrollments = FirestoreService.subscribeToEnrollments(setEnrollments, assignedOrgs);
-      const unsubCeilings = FirestoreService.subscribeToCeilings(setCeilings);
-      const unsubMedicalForms = FirestoreService.subscribeToMedicalForms(setMedicalForms, assignedOrgs);
       // notifications/healthPolicies/policyPayments/logs : voir useNotificationsData,
       // useHealthPoliciesData, usePolicyPaymentsData, useLogsData (src/hooks/) ci-dessus.
 
@@ -519,14 +519,59 @@ export default function App() {
         unsubOrgs();
         unsubProviders();
         unsubClaims();
-        unsubInvoices();
         unsubEnrollments();
-        unsubCeilings();
-        unsubMedicalForms();
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authStatus, userRole, orgScopeKey]);
+
+  // === AMÉLIORATION AJOUTÉE : performance (retour utilisateur — "l'application est très
+  // lente, les pages mettent du temps à charger — au login") === Cause de fond documentée dans
+  // FRONTEND_CRITICAL_ANALYSIS.md §2 : les 8 collections Firestore ci-dessus étaient TOUTES
+  // chargées intégralement, en temps réel, dès la connexion, quel que soit le rôle ou l'écran
+  // réellement affiché. Or `invoices`/`ceilings`/`medicalForms` ne sont utilisées par AUCUN des
+  // 3 écrans d'atterrissage par défaut (voir getDefaultSectionForRole : 'dashboard' pour Admin,
+  // 'claims_validation' pour Superviseur, 'identification' pour Agent) — uniquement par les
+  // écrans Claims (variante Agent), Members, Ceilings, Medical Form, Invoices/Receipts et
+  // Reports. Leur abonnement est donc différé jusqu'à ce que l'utilisateur visite effectivement
+  // l'un de ces écrans : une fois déclenché (le booléen ne repasse jamais à false), la
+  // collection reste chargée en temps réel exactement comme les 5 autres — aucun changement de
+  // comportement une fois chargée, seul le MOMENT du tout premier chargement change.
+  const [ceilingsNeeded, setCeilingsNeeded] = useState(false);
+  const [medicalFormsNeeded, setMedicalFormsNeeded] = useState(false);
+  const [invoicesNeeded, setInvoicesNeeded] = useState(false);
+
+  useEffect(() => {
+    if (currentSection === 'claims' || currentSection === 'members' || currentSection === 'ceilings') {
+      setCeilingsNeeded(true);
+    }
+    if (currentSection === 'claims' || currentSection === 'medical_form') {
+      setMedicalFormsNeeded(true);
+    }
+    if (currentSection === 'invoices' || currentSection === 'receipts' || currentSection === 'reports') {
+      setInvoicesNeeded(true);
+    }
+  }, [currentSection]);
+
+  useEffect(() => {
+    if (authStatus === 'authenticated' && userRole && ceilingsNeeded) {
+      return FirestoreService.subscribeToCeilings(setCeilings);
+    }
+  }, [authStatus, userRole, ceilingsNeeded]);
+
+  useEffect(() => {
+    if (authStatus === 'authenticated' && userRole && medicalFormsNeeded) {
+      return FirestoreService.subscribeToMedicalForms(setMedicalForms, assignedOrgs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authStatus, userRole, medicalFormsNeeded, orgScopeKey]);
+
+  useEffect(() => {
+    if (authStatus === 'authenticated' && userRole && invoicesNeeded) {
+      return FirestoreService.subscribeToInvoices(setInvoices, assignedOrgs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authStatus, userRole, invoicesNeeded, orgScopeKey]);
 
   // === AMÉLIORATION AJOUTÉE : Health Insurance Policy Management & Premium Monitoring —
   // recalcul automatique du statut de chaque police (expiration, dépassement du délai de
