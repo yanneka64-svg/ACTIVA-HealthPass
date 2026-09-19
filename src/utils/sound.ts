@@ -134,15 +134,36 @@ export function playSuccessSound(): void {
 }
 
 /**
- * Short, distinct double-ping played when a new notification is received.
+ * === AMÉLIORATION AJOUTÉE : son de notification redessiné (demande explicite,
+ * 2026-09-19 — "changer le son ... un son plus fin et plus agréable"). Ajoute un
+ * harmonique d'octave discret et plus bref par-dessus la fondamentale, pour un
+ * timbre plus rond et "carillon" au lieu d'un bip électronique sec.
+ */
+function playChimeTone(
+  ctx: AudioContext,
+  frequency: number,
+  startTime: number,
+  duration: number,
+  peakGain: number
+) {
+  playTone(ctx, frequency, startTime, duration, peakGain);
+  playTone(ctx, frequency * 2, startTime, duration * 0.6, peakGain * 0.28);
+}
+
+/**
+ * Short, gentle two-note chime played when a new notification is received.
+ * === AMÉLIORATION AJOUTÉE : intervalle mélodique plus doux (quarte juste
+ * G5 → C6 au lieu du saut plus brusque de l'ancienne version) et gain réduit,
+ * pour un son plus fin et plus agréable, sans changer le déclenchement ni la
+ * signature de la fonction (voir App.tsx, notifications temps réel).
  */
 export function playNotificationSound(): void {
   const ctx = getAudioContext();
   if (!ctx) return;
   try {
     const now = ctx.currentTime;
-    playTone(ctx, 880, now, 0.11, 0.14);
-    playTone(ctx, 1174, now + 0.13, 0.14, 0.14);
+    playChimeTone(ctx, 783.99, now, 0.16, 0.12); // G5
+    playChimeTone(ctx, 1046.5, now + 0.14, 0.22, 0.13); // C6
   } catch {
     // Never let a sound failure interrupt the app.
   }

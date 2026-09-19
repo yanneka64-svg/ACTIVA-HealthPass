@@ -554,20 +554,10 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                       Verify/Approve/Reject doivent rester alignés sur une seule ligne) et
                       stopPropagation (le clic sur un bouton d'action ne doit pas aussi ouvrir le
                       panneau Claim 360 déclenché par le clic sur la ligne) === */}
+                  {/* === AMÉLIORATION AJOUTÉE : bouton "Verify" retiré de la liste "Pending
+                      Validation" (demande explicite, 2026-09-19) — la vérification biométrique
+                      reste disponible depuis l'historique des décisions. === */}
                   <div className="flex items-center flex-nowrap overflow-x-auto gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedClaimForBiometrics(claim);
-                        setBiometricModalOpen(true);
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                      title={t.claims.verifyTitle}
-                    >
-                      <Scan className="w-3.5 h-3.5 text-slate-600" />
-                      <span>{t.claims.verify}</span>
-                    </button>
-
                     {isSupervisor && (
                       <>
                         <button
@@ -715,21 +705,9 @@ export const ClaimsView: React.FC<ClaimsViewProps> = ({
                             Approve/Reject doivent rester alignés sur une seule ligne) et
                             stopPropagation (un clic sur un bouton d'action ne doit pas aussi
                             ouvrir le panneau Claim 360 déclenché par le clic sur la ligne) === */}
+                        {/* === AMÉLIORATION AJOUTÉE : bouton "Verify" retiré de la liste "Pending
+                            Validation" (demande explicite, 2026-09-19) === */}
                         <div className="flex items-center justify-center gap-1.5 flex-nowrap" onClick={(e) => e.stopPropagation()}>
-                          {/* Biometric & Dossier Verification Button */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedClaimForBiometrics(claim);
-                              setBiometricModalOpen(true);
-                            }}
-                            className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                            title={t.claims.verifyTitle}
-                          >
-                            <Scan className="w-3.5 h-3.5 text-slate-600" />
-                            <span>{t.claims.verify}</span>
-                          </button>
-
                           {/* Supervisor Validation Actions (Approve and Reject are strictly reserved for Supervisors, NOT Admin) */}
                           {isSupervisor && (
                             <>

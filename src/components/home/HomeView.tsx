@@ -136,6 +136,25 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
     { q: t.home.faqQ6, a: t.home.faqA6 },
   ];
 
+  // === AMÉLIORATION AJOUTÉE : la loupe de la barre de recherche de l'en-tête était purement
+  // décorative (icône non cliquable, `pointer-events-none`, aucune action au clic ni à la
+  // validation) — demande explicite, 2026-09-19 : elle lance désormais une recherche dans la
+  // FAQ (seul contenu textuel consultable sur cette page publique), ouvre la première question
+  // correspondante et fait défiler jusqu'à elle.
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return;
+    const matchIndex = faqItems.findIndex(
+      (item) => item.q.toLowerCase().includes(query) || item.a.toLowerCase().includes(query)
+    );
+    if (matchIndex !== -1) {
+      setOpenFaqIndex(matchIndex);
+    }
+    setMobileMenuOpen(false);
+    document.getElementById('faq')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
     <div id="home" className="min-h-screen w-full bg-white font-sans antialiased">
       {/* TOP NAV */}
@@ -156,8 +175,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
           </nav>
 
           <div className="hidden lg:flex flex-1 justify-center px-4">
-            <div className="relative w-full max-w-xs">
-              <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <form onSubmit={handleSearch} className="relative w-full max-w-xs">
+              <button
+                type="submit"
+                aria-label={t.home.searchLabel}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-[#94A3B8] hover:text-[#0A347B] transition-colors cursor-pointer"
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
               <input
                 type="search"
                 value={searchQuery}
@@ -166,7 +191,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
                 aria-label={t.home.searchLabel}
                 className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-full text-xs font-medium text-slate-700 placeholder:text-[#94A3B8] focus:outline-none focus:ring-1 focus:ring-[#0A347B] focus:bg-white transition"
               />
-            </div>
+            </form>
           </div>
 
           <div className="flex items-center gap-3">
@@ -226,8 +251,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
               ))}
             </nav>
 
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <form onSubmit={handleSearch} className="relative">
+              <button
+                type="submit"
+                aria-label={t.home.searchLabel}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-[#94A3B8] hover:text-[#0A347B] transition-colors cursor-pointer"
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
               <input
                 type="search"
                 value={searchQuery}
@@ -236,7 +267,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ lang, onLanguageChange, onSe
                 aria-label={t.home.searchLabel}
                 className="w-full pl-9 pr-4 py-2 bg-[#F8FAFC] border border-[#E8EDF2] rounded-full text-xs font-medium text-slate-700 placeholder:text-[#94A3B8] focus:outline-none focus:ring-1 focus:ring-[#0A347B] focus:bg-white transition"
               />
-            </div>
+            </form>
 
             <div className="relative">
               <Globe className="w-3.5 h-3.5 text-[#0A34A3] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
