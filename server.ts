@@ -6,6 +6,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, DocumentData } from 'firebase-admin/firestore';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
+import { z } from 'zod';
 
 // === AMÉLIORATION AJOUTÉE : observabilité (préparation Go-Live, 2026-09-07) ===
 // Logs structurés (JSON, niveaux de sévérité) au lieu de console.log/console.warn épars —
@@ -50,6 +51,89 @@ app.use(
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// === AMÉLIORATION AJOUTÉE : sécurité — rate limiting sur les routes /api/* ===
+// Constat : aucune route de ce serveur Express n'était protégée contre un flot de requêtes
+// répétées (script automatisé, abus, DoS applicatif léger) — contrairement à la Cloud Function
+// callable resolveLoginIdentifier (voir functions/src/index.ts, checkAndApplyRateLimit) qui,
+// elle, limite déjà les tentatives de connexion. Implémentation minimaliste en mémoire (fenêtre
+// fixe par IP), sans dépendance supplémentaire — ce process Express est un unique processus
+// long-vivant (voir app.listen plus bas), donc un état en mémoire suffit ici, pas besoin d'un
+// store partagé type Redis. Design analogue à functions/src/validation.ts ("validateur
+// minimaliste, aucune dépendance supplémentaire").
+interface RateLimitBucket {
+  count: number;
+  windowStart: number;
+}
+
+function createRateLimiter(options: { windowMs: number; max: number; message: string }) {
+  const buckets = new Map<string, RateLimitBucket>();
+
+  // Ménage périodique pour ne pas accumuler indéfiniment une entrée par IP distincte vue un
+  // jour — non bloquant et `unref()`-é pour ne jamais empêcher le process de s'arrêter
+  // proprement (ex. pendant les tests, qui n'appellent jamais startServer()/app.listen ici).
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, bucket] of buckets) {
+      if (now - bucket.windowStart > options.windowMs) buckets.delete(key);
+    }
+  }, options.windowMs);
+  cleanupInterval.unref?.();
+
+  return function rateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
+    // Même extraction d'IP que /api/audit/log ci-dessous, pour rester cohérent avec le reste de
+    // ce fichier : le premier maillon de `X-Forwarded-For` (posé par le proxy/l'hébergeur), avec
+    // repli sur l'adresse socket directe.
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const key =
+      (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : undefined) ||
+      req.socket.remoteAddress ||
+      'unknown';
+    const now = Date.now();
+    const bucket = buckets.get(key);
+
+    if (!bucket || now - bucket.windowStart > options.windowMs) {
+      buckets.set(key, { count: 1, windowStart: now });
+      return next();
+    }
+
+    bucket.count += 1;
+    if (bucket.count > options.max) {
+      const retryAfterSec = Math.max(1, Math.ceil((bucket.windowStart + options.windowMs - now) / 1000));
+      res.setHeader('Retry-After', String(retryAfterSec));
+      return res.status(429).json({ error: options.message, retryAfterSec });
+    }
+    return next();
+  };
+}
+
+// Limite générale : 300 requêtes / 15 min / IP sur toutes les routes /api/*, sauf /api/health
+// (interrogé fréquemment par les sondes de santé d'orchestration — même raisonnement que son
+// exclusion du logging par-requête ci-dessus). Généreux pour ne jamais gêner l'usage légitime
+// observé dans le code actuel (quelques appels ponctuels par écran), tout en bloquant un abus
+// grossier.
+const apiRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  message: 'Too many requests. Please try again later.',
+});
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (!req.path.startsWith('/api/') || req.path === '/api/health') return next();
+  return apiRateLimiter(req, res, next);
+});
+
+// Limite stricte dédiée à /api/audit/log : cette route reste volontairement accessible SANS
+// authentification (voir son commentaire plus bas — elle doit pouvoir journaliser un échec de
+// connexion avant authentification), ce qui en fait la route la plus exposée à un abus consistant
+// à inonder la collection Firestore `auditLogs` d'écritures. Un usage légitime écrit au plus
+// quelques entrées par minute (une par tentative de connexion/action) ; 20/min/IP laisse une
+// large marge sans jamais gêner un usage réel.
+const auditLogRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: 'Too many audit log submissions. Please try again later.',
+});
 
 // Initialisation tolérante du SDK Firebase Admin pour les routes serveur sécurisées
 let adminInitError: string | null = null;
@@ -379,6 +463,45 @@ app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res:
   return res.json({ allowed: true });
 });
 
+// === AMÉLIORATION AJOUTÉE : sécurité — validation/nettoyage stricts avant écriture Firestore ===
+// Constat : la route ci-dessous construisait `entry` à partir de `{...req.body, ...}` — chaque
+// champ envoyé par le client, quel qu'il soit, atterrissait tel quel dans Firestore (aucune
+// vérification de type, de longueur, ni de la liste des champs acceptés). Cette route reste
+// accessible SANS authentification (voir plus bas), donc n'importe qui pouvait faire écrire des
+// documents arbitraires dans `auditLogs`. Schéma miroir des formes déjà utilisées par le seul
+// écrivain réel de cette collection aujourd'hui (`firestore.ts` → `addLog`, types `AuditLog`/
+// `LoginLog`/`AuditLogEntry` de src/types/index.ts) : mêmes champs, mêmes noms — aucun
+// changement de forme pour un appelant légitime, seulement un refus net (400) de tout champ non
+// déclaré, d'un mauvais type, ou dépassant une longueur raisonnable. `ip`/`userAgent`/`userId`
+// restent acceptés en entrée (un appelant historique peut les envoyer) mais, comme avant,
+// systématiquement réécrits par les valeurs vérifiées côté serveur ci-dessous.
+const auditLogEntrySchema = z
+  .object({
+    timestamp: z.string().max(64).optional(),
+    status: z.enum(['success', 'failed']).optional(),
+    action: z.string().trim().min(1).max(200).optional(),
+    module: z.string().trim().max(100).optional(),
+    category: z.string().trim().max(100).optional(),
+    details: z.string().trim().max(2000).optional(),
+    user: z.string().trim().max(320).optional(),
+    userId: z.string().trim().max(128).optional(),
+    userName: z.string().trim().max(200).optional(),
+    userRole: z.string().trim().max(100).optional(),
+    userEmail: z.string().trim().max(320).optional(),
+    username: z.string().trim().max(200).optional(),
+    profile: z.string().trim().max(100).optional(),
+    browser: z.string().trim().max(200).optional(),
+    lastLogin: z.string().trim().max(64).optional(),
+    location: z.string().trim().max(200).optional(),
+    entityId: z.string().trim().max(200).optional(),
+    entityType: z.string().trim().max(100).optional(),
+    severity: z.enum(['INFO', 'WARNING', 'ERROR', 'CRITICAL']).optional(),
+    integrityHash: z.string().trim().max(200).optional(),
+    ip: z.string().max(64).optional(),
+    userAgent: z.string().max(512).optional(),
+  })
+  .strict();
+
 // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.7/2.3) — cette route renvoyait auparavant
 // {success:true, entry:{...}} SANS JAMAIS RIEN ÉCRIRE (ni Firestore, ni fichier) : un pur
 // simulacre (voir CODE_AUDIT_MAP.md section 3.2). Écrit désormais réellement dans `auditLogs`
@@ -387,7 +510,15 @@ app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res:
 // `auditLogs.create: if true` dans firestore.rules, qui doit rester ouvert pour journaliser un
 // échec de connexion avant authentification (voir LoginView.tsx) ; aucun appelant existant
 // (apiClient.ts est mort) — aucune régression possible.
-app.post('/api/audit/log', async (req: Request, res: Response) => {
+app.post('/api/audit/log', auditLogRateLimiter, async (req: Request, res: Response) => {
+  const parsed = auditLogEntrySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid audit log payload.',
+      details: parsed.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`),
+    });
+  }
+
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   const userAgent = req.headers['user-agent'];
 
@@ -404,8 +535,8 @@ app.post('/api/audit/log', async (req: Request, res: Response) => {
   }
 
   const entry = {
-    ...req.body,
-    userId: verifiedUid || req.body?.userId || 'anonymous',
+    ...parsed.data,
+    userId: verifiedUid || parsed.data.userId || 'anonymous',
     serverTimestamp: new Date().toISOString(),
     ip: clientIp,
     userAgent,
@@ -434,7 +565,16 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req: Request, res: Response) => {
+    // === AMÉLIORATION AJOUTÉE : correctif — repli SPA cassé sous Express 5 ===
+    // `app.get('*', ...)` faisait planter le process au démarrage (`PathError: Missing
+    // parameter name`) : Express 5 s'appuie sur path-to-regexp v8, qui exige un joker nommé
+    // (`/*splat`) au lieu d'un simple `'*'` (syntaxe valide seulement sous Express 4/
+    // path-to-regexp v6 et antérieur). Constaté en testant le bundle de production
+    // (`node dist/server.cjs`) — ce chemin n'était donc jamais exercé par le mode développement
+    // (`npm run dev`, branche Vite juste au-dessus), ce qui expliquait qu'il soit passé inaperçu.
+    // Même comportement voulu (repli SPA : toute route non servie par les assets statiques
+    // au-dessus renvoie index.html), seule la syntaxe change.
+    app.get('/*splat', (_req: Request, res: Response) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
