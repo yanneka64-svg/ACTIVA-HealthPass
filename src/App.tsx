@@ -548,17 +548,29 @@ export default function App() {
   const [invoicesNeeded, setInvoicesNeeded] = useState(false);
 
   useEffect(() => {
+    // === AMÉLIORATION AJOUTÉE : correctif (revue CodeRabbit, PR perf-login) — n'active les
+    // indicateurs que pour un rôle authentifié et une section réellement autorisée pour ce
+    // rôle : sans ce garde, une URL tapée à la main vers une section non permise (ex. un Agent
+    // sur /ceilings) pouvait déclencher le chargement AVANT que la redirection vers la section
+    // par défaut du rôle (voir plus bas) ne s'applique. `claims` ne nécessite ceilings/
+    // medicalForms que dans sa variante Agent (AgentClaimsView) — ClaimsView (Admin/
+    // Superviseur) ne les utilise pas (voir le rendu par section plus bas).
+    if (authStatus !== 'authenticated' || !userRole || !isSectionAllowedForRole(userRole, currentSection)) {
+      return;
+    }
+    const isAgentClaims = userRole === 'Agent' && currentSection === 'claims';
+
     // === AMÉLIORATION AJOUTÉE : correctif (revue Qodo, PR perf-login) — le vidage de l'état
     // (setCeilings([]) etc., voir plus bas) doit avoir lieu UNE SEULE FOIS, à l'activation
     // initiale de chaque collection différée — jamais à chaque nouveau rendu de cet effet.
     // Sans le garde `!xNeeded`, un changement ultérieur sans rapport (ex. `orgScopeKey`, qui
     // redéclenche les effets d'abonnement plus bas) aurait effacé à tort des données déjà
     // chargées, provoquant un flash "aucune donnée" visible.
-    if (!ceilingsNeeded && (currentSection === 'claims' || currentSection === 'members' || currentSection === 'ceilings')) {
+    if (!ceilingsNeeded && (isAgentClaims || currentSection === 'members' || currentSection === 'ceilings')) {
       setCeilings([]);
       setCeilingsNeeded(true);
     }
-    if (!medicalFormsNeeded && (currentSection === 'claims' || currentSection === 'medical_form')) {
+    if (!medicalFormsNeeded && (isAgentClaims || currentSection === 'medical_form')) {
       setMedicalForms([]);
       setMedicalFormsNeeded(true);
     }
@@ -566,7 +578,7 @@ export default function App() {
       setInvoices([]);
       setInvoicesNeeded(true);
     }
-  }, [currentSection, ceilingsNeeded, medicalFormsNeeded, invoicesNeeded]);
+  }, [authStatus, userRole, currentSection, ceilingsNeeded, medicalFormsNeeded, invoicesNeeded]);
 
   // === AMÉLIORATION AJOUTÉE : correctif (revue Qodo, PR perf-login) — ces 3 booléens ne
   // repassent normalement jamais à `false` (une fois une collection nécessaire, elle reste
