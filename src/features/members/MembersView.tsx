@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 // === AMÉLIORATION AJOUTÉE : Phase 3 — react-hook-form + zod (2026-09-18) === Voir
@@ -206,13 +206,32 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     });
   }, [members, searchTerm, selectedOrg, selectedStatus]);
 
+  // === AMÉLIORATION AJOUTÉE : correctif (revue Qodo, PR #90) === `checkMemberEligibility`
+  // calcule l'âge à partir de la date du JOUR (voir `calculateAge`, eligibilityService.ts) —
+  // sans ceci, le useMemo ci-dessous ne se recalculerait qu'au changement de
+  // `filteredMembers`/`ceilings`, et un assuré franchissant une limite d'âge au passage à
+  // minuit garderait un badge "Age limit exceeded" obsolète indéfiniment tant qu'aucun de ces
+  // deux tableaux ne change réellement par ailleurs. `calculateAge` ne compare que
+  // année/mois/jour (jamais l'heure) : une vérification chaque heure suffit largement à ne
+  // jamais rater un changement de jour calendaire, sans avoir besoin d'un minuteur exact à
+  // minuit. Le `useState` ne se met à jour QUE lorsque la date calendaire change réellement
+  // (comparaison de chaînes), donc aucun re-rendu superflu le reste du temps.
+  const [todayDateKey, setTodayDateKey] = useState(() => new Date().toDateString());
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const current = new Date().toDateString();
+      setTodayDateKey((prev) => (prev !== current ? current : prev));
+    }, 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // === AMÉLIORATION AJOUTÉE : performance (retour utilisateur — "l'application est lente,
   // les pages mettent du temps à charger") — `ceilings.find(...)` + `checkMemberEligibility(...)`
   // étaient jusqu'ici recalculés pour CHAQUE ligne à CHAQUE rendu du tableau (y compris un
   // rendu déclenché par un changement sans rapport ailleurs dans App.tsx, ex. une notification),
   // soit un coût O(membres × plafonds) répété inutilement. Calculé une seule fois ici et mis en
-  // cache tant que `filteredMembers`/`ceilings` ne changent pas réellement — même résultat par
-  // ligne, juste plus rarement recalculé. Aucun changement de comportement visible.
+  // cache tant que `filteredMembers`/`ceilings`/`todayDateKey` ne changent pas réellement — même
+  // résultat par ligne, juste plus rarement recalculé. Aucun changement de comportement visible.
   const eligibilityByMemberId = useMemo(() => {
     const map = new Map<string, ReturnType<typeof checkMemberEligibility>>();
     for (const m of filteredMembers) {
@@ -222,7 +241,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
       map.set(m.id, checkMemberEligibility(m, null, memberCeiling));
     }
     return map;
-  }, [filteredMembers, ceilings]);
+  }, [filteredMembers, ceilings, todayDateKey]);
 
   const renderDependents = (m: Member) => {
     const items: { label: string; name: string }[] = [];
