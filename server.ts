@@ -38,6 +38,21 @@ export const logger = pino({
 const app = express();
 const PORT = 3000;
 
+// === AMÉLIORATION AJOUTÉE : sécurité (revue Qodo, PR #88) — topologie de proxy explicite ===
+// Nécessaire pour que `req.ip` (utilisé par le rate limiter ci-dessous) résolve la VRAIE adresse
+// du client plutôt qu'un en-tête `X-Forwarded-For` que ce client contrôle lui-même s'il atteint
+// ce process directement (sans configuration, un attaquant change cet en-tête à chaque requête
+// et obtient un nouveau "seau" de quota à chaque fois — le rate limiting devient inopérant).
+// `1` = on fait confiance à EXACTEMENT un saut de proxy en amont (le cas le plus courant pour un
+// process Node unique derrière un load balancer/CDN unique — Cloud Run, la plupart des PaaS,
+// un unique nginx/ALB) : Express ne lit alors que le DERNIER maillon ajouté par ce proxy de
+// confiance dans `X-Forwarded-For`, ignorant tout ce qu'un client aurait pu falsifier en amont.
+// Ajustable sans changement de code via TRUST_PROXY_HOPS si la topologie réelle diffère (0 = ce
+// process est exposé directement, aucun proxy devant lui ; 2+ = plusieurs sauts de proxy — voir
+// .env.example).
+const trustProxyHops = process.env.TRUST_PROXY_HOPS !== undefined ? Number(process.env.TRUST_PROXY_HOPS) : 1;
+app.set('trust proxy', Number.isFinite(trustProxyHops) ? trustProxyHops : 1);
+
 app.use(
   pinoHttp({
     logger,
@@ -49,9 +64,6 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
 // === AMÉLIORATION AJOUTÉE : sécurité — rate limiting sur les routes /api/* ===
 // Constat : aucune route de ce serveur Express n'était protégée contre un flot de requêtes
 // répétées (script automatisé, abus, DoS applicatif léger) — contrairement à la Cloud Function
@@ -60,7 +72,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // fixe par IP), sans dépendance supplémentaire — ce process Express est un unique processus
 // long-vivant (voir app.listen plus bas), donc un état en mémoire suffit ici, pas besoin d'un
 // store partagé type Redis. Design analogue à functions/src/validation.ts ("validateur
-// minimaliste, aucune dépendance supplémentaire").
+// minimaliste, aucune dépendance supplémentaire"). Monté AVANT express.json()/urlencoded()
+// (revue Qodo, PR #88) : une requête déjà hors quota ne doit pas payer le coût de mise en
+// mémoire tampon + parsing d'un corps pouvant aller jusqu'à 10 Mo avant d'être rejetée.
 interface RateLimitBucket {
   count: number;
   windowStart: number;
@@ -81,14 +95,9 @@ function createRateLimiter(options: { windowMs: number; max: number; message: st
   cleanupInterval.unref?.();
 
   return function rateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
-    // Même extraction d'IP que /api/audit/log ci-dessous, pour rester cohérent avec le reste de
-    // ce fichier : le premier maillon de `X-Forwarded-For` (posé par le proxy/l'hébergeur), avec
-    // repli sur l'adresse socket directe.
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const key =
-      (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : undefined) ||
-      req.socket.remoteAddress ||
-      'unknown';
+    // `req.ip` (pas l'en-tête brut) : résolu par Express selon `trust proxy` ci-dessus, donc
+    // fiable même face à un client qui falsifierait `X-Forwarded-For` lui-même.
+    const key = req.ip || 'unknown';
     const now = Date.now();
     const bucket = buckets.get(key);
 
@@ -134,6 +143,9 @@ const auditLogRateLimiter = createRateLimiter({
   max: 20,
   message: 'Too many audit log submissions. Please try again later.',
 });
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Initialisation tolérante du SDK Firebase Admin pour les routes serveur sécurisées
 let adminInitError: string | null = null;
@@ -472,9 +484,15 @@ app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res:
 // écrivain réel de cette collection aujourd'hui (`firestore.ts` → `addLog`, types `AuditLog`/
 // `LoginLog`/`AuditLogEntry` de src/types/index.ts) : mêmes champs, mêmes noms — aucun
 // changement de forme pour un appelant légitime, seulement un refus net (400) de tout champ non
-// déclaré, d'un mauvais type, ou dépassant une longueur raisonnable. `ip`/`userAgent`/`userId`
-// restent acceptés en entrée (un appelant historique peut les envoyer) mais, comme avant,
-// systématiquement réécrits par les valeurs vérifiées côté serveur ci-dessous.
+// déclaré, d'un mauvais type, ou dépassant une longueur raisonnable. `ip`/`ipAddress`/
+// `userAgent`/`userId` restent acceptés en entrée (un appelant historique peut les envoyer) mais,
+// comme avant, systématiquement réécrits par les valeurs vérifiées côté serveur ci-dessous.
+// === AMÉLIORATION AJOUTÉE (revue Qodo, PR #88) === deux corrections : (1) `ipAddress` — champ
+// réellement déclaré par `LoginLog` (src/types/index.ts) mais absent du schéma initial ; avec
+// `.strict()`, tout appelant envoyant cette forme légitime aurait été rejeté à tort. (2) `.refine`
+// ci-dessous — sans lui, `{}` (aucun champ) passait la validation et produisait une entrée
+// d'audit vide (juste les métadonnées serveur), alors que les deux formes réelles (`LoginLog` via
+// `status`, `AuditLog`/`AuditLogEntry` via `action`) portent toujours l'un des deux.
 const auditLogEntrySchema = z
   .object({
     timestamp: z.string().max(64).optional(),
@@ -498,9 +516,13 @@ const auditLogEntrySchema = z
     severity: z.enum(['INFO', 'WARNING', 'ERROR', 'CRITICAL']).optional(),
     integrityHash: z.string().trim().max(200).optional(),
     ip: z.string().max(64).optional(),
+    ipAddress: z.string().max(64).optional(),
     userAgent: z.string().max(512).optional(),
   })
-  .strict();
+  .strict()
+  .refine((data) => typeof data.action === 'string' || typeof data.status === 'string', {
+    message: 'At least one of "action" or "status" is required to identify the audited event.',
+  });
 
 // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.7/2.3) — cette route renvoyait auparavant
 // {success:true, entry:{...}} SANS JAMAIS RIEN ÉCRIRE (ni Firestore, ni fichier) : un pur
@@ -519,7 +541,10 @@ app.post('/api/audit/log', auditLogRateLimiter, async (req: Request, res: Respon
     });
   }
 
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  // === AMÉLIORATION AJOUTÉE (revue Qodo, PR #88) === `req.ip`, résolu par Express selon
+  // `trust proxy` (voir plus haut), plutôt que l'en-tête `X-Forwarded-For` brut — cohérent avec
+  // le rate limiter ci-dessus, et fiable même face à un client qui falsifierait cet en-tête.
+  const clientIp = req.ip || req.socket.remoteAddress;
   const userAgent = req.headers['user-agent'];
 
   let verifiedUid: string | null = null;
@@ -539,6 +564,11 @@ app.post('/api/audit/log', auditLogRateLimiter, async (req: Request, res: Respon
     userId: verifiedUid || parsed.data.userId || 'anonymous',
     serverTimestamp: new Date().toISOString(),
     ip: clientIp,
+    // === AMÉLIORATION AJOUTÉE (revue Qodo, PR #88) === `ipAddress` (nom de champ réellement
+    // utilisé par `LoginLog`) réécrit ici au même titre que `ip`, pour la même raison : ne
+    // jamais laisser un client imposer sa propre valeur pour un champ destiné à porter une
+    // adresse vérifiée côté serveur.
+    ipAddress: clientIp,
     userAgent,
     verifiedServerSide: true,
   };
