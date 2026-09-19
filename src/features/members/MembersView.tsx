@@ -206,6 +206,24 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
     });
   }, [members, searchTerm, selectedOrg, selectedStatus]);
 
+  // === AMÉLIORATION AJOUTÉE : performance (retour utilisateur — "l'application est lente,
+  // les pages mettent du temps à charger") — `ceilings.find(...)` + `checkMemberEligibility(...)`
+  // étaient jusqu'ici recalculés pour CHAQUE ligne à CHAQUE rendu du tableau (y compris un
+  // rendu déclenché par un changement sans rapport ailleurs dans App.tsx, ex. une notification),
+  // soit un coût O(membres × plafonds) répété inutilement. Calculé une seule fois ici et mis en
+  // cache tant que `filteredMembers`/`ceilings` ne changent pas réellement — même résultat par
+  // ligne, juste plus rarement recalculé. Aucun changement de comportement visible.
+  const eligibilityByMemberId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof checkMemberEligibility>>();
+    for (const m of filteredMembers) {
+      const memberCeiling = ceilings.find(
+        (c) => c.organization === m.organization || c.organizationId === m.organizationId
+      );
+      map.set(m.id, checkMemberEligibility(m, null, memberCeiling));
+    }
+    return map;
+  }, [filteredMembers, ceilings]);
+
   const renderDependents = (m: Member) => {
     const items: { label: string; name: string }[] = [];
 
@@ -713,10 +731,9 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
                   const currentDeps = getMemberDependents(m);
                   const depCount = currentDeps.length;
 
-                  const memberCeiling = ceilings.find(
-                    (c) => c.organization === m.organization || c.organizationId === m.organizationId
-                  );
-                  const eligResult = checkMemberEligibility(m, null, memberCeiling);
+                  // === AMÉLIORATION AJOUTÉE : performance — voir eligibilityByMemberId
+                  // ci-dessus, calculé une seule fois par rendu utile plutôt qu'à chaque ligne.
+                  const eligResult = eligibilityByMemberId.get(m.id)!;
                   const isAgeExceeded = !eligResult.isEligible && eligResult.code === 'AGE_LIMIT_EXCEEDED';
 
                   return (
