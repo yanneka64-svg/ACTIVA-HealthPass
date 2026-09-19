@@ -6,6 +6,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, DocumentData } from 'firebase-admin/firestore';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
+import { z } from 'zod';
 
 // === AMÉLIORATION AJOUTÉE : observabilité (préparation Go-Live, 2026-09-07) ===
 // Logs structurés (JSON, niveaux de sévérité) au lieu de console.log/console.warn épars —
@@ -37,6 +38,21 @@ export const logger = pino({
 const app = express();
 const PORT = 3000;
 
+// === AMÉLIORATION AJOUTÉE : sécurité (revue Qodo, PR #88) — topologie de proxy explicite ===
+// Nécessaire pour que `req.ip` (utilisé par le rate limiter ci-dessous) résolve la VRAIE adresse
+// du client plutôt qu'un en-tête `X-Forwarded-For` que ce client contrôle lui-même s'il atteint
+// ce process directement (sans configuration, un attaquant change cet en-tête à chaque requête
+// et obtient un nouveau "seau" de quota à chaque fois — le rate limiting devient inopérant).
+// `1` = on fait confiance à EXACTEMENT un saut de proxy en amont (le cas le plus courant pour un
+// process Node unique derrière un load balancer/CDN unique — Cloud Run, la plupart des PaaS,
+// un unique nginx/ALB) : Express ne lit alors que le DERNIER maillon ajouté par ce proxy de
+// confiance dans `X-Forwarded-For`, ignorant tout ce qu'un client aurait pu falsifier en amont.
+// Ajustable sans changement de code via TRUST_PROXY_HOPS si la topologie réelle diffère (0 = ce
+// process est exposé directement, aucun proxy devant lui ; 2+ = plusieurs sauts de proxy — voir
+// .env.example).
+const trustProxyHops = process.env.TRUST_PROXY_HOPS !== undefined ? Number(process.env.TRUST_PROXY_HOPS) : 1;
+app.set('trust proxy', Number.isFinite(trustProxyHops) ? trustProxyHops : 1);
+
 app.use(
   pinoHttp({
     logger,
@@ -47,6 +63,86 @@ app.use(
     },
   })
 );
+
+// === AMÉLIORATION AJOUTÉE : sécurité — rate limiting sur les routes /api/* ===
+// Constat : aucune route de ce serveur Express n'était protégée contre un flot de requêtes
+// répétées (script automatisé, abus, DoS applicatif léger) — contrairement à la Cloud Function
+// callable resolveLoginIdentifier (voir functions/src/index.ts, checkAndApplyRateLimit) qui,
+// elle, limite déjà les tentatives de connexion. Implémentation minimaliste en mémoire (fenêtre
+// fixe par IP), sans dépendance supplémentaire — ce process Express est un unique processus
+// long-vivant (voir app.listen plus bas), donc un état en mémoire suffit ici, pas besoin d'un
+// store partagé type Redis. Design analogue à functions/src/validation.ts ("validateur
+// minimaliste, aucune dépendance supplémentaire"). Monté AVANT express.json()/urlencoded()
+// (revue Qodo, PR #88) : une requête déjà hors quota ne doit pas payer le coût de mise en
+// mémoire tampon + parsing d'un corps pouvant aller jusqu'à 10 Mo avant d'être rejetée.
+interface RateLimitBucket {
+  count: number;
+  windowStart: number;
+}
+
+function createRateLimiter(options: { windowMs: number; max: number; message: string }) {
+  const buckets = new Map<string, RateLimitBucket>();
+
+  // Ménage périodique pour ne pas accumuler indéfiniment une entrée par IP distincte vue un
+  // jour — non bloquant et `unref()`-é pour ne jamais empêcher le process de s'arrêter
+  // proprement (ex. pendant les tests, qui n'appellent jamais startServer()/app.listen ici).
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, bucket] of buckets) {
+      if (now - bucket.windowStart > options.windowMs) buckets.delete(key);
+    }
+  }, options.windowMs);
+  cleanupInterval.unref?.();
+
+  return function rateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
+    // `req.ip` (pas l'en-tête brut) : résolu par Express selon `trust proxy` ci-dessus, donc
+    // fiable même face à un client qui falsifierait `X-Forwarded-For` lui-même.
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    const bucket = buckets.get(key);
+
+    if (!bucket || now - bucket.windowStart > options.windowMs) {
+      buckets.set(key, { count: 1, windowStart: now });
+      return next();
+    }
+
+    bucket.count += 1;
+    if (bucket.count > options.max) {
+      const retryAfterSec = Math.max(1, Math.ceil((bucket.windowStart + options.windowMs - now) / 1000));
+      res.setHeader('Retry-After', String(retryAfterSec));
+      return res.status(429).json({ error: options.message, retryAfterSec });
+    }
+    return next();
+  };
+}
+
+// Limite générale : 300 requêtes / 15 min / IP sur toutes les routes /api/*, sauf /api/health
+// (interrogé fréquemment par les sondes de santé d'orchestration — même raisonnement que son
+// exclusion du logging par-requête ci-dessus). Généreux pour ne jamais gêner l'usage légitime
+// observé dans le code actuel (quelques appels ponctuels par écran), tout en bloquant un abus
+// grossier.
+const apiRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  message: 'Too many requests. Please try again later.',
+});
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (!req.path.startsWith('/api/') || req.path === '/api/health') return next();
+  return apiRateLimiter(req, res, next);
+});
+
+// Limite stricte dédiée à /api/audit/log : cette route reste volontairement accessible SANS
+// authentification (voir son commentaire plus bas — elle doit pouvoir journaliser un échec de
+// connexion avant authentification), ce qui en fait la route la plus exposée à un abus consistant
+// à inonder la collection Firestore `auditLogs` d'écritures. Un usage légitime écrit au plus
+// quelques entrées par minute (une par tentative de connexion/action) ; 20/min/IP laisse une
+// large marge sans jamais gêner un usage réel.
+const auditLogRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: 'Too many audit log submissions. Please try again later.',
+});
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -379,6 +475,72 @@ app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res:
   return res.json({ allowed: true });
 });
 
+// === AMÉLIORATION AJOUTÉE : sécurité — validation/nettoyage stricts avant écriture Firestore ===
+// Constat initial : la route ci-dessous construisait `entry` à partir de `{...req.body, ...}` —
+// chaque champ envoyé par le client, quel qu'il soit, atterrissait tel quel dans Firestore.
+// Cette route reste accessible SANS authentification par conception (voir plus bas — elle doit
+// pouvoir journaliser un échec de connexion avant authentification), donc n'importe qui pouvait
+// faire écrire des documents arbitraires dans `auditLogs`.
+// === AMÉLIORATION AJOUTÉE (revue CodeRabbit, PR #88) === schéma entièrement repensé en DEUX
+// formes strictes, miroir EXACT des deux seules formes que `firestore.rules` valide déjà pour
+// une écriture cliente directe dans `auditLogs` (voir isPreAuthLoginLogValid/
+// isBusinessAuditLogValid, match /auditLogs/{logId}) — et des seuls appels réels à
+// `FirestoreService.addLog()` dans tout le dépôt (vérifié exhaustivement : LoginView.tsx,
+// App.tsx `handleLoginSuccess`, workflowService.ts, ReportsView.tsx, ClaimsView.tsx,
+// MembersView.tsx). Cette route utilise le SDK Admin, qui CONTOURNE firestore.rules — elle doit
+// donc réappliquer elle-même exactement les mêmes garanties de forme ET d'identité, sans quoi
+// elle serait un moyen de contourner des protections que le chemin client normal impose déjà.
+const preAuthLoginLogSchema = z
+  .object({
+    userEmail: z.string().trim().max(320).optional(),
+    ipAddress: z.string().max(64).optional(),
+    status: z.enum(['success', 'failed']),
+    userAgent: z.string().max(512).optional(),
+    browser: z.string().trim().max(200).optional(),
+    location: z.string().trim().max(200).optional(),
+    timestamp: z.string().max(64).optional(),
+  })
+  .strict();
+
+const businessAuditLogSchema = z
+  .object({
+    userId: z.string().trim().max(128).optional(),
+    userName: z.string().trim().max(200).optional(),
+    userRole: z.string().trim().max(100).optional(),
+    action: z.string().trim().min(1).max(200),
+    category: z.string().trim().min(1).max(200),
+    entityId: z.string().trim().max(200).optional(),
+    entityType: z.string().trim().max(100).optional(),
+    details: z.string().trim().max(2000).optional(),
+    timestamp: z.string().max(64).optional(),
+  })
+  .strict();
+
+// === AMÉLIORATION AJOUTÉE (revue CodeRabbit, PR #88) === même stratégie de résolution de rôle
+// déjà établie et documentée dans functions/src/index.ts (resolveUserRole) : claim `role` du
+// jeton en priorité (jamais réellement posée dans ce projet à ce jour — voir ce même fichier),
+// puis repli sur `accounts/{uid}.profile` (le champ réellement utilisé partout ailleurs —
+// AccountsView.tsx, firestore.rules `getUserData().profile`). Ne fait JAMAIS confiance à un
+// `userRole` déclaré par le client dans le corps de la requête : contrairement à `userId`, déjà
+// toujours lié au jeton vérifié ci-dessous, un `userRole` non vérifié permettrait à n'importe
+// quel agent authentifié de se faire passer pour 'Admin' dans sa propre piste d'audit.
+async function resolveVerifiedUserRole(uid: string, tokenRole: unknown): Promise<string> {
+  if (tokenRole === 'Admin' || tokenRole === 'Supervisor' || tokenRole === 'Agent') {
+    return tokenRole;
+  }
+  try {
+    const accSnap = await getFirestore().doc(`accounts/${uid}`).get();
+    if (accSnap.exists) {
+      const data = accSnap.data() || {};
+      return data.profile || data.role || 'Agent';
+    }
+  } catch {
+    // Repli silencieux — cette route ne doit jamais échouer pour la seule raison qu'elle ne
+    // peut pas déterminer un libellé de rôle pour l'entrée d'audit.
+  }
+  return 'Agent';
+}
+
 // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.7/2.3) — cette route renvoyait auparavant
 // {success:true, entry:{...}} SANS JAMAIS RIEN ÉCRIRE (ni Firestore, ni fichier) : un pur
 // simulacre (voir CODE_AUDIT_MAP.md section 3.2). Écrit désormais réellement dans `auditLogs`
@@ -387,30 +549,74 @@ app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res:
 // `auditLogs.create: if true` dans firestore.rules, qui doit rester ouvert pour journaliser un
 // échec de connexion avant authentification (voir LoginView.tsx) ; aucun appelant existant
 // (apiClient.ts est mort) — aucune régression possible.
-app.post('/api/audit/log', async (req: Request, res: Response) => {
-  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-  const userAgent = req.headers['user-agent'];
-
+app.post('/api/audit/log', auditLogRateLimiter, async (req: Request, res: Response) => {
+  // === AMÉLIORATION AJOUTÉE (revue CodeRabbit, PR #88) === la vérification du jeton doit
+  // précéder la validation de forme : seule une requête authentifiée peut prétendre à la forme
+  // "action métier" (miroir de `isSignedIn() && isBusinessAuditLogValid(...)` dans
+  // firestore.rules) — une requête non authentifiée ne peut produire qu'un journal de connexion.
   let verifiedUid: string | null = null;
+  let verifiedRoleClaim: unknown = null;
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (token && !adminInitError) {
     try {
-      verifiedUid = (await getAuth().verifyIdToken(token)).uid;
+      const decoded = await getAuth().verifyIdToken(token);
+      verifiedUid = decoded.uid;
+      verifiedRoleClaim = (decoded as { role?: unknown }).role ?? null;
     } catch {
-      // Invalid/expired token: log anonymously rather than reject — this endpoint must also
-      // support pre-authentication events (e.g. failed login attempts).
+      // Invalid/expired token: proceed anonymously — this endpoint must also support
+      // pre-authentication events (e.g. failed login attempts).
     }
   }
 
-  const entry = {
-    ...req.body,
-    userId: verifiedUid || req.body?.userId || 'anonymous',
+  const loginResult = preAuthLoginLogSchema.safeParse(req.body);
+  const businessResult = verifiedUid ? businessAuditLogSchema.safeParse(req.body) : undefined;
+
+  let isBusinessShape = false;
+  let parsedData: z.infer<typeof preAuthLoginLogSchema> | z.infer<typeof businessAuditLogSchema>;
+  if (loginResult.success) {
+    parsedData = loginResult.data;
+  } else if (businessResult?.success) {
+    parsedData = businessResult.data;
+    isBusinessShape = true;
+  } else {
+    return res.status(400).json({
+      error:
+        'Invalid audit log payload — must match either a pre-authentication login record, or (when authenticated) a business action record.',
+      details: [
+        ...loginResult.error.issues.map((issue) => `login shape — ${issue.path.join('.') || '(root)'}: ${issue.message}`),
+        ...(businessResult && !businessResult.success
+          ? businessResult.error.issues.map((issue) => `business shape — ${issue.path.join('.') || '(root)'}: ${issue.message}`)
+          : []),
+      ],
+    });
+  }
+
+  // === AMÉLIORATION AJOUTÉE (revue Qodo, PR #88) === `req.ip`, résolu par Express selon
+  // `trust proxy` (voir plus haut), plutôt que l'en-tête `X-Forwarded-For` brut — cohérent avec
+  // le rate limiter ci-dessus, et fiable même face à un client qui falsifierait cet en-tête.
+  const clientIp = req.ip || req.socket.remoteAddress;
+  const userAgent = req.headers['user-agent'];
+
+  const entry: Record<string, unknown> = {
+    ...parsedData,
+    // === AMÉLIORATION AJOUTÉE (revue CodeRabbit, PR #88) === `userId` n'est plus JAMAIS pris
+    // depuis le corps de la requête, authentifiée ou non — uniquement le jeton vérifié, ou
+    // 'anonymous'. Auparavant, un appelant non authentifié pouvait s'attribuer n'importe quel
+    // `userId` de son choix.
+    userId: verifiedUid || 'anonymous',
     serverTimestamp: new Date().toISOString(),
     ip: clientIp,
+    // `ipAddress` (nom de champ réellement utilisé par la forme "connexion") réécrit ici au
+    // même titre que `ip`, pour la même raison : ne jamais laisser un client imposer sa propre
+    // valeur pour un champ destiné à porter une adresse vérifiée côté serveur.
+    ipAddress: clientIp,
     userAgent,
     verifiedServerSide: true,
   };
+  if (isBusinessShape && verifiedUid) {
+    entry.userRole = await resolveVerifiedUserRole(verifiedUid, verifiedRoleClaim);
+  }
 
   if (adminInitError) {
     return res.status(503).json({ error: 'Server-side audit logging is not configured (Admin SDK unavailable).' });
@@ -434,7 +640,16 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req: Request, res: Response) => {
+    // === AMÉLIORATION AJOUTÉE : correctif — repli SPA cassé sous Express 5 ===
+    // `app.get('*', ...)` faisait planter le process au démarrage (`PathError: Missing
+    // parameter name`) : Express 5 s'appuie sur path-to-regexp v8, qui exige un joker nommé
+    // (`/*splat`) au lieu d'un simple `'*'` (syntaxe valide seulement sous Express 4/
+    // path-to-regexp v6 et antérieur). Constaté en testant le bundle de production
+    // (`node dist/server.cjs`) — ce chemin n'était donc jamais exercé par le mode développement
+    // (`npm run dev`, branche Vite juste au-dessus), ce qui expliquait qu'il soit passé inaperçu.
+    // Même comportement voulu (repli SPA : toute route non servie par les assets statiques
+    // au-dessus renvoie index.html), seule la syntaxe change.
+    app.get('/*splat', (_req: Request, res: Response) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
