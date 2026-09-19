@@ -90,7 +90,8 @@ règles d'accès pour chacune est dans `firestore.rules` :
 | `ceilings` | Plafonds de garantie par organisation et type de soin. |
 | `providers` | Prestataires de santé conventionnés (hôpitaux, cliniques, pharmacies). |
 | `counters` / `cardNumberRegistry` | Séquence et registre d'unicité des numéros de carte HealthPass (écrits uniquement via transaction, voir `src/services/cardNumberService.ts`). |
-| `auditLogs` / `loginLogs` | Pistes d'audit immuables (create-only, jamais modifiables/supprimables) — actions métier et tentatives de connexion respectivement. |
+| `auditLogs` | Piste d'audit immuable (create-only, jamais modifiable/supprimable) — actions métier et tentatives de connexion. |
+| `loginLogs` | Collection historique, remplacée par `auditLogs` — plus aucun code n'y écrit ni n'y lit ; fermée à toute écriture (`create`/`update`/`delete: if false`), lecture Admin uniquement sur les documents résiduels éventuels. |
 | `notifications` | Notifications applicatives internes, scopées au destinataire. |
 
 `users` existe encore dans les règles pour compatibilité descendante (ancien filet de secours), mais
