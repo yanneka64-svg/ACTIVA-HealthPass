@@ -479,7 +479,65 @@ export const forceReloadDemoData = async () => {
   }
 };
 
-export const seedInitialDemoDataIfEmpty = async () => {
+// === AMÉLIORATION AJOUTÉE : performance (retour utilisateur — "le login est lent", PR
+// perf-login) === `seedInitialDemoDataIfEmpty` lisait ces 3 collections intégralement
+// (getDocs) à CHAQUE connexion, juste pour vérifier si elles étaient vides — ce qui annulait
+// l'intérêt de différer leur abonnement Firestore dans App.tsx (voir les effets dédiés
+// `ceilingsNeeded`/`medicalFormsNeeded`/`invoicesNeeded`). Extraites en fonctions autonomes,
+// appelées par App.tsx seulement une fois la collection réellement nécessaire, au lieu de
+// systématiquement au login. `seedInitialDemoDataIfEmpty` continue de les appeler toutes les
+// trois (voir plus bas), pour ne rien changer au comportement de ses AUTRES appelants
+// (firestore.ts, à l'intérieur de chaque abonnement, quand ce dernier constate lui-même que sa
+// propre collection est vide).
+export const seedInvoicesIfEmpty = async () => {
+  const data = getFullDemoData();
+  try {
+    const snap = await getDocs(collection(db, 'invoices'));
+    if (snap.empty) {
+      const batch = writeBatch(db);
+      data.sampleInvoices.forEach((i) => batch.set(doc(db, 'invoices', i.id!), i));
+      await batch.commit();
+    }
+  } catch (e) {
+    console.warn('Seed invoices fallback notice:', e);
+  }
+};
+
+export const seedCeilingsIfEmpty = async () => {
+  const data = getFullDemoData();
+  try {
+    const snap = await getDocs(collection(db, 'ceilings'));
+    if (snap.empty) {
+      const batch = writeBatch(db);
+      data.sampleCeilings.forEach((c) => batch.set(doc(db, 'ceilings', c.id!), c));
+      await batch.commit();
+    }
+  } catch (e) {
+    console.warn('Seed ceilings fallback notice:', e);
+  }
+};
+
+export const seedMedicalFormsIfEmpty = async () => {
+  const data = getFullDemoData();
+  try {
+    if (data.forms && data.forms.length > 0) {
+      const snap = await getDocs(collection(db, 'medicalForms'));
+      if (snap.empty) {
+        const batch = writeBatch(db);
+        // AMÉLIORATION AJOUTÉE (Phase 1.4) : voir forceReloadDemoData ci-dessus.
+        data.forms.forEach((f) => batch.set(doc(db, 'medicalForms', f.id!), { ...f, createdByUid: auth.currentUser?.uid }));
+        await batch.commit();
+      }
+    }
+  } catch (e) {
+    console.warn('Seed medicalForms fallback notice:', e);
+  }
+};
+
+// === AMÉLIORATION AJOUTÉE : voir le commentaire au-dessus de seedInvoicesIfEmpty — regroupe
+// les collections nécessaires à au moins un écran d'atterrissage par défaut (members,
+// organizations, providers, claims, accounts), appelée immédiatement au login par App.tsx.
+export const seedCoreDataIfEmpty = async () => {
   try {
     const data = getFullDemoData();
 
@@ -532,45 +590,6 @@ export const seedInitialDemoDataIfEmpty = async () => {
       console.warn('Seed claims fallback notice:', e);
     }
 
-    // 5. Invoices
-    try {
-      const snap = await getDocs(collection(db, 'invoices'));
-      if (snap.empty) {
-        const batch = writeBatch(db);
-        data.sampleInvoices.forEach((i) => batch.set(doc(db, 'invoices', i.id!), i));
-        await batch.commit();
-      }
-    } catch (e) {
-      console.warn('Seed invoices fallback notice:', e);
-    }
-
-    // 6. Ceilings
-    try {
-      const snap = await getDocs(collection(db, 'ceilings'));
-      if (snap.empty) {
-        const batch = writeBatch(db);
-        data.sampleCeilings.forEach((c) => batch.set(doc(db, 'ceilings', c.id!), c));
-        await batch.commit();
-      }
-    } catch (e) {
-      console.warn('Seed ceilings fallback notice:', e);
-    }
-
-    // 7. Medical Forms (Empty by request)
-    try {
-      if (data.forms && data.forms.length > 0) {
-        const snap = await getDocs(collection(db, 'medicalForms'));
-        if (snap.empty) {
-          const batch = writeBatch(db);
-          // AMÉLIORATION AJOUTÉE (Phase 1.4) : voir forceReloadDemoData ci-dessus.
-          data.forms.forEach((f) => batch.set(doc(db, 'medicalForms', f.id!), { ...f, createdByUid: auth.currentUser?.uid }));
-          await batch.commit();
-        }
-      }
-    } catch (e) {
-      console.warn('Seed medicalForms fallback notice:', e);
-    }
-
     // 8. Accounts
     try {
       const snap = await getDocs(collection(db, 'accounts'));
@@ -583,8 +602,18 @@ export const seedInitialDemoDataIfEmpty = async () => {
       console.warn('Seed accounts fallback notice:', e);
     }
 
-    console.log('Initial verification and seeding completed successfully.');
+    console.log('Initial verification and seeding completed successfully (core collections).');
   } catch (err) {
     console.warn('Seeding check notice:', err);
   }
+};
+
+// Vérifie/amorce les 8 collections. Conservée pour ses appelants existants (firestore.ts) qui
+// attendent une vérification complète ; App.tsx n'appelle plus CETTE fonction au login (voir
+// seedCoreDataIfEmpty ci-dessus + les 3 fonctions dédiées, appelées seulement à la demande).
+export const seedInitialDemoDataIfEmpty = async () => {
+  await seedCoreDataIfEmpty();
+  await seedInvoicesIfEmpty();
+  await seedCeilingsIfEmpty();
+  await seedMedicalFormsIfEmpty();
 };

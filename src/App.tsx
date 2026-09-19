@@ -27,7 +27,7 @@ import { useNotificationsData } from './hooks/useNotificationsData';
 import { useHealthPoliciesData } from './hooks/useHealthPoliciesData';
 import { usePolicyPaymentsData } from './hooks/usePolicyPaymentsData';
 import { WorkflowService } from './services/workflowService';
-import { seedInitialDemoDataIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
+import { seedCoreDataIfEmpty, seedInvoicesIfEmpty, seedCeilingsIfEmpty, seedMedicalFormsIfEmpty, forceReloadDemoData, getFullDemoData } from './services/seedData';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { SyncIssueBanner } from './components/SyncIssueBanner';
@@ -500,7 +500,13 @@ export default function App() {
     localStorage.setItem('activa_lang', 'en');
 
     if (authStatus === 'authenticated' && userRole) {
-      seedInitialDemoDataIfEmpty();
+      // === AMÉLIORATION AJOUTÉE : performance (revue Qodo, PR perf-login) — `seedCoreDataIfEmpty`
+      // (au lieu de `seedInitialDemoDataIfEmpty`) ne vérifie/amorce que les 5 collections
+      // chargées immédiatement ci-dessous. L'ancienne fonction lisait AUSSI intégralement
+      // invoices/ceilings/medicalForms à chaque connexion (juste pour vérifier si vides), ce qui
+      // annulait l'intérêt de différer leur abonnement — voir seedInvoicesIfEmpty/
+      // seedCeilingsIfEmpty/seedMedicalFormsIfEmpty, appelées plus bas seulement à la demande.
+      seedCoreDataIfEmpty();
       // Set up Firestore data listeners — `assignedOrgs` (null par défaut = comportement
       // inchangé) scope les collections concernées par la Phase 1.3.
       // === AMÉLIORATION AJOUTÉE : performance (retour utilisateur — "le login est lent") ===
@@ -542,25 +548,60 @@ export default function App() {
   const [invoicesNeeded, setInvoicesNeeded] = useState(false);
 
   useEffect(() => {
-    if (currentSection === 'claims' || currentSection === 'members' || currentSection === 'ceilings') {
+    // === AMÉLIORATION AJOUTÉE : correctif (revue Qodo, PR perf-login) — le vidage de l'état
+    // (setCeilings([]) etc., voir plus bas) doit avoir lieu UNE SEULE FOIS, à l'activation
+    // initiale de chaque collection différée — jamais à chaque nouveau rendu de cet effet.
+    // Sans le garde `!xNeeded`, un changement ultérieur sans rapport (ex. `orgScopeKey`, qui
+    // redéclenche les effets d'abonnement plus bas) aurait effacé à tort des données déjà
+    // chargées, provoquant un flash "aucune donnée" visible.
+    if (!ceilingsNeeded && (currentSection === 'claims' || currentSection === 'members' || currentSection === 'ceilings')) {
+      setCeilings([]);
       setCeilingsNeeded(true);
     }
-    if (currentSection === 'claims' || currentSection === 'medical_form') {
+    if (!medicalFormsNeeded && (currentSection === 'claims' || currentSection === 'medical_form')) {
+      setMedicalForms([]);
       setMedicalFormsNeeded(true);
     }
-    if (currentSection === 'invoices' || currentSection === 'receipts' || currentSection === 'reports') {
+    if (!invoicesNeeded && (currentSection === 'invoices' || currentSection === 'receipts' || currentSection === 'reports')) {
+      setInvoices([]);
       setInvoicesNeeded(true);
     }
-  }, [currentSection]);
+  }, [currentSection, ceilingsNeeded, medicalFormsNeeded, invoicesNeeded]);
 
+  // === AMÉLIORATION AJOUTÉE : correctif (revue Qodo, PR perf-login) — ces 3 booléens ne
+  // repassent normalement jamais à `false` (une fois une collection nécessaire, elle reste
+  // chargée). Sans ce reset, un compte qui se déconnecte puis un AUTRE compte qui se connecte
+  // ensuite dans le même onglet (l'app reste montée, `App.tsx` ne se démonte pas) hériterait à
+  // tort du chargement immédiat déclenché par le compte précédent. La déconnexion fait toujours
+  // transiter `authStatus` hors de 'authenticated' avant qu'une nouvelle connexion ne soit
+  // possible, donc ce seul indicateur suffit à détecter un changement de session.
+  useEffect(() => {
+    if (authStatus !== 'authenticated') {
+      setCeilingsNeeded(false);
+      setMedicalFormsNeeded(false);
+      setInvoicesNeeded(false);
+    }
+  }, [authStatus]);
+
+  // === AMÉLIORATION AJOUTÉE : correctif (revue Qodo, PR perf-login) — `setCeilings([])`/
+  // `setMedicalForms([])`/`setInvoices([])` ci-dessus (effet déclenché par `currentSection`)
+  // évitent qu'un écran affiche encore les données de démonstration (calculées au montage,
+  // avant que la collection ne soit nécessaire) comme si c'étaient des données réelles, le
+  // temps que le premier instantané Firestore arrive ici. Le mécanisme de repli hors-ligne
+  // existant (subscribeToCeilings/subscribeToInvoices/subscribeToMedicalForms) réapplique de
+  // toute façon les données de démonstration si la collection est réellement vide ou
+  // inaccessible — ce vidage n'affecte donc que la brève fenêtre d'attente, jamais le cas
+  // hors-ligne.
   useEffect(() => {
     if (authStatus === 'authenticated' && userRole && ceilingsNeeded) {
+      seedCeilingsIfEmpty();
       return FirestoreService.subscribeToCeilings(setCeilings);
     }
   }, [authStatus, userRole, ceilingsNeeded]);
 
   useEffect(() => {
     if (authStatus === 'authenticated' && userRole && medicalFormsNeeded) {
+      seedMedicalFormsIfEmpty();
       return FirestoreService.subscribeToMedicalForms(setMedicalForms, assignedOrgs);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -568,6 +609,7 @@ export default function App() {
 
   useEffect(() => {
     if (authStatus === 'authenticated' && userRole && invoicesNeeded) {
+      seedInvoicesIfEmpty();
       return FirestoreService.subscribeToInvoices(setInvoices, assignedOrgs);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
