@@ -29,7 +29,7 @@ tranchée par vous avant que j'écrive le moindre code de cloisonnement.
 | `organizations/{orgId}` | `isSignedIn()` | `isAdmin()` (write) | idem | idem | — |
 | `providers/{providerId}` | `isSignedIn()` | `isAdmin()` (write) | idem | idem | — |
 | `ceilings/{ceilingId}` | `isSignedIn()` | `isAdmin()` (write) | idem | idem | — |
-| `loginLogs/{logId}` | `isSignedIn() && isAdmin()` | `isSignedIn()` | `false` | `false` | **Règle jamais exploitée par le code** — aucun `addDoc`/`setDoc` vers `loginLogs` trouvé dans `src/`. Collection historique, probablement remplacée par `auditLogs`. |
+| `loginLogs/{logId}` | `isSignedIn() && isAdmin()` | `false` | `false` | `false` | **Règle jamais exploitée par le code** — aucun `addDoc`/`setDoc` vers `loginLogs` trouvé dans `src/`. Collection historique, remplacée par `auditLogs` ; `create` initialement laissé à `isSignedIn()` sans schéma malgré cela, resserré à `false` (durcissement, PR #89). |
 | `auditLogs/{logId}` | `isSignedIn() && (isAdmin()\|\|isSupervisor())` | `if true` | `false` | `false` | Create ouvert **volontairement** : nécessaire pour journaliser un échec de connexion avant authentification (`LoginView.tsx`). Aucun contrôle du contenu écrit (voir section 9). |
 | `notifications/{notificationId}` | `isSignedIn()` | idem (write) | idem | idem | Notifications applicatives internes, pas de PII sensible au-delà du nom du destinataire. |
 | `users/{userId}` | `auth.uid==userId \|\| isAdmin()` | `isAdmin()` (write) | idem | idem | **Collection legacy quasi-morte** : un seul point de lecture (`App.tsx:268`, fallback si `accounts/{uid}` et aucun match n'existent), aucune écriture trouvée dans le code applicatif actuel (seed data ancienne uniquement, voir section 4). |

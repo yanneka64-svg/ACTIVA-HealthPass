@@ -5,7 +5,7 @@ import { extractCardNumberFromQrText } from './qrCodeUtils';
 describe('extractCardNumberFromQrText', () => {
   it('extrait le numéro de carte du format multi-lignes généré par MemberIdCard.tsx', () => {
     const qrText = [
-      'ACTIVA HealthPass — Insured Member',
+      'ACTIVA HealthCare — Insured Member',
       'Name: Amina Diallo',
       'Card No: AMID-2026-0001',
       'Organization: TotalEnergies Liberia Ltd',

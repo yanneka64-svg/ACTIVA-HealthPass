@@ -1074,7 +1074,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ lang, onNavigateToLo
               <button
                 type="button"
                 onClick={() => {
-                  const fullSummary = `ACTIVA HealthPass Credentials:\n- Name: ${credentialDialog.fullName || ''} (${credentialDialog.profile})\n- Username: ${credentialDialog.username || credentialDialog.email}\n- Email: ${credentialDialog.email}\n- Temporary Password: ${credentialDialog.password}\n- Note: User must change password on first login.`;
+                  const fullSummary = `ACTIVA HealthCare Credentials:\n- Name: ${credentialDialog.fullName || ''} (${credentialDialog.profile})\n- Username: ${credentialDialog.username || credentialDialog.email}\n- Email: ${credentialDialog.email}\n- Temporary Password: ${credentialDialog.password}\n- Note: User must change password on first login.`;
                   navigator.clipboard.writeText(fullSummary);
                   setCopiedId('modal-all');
                   showToast(t.accounts.credentialsCopiedToast);

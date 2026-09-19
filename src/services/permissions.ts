@@ -56,7 +56,7 @@ export interface MatrixRow {
 }
 
 /**
- * Recommended ACTIVA HealthPass Entitlements Matrix
+ * Recommended ACTIVA HealthCare Entitlements Matrix
  */
 export const PERMISSIONS_MATRIX: MatrixRow[] = [
   {

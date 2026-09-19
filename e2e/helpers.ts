@@ -170,7 +170,7 @@ export async function submitClaim(page: Page, input: ClaimFormInput): Promise<vo
 
   await page.locator('label:has-text("Principal Insured (Name)") + input').fill(input.principalName);
   await page.locator('label:has-text("Patient Treated (Beneficiary)") + input').fill(input.principalName);
-  await page.locator('label:has-text("HealthPass Card Number") + input').fill(input.cardNumber);
+  await page.locator('label:has-text("HealthCare Card Number") + input').fill(input.cardNumber);
   await page.locator('label:has-text("Attending Physician") + input').fill(input.physicianName);
   await page
     .locator('label:has-text("Approved Healthcare Provider")')

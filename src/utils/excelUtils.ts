@@ -1361,7 +1361,7 @@ export function generateMultiOrgTemplateExcel() {
   const wb = XLSX.utils.book_new();
 
   const instructions = [
-    ['ACTIVA HealthPass — Multi-Organization Import Template (Staff / Deps)'],
+    ['ACTIVA HealthCare — Multi-Organization Import Template (Staff / Deps)'],
     [''],
     ['1. One organization = a PAIR of sheets named EXACTLY:'],
     ['   "<Organization Name> - Staff"  and  "<Organization Name> - Deps"'],
@@ -2407,7 +2407,7 @@ export function generateExecutiveReportPDF(metrics: {
 
   doc.setFontSize(7.5);
   doc.text('CONFIDENTIAL & AUDIT READY', pageWidth - 14, 12, { align: 'right' });
-  doc.text('ACTIVA HealthPass Portal', pageWidth - 14, 18, { align: 'right' });
+  doc.text('ACTIVA HealthCare Portal', pageWidth - 14, 18, { align: 'right' });
 
   // === AMÉLIORATION AJOUTÉE : bandeau logos ACTIVA + Globus (voir pdfBranding.ts) ; comme
   // pour exportReportsToPDF ci-dessus, décaler le point de départ du curseur "currentY"
