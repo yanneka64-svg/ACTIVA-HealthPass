@@ -163,7 +163,7 @@ export function checkMemberEligibility(
 }
 
 /**
- * High-level care eligibility verification engine for ACTIVA HealthPass.
+ * High-level care eligibility verification engine for ACTIVA HealthCare.
  * Evaluates:
  * 1. Organization suspension
  * 2. Principal member suspension

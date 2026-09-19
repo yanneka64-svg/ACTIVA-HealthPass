@@ -86,7 +86,7 @@ export const MemberIdCard: React.FC<MemberIdCardProps> = ({
   useEffect(() => {
     let cancelled = false;
     const qrText = [
-      'ACTIVA HealthPass — Insured Member',
+      'ACTIVA HealthCare — Insured Member',
       `Name: ${fullName}`,
       `Card No: ${cardNo}`,
       `Organization: ${organization}`,

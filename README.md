@@ -1,7 +1,7 @@
-# ACTIVA HealthPass
+# ACTIVA HealthCare
 
 Système d'administration des assurances santé et de gestion des sinistres pour ACTIVA
-HealthPass : enrôlement des assurés, émission de cartes HealthPass, traitement des dossiers
+HealthCare : enrôlement des assurés, émission de cartes HealthCare, traitement des dossiers
 (enrôlements et sinistres) avec séparation des tâches Agent/Superviseur, facturation, et
 suivi des polices par organisation.
 
@@ -81,7 +81,7 @@ règles d'accès pour chacune est dans `firestore.rules` :
 | `accounts` | Comptes utilisateurs internes (Agent/Superviseur/Admin), profil, organisation(s) assignée(s), statut actif. |
 | `organizations` | Organisations clientes (souscripteurs de la police groupe). |
 | `members` | Assurés (principaux et ayants droit) rattachés à une organisation. |
-| `enrollments` | Dossiers d'enrôlement soumis par un Agent, en attente/validés par un Superviseur (émet la carte HealthPass). |
+| `enrollments` | Dossiers d'enrôlement soumis par un Agent, en attente/validés par un Superviseur (émet la carte HealthCare). |
 | `claims` | Sinistres soumis par un Agent, validés par un Superviseur (génère la facture de règlement). |
 | `invoices` | Factures de règlement générées après validation d'un sinistre. |
 | `medicalForms` (+ sous-collection `clinical`) | Formulaires médicaux ; le contenu clinique proprement dit (diagnostic, examens, traitement) vit dans une sous-collection séparée, toujours chiffré côté applicatif (préfixe `encv1:`, fail-closed) — voir `functions/src/encryptionService.ts`. Soumis à une politique de rétention (`src/config/dataRetention.ts`) ; suppression archivée intégralement dans `medicalFormsDeletionArchive` (immuable, lecture Admin uniquement) avant effacement physique. |
@@ -89,7 +89,7 @@ règles d'accès pour chacune est dans `firestore.rules` :
 | `policyPayments` | Historique des paiements de prime par police. |
 | `ceilings` | Plafonds de garantie par organisation et type de soin. |
 | `providers` | Prestataires de santé conventionnés (hôpitaux, cliniques, pharmacies). |
-| `counters` / `cardNumberRegistry` | Séquence et registre d'unicité des numéros de carte HealthPass (écrits uniquement via transaction, voir `src/services/cardNumberService.ts`). |
+| `counters` / `cardNumberRegistry` | Séquence et registre d'unicité des numéros de carte HealthCare (écrits uniquement via transaction, voir `src/services/cardNumberService.ts`). |
 | `auditLogs` | Piste d'audit immuable (create-only, jamais modifiable/supprimable) — actions métier et tentatives de connexion. |
 | `loginLogs` | Collection historique, remplacée par `auditLogs` — plus aucun code n'y écrit ni n'y lit ; fermée à toute écriture (`create`/`update`/`delete: if false`), lecture Admin uniquement sur les documents résiduels éventuels. |
 | `notifications` | Notifications applicatives internes, scopées au destinataire. |

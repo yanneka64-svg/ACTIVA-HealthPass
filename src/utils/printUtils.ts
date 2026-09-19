@@ -140,7 +140,7 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   };
 
   infoRow('Beneficiary Name', invoice.patientName, 'Healthcare Facility', invoice.provider, infoY + 8);
-  infoRow('HealthPass Card No.', invoice.cardNo || invoice.patientPolicyNumber || 'N/A', 'Date of Service', invoice.serviceDate, infoY + 22);
+  infoRow('HealthCare Card No.', invoice.cardNo || invoice.patientPolicyNumber || 'N/A', 'Date of Service', invoice.serviceDate, infoY + 22);
   infoRow('Organization', invoice.organization, 'Prescriber / Practitioner', invoice.prescribingDoctor || 'Medical Staff', infoY + 36);
 
   const infoEndY = infoY + 50;
@@ -203,7 +203,7 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.text(
-    'Guaranteed payment under ACTIVA HealthPass convention',
+    'Guaranteed payment under ACTIVA HealthCare convention',
     20,
     finalY2 + 23
   );
@@ -243,7 +243,7 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    `ACTIVA HealthPass — Official Direct-Settlement Voucher — Reference: ${invoice.reference}`,
+    `ACTIVA HealthCare — Official Direct-Settlement Voucher — Reference: ${invoice.reference}`,
     105,
     285,
     { align: 'center' }
@@ -253,7 +253,7 @@ export function downloadBordereauPDF(invoice: InvoiceItem, lang: Language = 'en'
 }
 
 /**
- * Creates and prints an official ACTIVA HealthPass Coverage Settlement Slip (Bordereau de Prise en Charge)
+ * Creates and prints an official ACTIVA HealthCare Coverage Settlement Slip (Bordereau de Prise en Charge)
  * Using robust fallback mechanisms (Popup Print window -> In-page printing -> Direct PDF automatic generation).
  */
 export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'): void {
@@ -534,7 +534,7 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
                 <span class="info-val">${invoice.patientName}</span>
               </div>
               <div class="info-row">
-                <span class="info-label">HealthPass Card No. :</span>
+                <span class="info-label">HealthCare Card No. :</span>
                 <span class="info-val">${invoice.cardNo || invoice.patientPolicyNumber || 'N/A'}</span>
               </div>
               <div class="info-row">
@@ -594,7 +594,7 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
           <div class="amount-highlight">
             <div>
               <div class="label">Total Net Payable by ACTIVA (${invoice.coveragePercentage}%)</div>
-              <div class="sub">Guaranteed payment under ACTIVA HealthPass convention terms</div>
+              <div class="sub">Guaranteed payment under ACTIVA HealthCare convention terms</div>
             </div>
             <div class="value">${formatCurrency(getBreakdownRows(invoice).reduce((sum, row) => sum + row.covered, 0))}</div>
           </div>
@@ -617,7 +617,7 @@ export function printBordereauSlip(invoice: InvoiceItem, lang: Language = 'en'):
 
         <div class="footer">
           <img class="footer-logo" src="${GLOBUS_LOGO_BASE64}" alt="Globus" style="aspect-ratio: ${GLOBUS_LOGO_ASPECT};" />
-          ACTIVA Insurance — HealthPass Official Direct-Settlement Document — Digitally verified via Biometrics & Policy Registry
+          ACTIVA Insurance — HealthCare Official Direct-Settlement Document — Digitally verified via Biometrics & Policy Registry
         </div>
       </body>
     </html>

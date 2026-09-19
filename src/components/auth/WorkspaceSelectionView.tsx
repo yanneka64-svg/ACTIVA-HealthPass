@@ -111,7 +111,7 @@ export const WorkspaceSelectionView: React.FC<WorkspaceSelectionViewProps> = ({
 
         <div className="relative z-10">
           <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] tracking-tight login-anim-slide-left login-anim-delay-2">
-            {t.auth.heroGreetingLine1}<br />ACTIVA HealthPass!
+            {t.auth.heroGreetingLine1}<br />ACTIVA HealthCare!
           </h1>
           <p className="mt-5 text-sm xl:text-[15px] text-[#EAF2FF]/90 font-medium leading-relaxed max-w-sm login-anim-slide-left login-anim-delay-3">
             {t.auth.heroDescription}

@@ -28,7 +28,7 @@ export const ACTIVA_HEART_ICON_ASPECT = 427 / 344;
 // sur le fichier logo transmis par l'utilisateur ("ACTIVA" et le slogan sont un bleu plus
 // clair, "HealthPass" un navy plus foncé — deux teintes distinctes, pas un dégradé).
 const ACTIVA_BLUE = '#0546AF'; // couleur exacte de "ACTIVA" et du slogan, échantillonnée sur le logo fourni
-const HEALTHPASS_NAVY = '#0A2F6D'; // couleur exacte de "HealthPass", échantillonnée sur le logo fourni
+const HEALTHCARE_NAVY = '#0A2F6D'; // couleur exacte de "HealthCare" (ex-"HealthPass"), échantillonnée sur le logo fourni
 const TAGLINE_GREEN = '#00A651'; // puces vertes du slogan, cohérent avec la croix de l'emblème
 
 // === AMÉLIORATION AJOUTÉE : correctif logo (retour utilisateur, 2026-09-11 — "quand je me
@@ -39,7 +39,7 @@ const TAGLINE_GREEN = '#00A651'; // puces vertes du slogan, cohérent avec la cr
 const LOGO_FONT_STACK = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 /**
- * Isolated Medical Heart + Green Cross Icon (official ACTIVA HealthPass emblem)
+ * Isolated Medical Heart + Green Cross Icon (official ACTIVA HealthCare emblem)
  */
 export const LogoIcon: React.FC<{ className?: string; size?: number | string }> = ({
   className = 'w-8 h-8',
@@ -47,7 +47,7 @@ export const LogoIcon: React.FC<{ className?: string; size?: number | string }> 
   return (
     <img
       src="/activa-heart-icon.png"
-      alt="ACTIVA HealthPass Emblem"
+      alt="ACTIVA HealthCare Emblem"
       className={`${className} flex-shrink-0 block object-contain select-none`}
       draggable={false}
     />
@@ -55,8 +55,9 @@ export const LogoIcon: React.FC<{ className?: string; size?: number | string }> 
 };
 
 /**
- * "ACTIVA HealthPass" wordmark + optional tagline, rendered as scalable SVG text in the two
- * exact colors sampled from the provided logo (bright blue "ACTIVA" / navy "HealthPass").
+ * "ACTIVA HealthCare" wordmark + optional tagline, rendered as scalable SVG text in the two
+ * exact colors sampled from the provided logo (bright blue "ACTIVA" / navy "HealthCare",
+ * renamed from "HealthPass" — see AMÉLIORATION AJOUTÉE comment above for the original sampling).
  */
 const WordmarkSvg: React.FC<{ className?: string; showTagline?: boolean }> = ({
   className = 'h-9',
@@ -99,7 +100,7 @@ const WordmarkSvg: React.FC<{ className?: string; showTagline?: boolean }> = ({
     viewBox={showTagline ? '0 0 256 56' : '0 0 256 40'}
     className={`${className} w-auto max-w-full block`}
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="ACTIVA HealthPass"
+    aria-label="ACTIVA HealthCare"
     preserveAspectRatio="xMidYMid meet"
   >
     <defs>
@@ -112,11 +113,11 @@ const WordmarkSvg: React.FC<{ className?: string; showTagline?: boolean }> = ({
             fill: ${ACTIVA_BLUE};
             letter-spacing: -0.2px;
           }
-          .logo-healthpass-title {
+          .logo-healthcare-title {
             font-family: ${LOGO_FONT_STACK};
             font-weight: 700;
             font-size: 21px;
-            fill: ${HEALTHPASS_NAVY};
+            fill: ${HEALTHCARE_NAVY};
             letter-spacing: -0.3px;
           }
           .logo-tagline-text {
@@ -131,7 +132,7 @@ const WordmarkSvg: React.FC<{ className?: string; showTagline?: boolean }> = ({
     </defs>
     <text x="0" y="30">
       <tspan className="logo-activa-bold">ACTIVA</tspan>
-      <tspan dx="5" className="logo-healthpass-title">HealthPass</tspan>
+      <tspan dx="5" className="logo-healthcare-title">HealthCare</tspan>
     </text>
     {showTagline && (
       <g transform="translate(1, 47)">
@@ -169,8 +170,8 @@ export const MiniLogo: React.FC<{
             <span className="font-extrabold text-xs sm:text-sm tracking-tight font-sans" style={{ color: ACTIVA_BLUE }}>
               ACTIVA
             </span>
-            <span className="font-bold text-[11px] sm:text-xs font-sans" style={{ color: HEALTHPASS_NAVY }}>
-              HealthPass
+            <span className="font-bold text-[11px] sm:text-xs font-sans" style={{ color: HEALTHCARE_NAVY }}>
+              HealthCare
             </span>
           </div>
           <div className="flex items-center gap-1 text-[10px] font-semibold tracking-wide mt-0.5" style={{ color: ACTIVA_BLUE }}>
@@ -236,8 +237,8 @@ export const Logo: React.FC<LogoProps> = ({
           <span className="font-black text-sm sm:text-base tracking-tight" style={{ color: ACTIVA_BLUE }}>
             ACTIVA
           </span>
-          <span className="font-bold text-xs sm:text-sm" style={{ color: HEALTHPASS_NAVY }}>
-            HealthPass
+          <span className="font-bold text-xs sm:text-sm" style={{ color: HEALTHCARE_NAVY }}>
+            HealthCare
           </span>
         </div>
       </div>
@@ -274,8 +275,8 @@ export const Logo: React.FC<LogoProps> = ({
               <span className="font-black text-xs sm:text-sm tracking-tight" style={{ color: ACTIVA_BLUE }}>
                 ACTIVA
               </span>
-              <span className="font-bold text-[11px] sm:text-xs" style={{ color: HEALTHPASS_NAVY }}>
-                HealthPass
+              <span className="font-bold text-[11px] sm:text-xs" style={{ color: HEALTHCARE_NAVY }}>
+                HealthCare
               </span>
             </div>
             {showTagline && (

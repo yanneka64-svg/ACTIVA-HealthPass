@@ -218,7 +218,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 
   res.json({
     status: overall,
-    service: 'ACTIVA HealthPass API & Continuity Gateway',
+    service: 'ACTIVA HealthCare API & Continuity Gateway',
     timestamp: new Date().toISOString(),
     version: '2.0.0',
     checks,
@@ -655,7 +655,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    logger.info({ port: PORT }, 'ACTIVA HealthPass full-stack server running');
+    logger.info({ port: PORT }, 'ACTIVA HealthCare full-stack server running');
   });
 }
 

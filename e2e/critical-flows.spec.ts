@@ -30,7 +30,7 @@ const ENROLLED_CARD_NO = 'E2ECR1T1CAL';
 let generatedCardNumber: string | null = null;
 let claimReference: string | null = null;
 
-test.describe('Parcours critiques ACTIVA HealthPass', () => {
+test.describe('Parcours critiques ACTIVA HealthCare', () => {
   test('1. Création de carte : un Agent enrôle un bénéficiaire et un numéro de carte est généré', async ({
     page,
   }) => {
