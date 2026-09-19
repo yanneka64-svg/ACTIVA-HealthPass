@@ -476,53 +476,70 @@ app.post('/api/claims/validate-coverage', requireAuth, async (req: Request, res:
 });
 
 // === AMÉLIORATION AJOUTÉE : sécurité — validation/nettoyage stricts avant écriture Firestore ===
-// Constat : la route ci-dessous construisait `entry` à partir de `{...req.body, ...}` — chaque
-// champ envoyé par le client, quel qu'il soit, atterrissait tel quel dans Firestore (aucune
-// vérification de type, de longueur, ni de la liste des champs acceptés). Cette route reste
-// accessible SANS authentification (voir plus bas), donc n'importe qui pouvait faire écrire des
-// documents arbitraires dans `auditLogs`. Schéma miroir des formes déjà utilisées par le seul
-// écrivain réel de cette collection aujourd'hui (`firestore.ts` → `addLog`, types `AuditLog`/
-// `LoginLog`/`AuditLogEntry` de src/types/index.ts) : mêmes champs, mêmes noms — aucun
-// changement de forme pour un appelant légitime, seulement un refus net (400) de tout champ non
-// déclaré, d'un mauvais type, ou dépassant une longueur raisonnable. `ip`/`ipAddress`/
-// `userAgent`/`userId` restent acceptés en entrée (un appelant historique peut les envoyer) mais,
-// comme avant, systématiquement réécrits par les valeurs vérifiées côté serveur ci-dessous.
-// === AMÉLIORATION AJOUTÉE (revue Qodo, PR #88) === deux corrections : (1) `ipAddress` — champ
-// réellement déclaré par `LoginLog` (src/types/index.ts) mais absent du schéma initial ; avec
-// `.strict()`, tout appelant envoyant cette forme légitime aurait été rejeté à tort. (2) `.refine`
-// ci-dessous — sans lui, `{}` (aucun champ) passait la validation et produisait une entrée
-// d'audit vide (juste les métadonnées serveur), alors que les deux formes réelles (`LoginLog` via
-// `status`, `AuditLog`/`AuditLogEntry` via `action`) portent toujours l'un des deux.
-const auditLogEntrySchema = z
+// Constat initial : la route ci-dessous construisait `entry` à partir de `{...req.body, ...}` —
+// chaque champ envoyé par le client, quel qu'il soit, atterrissait tel quel dans Firestore.
+// Cette route reste accessible SANS authentification par conception (voir plus bas — elle doit
+// pouvoir journaliser un échec de connexion avant authentification), donc n'importe qui pouvait
+// faire écrire des documents arbitraires dans `auditLogs`.
+// === AMÉLIORATION AJOUTÉE (revue CodeRabbit, PR #88) === schéma entièrement repensé en DEUX
+// formes strictes, miroir EXACT des deux seules formes que `firestore.rules` valide déjà pour
+// une écriture cliente directe dans `auditLogs` (voir isPreAuthLoginLogValid/
+// isBusinessAuditLogValid, match /auditLogs/{logId}) — et des seuls appels réels à
+// `FirestoreService.addLog()` dans tout le dépôt (vérifié exhaustivement : LoginView.tsx,
+// App.tsx `handleLoginSuccess`, workflowService.ts, ReportsView.tsx, ClaimsView.tsx,
+// MembersView.tsx). Cette route utilise le SDK Admin, qui CONTOURNE firestore.rules — elle doit
+// donc réappliquer elle-même exactement les mêmes garanties de forme ET d'identité, sans quoi
+// elle serait un moyen de contourner des protections que le chemin client normal impose déjà.
+const preAuthLoginLogSchema = z
   .object({
+    userEmail: z.string().trim().max(320).optional(),
+    ipAddress: z.string().max(64).optional(),
+    status: z.enum(['success', 'failed']),
+    userAgent: z.string().max(512).optional(),
+    browser: z.string().trim().max(200).optional(),
+    location: z.string().trim().max(200).optional(),
     timestamp: z.string().max(64).optional(),
-    status: z.enum(['success', 'failed']).optional(),
-    action: z.string().trim().min(1).max(200).optional(),
-    module: z.string().trim().max(100).optional(),
-    category: z.string().trim().max(100).optional(),
-    details: z.string().trim().max(2000).optional(),
-    user: z.string().trim().max(320).optional(),
+  })
+  .strict();
+
+const businessAuditLogSchema = z
+  .object({
     userId: z.string().trim().max(128).optional(),
     userName: z.string().trim().max(200).optional(),
     userRole: z.string().trim().max(100).optional(),
-    userEmail: z.string().trim().max(320).optional(),
-    username: z.string().trim().max(200).optional(),
-    profile: z.string().trim().max(100).optional(),
-    browser: z.string().trim().max(200).optional(),
-    lastLogin: z.string().trim().max(64).optional(),
-    location: z.string().trim().max(200).optional(),
+    action: z.string().trim().min(1).max(200),
+    category: z.string().trim().min(1).max(200),
     entityId: z.string().trim().max(200).optional(),
     entityType: z.string().trim().max(100).optional(),
-    severity: z.enum(['INFO', 'WARNING', 'ERROR', 'CRITICAL']).optional(),
-    integrityHash: z.string().trim().max(200).optional(),
-    ip: z.string().max(64).optional(),
-    ipAddress: z.string().max(64).optional(),
-    userAgent: z.string().max(512).optional(),
+    details: z.string().trim().max(2000).optional(),
+    timestamp: z.string().max(64).optional(),
   })
-  .strict()
-  .refine((data) => typeof data.action === 'string' || typeof data.status === 'string', {
-    message: 'At least one of "action" or "status" is required to identify the audited event.',
-  });
+  .strict();
+
+// === AMÉLIORATION AJOUTÉE (revue CodeRabbit, PR #88) === même stratégie de résolution de rôle
+// déjà établie et documentée dans functions/src/index.ts (resolveUserRole) : claim `role` du
+// jeton en priorité (jamais réellement posée dans ce projet à ce jour — voir ce même fichier),
+// puis repli sur `accounts/{uid}.profile` (le champ réellement utilisé partout ailleurs —
+// AccountsView.tsx, firestore.rules `getUserData().profile`). Ne fait JAMAIS confiance à un
+// `userRole` déclaré par le client dans le corps de la requête : contrairement à `userId`, déjà
+// toujours lié au jeton vérifié ci-dessous, un `userRole` non vérifié permettrait à n'importe
+// quel agent authentifié de se faire passer pour 'Admin' dans sa propre piste d'audit.
+async function resolveVerifiedUserRole(uid: string, tokenRole: unknown): Promise<string> {
+  if (tokenRole === 'Admin' || tokenRole === 'Supervisor' || tokenRole === 'Agent') {
+    return tokenRole;
+  }
+  try {
+    const accSnap = await getFirestore().doc(`accounts/${uid}`).get();
+    if (accSnap.exists) {
+      const data = accSnap.data() || {};
+      return data.profile || data.role || 'Agent';
+    }
+  } catch {
+    // Repli silencieux — cette route ne doit jamais échouer pour la seule raison qu'elle ne
+    // peut pas déterminer un libellé de rôle pour l'entrée d'audit.
+  }
+  return 'Agent';
+}
 
 // === AMÉLIORATION AJOUTÉE : sécurité (Phase 1.7/2.3) — cette route renvoyait auparavant
 // {success:true, entry:{...}} SANS JAMAIS RIEN ÉCRIRE (ni Firestore, ni fichier) : un pur
@@ -533,11 +550,45 @@ const auditLogEntrySchema = z
 // échec de connexion avant authentification (voir LoginView.tsx) ; aucun appelant existant
 // (apiClient.ts est mort) — aucune régression possible.
 app.post('/api/audit/log', auditLogRateLimiter, async (req: Request, res: Response) => {
-  const parsed = auditLogEntrySchema.safeParse(req.body);
-  if (!parsed.success) {
+  // === AMÉLIORATION AJOUTÉE (revue CodeRabbit, PR #88) === la vérification du jeton doit
+  // précéder la validation de forme : seule une requête authentifiée peut prétendre à la forme
+  // "action métier" (miroir de `isSignedIn() && isBusinessAuditLogValid(...)` dans
+  // firestore.rules) — une requête non authentifiée ne peut produire qu'un journal de connexion.
+  let verifiedUid: string | null = null;
+  let verifiedRoleClaim: unknown = null;
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (token && !adminInitError) {
+    try {
+      const decoded = await getAuth().verifyIdToken(token);
+      verifiedUid = decoded.uid;
+      verifiedRoleClaim = (decoded as { role?: unknown }).role ?? null;
+    } catch {
+      // Invalid/expired token: proceed anonymously — this endpoint must also support
+      // pre-authentication events (e.g. failed login attempts).
+    }
+  }
+
+  const loginResult = preAuthLoginLogSchema.safeParse(req.body);
+  const businessResult = verifiedUid ? businessAuditLogSchema.safeParse(req.body) : undefined;
+
+  let isBusinessShape = false;
+  let parsedData: z.infer<typeof preAuthLoginLogSchema> | z.infer<typeof businessAuditLogSchema>;
+  if (loginResult.success) {
+    parsedData = loginResult.data;
+  } else if (businessResult?.success) {
+    parsedData = businessResult.data;
+    isBusinessShape = true;
+  } else {
     return res.status(400).json({
-      error: 'Invalid audit log payload.',
-      details: parsed.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`),
+      error:
+        'Invalid audit log payload — must match either a pre-authentication login record, or (when authenticated) a business action record.',
+      details: [
+        ...loginResult.error.issues.map((issue) => `login shape — ${issue.path.join('.') || '(root)'}: ${issue.message}`),
+        ...(businessResult && !businessResult.success
+          ? businessResult.error.issues.map((issue) => `business shape — ${issue.path.join('.') || '(root)'}: ${issue.message}`)
+          : []),
+      ],
     });
   }
 
@@ -547,31 +598,25 @@ app.post('/api/audit/log', auditLogRateLimiter, async (req: Request, res: Respon
   const clientIp = req.ip || req.socket.remoteAddress;
   const userAgent = req.headers['user-agent'];
 
-  let verifiedUid: string | null = null;
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (token && !adminInitError) {
-    try {
-      verifiedUid = (await getAuth().verifyIdToken(token)).uid;
-    } catch {
-      // Invalid/expired token: log anonymously rather than reject — this endpoint must also
-      // support pre-authentication events (e.g. failed login attempts).
-    }
-  }
-
-  const entry = {
-    ...parsed.data,
-    userId: verifiedUid || parsed.data.userId || 'anonymous',
+  const entry: Record<string, unknown> = {
+    ...parsedData,
+    // === AMÉLIORATION AJOUTÉE (revue CodeRabbit, PR #88) === `userId` n'est plus JAMAIS pris
+    // depuis le corps de la requête, authentifiée ou non — uniquement le jeton vérifié, ou
+    // 'anonymous'. Auparavant, un appelant non authentifié pouvait s'attribuer n'importe quel
+    // `userId` de son choix.
+    userId: verifiedUid || 'anonymous',
     serverTimestamp: new Date().toISOString(),
     ip: clientIp,
-    // === AMÉLIORATION AJOUTÉE (revue Qodo, PR #88) === `ipAddress` (nom de champ réellement
-    // utilisé par `LoginLog`) réécrit ici au même titre que `ip`, pour la même raison : ne
-    // jamais laisser un client imposer sa propre valeur pour un champ destiné à porter une
-    // adresse vérifiée côté serveur.
+    // `ipAddress` (nom de champ réellement utilisé par la forme "connexion") réécrit ici au
+    // même titre que `ip`, pour la même raison : ne jamais laisser un client imposer sa propre
+    // valeur pour un champ destiné à porter une adresse vérifiée côté serveur.
     ipAddress: clientIp,
     userAgent,
     verifiedServerSide: true,
   };
+  if (isBusinessShape && verifiedUid) {
+    entry.userRole = await resolveVerifiedUserRole(verifiedUid, verifiedRoleClaim);
+  }
 
   if (adminInitError) {
     return res.status(503).json({ error: 'Server-side audit logging is not configured (Admin SDK unavailable).' });
