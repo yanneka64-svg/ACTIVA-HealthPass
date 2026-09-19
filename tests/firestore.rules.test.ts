@@ -621,6 +621,36 @@ describe('Phase 2.3 — audit trail : create pré-authentification restreint à 
   });
 });
 
+// === AMÉLIORATION AJOUTÉE : sécurité (durcissement, suite PR #88) === `loginLogs` est une
+// collection orpheline (aucun appel dans src/ ni functions/src/, remplacée par `auditLogs`) dont
+// la règle `create: if isSignedIn()` n'avait jamais été resserrée après cette migration —
+// n'importe quel utilisateur authentifié pouvait y écrire un document de forme arbitraire.
+// Fermée entièrement (voir firestore.rules).
+describe('Durcissement — loginLogs : collection orpheline, désormais fermée à toute écriture', () => {
+  function anon() {
+    return testEnv.unauthenticatedContext().firestore();
+  }
+
+  it('un utilisateur non authentifié NE PEUT PAS écrire dans loginLogs (REFUS)', async () => {
+    await assertFails(
+      addDoc(collection(anon(), 'loginLogs'), {
+        userEmail: 'someone@example.com',
+        status: 'failed',
+      })
+    );
+  });
+
+  it('un utilisateur authentifié NE PEUT PAS non plus écrire dans loginLogs (REFUS)', async () => {
+    await seedAccount('loginLogsUser', { profile: 'Admin' });
+    await assertFails(
+      addDoc(collection(asUser('loginLogsUser'), 'loginLogs'), {
+        userEmail: 'someone@example.com',
+        status: 'success',
+      })
+    );
+  });
+});
+
 // === AMÉLIORATION AJOUTÉE : Phase 3, revue de gouvernance des données de santé (2026-09-05,
 // section 2.1) — séparation identité/contenu clinique. Le contenu clinique des NOUVEAUX
 // formulaires médicaux vit désormais dans le document séparé

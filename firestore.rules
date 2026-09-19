@@ -554,10 +554,19 @@ service cloud.firestore {
     }
 
     // loginLogs & auditLogs (append-only, immutable)
+    // === AMÉLIORATION AJOUTÉE : sécurité (durcissement, suite PR #88) ===
+    // Constat : `allow create: if isSignedIn()` acceptait N'IMPORTE QUEL champ et N'IMPORTE
+    // QUELLE valeur de la part de tout utilisateur authentifié, sans aucun schéma imposé — même
+    // trou que celui déjà corrigé sur `auditLogs` ci-dessous (voir isPreAuthLoginLogValid/
+    // isBusinessAuditLogValid). Vérification exhaustive (grep sur src/, functions/src/) :
+    // AUCUN code de ce dépôt ne lit ni n'écrit jamais dans cette collection — elle a été
+    // remplacée par `auditLogs` (voir LogsView.tsx, FirestoreService.addLog) sans que cette
+    // ancienne règle, devenue orpheline, soit resserrée en conséquence. Fermée entièrement
+    // (comme `update`/`delete` le sont déjà) plutôt que de lui donner un schéma qu'aucun
+    // appelant réel ne viendrait jamais satisfaire.
     match /loginLogs/{logId} {
       allow read: if isSignedIn() && isAdmin();
-      allow create: if isSignedIn();
-      allow update, delete: if false;
+      allow create, update, delete: if false;
     }
 
     // === AMÉLIORATION AJOUTÉE : sécurité (Phase 2.3 — audit trail structuré) ===
