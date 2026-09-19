@@ -50,7 +50,7 @@ export const AuthLoadingScreen: React.FC<AuthLoadingScreenProps> = ({
 
         {/* Footnote */}
         <div className="mt-4 text-center text-xs text-[#778FAF] font-medium">
-          © 2026 ACTIVA Insurance Group. All rights reserved.
+          © 2026 ACTIVA Group. All rights reserved.
         </div>
       </div>
 

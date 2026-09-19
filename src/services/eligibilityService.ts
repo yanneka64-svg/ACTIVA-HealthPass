@@ -15,7 +15,18 @@ export interface EligibilityResult {
  */
 export function calculateAge(birthDateStr?: string): number {
   if (!birthDateStr) return 0;
-  const birth = new Date(birthDateStr);
+  // === AMÉLIORATION AJOUTÉE : correctif (revue CodeRabbit, PR #90) — une date au format
+  // YYYY-MM-DD (format de `birthDate` dans toute l'application) est interprétée par
+  // `new Date(string)` comme minuit UTC, alors que le calcul ci-dessous lit les champs
+  // (année/mois/jour) de `today` en heure LOCALE : dans un fuseau UTC négatif, la date de
+  // naissance pouvait ainsi "reculer" d'un jour et décaler l'âge calculé d'un an au moment de
+  // l'anniversaire. On la construit ici explicitement en calendrier local pour rester cohérent
+  // avec la lecture de `today`, quel que soit le fuseau d'exécution. Les autres formats de
+  // date (ISO complet, etc.) gardent l'ancien comportement, inchangé.
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDateStr);
+  const birth = dateOnlyMatch
+    ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
+    : new Date(birthDateStr);
   if (isNaN(birth.getTime())) return 0;
   const today = new Date();
   let age = today.getFullYear() - birth.getFullYear();

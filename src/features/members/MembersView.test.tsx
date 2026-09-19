@@ -7,10 +7,10 @@
 // transactionnelle Firestore réelle) est mocké pour ne jamais toucher un backend réel dans ce
 // test — seule sa signature d'appel/résolution est simulée, sa logique de format
 // (isValidCardNumberFormat/normalizeCardNumber) reste réelle.
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MembersView } from './MembersView';
-import { Organization } from '../../types';
+import { Member, Organization, Ceiling } from '../../types';
 
 vi.mock('../../services/cardNumberService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../services/cardNumberService')>();
@@ -98,5 +98,78 @@ describe('MembersView — formulaire Créer/Modifier un assuré (react-hook-form
       relationship: 'Principal',
       status: 'Actif',
     });
+  });
+});
+
+// === AMÉLIORATION AJOUTÉE : correctif (revue Qodo, PR #90) — preuve reproductible que la
+// mémoïsation ajoutée à eligibilityByMemberId (perf) n'introduit pas un badge "Age limit
+// exceeded" obsolète : le passage d'un jour calendaire à l'autre (franchissement d'un
+// anniversaire), SANS aucun changement de `members`/`ceilings`, doit toujours faire réapparaître
+// un badge devenu correct.
+describe('MembersView — badge "Age limit exceeded" reste à jour au passage de minuit (correctif Qodo, PR #90)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("affiche le badge dès que l'assuré principal franchit la limite d'âge par défaut (65 ans), sans changement de `members`/`ceilings`", async () => {
+    // Né le 15 janvier 1960 : a 65 ans (pas encore 66) le 14 janvier 2026, puis 66 ans le 15.
+    vi.setSystemTime(new Date('2026-01-14T12:00:00Z'));
+
+    // === AMÉLIORATION AJOUTÉE : correctif (revue Qodo, PR #90) — `ceilings` DOIT être passé
+    // explicitement et avec une référence stable ici. `MembersView` déclare `ceilings = []`
+    // comme valeur par défaut : si la prop n'est pas fournie, chaque nouveau rendu (y compris
+    // celui déclenché par l'intervalle horaire ci-dessous) recrée un tableau `[]` totalement
+    // nouveau, ce qui invaliderait le cache `eligibilityByMemberId` à CHAQUE rendu — masquant
+    // ainsi un vrai bug de mémoïsation obsolète au lieu de le révéler. En production, `App.tsx`
+    // fournit toujours `ceilings` depuis un état stable (abonnement Firestore), donc ce risque
+    // ne s'y pose pas — mais le test doit reproduire une référence stable pour être probant.
+    const testCeilings: Ceiling[] = [];
+
+    const principal: Member = {
+      id: 'm1',
+      cardNo: 'A1B2C3D4E5F',
+      principalName: 'Old Principal',
+      children: [],
+      birthDate: '1960-01-15',
+      relationship: 'Principal',
+      organization: 'TotalEnergies Liberia Ltd',
+      status: 'Actif',
+      hasPhoto: false,
+      hasBiometrics: false,
+      createdAt: '2026-01-01T00:00:00Z',
+    } as Member;
+
+    render(
+      <MembersView
+        lang="en"
+        members={[principal]}
+        organizations={[]}
+        ceilings={testCeilings}
+        onAddMember={vi.fn()}
+        onUpdateMember={vi.fn()}
+        onDeleteMember={vi.fn()}
+        onImportMembers={vi.fn()}
+      />
+    );
+
+    // 65 ans, limite par défaut 65 ans (65 > 65 est faux) : pas encore de badge.
+    expect(screen.queryByText(/Age limit exceeded/)).not.toBeInTheDocument();
+
+    // Passage au 15 janvier 2026 (66e anniversaire) — aucune prop ne change, seule l'horloge
+    // avance. L'intervalle horaire du composant doit détecter le changement de jour calendaire.
+    // `waitFor` n'est pas utilisable ici : son polling interne repose lui aussi sur des timers,
+    // désormais falsifiés par `vi.useFakeTimers()` — on avance donc explicitement le temps FAUX
+    // (`advanceTimersByTime`, qui fait à la fois avancer l'horloge fictive ET déclencher les
+    // callbacks planifiés dedans, dont l'intervalle horaire du composant) puis on flushe le
+    // re-rendu React qui en résulte via `act`, avant d'asserter de façon synchrone.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(25 * 60 * 60 * 1000);
+    });
+
+    expect(screen.getByText(/Age limit exceeded \(66 yrs > Limit 65 yrs\)/)).toBeInTheDocument();
   });
 });

@@ -54,11 +54,6 @@ export const WebcamCaptureModal: React.FC<WebcamCaptureModalProps> = ({
         throw new Error('Webcam / Camera API is not supported on this browser.');
       }
 
-      // Check available video devices
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
-      setHasMultipleCameras(videoDevices.length > 1);
-
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: mode,
@@ -76,6 +71,25 @@ export const WebcamCaptureModal: React.FC<WebcamCaptureModalProps> = ({
         videoRef.current.play().catch((e) => {
           console.warn('Video playback error:', e);
         });
+      }
+
+      // === AMÉLIORATION AJOUTÉE : correctif (demande explicite, 2026-09-19 — "seule la
+      // caméra avant est actionnée") — l'énumération des périphériques se faisait AVANT
+      // la toute première autorisation caméra ; à ce moment-là, plusieurs navigateurs
+      // (notamment mobiles) ne remontent pas encore un décompte fiable des caméras
+      // disponibles (labels/deviceId vides tant qu'aucune permission n'a jamais été
+      // accordée pour cette origine), ce qui pouvait masquer à tort le bouton de bascule
+      // avant/arrière dès la première ouverture. On réénumère ici, une fois la permission
+      // obtenue, pour détecter fiablement une caméra arrière.
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+        setHasMultipleCameras(videoDevices.length > 1);
+      } catch {
+        // Non bloquant, mais on réinitialise explicitement : sans cela, un échec d'énumération
+        // APRÈS un premier succès (ex. au moment de basculer de caméra) laisserait le bouton de
+        // bascule affiché à tort sur la base d'un état obsolète (revue CodeRabbit).
+        setHasMultipleCameras(false);
       }
     } catch (err: any) {
       console.error('Camera access error:', err);
