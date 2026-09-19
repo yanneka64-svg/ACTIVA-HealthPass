@@ -75,6 +75,13 @@ export const getRelationshipBadgeClass = (rel: string): string => {
   return 'bg-slate-100 text-slate-700 border-slate-200';
 };
 
+// === AMÉLIORATION AJOUTÉE : correctif (revue CodeRabbit, PR #90) — un `[]` inline comme valeur
+// par défaut d'une prop optionnelle est recréé à CHAQUE rendu quand l'appelant omet `ceilings`,
+// ce qui invaliderait `eligibilityByMemberId` (voir plus bas) à chaque rendu au lieu de
+// seulement quand `ceilings` change réellement. Une constante stable au niveau module évite ce
+// problème sans changer le comportement (toujours un tableau vide par défaut).
+const EMPTY_CEILINGS: Ceiling[] = [];
+
 interface MembersViewProps {
   userRole?: string;
   lang: Language;
@@ -99,7 +106,7 @@ export const MembersView: React.FC<MembersViewProps> = ({ userRole = 'Admin',
   lang,
   members,
   organizations,
-  ceilings = [],
+  ceilings = EMPTY_CEILINGS,
   onAddMember,
   onUpdateMember,
   onDeleteMember,
