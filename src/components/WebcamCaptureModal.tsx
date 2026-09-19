@@ -86,7 +86,10 @@ export const WebcamCaptureModal: React.FC<WebcamCaptureModalProps> = ({
         const videoDevices = devices.filter((d) => d.kind === 'videoinput');
         setHasMultipleCameras(videoDevices.length > 1);
       } catch {
-        // Non bloquant : le bouton de bascule reste simplement masqué si l'énumération échoue.
+        // Non bloquant, mais on réinitialise explicitement : sans cela, un échec d'énumération
+        // APRÈS un premier succès (ex. au moment de basculer de caméra) laisserait le bouton de
+        // bascule affiché à tort sur la base d'un état obsolète (revue CodeRabbit).
+        setHasMultipleCameras(false);
       }
     } catch (err: any) {
       console.error('Camera access error:', err);
