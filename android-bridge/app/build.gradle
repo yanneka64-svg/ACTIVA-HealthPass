@@ -1,0 +1,56 @@
+// === AMÉLIORATION AJOUTÉE : ébauche non testée (2026-09-22) — voir README.md à la racine de
+// android-bridge/. compileSdk/minSdk/targetSdk et le mécanisme `api fileTree(...)` pour le .aar
+// sont repris tels quels du projet source MidX fourni par l'utilisateur (build.gradle réel du
+// terminal, confirmé — pas une supposition) ; le reste (applicationId, dépendances) est propre
+// à cette coquille, volontairement réduite au strict nécessaire (WebView + SDK empreinte), sans
+// les modules NFC/UHF/reconnaissance faciale du projet de référence, hors sujet ici.
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.activa.healthpass.bridge'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.activa.healthpass.bridge"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "0.1.0-sketch"
+        // Le terminal FP08 (MidX) est arm64-v8a — voir build.gradle du projet source.
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    sourceSets {
+        main {
+            // === AMÉLIORATION AJOUTÉE : le .aar réel n'est PAS commité dans ce dépôt (binaire
+            // tiers, licence fabricant non clarifiée) — à copier ici avant tout build réel :
+            //   android-bridge/app/libs/libNewHFFingerSDK_v3.0.4_c9.aar
+            // (depuis le projet source MidX fourni par l'utilisateur, même chemin relatif).
+            jniLibs.srcDir 'libs'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // Le SDK d'empreinte HFSecurity — voir la note sourceSets ci-dessus, fichier absent de ce
+    // dépôt tant qu'il n'est pas copié depuis le projet source MidX.
+    api fileTree(include: ['*.aar', '*.jar'], dir: 'libs')
+
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.webkit:webkit:1.11.0'
+}

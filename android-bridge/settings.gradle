@@ -1,0 +1,20 @@
+// === AMÉLIORATION AJOUTÉE : ébauche non testée (2026-09-22) — voir README.md à la racine de
+// android-bridge/ pour le statut complet. Config alignée sur le projet source MidX fourni par
+// l'utilisateur (mêmes dépôts de plugins/dépendances).
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "activa-healthpass-hf-bridge"
+include ':app'
