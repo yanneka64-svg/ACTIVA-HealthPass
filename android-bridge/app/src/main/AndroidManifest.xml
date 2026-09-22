@@ -16,14 +16,17 @@
         android:name="android.hardware.usb.host"
         android:required="true" />
 
-    <!-- === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-22) — pas d'attribut
-         android:icon ici : ce dépôt ne contient aucun dossier res/ ni ressource
-         @mipmap/ic_launcher (aucune image n'a été fabriquée pour cette ébauche non compilée).
-         Le référencer aurait fait échouer la liaison des ressources dès le premier build réel.
-         À ajouter (app/src/main/res/mipmap-*/) avant tout packaging — voir README.md, "Ce qui
-         manque encore pour un vrai build". -->
+    <!-- === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-22) — @mipmap/ic_launcher est
+         fourni à la fois en icône adaptative (res/mipmap-anydpi-v26/, API 26+) ET en repli
+         raster par densité (res/mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher*.png, API 24-25 — minSdk
+         est 24 dans app/build.gradle ; sans ce repli, ces appareils affichaient une icône
+         générique au lieu du placeholder ACTIVA, signalé par la revue automatisée). Même design
+         simple (placeholder, pas une charte graphique définitive) que les fichiers .xml sous
+         res/drawable/ — voir le détail et l'avertissement là-bas. -->
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="ACTIVA HealthPass Bridge"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
         android:usesCleartextTraffic="false">

@@ -25,9 +25,11 @@ import com.hfteco.finger.FingerSDK;
  */
 public class MainActivity extends AppCompatActivity {
 
-    // === AMÉLIORATION AJOUTÉE : placeholder — à remplacer par l'URL réelle de déploiement
-    // d'ACTIVA HealthPass avant tout build réel (voir README.md, section "Ce qui manque encore").
-    private static final String WEBAPP_URL = "https://REPLACE-WITH-ACTIVA-HEALTHPASS-DEPLOY-URL.example/";
+    // === AMÉLIORATION AJOUTÉE : URL de production confirmée par l'utilisateur (2026-09-22) —
+    // remplace le placeholder. C'est aussi l'origine à laquelle shouldOverrideUrlLoading()
+    // ci-dessous restreint la navigation ; toute autre valeur ici doit être approuvée avec le
+    // même soin (voir le commentaire de sécurité juste en dessous).
+    private static final String WEBAPP_URL = "https://activahealthcare.netlify.app/";
 
     private WebView webView;
     private FingerSDK fingerSDK;
