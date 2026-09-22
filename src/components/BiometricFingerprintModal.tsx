@@ -21,7 +21,10 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
   subtitle = 'Suprema / Morpho FAP-20 USB certified optical biometric reader',
   autoStart = true,
 }) => {
-  const [selectedFinger, setSelectedFinger] = useState<'right_index' | 'left_index' | 'right_thumb' | 'left_thumb'>('right_index');
+  // === AMÉLIORATION AJOUTÉE : prise d'empreinte limitée au pouce (demande explicite,
+  // 2026-09-22) — les index (right_index/left_index) sont retirés du sélecteur ; seuls les
+  // deux pouces restent proposés.
+  const [selectedFinger, setSelectedFinger] = useState<'right_thumb' | 'left_thumb'>('right_thumb');
   const [sensorStatus, setSensorStatus] = useState<'idle' | 'ready' | 'capturing' | 'success' | 'error'>('idle');
   const [progress, setProgress] = useState<number>(0);
   const [qualityScore, setQualityScore] = useState<number>(0);
@@ -133,10 +136,10 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
               Select Biometric Finger
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {/* === AMÉLIORATION AJOUTÉE : prise d'empreinte limitée au pouce (demande explicite,
+                2026-09-22) — right_index/left_index retirés, seuls les pouces restent. */}
+            <div className="grid grid-cols-2 gap-2">
               {[
-                { id: 'right_index', label: 'Right Index' },
-                { id: 'left_index', label: 'Left Index' },
                 { id: 'right_thumb', label: 'Right Thumb' },
                 { id: 'left_thumb', label: 'Left Thumb' },
               ].map((item) => (
