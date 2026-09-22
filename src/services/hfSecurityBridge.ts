@@ -74,8 +74,15 @@ export interface FingerprintCaptureResult {
    * Score de qualité 0-100 (équivalent NFIQ) attendu par ce contrat. Non confirmé disponible
    * directement depuis `FingerSDK.captureBytes(...)` — voir le commentaire d'API en tête de
    * fichier ("⚠️ Score de qualité") : sa source exacte côté SDK natif reste à déterminer.
+   *
+   * === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-22) — rendu optionnel plutôt que
+   * fabriqué. Tant que la source native du score n'est pas confirmée (voir README.md
+   * d'android-bridge/), une coquille honnête ne peut pas fournir cette valeur ; un champ
+   * obligatoire aurait forcé soit une valeur inventée soit un rejet systématique de toute
+   * capture réelle par `isValidCaptureResult` ci-dessous (ni l'un ni l'autre n'est acceptable).
+   * L'appelant (BiometricFingerprintModal.tsx) applique déjà son propre repli d'affichage.
    */
-  score: number;
+  score?: number;
   /**
    * Template biométrique encodé — format exact (ANSI 378 vs ISO 19794-2/-4) déterminé par le
    * `FingerSDK.TEMPLEATES` choisi côté natif au moment de `captureBytes(...)` (voir le
@@ -107,11 +114,12 @@ const CAPTURE_TIMEOUT_MS = 30_000;
 function isValidCaptureResult(value: unknown): value is FingerprintCaptureResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
+  // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-22) — `score` est optionnel (voir
+  // FingerprintCaptureResult.score ci-dessus) : absent/null accepté, mais s'il est présent il
+  // doit rester dans les bornes 0-100 comme avant.
   return (
-    typeof v.score === 'number' &&
-    Number.isFinite(v.score) &&
-    v.score >= 0 &&
-    v.score <= 100 &&
+    (v.score === undefined || v.score === null ||
+      (typeof v.score === 'number' && Number.isFinite(v.score) && v.score >= 0 && v.score <= 100)) &&
     typeof v.template === 'string' &&
     v.template.length > 0 &&
     typeof v.finger === 'string' &&

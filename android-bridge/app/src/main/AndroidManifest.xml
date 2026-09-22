@@ -16,9 +16,14 @@
         android:name="android.hardware.usb.host"
         android:required="true" />
 
+    <!-- === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-22) — pas d'attribut
+         android:icon ici : ce dépôt ne contient aucun dossier res/ ni ressource
+         @mipmap/ic_launcher (aucune image n'a été fabriquée pour cette ébauche non compilée).
+         Le référencer aurait fait échouer la liaison des ressources dès le premier build réel.
+         À ajouter (app/src/main/res/mipmap-*/) avant tout packaging — voir README.md, "Ce qui
+         manque encore pour un vrai build". -->
     <application
         android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"
         android:label="ACTIVA HealthPass Bridge"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
         android:usesCleartextTraffic="false">

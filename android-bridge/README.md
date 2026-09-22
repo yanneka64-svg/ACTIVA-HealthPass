@@ -114,6 +114,11 @@ principal, pas ici).
   MidX fourni par l'utilisateur avant tout `./gradlew build`.
 - Résoudre le point ouvert du score de qualité ci-dessus.
 - Remplacer l'URL chargée par la `WebView` (`MainActivity.WEBAPP_URL`) par l'URL réelle de
-  déploiement d'ACTIVA HealthPass.
+  déploiement d'ACTIVA HealthPass — `MainActivity` restreint déjà la navigation principale à
+  l'origine HTTPS de cette URL (revue automatisée, 2026-09-22), donc la remplacer est le SEUL
+  changement requis pour que cette restriction cible le bon domaine.
+- Icône de lancement (`app/src/main/res/mipmap-*/ic_launcher.*`) — aucune ressource n'est fournie
+  ici (voir le commentaire dans `AndroidManifest.xml`) ; la résolution des ressources échouera
+  sans elle.
 - Build, installation et test sur un vrai terminal FP08 — rien de tout cela n'a pu être vérifié
   depuis cet environnement.

@@ -88,7 +88,10 @@ export const BiometricFingerprintModal: React.FC<BiometricFingerprintModalProps>
           if (activeCaptureRef.current !== handle) return; // capture annulée/remplacée entre-temps
           activeCaptureRef.current = null;
           setProgress(100);
-          setQualityScore(result.score);
+          // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-22) — `result.score` est
+          // désormais optionnel côté contrat natif (voir hfSecurityBridge.ts) ; le repli
+          // `qualityScore || 96` de handleConfirm ci-dessous gère déjà l'affichage dans ce cas.
+          setQualityScore(result.score ?? 0);
           setCapturedTemplate(result.template);
           setCapturedFinger(requestedFinger);
           setSensorStatus('success');

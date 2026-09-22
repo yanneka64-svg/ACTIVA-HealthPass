@@ -27,15 +27,42 @@ public class HFSecurityJsBridge {
     private final WebView webView;
     private final FingerSDK fingerSDK;
 
+    // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-22) — l'interface JS est installée
+    // dans MainActivity dès onCreate(), avant que l'init asynchrone de FingerSDK (callback
+    // OnSdkInitListener) n'ait pu réussir ou échouer. Sans ce suivi, `captureFingerprint`
+    // considérait `fingerSDK != null` (vrai dès la construction) comme suffisant et appelait
+    // captureBytes sur un SDK potentiellement pas encore prêt, voire jamais initialisé avec
+    // succès — la page web le détectait comme "disponible" et désactivait son repli simulé pour
+    // un capteur en réalité inutilisable. `setReady`/`setInitFailed` sont appelés par
+    // MainActivity depuis OnSdkInitListener.
+    private volatile boolean sdkReady = false;
+    private volatile String initError = null;
+
     public HFSecurityJsBridge(WebView webView, FingerSDK fingerSDK) {
         this.webView = webView;
         this.fingerSDK = fingerSDK;
+    }
+
+    public void setReady() {
+        sdkReady = true;
+        initError = null;
+    }
+
+    public void setInitFailed(String message) {
+        sdkReady = false;
+        initError = message;
     }
 
     @JavascriptInterface
     public void captureFingerprint(String requestId, String finger) {
         if (fingerSDK == null) {
             callError(requestId, "FingerSDK non initialisé");
+            return;
+        }
+        if (!sdkReady) {
+            callError(requestId, initError != null
+                    ? "Échec d'initialisation du capteur : " + initError
+                    : "Capteur pas encore prêt (initialisation FingerSDK en cours)");
             return;
         }
 
@@ -76,8 +103,15 @@ public class HFSecurityJsBridge {
     }
 
     private void callSuccess(String requestId, String resultJson) {
+        // === AMÉLIORATION AJOUTÉE : revue automatisée (2026-09-22) — `__hfSecurityCaptureCallback`
+        // déclare et parse son second argument comme une CHAÎNE JSON (`JSON.parse(resultJson)`
+        // côté hfSecurityBridge.ts), pas comme un littéral objet JS. Interpoler `resultJson` tel
+        // quel produisait `callback("id", {"template":...})` — un objet, pas une chaîne — donc
+        // JSON.parse échouait systématiquement même sur une capture réussie. `JSONObject.quote`
+        // échappe le JSON en une chaîne JS valide, cohérent avec callError ci-dessous qui
+        // quote déjà `message` de la même façon.
         String js = "window.__hfSecurityCaptureCallback && window.__hfSecurityCaptureCallback("
-                + JSONObject.quote(requestId) + "," + resultJson + ");";
+                + JSONObject.quote(requestId) + "," + JSONObject.quote(resultJson) + ");";
         webView.post(() -> webView.evaluateJavascript(js, null));
     }
 
