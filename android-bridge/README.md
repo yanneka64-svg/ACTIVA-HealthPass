@@ -113,12 +113,14 @@ principal, pas ici).
   (binaire tiers, 1,9 Mo, licence du fabricant non clarifiée) : à copier depuis le projet source
   MidX fourni par l'utilisateur avant tout `./gradlew build`.
 - Résoudre le point ouvert du score de qualité ci-dessus.
-- Remplacer l'URL chargée par la `WebView` (`MainActivity.WEBAPP_URL`) par l'URL réelle de
-  déploiement d'ACTIVA HealthPass — `MainActivity` restreint déjà la navigation principale à
-  l'origine HTTPS de cette URL (revue automatisée, 2026-09-22), donc la remplacer est le SEUL
-  changement requis pour que cette restriction cible le bon domaine.
-- Icône de lancement (`app/src/main/res/mipmap-*/ic_launcher.*`) — aucune ressource n'est fournie
-  ici (voir le commentaire dans `AndroidManifest.xml`) ; la résolution des ressources échouera
-  sans elle.
+- ~~Remplacer l'URL chargée par la `WebView`~~ — fait (2026-09-22) : `MainActivity.WEBAPP_URL`
+  pointe désormais vers `https://activahealthcare.netlify.app/`, confirmée par l'utilisateur comme
+  l'URL de production ; c'est aussi l'origine à laquelle la navigation principale est restreinte
+  (voir le commentaire de sécurité dans `MainActivity.java`).
+- ~~Icône de lancement~~ — fait (2026-09-22) : icône adaptative vectorielle fournie
+  (`res/mipmap-anydpi-v26/ic_launcher.xml` + `res/drawable/ic_launcher_*.xml`), simple placeholder
+  fonctionnel (pas une charte graphique définitive) qui couvre API 26+. `minSdk` étant 24, une
+  icône raster de repli pour API 24-25 (`res/mipmap-hdpi/`, etc.) resterait recommandée avant un
+  vrai déploiement, mais son absence ne bloque plus la liaison des ressources au build.
 - Build, installation et test sur un vrai terminal FP08 — rien de tout cela n'a pu être vérifié
   depuis cet environnement.
