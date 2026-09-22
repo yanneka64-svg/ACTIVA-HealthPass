@@ -32,10 +32,9 @@ android {
 
     sourceSets {
         main {
-            // === AMÉLIORATION AJOUTÉE : le .aar réel n'est PAS commité dans ce dépôt (binaire
-            // tiers, licence fabricant non clarifiée) — à copier ici avant tout build réel :
-            //   android-bridge/app/libs/libNewHFFingerSDK_v3.0.4_c9.aar
-            // (depuis le projet source MidX fourni par l'utilisateur, même chemin relatif).
+            // === AMÉLIORATION AJOUTÉE : libs/libNewHFFingerSDK_v3.0.4_c9.aar est commité
+            // (2026-09-22, sur demande explicite — voir l'avertissement de licence en tête de
+            // README.md : le projet source qui le fournit ne contient aucun fichier de licence).
             jniLibs.srcDir 'libs'
         }
     }
@@ -47,8 +46,7 @@ android {
 }
 
 dependencies {
-    // Le SDK d'empreinte HFSecurity — voir la note sourceSets ci-dessus, fichier absent de ce
-    // dépôt tant qu'il n'est pas copié depuis le projet source MidX.
+    // Le SDK d'empreinte HFSecurity — voir la note sourceSets ci-dessus.
     api fileTree(include: ['*.aar', '*.jar'], dir: 'libs')
 
     implementation 'androidx.appcompat:appcompat:1.6.1'

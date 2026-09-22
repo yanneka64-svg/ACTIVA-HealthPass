@@ -3,9 +3,15 @@
 ## Statut
 
 **Ébauche (sketch), pas un projet Android fonctionnel.** Écrit sans toolchain Android
-disponible dans cet environnement (pas de Gradle/JDK Android, pas d'émulateur, pas d'accès au
-`.aar` du SDK dans ce dépôt) — jamais compilé, jamais exécuté, jamais testé sur un vrai
-terminal. À reprendre dans Android Studio avant toute mise en production.
+disponible dans cet environnement (pas de Gradle/JDK Android, pas d'émulateur) — jamais compilé,
+jamais exécuté, jamais testé sur un vrai terminal. À reprendre dans Android Studio avant toute
+mise en production.
+
+⚠️ **Licence du `.aar` non clarifiée** — `app/libs/libNewHFFingerSDK_v3.0.4_c9.aar` (binaire
+tiers du fabricant HFSecurity) est commité dans ce dépôt sur demande explicite de l'utilisateur
+(2026-09-22), bien que le projet source qui le fournit ne contienne aucun fichier de licence (son
+seul `README.md` : `#MidX`). Risque IP/légal assumé consciemment plutôt que découvert — à
+clarifier avec HFSecurity avant toute distribution publique de l'application compilée.
 
 ## Ce que c'est
 
@@ -109,9 +115,8 @@ principal, pas ici).
 
 ## Ce qui manque encore pour un vrai build
 
-- `app/libs/libNewHFFingerSDK_v3.0.4_c9.aar` — le `.aar` réel n'est **pas** commité ici
-  (binaire tiers, 1,9 Mo, licence du fabricant non clarifiée) : à copier depuis le projet source
-  MidX fourni par l'utilisateur avant tout `./gradlew build`.
+- ~~`app/libs/libNewHFFingerSDK_v3.0.4_c9.aar`~~ — fait (2026-09-22) : le `.aar` réel est
+  désormais commité (voir l'avertissement sur sa licence en tête de ce document).
 - Résoudre le point ouvert du score de qualité ci-dessus.
 - ~~Remplacer l'URL chargée par la `WebView`~~ — fait (2026-09-22) : `MainActivity.WEBAPP_URL`
   pointe désormais vers `https://activahealthcare.netlify.app/`, confirmée par l'utilisateur comme
