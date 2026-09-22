@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    === AMÉLIORATION AJOUTÉE : ébauche non testée (2026-09-22) — voir README.md à la racine de
+    android-bridge/ pour le statut complet et les sources de chaque valeur ci-dessous.
+
+    android.hardware.usb.host : présent dans le manifest du projet source MidX fourni par
+    l'utilisateur, et cohérent avec les méthodes privées observées par décompilation du .aar
+    (checkUsbDevices(), setupFingerDevice(), fingerprintPower(boolean)) — le SDK FingerSDK gère
+    lui-même la communication USB avec le capteur, cette coquille n'a rien à faire elle-même
+    côté USB au-delà de déclarer la feature/permission.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="true" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="ACTIVA HealthPass Bridge"
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name="com.activa.healthpass.bridge.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

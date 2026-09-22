@@ -4,10 +4,57 @@
 // navigateur de piloter directement son capteur — l'intégration réelle nécessite une petite
 // application Android ("coquille") qui embarque cette app web dans une WebView, utilise le SDK
 // natif HFSecurity pour piloter le capteur, et expose un pont JavaScript (window.HFSecurityBridge)
-// que cette page appelle. Ce fichier définit CE contrat côté web, prêt à être branché dès que la
-// documentation du SDK HFSecurity (non disponible à ce jour) permettra d'écrire la coquille
-// Android correspondante. Tant qu'aucun pont n'est détecté, BiometricFingerprintModal.tsx
-// continue d'utiliser sa capture simulée existante — comportement strictement inchangé.
+// que cette page appelle. Ce fichier définit CE contrat côté web. Tant qu'aucun pont n'est
+// détecté, BiometricFingerprintModal.tsx continue d'utiliser sa capture simulée existante —
+// comportement strictement inchangé.
+//
+// === AMÉLIORATION AJOUTÉE : API native confirmée (2026-09-22) — l'utilisateur a fourni le
+// projet source Android de référence du terminal ("MidX", com.hf.newmidx), qui embarque
+// littéralement le SDK visé ici : `MidX/app/libs/libNewHFFingerSDK_v3.0.4_c9.aar`, utilisé par
+// `MidX/app/src/main/java/com/hf/newmidx/fingerprint/FingerPrintWithDBActivity.java`. La classe
+// `com.hfteco.finger.FingerSDK` de ce .aar a en outre été décompilée (javap) pour confirmer les
+// signatures exactes au-delà de ce que ce seul écran de démo utilise. Contrat natif confirmé,
+// qu'une future coquille Android devra brancher sur le pont JavaScript défini ci-dessous :
+//   - Classe : `com.hfteco.finger.FingerSDK`.
+//   - Init : `new FingerSDK(Activity, OnSdkInitListener)` — callback asynchrone
+//     `initResult(int code, String message)` ; succès = `code == FingerSDK.RESULT_OK`.
+//   - Cycle de vie : `fingerSDK.launch()` à la reprise de l'activité hôte, `fingerSDK.release()`
+//     à sa mise en pause — à faire correspondre au cycle de vie de la WebView de la coquille.
+//   - Capture : `fingerSDK.captureBytes(FingerSDK.TEMPLEATES type, OnCaptureBytesListener)` →
+//     callback `capture(int code, byte[] bytes, Bitmap image, byte[] template)` (signature
+//     confirmée par décompilation, `OnCaptureBytesListener.class`). `type` sélectionne le FORMAT
+//     du template — valeurs confirmées de l'enum `FingerSDK.TEMPLEATES` : `GAT_1012_2019`,
+//     `ISO_19794_2_2005`, `ISO_19794_2_2011`, `ANSI_378_2004`, `ANSI_378_2009`, `ISO_On_card` —
+//     PAS quel doigt est scanné : le SDK natif n'a aucune notion de "doigt", c'est une convention
+//     purement applicative (déjà comment ce fichier gère `finger` — voir plus bas).
+//   - ⚠️ Score de qualité — PAS disponible directement : la signature confirmée de
+//     `OnCaptureBytesListener.capture(int, byte[], Bitmap, byte[])` ne porte aucun paramètre de
+//     score. `FingerSDK` a un champ privé `MIN_MINUTIAE_COUNT` et une méthode privée `capture()`
+//     distincte (donc inaccessibles depuis la coquille), ce qui suggère qu'un score/nombre de
+//     minuties existe en interne au SDK sans être exposé par cet appel public. Piste à explorer
+//     avant de finaliser la coquille : le premier paramètre `byte[] bytes` du callback (distinct
+//     du dernier `byte[] template`) encode peut-être une image brute porteuse d'une info de
+//     qualité, à instrumenter/logguer sur un vrai capteur — sinon contacter le support HFSecurity.
+//     `isValidCaptureResult` ci-dessous exige `score` 0-100 : la coquille devra soit dériver cette
+//     valeur d'une source confirmée, soit ce champ devra être rendu optionnel côté contrat web.
+//   - Vérification/correspondance : `fingerSDK.compareTemplateBytes(TEMPLEATES, byte[], byte[])`
+//     → un score entier (usage différent de la capture : compare DEUX templates déjà capturés).
+//     L'app de référence utilise un seuil `score > 80` pour déclarer une correspondance ; plage
+//     exacte (0-100 ? 0-1000 ?) non confirmée par la décompilation seule — à vérifier sur un vrai
+//     capteur. Il existe aussi `compareBitmap(Bitmap, Bitmap)`, une variante non explorée ici.
+//   - Encodage du template : l'app de référence convertit `byte[] template` en `String` via
+//     l'encodage ISO8859-1 pour le stocker dans sa propre base. Pour LE TRANSPORT JSON à travers
+//     le pont JS (`resultJson` ci-dessous), préférer un encodage **base64** du même `byte[]` —
+//     ISO8859-1 peut produire des caractères de contrôle non sûrs à embarquer tels quels dans une
+//     chaîne JSON, alors que base64 est le choix standard pour transporter un blob binaire en JSON.
+//   - Le SDK gère lui-même la communication avec le capteur physique interne (méthodes privées
+//     `checkUsbDevices()`/`setupFingerDevice()`/`fingerprintPower(boolean)` observées par
+//     décompilation) — cohérent avec le manifeste de l'app de référence qui déclare
+//     `<uses-feature android:name="android.hardware.usb.host" android:required="true" />` : la
+//     coquille Android devra probablement déclarer la même feature.
+// Ce qui reste réellement à écrire : la coquille Android elle-même (projet séparé, hors de ce
+// dépôt web — voir android-bridge/ à la racine du repo pour une ébauche non testée, qui documente
+// aussi le point ouvert du score de qualité ci-dessus).
 
 /** Référence exacte du capteur physique visé par cette intégration. */
 export const HF_SECURITY_DEVICE_INFO = {
@@ -23,9 +70,19 @@ export const HF_SECURITY_DEVICE_INFO = {
 } as const;
 
 export interface FingerprintCaptureResult {
-  /** Score de qualité 0-100 (équivalent NFIQ) renvoyé par le SDK HFSecurity. */
+  /**
+   * Score de qualité 0-100 (équivalent NFIQ) attendu par ce contrat. Non confirmé disponible
+   * directement depuis `FingerSDK.captureBytes(...)` — voir le commentaire d'API en tête de
+   * fichier ("⚠️ Score de qualité") : sa source exacte côté SDK natif reste à déterminer.
+   */
   score: number;
-  /** Template biométrique encodé (format exact à confirmer avec la doc SDK — ANSI 378 attendu). */
+  /**
+   * Template biométrique encodé — format exact (ANSI 378 vs ISO 19794-2/-4) déterminé par le
+   * `FingerSDK.TEMPLEATES` choisi côté natif au moment de `captureBytes(...)` (voir le
+   * commentaire d'API en tête de fichier). Encodage texte recommandé pour ce champ : **base64**
+   * du `byte[] template` renvoyé par le SDK, pas l'ISO8859-1 utilisé en interne par l'app de
+   * référence HFSecurity (non garanti JSON-safe).
+   */
   template: string;
   finger: string;
 }

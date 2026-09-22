@@ -1,0 +1,4 @@
+// === AMÉLIORATION AJOUTÉE : ébauche non testée (2026-09-22) — voir README.md.
+plugins {
+    id 'com.android.application' version '8.5.0' apply false
+}
